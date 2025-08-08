@@ -1,0 +1,2 @@
+CREATE INDEX "interactions_contact_timeline_idx" ON "interactions" USING btree ("contact_id","occurred_at" desc);--> statement-breakpoint
+CREATE INDEX "raw_events_provider_timeline_idx" ON "raw_events" USING btree ("provider","occurred_at");

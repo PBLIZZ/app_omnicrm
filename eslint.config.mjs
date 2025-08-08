@@ -1,6 +1,6 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { FlatCompat } from '@eslint/eslintrc';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -10,17 +10,13 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
-  ...compat.extends("plugin:@typescript-eslint/recommended", "prettier"),
+  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...compat.extends('prettier'),
   {
-    plugins: {
-      "@typescript-eslint": await import("@typescript-eslint/eslint-plugin"),
-      "unused-imports": await import("eslint-plugin-unused-imports"),
-    },
     rules: {
-      "@typescript-eslint/no-explicit-any": ["warn", { ignoreRestArgs: true }],
-      "unused-imports/no-unused-imports": "error",
-      "no-console": ["warn", { allow: ["warn", "error"] }],
+      '@typescript-eslint/no-explicit-any': ['warn', { ignoreRestArgs: true }],
+      '@typescript-eslint/no-unused-vars': 'error',
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
 ];

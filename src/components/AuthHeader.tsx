@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 export default function AuthHeader() {
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    supabaseBrowser.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    getSupabaseBrowser()
+      .auth.getUser()
+      .then(({ data }) => setEmail(data.user?.email ?? null));
   }, []);
 
   return (
@@ -19,7 +21,11 @@ export default function AuthHeader() {
             <span>{email}</span>
             <button
               className="px-2 py-1 border rounded"
-              onClick={() => supabaseBrowser.auth.signOut().then(() => location.reload())}
+              onClick={() =>
+                getSupabaseBrowser()
+                  .auth.signOut()
+                  .then(() => location.reload())
+              }
             >
               Sign out
             </button>

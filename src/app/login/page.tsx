@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+
+export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -11,7 +13,7 @@ export default function LoginPage() {
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    const { error } = await supabaseBrowser.auth.signInWithOtp({ email });
+    const { error } = await getSupabaseBrowser().auth.signInWithOtp({ email });
     if (error) setErr(error.message);
     else setSent(true);
   }

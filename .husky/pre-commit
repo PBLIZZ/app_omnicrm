@@ -1,1 +1,26 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Block adding any usage of `drizzle-kit push` in automation (scripts/CI/Docker)
+# Allow references in docs (*.md), SQL, and tests
+
+set -e
+
+if git grep -n -E 'drizzle-kit\s+push' -- \
+  ':!*.md' \
+  ':!*.sql' \
+  ':!**/__tests__/**' \
+  ':!pnpm-lock.yaml' \
+  ':!yarn.lock' \
+  > /dev/null
+then
+  echo "\n✖ Blocked: Found forbidden 'drizzle-kit push' in repo (outside docs/tests)." >&2
+  echo "   Remove it from scripts/CI/Docker or use migrations instead." >&2
+  echo "\nMatches:" >&2
+  git grep -n -E 'drizzle-kit\s+push' -- ':!*.md' ':!*.sql' ':!**/__tests__/**' ':!pnpm-lock.yaml' ':!yarn.lock' | sed 's/^/  /' >&2
+  exit 1
+fi
+
+exit 0
+
 pnpm exec lint-staged

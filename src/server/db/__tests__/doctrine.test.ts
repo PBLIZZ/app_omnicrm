@@ -34,7 +34,11 @@ describe("DATABASE_DOCTRINE compliance", () => {
       "cp drizzle_app/relations.ts src/server/db/relations.introspected.ts",
     );
     expect(pkg.scripts["db:gen"]).toBe("drizzle-kit generate");
-    expect(pkg.scripts["db:push"]).toBe("drizzle-kit push");
+    // Ensure no script runs drizzle-kit push
+    const scriptValues = Object.values(pkg.scripts ?? {});
+    for (const script of scriptValues) {
+      expect(String(script)).not.toMatch(/drizzle-kit\s+push/);
+    }
   });
 
   it("ESLint flat config ignores generated drizzle folders", () => {

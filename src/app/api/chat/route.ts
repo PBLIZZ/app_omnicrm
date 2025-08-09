@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { withGuardrails } from "@/server/ai/with-guardrails";
+import { chatRequestSchema } from "./schema";
 // import your OpenRouter client here
 
 export async function POST(req: NextRequest) {
@@ -10,7 +11,14 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const prompt = String(body?.prompt ?? "");
+  const parsed = chatRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "invalid_body", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+  const { prompt } = parsed.data;
 
   const result = await withGuardrails(userId, async () => {
     // === PLACEHOLDER LLM CALL ===

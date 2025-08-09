@@ -51,6 +51,124 @@ This checklist consolidates all tasks from the planning documents into a single,
 
 ---
 
+## PHASE 0.5: SAFETY, QUALITY, CI & OBSERVABILITY (2-4 HRS)
+
+### 0.5.1 TypeScript Strict + ESLint + Prettier
+
+- [x] [AGENT] Enable TypeScript strict mode in `tsconfig.json`:
+  - `"strict": true`
+  - `"noUncheckedIndexedAccess": true`
+  - `"noImplicitOverride": true`
+  - `"noPropertyAccessFromIndexSignature": true`
+  - `"exactOptionalPropertyTypes": true`
+  - `"noUnusedLocals": true`
+  - `"noUnusedParameters": false`
+- [x] [AGENT] Configure ESLint with Next.js core web vitals + TypeScript rules
+- [x] [AGENT] Install and configure Prettier with sensible defaults
+- [x] [AGENT] Install unused-imports ESLint plugin for cleanup
+- [x] [HUMAN] Commit: "chore(lint): enable TS strict, ESLint, Prettier"
+
+### 0.5.2 Unit Tests (Vitest + RTL) & E2E (Playwright)
+
+- [x] [AGENT] Install testing dependencies:
+
+  ```bash
+  pnpm add -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom @vitest/coverage-v8
+  pnpm add -D @playwright/test
+  ```
+
+- [x] [AGENT] Configure Vitest with jsdom environment and coverage
+- [x] [AGENT] Create `vitest.setup.ts` with testing-library/jest-dom
+- [x] [AGENT] Add example unit test at `src/app/__tests__/health.test.tsx`
+- [x] [AGENT] Configure Playwright with webServer pointing to dev server
+- [x] [AGENT] Create example E2E test for health endpoint at `e2e/health.spec.ts`
+- [x] [AGENT] Add npm scripts: `test`, `test:watch`, `e2e`, `typecheck`, `lint`, `format`
+- [x] [HUMAN] Commit: "test: add vitest + playwright baselines"
+
+### 0.5.3 Git Hooks (Husky + lint-staged + commitlint)
+
+- [x] [AGENT] Install and initialize Husky:
+
+  ```bash
+  pnpm add -D husky lint-staged @commitlint/config-conventional @commitlint/cli
+  pnpm exec husky init
+  ```
+
+- [x] [AGENT] Configure commitlint with conventional commits
+- [x] [AGENT] Set up lint-staged for TypeScript and JSON files
+- [x] [AGENT] Create pre-commit hook to run lint-staged
+- [x] [AGENT] Create commit-msg hook to run commitlint
+- [x] [HUMAN] Commit: "chore(git): husky + lint-staged + commitlint"
+
+### 0.5.4 GitHub Actions (CI)
+
+- [x] [AGENT] Create `.github/workflows/ci.yml` with jobs:
+  - Install dependencies with pnpm
+  - Run typecheck, lint, unit tests, E2E tests
+  - Use Node 20 and pnpm cache
+  - Trigger on push to main and pull requests
+- [x] [AGENT] Create `.github/workflows/codeql.yml` for security scanning:
+  - JavaScript/TypeScript analysis
+  - Weekly scheduled runs
+  - Proper permissions for security events
+- [x] [HUMAN] Commit and push: "ci: add CI and CodeQL workflows"
+
+### 0.5.5 Docker (Local Dev)
+
+- [x] [AGENT] Create `Dockerfile.dev` with Node 20 Alpine:
+  - Install Playwright dependencies for E2E in container
+  - Set up pnpm and install dependencies
+  - Expose port 3000 for development
+- [x] [AGENT] Create `docker-compose.yml`:
+  - Mount source code with node_modules volume
+  - Configure environment variables from `.env.local`
+- [x] [HUMAN] Test Docker setup: `docker compose up --build`
+- [x] [HUMAN] Commit: "chore(docker): add dev Dockerfile and compose"
+
+### 0.5.6 Security & Headers (Fast Wins)
+
+- [x] [AGENT] Create `src/middleware.ts` with basic security headers:
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Referrer-Policy: no-referrer`
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+- [x] [AGENT] Add `.npmrc` with `engine-strict=true` to prevent lockfile drift
+- [x] [HUMAN] Commit: "chore(security): add baseline headers and engine strict"
+
+### 0.5.7 Observability (Zero-Cost Baseline)
+
+- [x] [AGENT] Install and configure Pino logger:
+
+  ```bash
+  pnpm add pino pino-pretty
+  ```
+
+- [x] [AGENT] Create `src/server/log.ts` with pretty transport for development
+- [x] [AGENT] Add simple error boundary at `src/app/error.tsx`
+- [x] [AGENT] Add pnpm audit step to CI (non-blocking warning)
+- [x] [AGENT] Ensure `.env*.` is properly gitignored and `.env.example` is up to date
+- [x] [HUMAN] Commit: "chore(obs): add basic logger and error boundary"
+
+### 0.5.8 Guardian Checks (Safety Rails)
+
+- [x] [AGENT] Add npm audit check to CI workflow (non-blocking)
+- [x] [AGENT] Verify environment variable hygiene (gitignore, example file)
+- [x] [AGENT] Add basic input validation examples using Zod
+- [x] [HUMAN] Commit: "chore(security): audit step and env hygiene"
+
+**Definition of Done (Phase 0.5):**
+
+- [x] TypeScript strict enabled; ESLint + Prettier configured
+- [x] Unit tests (Vitest) and E2E (Playwright) run locally and in CI
+- [x] Git hooks enforce lint/format + conventional commit messages
+- [x] GitHub Actions CI runs: typecheck, lint, unit, e2e, audit
+- [x] CodeQL security scanning enabled
+- [x] Optional Docker dev environment works
+- [x] Security headers in place; structured logging available
+- [x] All quality gates pass before moving to database foundation
+
+---
+
 ## PHASE 1: DATABASE FOUNDATION
 
 ### 1.1 Package Installation
@@ -140,26 +258,117 @@ This checklist consolidates all tasks from the planning documents into a single,
 
 ## PHASE 4: GOOGLE INTEGRATION (MVP - READ-ONLY)
 
-### 4.1 Google OAuth Setup
+### 4.1 Google API Setup & Configuration
 
-- [ ] [HUMAN] Create Google Cloud project and OAuth credentials
-- [ ] [AGENT] Configure Google OAuth with read-only scopes:
-  - `gmail.readonly`
-  - `calendar.readonly`
-  - `drive.readonly` (optional)
-- [ ] [AGENT] Implement OAuth flow and token management
-- [ ] [AGENT] Add secure token storage and refresh logic
-- [ ] [HUMAN] Test Google authentication and permissions
+- [ ] [HUMAN] Create Google Cloud Console project named after `app_omnicrm`
+- [ ] [HUMAN] Enable required APIs:
+  - Gmail API
+  - Google Calendar API
+  - People API (optional, for contact profile pictures)
+- [ ] [HUMAN] Configure OAuth consent screen (External user type)
+- [ ] [HUMAN] Add OAuth scopes:
+  - `https://www.googleapis.com/auth/gmail.readonly`
+  - `https://www.googleapis.com/auth/calendar.readonly`
+- [ ] [HUMAN] Add test user (your email address)
+- [ ] [HUMAN] Create OAuth client (Web Application) with redirect URIs:
+  - `http://localhost:3000/api/google/oauth/callback`
+  - `https://<vercel-domain>/api/google/oauth/callback`
+- [ ] [HUMAN] Add Google credentials to `.env.local` and `.env.example`:
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `GOOGLE_REDIRECT_URI`
 
-### 4.2 Data Ingestion Pipeline
+### 4.2 OAuth Implementation
 
-- [ ] [AGENT] Implement Gmail sync service (emails → raw_events)
-- [ ] [AGENT] Implement Calendar sync service (events → raw_events)
-- [ ] [AGENT] Implement Drive sync service (documents → raw_events)
-- [ ] [AGENT] Add incremental sync with pagination and rate limiting
-- [ ] [AGENT] Create sync status tracking and error handling
-- [ ] [HUMAN] Test full ingestion pipeline with real Google account
-- [ ] [HUMAN] Commit and push: "feat(sync): Google data ingestion pipeline"
+- [ ] [AGENT] Create OAuth initiation endpoint `src/app/api/google/oauth/route.ts`:
+  - Build Google OAuth URL with proper scopes
+  - Include `access_type=offline` and `prompt=consent` for refresh tokens
+  - Redirect to Google authorization server
+- [ ] [AGENT] Create OAuth callback handler `src/app/api/google/oauth/callback/route.ts`:
+  - Exchange authorization code for tokens
+  - Store access and refresh tokens securely in database
+  - Handle token exchange errors gracefully
+  - Redirect to integrations page on success
+
+### 4.3 Database Schema for Integrations
+
+- [ ] [AGENT] Add `user_integrations` table to schema:
+  - `user_id` (UUID, foreign key to users)
+  - `provider` (text, e.g., "google")
+  - `access_token` (text, encrypted)
+  - `refresh_token` (text, encrypted)
+  - `expiry_date` (timestamp)
+  - `created_at`, `updated_at` (timestamps)
+  - Primary key: (user_id, provider)
+- [ ] [AGENT] Generate and push database migration
+- [ ] [HUMAN] Verify table creation in Supabase
+
+### 4.4 Background Jobs for Data Ingestion
+
+- [ ] [AGENT] Add new job types to job system:
+  - `"google_gmail_sync"` - Fetch Gmail messages
+  - `"google_calendar_sync"` - Fetch Calendar events
+- [ ] [AGENT] Implement Gmail sync worker:
+  - Fetch messages via Gmail API with pagination
+  - Store raw JSON responses in `raw_events` table
+  - Handle rate limiting and API quotas
+  - Support incremental sync with timestamps
+- [ ] [AGENT] Implement Calendar sync worker:
+  - Fetch calendar events via Calendar API
+  - Store raw JSON responses in `raw_events` table
+  - Handle recurring events and timezone conversion
+  - Support incremental sync with timestamps
+- [ ] [AGENT] Add token refresh logic for expired access tokens
+
+### 4.5 Data Normalization Jobs
+
+- [ ] [AGENT] Add normalization job types:
+  - `"normalize_google_email"` - Convert Gmail raw events to interactions
+  - `"normalize_google_event"` - Convert Calendar raw events to interactions
+- [ ] [AGENT] Implement email normalization worker:
+  - Parse Gmail message JSON → `interactions` table
+  - Extract: subject, body, participants, timestamp
+  - Set interaction type as "email"
+  - Handle attachments and threading
+- [ ] [AGENT] Implement calendar normalization worker:
+  - Parse Calendar event JSON → `interactions` table
+  - Extract: title, description, participants, datetime
+  - Set interaction type as "meeting"
+  - Handle recurring events and cancellations
+
+### 4.6 Integration UI
+
+- [ ] [AGENT] Create integrations page at `/integrations`
+- [ ] [AGENT] Add "Connect Google" button that redirects to OAuth flow
+- [ ] [AGENT] Display connection status and last sync timestamp
+- [ ] [AGENT] Add manual sync trigger button for testing
+- [ ] [AGENT] Show sync progress and error states
+
+### 4.7 Testing & Validation
+
+- [ ] [HUMAN] Test complete OAuth flow:
+  - Click "Connect Google" → OAuth consent → callback success
+  - Verify tokens stored in `user_integrations` table
+- [ ] [HUMAN] Test data ingestion:
+  - Trigger Gmail sync job → verify `raw_events` populated
+  - Trigger Calendar sync job → verify `raw_events` populated
+- [ ] [HUMAN] Test data normalization:
+  - Run normalization jobs → verify `interactions` table updated
+  - Validate email and calendar data appears correctly
+- [ ] [HUMAN] Test error handling:
+  - Expired tokens → automatic refresh
+  - API rate limits → proper backoff
+  - Network failures → job retry logic
+- [ ] [HUMAN] Commit and push: "feat(google): OAuth and read-only sync pipeline"
+
+**Acceptance Criteria (Phase 4):**
+
+- [ ] User can connect Google account via OAuth
+- [ ] Gmail and Calendar data syncs automatically to `raw_events`
+- [ ] Raw data normalizes into structured `interactions`
+- [ ] Token refresh works automatically
+- [ ] Sync status visible in UI
+- [ ] All operations are read-only (no writes to Google)
 
 ---
 

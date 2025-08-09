@@ -1,8 +1,6 @@
 # OmniCRM AI - Complete Development Checklist
 
-_From Zero to Production - Sequential Task List_
-
-## Overview
+## From Zero to Production Sequential Task List Overview
 
 This checklist consolidates all tasks from the planning documents into a single, sequential workflow. Each task is atomic and clearly indicates whether it should be performed by a human [HUMAN] or coding agent [AGENT].
 
@@ -41,7 +39,7 @@ This checklist consolidates all tasks from the planning documents into a single,
 - [x] [HUMAN] Create new Supabase project (free tier)
 - [x] [HUMAN] Enable pgvector extension: `create extension if not exists vector;`
 - [x] [HUMAN] Copy project credentials (URL, publishable key, secret key, DB password)
-- [ ] [HUMAN] Set up cost guardrails and budget alerts (≤€50/month)
+- [x] [HUMAN] Set up cost guardrails and budget alerts (≤€50/month)
 
 ### 0.3 Environment Configuration
 
@@ -85,10 +83,10 @@ This checklist consolidates all tasks from the planning documents into a single,
   create index if not exists embeddings_vec_idx on embeddings using ivfflat (embedding vector_cosine_ops);
   ```
 
-- [ ] [AGENT] Create additional performance indexes:
+- [x] [AGENT] Create additional performance indexes:
   - (contact_id, occurred_at desc) on interactions (for timeline queries)
   - (provider, occurred_at) on raw_events (for sync optimization)
-- [ ] [AGENT] Generate and apply index migration: `pnpm drizzle-kit generate && pnpm drizzle-kit push`
+- [x] [AGENT] Generate and apply index migration: `pnpm drizzle-kit generate && pnpm drizzle-kit push`
 - [x] [HUMAN] Commit and push: "feat(db): minimal AI-first schema and migrations"
 
 ### 1.3 Row Level Security Setup
@@ -106,10 +104,10 @@ This checklist consolidates all tasks from the planning documents into a single,
 - [x] [AGENT] Create browser client at `src/lib/supabase-browser.ts` (publishable key)
 - [x] [AGENT] Create server client at `src/server/supabase.ts` (secret key for admin)
 - [x] [AGENT] Implement login page at `src/app/login/page.tsx` with magic link
-- [ ] [AGENT] Add sign-in/sign-out UI components in header
-- [ ] [AGENT] Configure auth callbacks at `/auth/callback`
-- [ ] [HUMAN] Test authentication flow locally
-- [ ] [HUMAN] Commit and push: "feat(auth): supabase auth wiring + login page"
+- [x] [AGENT] Add sign-in/sign-out UI components in header
+- [x] [AGENT] Configure auth callbacks at `/auth/callback`
+- [x] [HUMAN] Test authentication flow locally
+- [x] [HUMAN] Commit and push: "feat(auth): supabase auth wiring + login page"
 
 ### 2.2 Multi-tenant Security Validation
 

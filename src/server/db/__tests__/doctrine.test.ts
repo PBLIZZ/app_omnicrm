@@ -1,3 +1,8 @@
+// Tell TS we're in a test environment without adding global types to typecheck
+// Vitest will provide globals at runtime.
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+/// <reference types="vitest" />
+import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 

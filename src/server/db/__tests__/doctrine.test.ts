@@ -37,11 +37,12 @@ describe("DATABASE_DOCTRINE compliance", () => {
     expect(pkg.scripts["db:push"]).toBe("drizzle-kit push");
   });
 
-  it(".eslintignore ignores archived drizzle outputs", () => {
-    const ignorePath = path.join(repoRoot, ".eslintignore");
-    const contents = fs.readFileSync(ignorePath, "utf8");
-    expect(contents).toMatch(/^drizzle\/\*\*/m);
-    expect(contents).toMatch(/^drizzle_app\/\*\*/m);
+  it("ESLint flat config ignores generated drizzle folders", () => {
+    const eslintCfgPath = path.join(repoRoot, "eslint.config.mjs");
+    const contents = fs.readFileSync(eslintCfgPath, "utf8");
+    expect(contents).toMatch(/ignores:/);
+    expect(contents).toMatch(/drizzle\/\*\*/);
+    expect(contents).toMatch(/drizzle_app\/\*\*/);
   });
 
   it("jobs table has RLS policies declared in SQL", () => {

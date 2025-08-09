@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+FROM node:20-alpine
+
+# playwright deps for e2e in container
+RUN apk add --no-cache bash libc6-compat chromium nss
+
+WORKDIR /app
+COPY package.json pnpm-lock.yaml* ./
+RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+EXPOSE 3000
+ENV NODE_ENV=development
+CMD ["pnpm", "dev", "-p", "3000"]
+
+

@@ -61,3 +61,19 @@ create policy documents_update_own on public.documents
   for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy documents_delete_own on public.documents
   for delete to authenticated using (user_id = auth.uid());
+
+-- JOBS
+alter table public.jobs enable row level security;
+drop policy if exists jobs_select_own on public.jobs;
+drop policy if exists jobs_insert_own on public.jobs;
+drop policy if exists jobs_update_own on public.jobs;
+drop policy if exists jobs_delete_own on public.jobs;
+
+create policy jobs_select_own on public.jobs
+  for select to authenticated using (user_id = auth.uid());
+create policy jobs_insert_own on public.jobs
+  for insert to authenticated with check (user_id = auth.uid());
+create policy jobs_update_own on public.jobs
+  for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy jobs_delete_own on public.jobs
+  for delete to authenticated using (user_id = auth.uid());

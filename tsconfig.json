@@ -29,5 +29,16 @@
     }
   },
   "include": ["next-env.d.ts", "src/**/*", ".next/types/**/*.ts"],
-  "exclude": ["drizzle/**", "node_modules"]
+  "exclude": [
+    "drizzle/**",
+    "node_modules",
+    "e2e/**",
+    "tests/**",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.tsx",
+    "src/**/__tests__/**",
+    "src/**/_tests_/**"
+  ]
 }

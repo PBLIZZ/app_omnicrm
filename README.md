@@ -1,4 +1,4 @@
-## Deploy & Secrets
+# Deploy & Secrets
 
 This app targets Vercel with Supabase-managed Postgres. Manual SQL is source of truth; no migrations run in CI.
 

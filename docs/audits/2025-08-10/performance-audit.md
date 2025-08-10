@@ -17,9 +17,7 @@ This comprehensive performance audit reveals **HIGH** priority optimization oppo
 
 ## Detailed Analysis
 
-### 1. Database Query Optimization and Indexing
-
-**Severity: CRITICAL**
+### 1. Database Query Optimization and Indexing Severity: CRITICAL
 
 #### Current State Analysis
 
@@ -29,14 +27,14 @@ This comprehensive performance audit reveals **HIGH** priority optimization oppo
 
 #### Critical Issues Identified
 
-**Missing Composite Indexes (CRITICAL)**
+##### Missing Composite Indexes (CRITICAL)
 
 ```sql
 -- File: supabase/sql/01_core_tables.sql (lines 100-108)
 -- Current indexes are insufficient for common query patterns
 ```
 
-**Required Index Optimizations:**
+##### Required Index Optimizations∫
 
 ```sql
 -- High-impact composite indexes needed:
@@ -61,9 +59,7 @@ CREATE INDEX CONCURRENTLY embeddings_vector_cosine_idx
 
 ---
 
-### 2. API Response Times and Efficiency
-
-**Severity: HIGH**
+### 2. API Response Times and Efficiency Severity: HIGH
 
 #### Response Pattern Analysis
 
@@ -74,7 +70,7 @@ CREATE INDEX CONCURRENTLY embeddings_vector_cosine_idx
 
 **API Efficiency Issues:**
 
-**1. Gmail Preview Endpoint (HIGH)**
+##### 1. Gmail Preview Endpoint (HIGH)
 
 ```typescript
 // File: src/server/google/gmail.ts (lines 105-133)
@@ -85,7 +81,7 @@ for (const m of messages.slice(0, 50)) {
 }
 ```
 
-**2. Job Runner Processing (HIGH)**
+##### 2. Job Runner Processing (HIGH)
 
 ```typescript
 // File: src/app/api/jobs/runner/route.ts (lines 39-61)
@@ -106,13 +102,11 @@ for (const job of queued) {
 
 ---
 
-### 3. N+1 Query Problems
-
-**Severity: HIGH**
+### 3. N+1 Query Problems Severity: HIGH
 
 #### Identified N+1 Patterns
 
-**1. Normalization Processing (CRITICAL)**
+##### 1. Normalization Processing (CRITICAL)\*\*
 
 ```typescript
 // File: src/server/jobs/processors/normalize.ts (lines 18-38)
@@ -122,7 +116,7 @@ for (const r of rows) {
 }
 ```
 
-**2. Sync Audit Queries (MODERATE)**
+##### 2. Sync Audit Queries (MODERATE)\*\*
 
 ```typescript
 // File: src/server/jobs/processors/sync.ts (lines 24-28)
@@ -138,9 +132,7 @@ const prefsRow = await db.select().from(userSyncPrefs).where(eq(userSyncPrefs.us
 
 ---
 
-### 4. Frontend Bundle Size and React Performance
-
-**Severity: MODERATE**
+### 4. Frontend Bundle Size and React Performance Severity: MODERATE
 
 #### Bundle Analysis
 
@@ -150,7 +142,7 @@ const prefsRow = await db.select().from(userSyncPrefs).where(eq(userSyncPrefs.us
 
 #### Component Performance Issues
 
-**1. Inefficient State Management**
+##### 1. Inefficient State Management\*\*
 
 ```tsx
 // File: src/app/settings/sync/page.tsx (lines 17-28)
@@ -161,7 +153,7 @@ async function loadPrefs() {
 }
 ```
 
-**2. Missing React Optimizations**
+##### 2. Missing React Optimizations\*\*
 
 - No React.memo() usage for expensive components
 - No useMemo() for derived state calculations
@@ -176,9 +168,7 @@ async function loadPrefs() {
 
 ---
 
-### 5. Job Processing Efficiency
-
-**Severity: HIGH**
+### 5. Job Processing Efficiency Severity: HIGH
 
 #### Current Job System Analysis
 
@@ -196,7 +186,7 @@ const handlers: Record<JobKind, (job: any, userId: string) => Promise<void>> = {
 
 **Processing Inefficiencies:**
 
-**1. Gmail Sync Processing (HIGH)**
+##### 1. Gmail Sync Processing (HIGH)\*\*
 
 ```typescript
 // File: src/server/jobs/processors/sync.ts (lines 48-76)
@@ -207,7 +197,7 @@ for (let i = 0; i < ids.length; i += chunk) {
 }
 ```
 
-**2. Job Error Handling (CRITICAL)**
+##### 2. Job Error Handling (CRITICAL)\*\*
 
 ```typescript
 // File: src/app/api/jobs/runner/route.ts (lines 55-60)
@@ -228,13 +218,11 @@ for (let i = 0; i < ids.length; i += chunk) {
 
 ---
 
-### 6. Memory Usage Patterns
-
-**Severity: MODERATE**
+### 6. Memory Usage Patterns Severity: MODERATE
 
 #### Connection and Memory Management
 
-**1. Database Connection Pooling**
+##### 1. Database Connection Pooling\*\*
 
 ```typescript
 // File: src/server/db/client.ts (lines 20-44)
@@ -243,7 +231,7 @@ const client = new ClientCtor({ connectionString: databaseUrl });
 await client.connect();
 ```
 
-**2. Large Dataset Handling**
+##### 2. Large Dataset Handling\*\*
 
 ```typescript
 // File: src/server/google/gmail.ts (lines 89-101)
@@ -263,9 +251,7 @@ do {
 
 ---
 
-### 7. Caching Strategies Implementation
-
-**Severity: MODERATE**
+### 7. Caching Strategies Implementation Severity: MODERATE
 
 #### Current Caching State
 
@@ -278,7 +264,7 @@ do {
 
 **High-Impact Caching Opportunities:**
 
-**1. User Preferences Caching**
+##### 1. User Preferences Caching\*\*
 
 ```typescript
 // Add to src/server/cache/user-prefs.ts
@@ -300,7 +286,7 @@ export async function getCachedUserPrefs(userId: string): Promise<UserSyncPrefs>
 }
 ```
 
-**2. Google API Response Caching**
+##### 2. Google API Response Caching\*\*
 
 ```typescript
 // Add Redis caching for preview endpoints
@@ -319,9 +305,7 @@ export async function getCachedGmailPreview(userId: string, query: string) {
 
 ---
 
-### 8. Google API Integration Efficiency
-
-**Severity: HIGH**
+### 8. Google API Integration Efficiency Severity: HIGH
 
 #### Current Integration Analysis
 
@@ -354,7 +338,7 @@ const results = await Promise.allSettled(
 
 **Optimization Strategy:**
 
-**1. Adaptive Rate Limiting**
+##### 1. Adaptive Rate Limiting\*\*
 
 ```typescript
 class AdaptiveRateLimiter {
@@ -381,7 +365,7 @@ class AdaptiveRateLimiter {
 }
 ```
 
-**2. Proactive Token Refresh**
+##### 2. Proactive Token Refresh\*\*
 
 ```typescript
 export async function ensureValidTokens(userId: string): Promise<GoogleApisClients> {
@@ -402,7 +386,7 @@ export async function ensureValidTokens(userId: string): Promise<GoogleApisClien
 
 ### Phase 1: Critical Database Optimizations (Week 1-2)
 
-**Estimated Impact: 50% query performance improvement**
+#### Estimated Impact: 50% query performance improvement
 
 1. **Add composite indexes**
    - Priority: CRITICAL
@@ -424,7 +408,7 @@ export async function ensureValidTokens(userId: string): Promise<GoogleApisClien
 
 ### Phase 2: API and Caching Improvements (Week 3-4)
 
-**Estimated Impact: 40% API response time improvement**
+#### Estimated Impact: 40% API response time improvement
 
 1. **Implement user preferences caching**
    - Priority: HIGH
@@ -446,7 +430,7 @@ export async function ensureValidTokens(userId: string): Promise<GoogleApisClien
 
 ### Phase 3: Google API and Performance Monitoring (Week 5-6)
 
-**Estimated Impact: 30% cost reduction, improved reliability**
+#### Estimated Impact: 30% cost reduction, improved reliability
 
 1. **Implement adaptive rate limiting**
    - Priority: HIGH

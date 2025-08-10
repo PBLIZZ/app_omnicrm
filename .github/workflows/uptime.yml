@@ -1,0 +1,31 @@
+name: Uptime Healthcheck
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+    steps:
+      - name: Show target
+        run: |
+          if [ -z "${HEALTHCHECK_URL}" ]; then
+            echo "HEALTHCHECK_URL secret not set; skipping." && exit 0
+          fi
+          echo "Pinging ${HEALTHCHECK_URL}"
+      - name: Curl healthcheck
+        if: env.HEALTHCHECK_URL != ''
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 10 --retry 2 --retry-delay 2 "$HEALTHCHECK_URL" | cat
+      - name: Validate JSON ok
+        if: env.HEALTHCHECK_URL != ''
+        run: |
+          set -euo pipefail
+          body=$(curl -fsSL --max-time 10 "$HEALTHCHECK_URL")
+          echo "$body"
+          echo "$body" | grep -q '"ts"' && echo "Healthcheck OK"

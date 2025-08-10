@@ -38,6 +38,7 @@ const eslintConfig = [
   },
   {
     files: [
+      "src/server/db/schema.ts",
       "src/server/db/schema.introspected.ts",
       "src/server/db/relations.introspected.ts",
       "src/server/db/relations.ts",

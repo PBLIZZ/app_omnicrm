@@ -87,7 +87,7 @@ export const interactions = pgTable("interactions", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull(),
+  userId: uuid("user_id").notNull(), // FK to user.id in SQL
   contactId: uuid("contact_id"), // FK to contacts.id in SQL; nullable
   type: text("type").notNull(), // email | call | meeting | note | web
   subject: text("subject"),

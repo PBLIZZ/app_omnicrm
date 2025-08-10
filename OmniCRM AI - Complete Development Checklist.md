@@ -231,7 +231,7 @@ This checklist consolidates all tasks from the planning documents into a single,
 
 - [ ] [HUMAN] Test user isolation with multiple accounts
 - [ ] [HUMAN] Verify RLS policies are working correctly
-- [ ] [AGENT] Add user session management utilities
+- [x] [AGENT] Add user session management utilities
 
 ---
 
@@ -239,16 +239,16 @@ This checklist consolidates all tasks from the planning documents into a single,
 
 ### 3.1 Job Queue System
 
-- [ ] [AGENT] Create job types at `src/server/jobs/types.ts`: "normalize" | "embed" | "insight"
-- [ ] [AGENT] Implement enqueue helper at `src/server/jobs/enqueue.ts`
-- [ ] [AGENT] Create job runner API at `/api/jobs/runner`
-- [ ] [AGENT] Add job status tracking and error handling
+- [x] [AGENT] Create job types at `src/server/jobs/types.ts`: "normalize" | "embed" | "insight"
+- [x] [AGENT] Implement enqueue helper at `src/server/jobs/enqueue.ts`
+- [x] [AGENT] Create job runner API at `/api/jobs/runner`
+- [x] [AGENT] Add job status tracking and error handling
 - [ ] [HUMAN] Test job processing with manual trigger
 - [ ] [HUMAN] Commit and push: "feat(jobs): queue system and runner endpoint"
 
 ### 3.2 Data Processing Workers
 
-- [ ] [AGENT] Implement normalize processor (raw_events → interactions)
+- [x] [AGENT] Implement normalize processor (raw_events → interactions)
 - [ ] [AGENT] Implement embed processor (text chunking → embeddings via OpenAI/OpenRouter)
 - [ ] [AGENT] Implement insight processor (LLM analysis → ai_insights)
 - [ ] [AGENT] Add retry logic and exponential backoff
@@ -260,8 +260,8 @@ This checklist consolidates all tasks from the planning documents into a single,
 
 ### 4.1 Google API Setup & Configuration
 
-- [ ] [HUMAN] Create Google Cloud Console project named after `app_omnicrm`
-- [ ] [HUMAN] Enable required APIs:
+- [x] [HUMAN] Create Google Cloud Console project named after `app_omnicrm`
+- [x] [HUMAN] Enable required APIs:
   - Gmail API
   - Google Calendar API
   - People API (optional, for contact profile pictures)
@@ -280,11 +280,11 @@ This checklist consolidates all tasks from the planning documents into a single,
 
 ### 4.2 OAuth Implementation
 
-- [ ] [AGENT] Create OAuth initiation endpoint `src/app/api/google/oauth/route.ts`:
+- [x] [AGENT] Create OAuth initiation endpoint `src/app/api/google/oauth/route.ts`:
   - Build Google OAuth URL with proper scopes
   - Include `access_type=offline` and `prompt=consent` for refresh tokens
   - Redirect to Google authorization server
-- [ ] [AGENT] Create OAuth callback handler `src/app/api/google/oauth/callback/route.ts`:
+- [x] [AGENT] Create OAuth callback handler `src/app/api/google/oauth/callback/route.ts`:
   - Exchange authorization code for tokens
   - Store access and refresh tokens securely in database
   - Handle token exchange errors gracefully
@@ -292,7 +292,7 @@ This checklist consolidates all tasks from the planning documents into a single,
 
 ### 4.3 Database Schema for Integrations
 
-- [ ] [AGENT] Add `user_integrations` table to schema:
+- [x] [AGENT] Add `user_integrations` table to schema:
   - `user_id` (UUID, foreign key to users)
   - `provider` (text, e.g., "google")
   - `access_token` (text, encrypted)
@@ -300,37 +300,37 @@ This checklist consolidates all tasks from the planning documents into a single,
   - `expiry_date` (timestamp)
   - `created_at`, `updated_at` (timestamps)
   - Primary key: (user_id, provider)
-- [ ] [AGENT] Generate and push database migration
-- [ ] [HUMAN] Verify table creation in Supabase
+- [x] [AGENT] Generate and push database migration
+- [x] [HUMAN] Verify table creation in Supabase
 
 ### 4.4 Background Jobs for Data Ingestion
 
-- [ ] [AGENT] Add new job types to job system:
+- [x] [AGENT] Add new job types to job system:
   - `"google_gmail_sync"` - Fetch Gmail messages
   - `"google_calendar_sync"` - Fetch Calendar events
-- [ ] [AGENT] Implement Gmail sync worker:
+- [x] [AGENT] Implement Gmail sync worker:
   - Fetch messages via Gmail API with pagination
   - Store raw JSON responses in `raw_events` table
   - Handle rate limiting and API quotas
   - Support incremental sync with timestamps
-- [ ] [AGENT] Implement Calendar sync worker:
+- [x] [AGENT] Implement Calendar sync worker:
   - Fetch calendar events via Calendar API
   - Store raw JSON responses in `raw_events` table
   - Handle recurring events and timezone conversion
   - Support incremental sync with timestamps
-- [ ] [AGENT] Add token refresh logic for expired access tokens
+- [x] [AGENT] Add token refresh logic for expired access tokens
 
 ### 4.5 Data Normalization Jobs
 
-- [ ] [AGENT] Add normalization job types:
+- [x] [AGENT] Add normalization job types:
   - `"normalize_google_email"` - Convert Gmail raw events to interactions
   - `"normalize_google_event"` - Convert Calendar raw events to interactions
-- [ ] [AGENT] Implement email normalization worker:
+- [x] [AGENT] Implement email normalization worker:
   - Parse Gmail message JSON → `interactions` table
   - Extract: subject, body, participants, timestamp
   - Set interaction type as "email"
   - Handle attachments and threading
-- [ ] [AGENT] Implement calendar normalization worker:
+- [x] [AGENT] Implement calendar normalization worker:
   - Parse Calendar event JSON → `interactions` table
   - Extract: title, description, participants, datetime
   - Set interaction type as "meeting"
@@ -339,9 +339,9 @@ This checklist consolidates all tasks from the planning documents into a single,
 ### 4.6 Integration UI
 
 - [ ] [AGENT] Create integrations page at `/integrations`
-- [ ] [AGENT] Add "Connect Google" button that redirects to OAuth flow
-- [ ] [AGENT] Display connection status and last sync timestamp
-- [ ] [AGENT] Add manual sync trigger button for testing
+- [x] [AGENT] Add "Connect Google" button that redirects to OAuth flow
+- [x] [AGENT] Display connection status and last sync timestamp
+- [x] [AGENT] Add manual sync trigger button for testing
 - [ ] [AGENT] Show sync progress and error states
 
 ### 4.7 Testing & Validation

@@ -1,18 +1,9 @@
 // src/server/db/client.ts
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Client } from "pg";
 
-const connectionString = process.env['DATABASE_URL']!;
-if (!connectionString) throw new Error('DATABASE_URL is missing');
+const client = new Client({ connectionString: process.env["DATABASE_URL"]! });
+await client.connect();
+export const db = drizzle(client);
 
-export const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false }, // Supabase
-});
-
-export const db = drizzle(pool);
-
-export async function dbPing(): Promise<boolean> {
-  const r = await pool.query('select 1 as ok');
-  return r.rows?.[0]?.ok === 1;
-}
+// use with your table objects from schema.ts

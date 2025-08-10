@@ -1,1 +1,0 @@
-create index IF not exists contacts_user_id_idx on contacts (user_id);

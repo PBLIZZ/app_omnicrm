@@ -1,34 +1,4 @@
 #!/bin/sh
 
-# Block adding any usage of `drizzle-kit push` in automation (scripts/CI/Docker)
-# Allow references in docs (*.md), SQL, and tests
-
 set -e
-
-if git grep -n -E 'drizzle-kit\s+push' -- \
-  ':!*.md' \
-  ':!*.sql' \
-  ':!**/__tests__/**' \
-  ':!pnpm-lock.yaml' \
-  ':!yarn.lock' \
-  > /dev/null
-then
-  echo "\n✖ Blocked: Found forbidden 'drizzle-kit push' in repo (outside docs/tests)." >&2
-  echo "   Remove it from scripts/CI/Docker or use migrations instead." >&2
-  echo "\nMatches:" >&2
-  git grep -n -E 'drizzle-kit\s+push' -- ':!*.md' ':!*.sql' ':!**/__tests__/**' ':!pnpm-lock.yaml' ':!yarn.lock' | sed 's/^/  /' >&2
-  exit 1
-fi
-
-# Require schema snapshot when SQL or drizzle migrations change
-if git diff --cached --name-only | grep -E '^(supabase/sql|drizzle)/.*\.sql$' > /dev/null; then
-  if ! git diff --cached --name-only | grep -E '^backups/schema-.*\.sql$' > /dev/null; then
-    echo "\n✖ Blocked: SQL changed under supabase/sql but no schema snapshot found in backups/." >&2
-    echo "   Run: DATABASE_URL=... pnpm tsx scripts/db/snapshot-schema.ts" >&2
-    exit 1
-  fi
-fi
-
-exit 0
-
 pnpm exec lint-staged

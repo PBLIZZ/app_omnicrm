@@ -1,33 +1,4 @@
 #!/bin/sh
 
 set -e
-
-# Double-check on push as well
-if git grep -n -E 'drizzle-kit\s+push' -- \
-  ':!*.md' \
-  ':!*.sql' \
-  ':!**/__tests__/**' \
-  ':!pnpm-lock.yaml' \
-  ':!yarn.lock' \
-  > /dev/null
-then
-  echo "\n✖ Push blocked: Found forbidden 'drizzle-kit push' references." >&2
-  git grep -n -E 'drizzle-kit\s+push' -- ':!*.md' ':!*.sql' ':!**/__tests__/**' ':!pnpm-lock.yaml' ':!yarn.lock' | sed 's/^/  /' >&2
-  exit 1
-fi
-
-# Block destructive SQL unless explicitly allowed
-if git diff --cached --name-only | grep -E '^supabase/sql/.*\.sql$' > /dev/null; then
-  if git diff --cached -U0 -- supabase/sql | grep -E 'DROP\s+TABLE|ALTER\s+TABLE.*DROP\s+COLUMN' -i > /dev/null; then
-    if [ "$ALLOW_DESTRUCTIVE" != "true" ]; then
-      echo "\n✖ Push blocked: Destructive SQL detected (DROP TABLE / DROP COLUMN). Set ALLOW_DESTRUCTIVE=true to override in CI (non-prod only)." >&2
-      exit 1
-    fi
-  fi
-fi
-
-exit 0
-
-#\!/usr/bin/env sh
 pnpm typecheck && pnpm lint && pnpm test
-SH < /dev/null

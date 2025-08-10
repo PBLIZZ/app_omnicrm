@@ -1,0 +1,1 @@
+-- Fallback schema snapshot (table list)

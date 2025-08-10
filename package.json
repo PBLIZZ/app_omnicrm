@@ -15,7 +15,12 @@
     "e2e": "playwright test",
     "db:introspect": "drizzle-kit introspect",
     "db:sync": "pnpm db:introspect && cp drizzle_app/schema.ts src/server/db/schema.introspected.ts && cp drizzle_app/relations.ts src/server/db/relations.introspected.ts",
-    "db:gen": "drizzle-kit generate"
+    "db:gen": "drizzle-kit generate",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate-safe.ts",
+    "db:check": "tsx scripts/sanity/db-check.ts",
+    "db:schema:rebuild": "tsx scripts/schema/rebuild-from-drizzle.ts > supabase/sql/zz_rebuild.sql",
+    "db:schema:snapshot": "tsx scripts/db/snapshot-schema.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

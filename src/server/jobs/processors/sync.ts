@@ -2,8 +2,11 @@ import { db } from "@/server/db/client";
 import { and, desc, eq } from "drizzle-orm";
 import { jobs, rawEvents, userSyncPrefs } from "@/server/db/schema";
 import { getGoogleClients } from "@/server/google/client";
+import type { GmailClient } from "@/server/google/gmail";
 import { listGmailMessageIds } from "@/server/google/gmail";
+import type { CalendarClient } from "@/server/google/calendar";
 import { listCalendarEvents } from "@/server/google/calendar";
+// Note: logging kept minimal to avoid noise during tight loops
 
 export async function lastEventTimestamp(userId: string, provider: "gmail" | "calendar") {
   const rows = await db
@@ -15,10 +18,14 @@ export async function lastEventTimestamp(userId: string, provider: "gmail" | "ca
   return rows[0]?.occurredAt ?? new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
 }
 
-type JobRow = typeof jobs.$inferSelect & { payload: any };
+type JobRow = typeof jobs.$inferSelect & { payload: Record<string, unknown> };
 
-export async function runGmailSync(job: JobRow, userId: string) {
-  const { gmail } = await getGoogleClients(userId);
+export async function runGmailSync(
+  job: JobRow,
+  userId: string,
+  injected?: { gmail?: GmailClient },
+) {
+  const gmail = injected?.gmail ?? (await getGoogleClients(userId)).gmail;
   const prefsRow = await db
     .select()
     .from(userSyncPrefs)
@@ -37,14 +44,22 @@ export async function runGmailSync(job: JobRow, userId: string) {
   const toLabelId = (name: string) => CATEGORY_LABEL_MAP[name] ?? name;
 
   const q = `${prefs?.gmailQuery ?? "newer_than:30d"}`;
-  const batchId = (job.payload?.batchId as string | undefined) ?? undefined;
+  const batchId = (job.payload?.["batchId"] as string | undefined) ?? undefined;
   const includeIds = (prefs?.gmailLabelIncludes ?? []).map(toLabelId);
   const excludeIds = (prefs?.gmailLabelExcludes ?? []).map(toLabelId);
 
-  const ids = await listGmailMessageIds(gmail as any, q);
+  // Cap total processed per run to keep memory/time bounded
+  const ids = await listGmailMessageIds(gmail, q);
+  const MAX_PER_RUN = 2000;
+  const total = Math.min(ids.length, MAX_PER_RUN);
   // fetch in small chunks to avoid 429s
   const chunk = 25;
-  for (let i = 0; i < ids.length; i += chunk) {
+  const startedAt = Date.now();
+  let itemsFetched = 0;
+  let itemsInserted = 0;
+  let itemsSkipped = 0;
+
+  for (let i = 0; i < total; i += chunk) {
     const slice = ids.slice(i, i + chunk);
     const results = await Promise.allSettled(
       slice.map((id) => gmail.users.messages.get({ userId: "me", id, format: "full" })),
@@ -58,20 +73,41 @@ export async function runGmailSync(job: JobRow, userId: string) {
 
       const internalMs = Number(msg.internalDate ?? 0);
       const occurredAt = internalMs ? new Date(internalMs) : new Date();
-      if (occurredAt < since) continue;
+      if (occurredAt < since) {
+        itemsSkipped += 1;
+        continue;
+      }
 
       await db.insert(rawEvents).values({
         userId,
         provider: "gmail",
-        payload: msg as any,
+        payload: msg,
         occurredAt,
         contactId: null,
         batchId: batchId ?? null,
         sourceMeta: { labelIds, fetchedAt: new Date().toISOString(), matchedQuery: q },
       });
+      itemsInserted += 1;
+      itemsFetched += 1;
     }
+    // brief sleep between batches for backpressure
     await new Promise((r) => setTimeout(r, 200));
   }
+
+  const durationMs = Date.now() - startedAt;
+  // Minimal structured metrics for Gmail sync run
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      event: "gmail_sync_metrics",
+      userId,
+      batchId: batchId ?? null,
+      itemsFetched,
+      itemsInserted,
+      itemsSkipped,
+      durationMs,
+    }),
+  );
 
   await db.insert(jobs).values({
     userId,
@@ -81,8 +117,12 @@ export async function runGmailSync(job: JobRow, userId: string) {
   });
 }
 
-export async function runCalendarSync(job: JobRow, userId: string) {
-  const { calendar } = await getGoogleClients(userId);
+export async function runCalendarSync(
+  job: JobRow,
+  userId: string,
+  injected?: { calendar?: CalendarClient },
+) {
+  const calendar = injected?.calendar ?? (await getGoogleClients(userId)).calendar;
   const prefsRow = await db
     .select()
     .from(userSyncPrefs)
@@ -94,10 +134,18 @@ export async function runCalendarSync(job: JobRow, userId: string) {
   const days = prefs?.calendarTimeWindowDays ?? 60;
   const timeMin = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
   const timeMax = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
-  const batchId = (job.payload?.batchId as string | undefined) ?? undefined;
+  const batchId = (job.payload?.["batchId"] as string | undefined) ?? undefined;
 
-  const items = await listCalendarEvents(calendar as any, timeMin, timeMax);
-  for (const e of items) {
+  // Calendar: process paginated items with caps & light filtering
+  const startedAt = Date.now();
+  let itemsFetched = 0;
+  let itemsInserted = 0;
+  const itemsSkipped = 0;
+  const items = await listCalendarEvents(calendar, timeMin, timeMax);
+  const MAX_PER_RUN = 2000;
+  const total = Math.min(items.length, MAX_PER_RUN);
+  for (let i = 0; i < total; i++) {
+    const e = items[i]!;
     if (
       (prefs?.calendarIncludeOrganizerSelf ?? "true") === "true" &&
       e.organizer &&
@@ -114,13 +162,32 @@ export async function runCalendarSync(job: JobRow, userId: string) {
     await db.insert(rawEvents).values({
       userId,
       provider: "calendar",
-      payload: e as any,
+      payload: e,
       occurredAt,
       contactId: null,
       batchId: batchId ?? null,
       sourceMeta: { fetchedAt: new Date().toISOString() },
     });
+    itemsFetched += 1;
+    itemsInserted += 1;
+    // light pacing
+    if (i % 100 === 0) await new Promise((r) => setTimeout(r, 100));
   }
+
+  const durationMs = Date.now() - startedAt;
+  // Minimal structured metrics for Calendar sync run
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      event: "calendar_sync_metrics",
+      userId,
+      batchId: batchId ?? null,
+      itemsFetched,
+      itemsInserted,
+      itemsSkipped,
+      durationMs,
+    }),
+  );
 
   await db.insert(jobs).values({
     userId,

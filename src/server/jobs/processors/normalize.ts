@@ -1,9 +1,17 @@
 import { db } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
 import { interactions, rawEvents } from "@/server/db/schema";
+// No verbose logging here to keep normalization fast and predictable
 
-export async function runNormalizeGoogleEmail(job: any, userId: string) {
+export async function runNormalizeGoogleEmail(
+  job: { payload?: { batchId?: string } },
+  userId: string,
+) {
   const batchId = job.payload?.batchId as string | undefined;
+  const startedAt = Date.now();
+  let itemsFetched = 0;
+  let itemsInserted = 0;
+  let itemsSkipped = 0;
   const rows = await db
     .select()
     .from(rawEvents)
@@ -16,12 +24,36 @@ export async function runNormalizeGoogleEmail(job: any, userId: string) {
     );
 
   for (const r of rows) {
-    const payload: any = r.payload;
+    itemsFetched += 1;
+    const payload = r.payload as {
+      payload?: { headers?: Array<{ name?: string | null; value?: string | null }> };
+      snippet?: string | null;
+      id?: string | null;
+    };
     const headers: Array<{ name?: string | null; value?: string | null }> =
       payload?.payload?.headers ?? [];
     const subject = headers.find((h) => (h.name || "").toLowerCase() === "subject")?.value ?? null;
     const snippet = payload?.snippet ?? null;
     const messageId = payload?.id ?? null;
+    // Idempotency: if interaction with same (user_id, source, source_id) exists for this batch, skip
+    if (messageId) {
+      const existing = await db
+        .select({ id: interactions.id })
+        .from(interactions)
+        .where(
+          and(
+            eq(interactions.userId, userId),
+            eq(interactions.source, "gmail"),
+            eq(interactions.sourceId, messageId),
+          ),
+        )
+        .limit(1);
+      if (existing.length > 0) {
+        itemsSkipped += 1;
+        continue;
+      }
+    }
+
     await db.insert(interactions).values({
       userId,
       contactId: null,
@@ -35,11 +67,32 @@ export async function runNormalizeGoogleEmail(job: any, userId: string) {
       sourceMeta: r.sourceMeta,
       batchId: r.batchId ?? undefined,
     });
+    itemsInserted += 1;
   }
+  const durationMs = Date.now() - startedAt;
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      event: "normalize_gmail_metrics",
+      userId,
+      batchId: batchId ?? null,
+      itemsFetched,
+      itemsInserted,
+      itemsSkipped,
+      durationMs,
+    }),
+  );
 }
 
-export async function runNormalizeGoogleEvent(job: any, userId: string) {
+export async function runNormalizeGoogleEvent(
+  job: { payload?: { batchId?: string } },
+  userId: string,
+) {
   const batchId = job.payload?.batchId as string | undefined;
+  const startedAt = Date.now();
+  let itemsFetched = 0;
+  let itemsInserted = 0;
+  let itemsSkipped = 0;
   const rows = await db
     .select()
     .from(rawEvents)
@@ -52,10 +105,34 @@ export async function runNormalizeGoogleEvent(job: any, userId: string) {
     );
 
   for (const r of rows) {
-    const payload: any = r.payload;
+    itemsFetched += 1;
+    const payload = r.payload as {
+      summary?: string | null;
+      description?: string | null;
+      location?: string | null;
+      id?: string | null;
+    };
     const summary = payload?.summary ?? null;
     const desc = payload?.description ?? payload?.location ?? null;
     const eventId = payload?.id ?? null;
+    if (eventId) {
+      const existing = await db
+        .select({ id: interactions.id })
+        .from(interactions)
+        .where(
+          and(
+            eq(interactions.userId, userId),
+            eq(interactions.source, "calendar"),
+            eq(interactions.sourceId, eventId),
+          ),
+        )
+        .limit(1);
+      if (existing.length > 0) {
+        itemsSkipped += 1;
+        continue;
+      }
+    }
+
     await db.insert(interactions).values({
       userId,
       contactId: null,
@@ -69,5 +146,19 @@ export async function runNormalizeGoogleEvent(job: any, userId: string) {
       sourceMeta: r.sourceMeta,
       batchId: r.batchId ?? undefined,
     });
+    itemsInserted += 1;
   }
+  const durationMs = Date.now() - startedAt;
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      event: "normalize_calendar_metrics",
+      userId,
+      batchId: batchId ?? null,
+      itemsFetched,
+      itemsInserted,
+      itemsSkipped,
+      durationMs,
+    }),
+  );
 }

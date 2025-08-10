@@ -1,6 +1,30 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import "@/lib/env"; // fail-fast env validation at edge import
+import { hmacSign, hmacVerify, randomNonce } from "@/server/lib/crypto";
 
-export function middleware(): ReturnType<typeof NextResponse.next> {
+// Configurable limits (env or sane defaults)
+const MAX_JSON_BYTES = Number(process.env["API_MAX_JSON_BYTES"] ?? 1_000_000); // 1MB
+const RATE_LIMIT_RPM = Number(process.env["API_RATE_LIMIT_PER_MIN"] ?? 60);
+
+// very small in-memory token bucket per process; good enough for dev/preview
+const buckets = new Map<string, { count: number; resetAt: number }>();
+
+function allowRequest(key: string): boolean {
+  const now = Date.now();
+  const minute = 60_000;
+  const bucket = buckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    buckets.set(key, { count: 1, resetAt: now + minute });
+    return true;
+  }
+  if (bucket.count < RATE_LIMIT_RPM) {
+    bucket.count++;
+    return true;
+  }
+  return false;
+}
+
+export function middleware(req: NextRequest): ReturnType<typeof NextResponse.next> {
   const res = NextResponse.next();
   const requestId =
     (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
@@ -11,5 +35,123 @@ export function middleware(): ReturnType<typeof NextResponse.next> {
   res.headers.set("X-Frame-Options", "DENY");
   res.headers.set("Referrer-Policy", "no-referrer");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  // Minimal CSP: conservative defaults
+  res.headers.set(
+    "Content-Security-Policy",
+    [
+      "script-src 'self'",
+      "connect-src 'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com",
+      "frame-ancestors 'none'",
+    ].join("; "),
+  );
+
+  const url = req.nextUrl;
+  const isApi = url.pathname.startsWith("/api/");
+  if (!isApi) return res;
+
+  // Method allow-list for selected API route families
+  const p = url.pathname;
+  const allowedByPrefix: Array<{ prefix: string; methods: string[] }> = [
+    { prefix: "/api/sync/approve/", methods: ["POST", "OPTIONS"] },
+    { prefix: "/api/sync/preview/", methods: ["POST", "OPTIONS"] },
+  ];
+  for (const rule of allowedByPrefix) {
+    if (p.startsWith(rule.prefix) && !rule.methods.includes(req.method)) {
+      return new NextResponse(JSON.stringify({ error: "method_not_allowed" }), {
+        status: 405,
+        headers: { "content-type": "application/json", Allow: rule.methods.join(", ") },
+      });
+    }
+  }
+
+  // CORS: allow only same-origin or configured origins
+  const origin = req.headers.get("origin");
+  const appOrigins = (process.env["APP_ORIGINS"] ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowOrigin = !origin || origin === url.origin || appOrigins.includes(origin);
+  if (!allowOrigin && req.method !== "OPTIONS") {
+    return new NextResponse("", { status: 403 });
+  }
+  if (origin) {
+    res.headers.set("Vary", "Origin");
+    if (allowOrigin) {
+      res.headers.set("Access-Control-Allow-Origin", origin);
+      res.headers.set("Access-Control-Allow-Credentials", "true");
+      res.headers.set(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, x-csrf-token, x-requested-with",
+      );
+      res.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+    }
+    if (req.method === "OPTIONS") return res;
+  }
+
+  // Rate limit by IP + user if available (via Supabase cookie presence is opaque; key by IP+cookie length)
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    (req as any).ip ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
+  const sessionLen = (req.cookies.get("sb:token")?.value ?? "").length;
+  const key = `${ip}:${sessionLen}`;
+  if (!allowRequest(key)) {
+    return new NextResponse(JSON.stringify({ error: "rate_limited" }), {
+      status: 429,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  // Body size cap for JSON
+  const ct = req.headers.get("content-type") || "";
+  if (/application\/json/i.test(ct)) {
+    const len = Number(req.headers.get("content-length") || 0);
+    if (len > MAX_JSON_BYTES) {
+      return new NextResponse(JSON.stringify({ error: "payload_too_large" }), {
+        status: 413,
+        headers: { "content-type": "application/json" },
+      });
+    }
+  }
+
+  // CSRF: for mutating requests from browsers, require custom header with signed token
+  const isUnsafe = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+  if (isUnsafe) {
+    const nonceCookie = req.cookies.get("csrf")?.value;
+    const sigCookie = req.cookies.get("csrf_sig")?.value;
+    const csrfHeader = req.headers.get("x-csrf-token") || "";
+    if (!nonceCookie || !sigCookie) {
+      // issue tokens to be used on next request (double-submit cookie)
+      const nonce = randomNonce(18);
+      const sig = hmacSign(nonce);
+      res.cookies.set("csrf", nonce, {
+        httpOnly: false,
+        sameSite: "strict",
+        secure: true,
+        path: "/",
+        maxAge: 60 * 60, // 1 hour
+      });
+      res.cookies.set("csrf_sig", sig, {
+        httpOnly: true,
+        sameSite: "strict",
+        secure: true,
+        path: "/",
+        maxAge: 60 * 60,
+      });
+      return new NextResponse(JSON.stringify({ error: "missing_csrf" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      });
+    } else {
+      if (!csrfHeader || csrfHeader !== nonceCookie || !hmacVerify(nonceCookie, sigCookie)) {
+        return new NextResponse(JSON.stringify({ error: "invalid_csrf" }), {
+          status: 403,
+          headers: { "content-type": "application/json" },
+        });
+      }
+    }
+  }
+
   return res;
 }

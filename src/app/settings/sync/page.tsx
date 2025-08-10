@@ -10,12 +10,38 @@ export default function SyncSettingsPage() {
   const [calendar, setCalendar] = useState<PreviewCalendar | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<any>(null);
   const base = ""; // same-origin
+
+  const [prefs, setPrefs] = useState<any>(null);
+  // Read CSRF token from cookie (double-submit) and include in mutating requests
+  function getCsrf(): string {
+    if (typeof document === "undefined") return "";
+    const m = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
+    return m ? decodeURIComponent(m[1] ?? "") : "";
+  }
+
+  async function loadPrefs() {
+    const res = await fetch(`/api/settings/sync/prefs`);
+    const j = await res.json();
+    setPrefs(j);
+  }
+  async function savePrefs() {
+    await fetch(`/api/settings/sync/prefs`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "x-csrf-token": getCsrf() || "" },
+      body: JSON.stringify(prefs ?? {}),
+    });
+  }
 
   async function callJSON(url: string, body?: any) {
     setBusy(true);
     try {
-      const res = await fetch(url, { method: "POST", body: body ? JSON.stringify(body) : null });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "x-csrf-token": getCsrf() || "", "content-type": "application/json" },
+        body: body ? JSON.stringify(body) : null,
+      });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || res.statusText);
       return j;
@@ -27,6 +53,30 @@ export default function SyncSettingsPage() {
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Sync Settings</h1>
+      <div className="text-sm text-neutral-600">
+        <button
+          className="px-2 py-1 rounded border"
+          onClick={async () => setStatus(await (await fetch(`/api/settings/sync/status`)).json())}
+        >
+          Refresh Status
+        </button>
+        {status && (
+          <div className="mt-2 grid gap-1">
+            <div>Google connected: {String(status.googleConnected)}</div>
+            <div>
+              Flags: Gmail {String(status.flags?.gmail)} / Calendar {String(status.flags?.calendar)}
+            </div>
+            <div>
+              Last sync — Gmail: {status.lastSync?.gmail ?? "-"} / Calendar:{" "}
+              {status.lastSync?.calendar ?? "-"}
+            </div>
+            <div>
+              Jobs — queued: {status.jobs?.queued} done: {status.jobs?.done} error:{" "}
+              {status.jobs?.error}
+            </div>
+          </div>
+        )}
+      </div>
 
       <section className="space-y-2">
         <h2 className="text-lg font-medium">Connect Accounts</h2>
@@ -39,6 +89,147 @@ export default function SyncSettingsPage() {
           </a>
         </div>
         <p className="text-sm text-neutral-500">Incremental consent; only the scope you pick.</p>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-medium">Preferences</h2>
+        <div className="flex gap-2 items-end">
+          <button
+            className="px-2 py-1 rounded border"
+            onClick={async () => setStatus(await (await fetch(`/api/settings/sync/status`)).json())}
+          >
+            Refresh Status
+          </button>
+          {status?.lastBatchId && (
+            <button
+              className="px-2 py-1 rounded border"
+              onClick={async () => {
+                const res = await fetch(`/api/sync/undo`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ batchId: status.lastBatchId }),
+                });
+                const j = await res.json();
+                alert(`Undo: ${j.ok ? "ok" : j.error}`);
+              }}
+            >
+              Undo Last Import
+            </button>
+          )}
+        </div>
+        <div className="grid gap-2 border rounded p-3 text-sm">
+          <div className="flex items-center gap-2">
+            <button className="px-2 py-1 rounded border" onClick={loadPrefs}>
+              Load Prefs
+            </button>
+            <button className="px-2 py-1 rounded border" onClick={savePrefs}>
+              Save Prefs
+            </button>
+          </div>
+          {prefs && (
+            <>
+              <label className="grid gap-1">
+                <span>Gmail query</span>
+                <input
+                  className="border rounded px-2 py-1"
+                  value={prefs.gmailQuery ?? ""}
+                  onChange={(e) => setPrefs((p: any) => ({ ...p, gmailQuery: e.target.value }))}
+                />
+              </label>
+              <label className="grid gap-1">
+                <span>Gmail include labels (comma)</span>
+                <input
+                  className="border rounded px-2 py-1"
+                  value={(prefs.gmailLabelIncludes ?? []).join(",")}
+                  onChange={(e) =>
+                    setPrefs((p: any) => ({
+                      ...p,
+                      gmailLabelIncludes: e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    }))
+                  }
+                />
+              </label>
+              <label className="grid gap-1">
+                <span>Gmail exclude labels (comma)</span>
+                <input
+                  className="border rounded px-2 py-1"
+                  value={(prefs.gmailLabelExcludes ?? []).join(",")}
+                  onChange={(e) =>
+                    setPrefs((p: any) => ({
+                      ...p,
+                      gmailLabelExcludes: e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    }))
+                  }
+                />
+              </label>
+              <div className="grid gap-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={prefs.calendarIncludeOrganizerSelf === "true"}
+                    onChange={(e) =>
+                      setPrefs((p: any) => ({
+                        ...p,
+                        calendarIncludeOrganizerSelf: e.target.checked ? "true" : "false",
+                      }))
+                    }
+                  />
+                  <span>Include organizer self</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={prefs.calendarIncludePrivate === "true"}
+                    onChange={(e) =>
+                      setPrefs((p: any) => ({
+                        ...p,
+                        calendarIncludePrivate: e.target.checked ? "true" : "false",
+                      }))
+                    }
+                  />
+                  <span>Include private events</span>
+                </label>
+                <label className="grid gap-1">
+                  <span>Calendar time window (days)</span>
+                  <input
+                    type="number"
+                    className="border rounded px-2 py-1"
+                    value={prefs.calendarTimeWindowDays ?? 60}
+                    onChange={(e) =>
+                      setPrefs((p: any) => ({
+                        ...p,
+                        calendarTimeWindowDays: Number(e.target.value) || 60,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+            </>
+          )}
+        </div>
+        {status && (
+          <div className="mt-2 grid gap-1 text-sm text-neutral-600">
+            <div>Google connected: {String(status.googleConnected)}</div>
+            <div>
+              Flags: Gmail {String(status.flags?.gmail)} / Calendar {String(status.flags?.calendar)}
+            </div>
+            <div>
+              Last sync — Gmail: {status.lastSync?.gmail ?? "-"} / Calendar:{" "}
+              {status.lastSync?.calendar ?? "-"}
+            </div>
+            <div>
+              Jobs — queued: {status.jobs?.queued} done: {status.jobs?.done} error:{" "}
+              {status.jobs?.error}
+            </div>
+            <div>Last batchId: {status.lastBatchId ?? "-"}</div>
+          </div>
+        )}
       </section>
 
       <section className="space-y-3">

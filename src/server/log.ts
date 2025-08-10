@@ -1,31 +1,52 @@
-type Bindings = Record<string, unknown> | undefined;
+import pino from "pino";
+import pretty from "pino-pretty";
+import { env } from "@/lib/env";
 
-function emit(level: "info" | "warn" | "error" | "debug", bindings?: Bindings, message?: string) {
-  const ts = new Date().toISOString();
-  if (bindings && message) {
-    // simple structured log
-    if (level === "error" || level === "warn")
-      console[level](`${ts} ${level.toUpperCase()}: ${message} ${JSON.stringify(bindings)}`);
-  } else if (message) {
-    if (level === "error" || level === "warn")
-      console[level](`${ts} ${level.toUpperCase()}: ${message}`);
-  } else if (bindings) {
-    if (level === "error" || level === "warn")
-      console[level](`${ts} ${level.toUpperCase()}: ${JSON.stringify(bindings)}`);
-  }
-}
+export type LogBindings = Record<string, unknown> | undefined;
+
+const redactPaths = [
+  "req.headers.authorization",
+  "req.headers.cookie",
+  "token",
+  "access_token",
+  "refresh_token",
+  "payload.accessToken",
+  "payload.refreshToken",
+];
+
+const base = {
+  app: "omnicrm",
+  env: env.NODE_ENV,
+};
+
+const isDev = env.NODE_ENV !== "production";
+
+const stream = isDev
+  ? pretty({ colorize: true, translateTime: "SYS:standard", singleLine: false })
+  : undefined;
+
+const logger = pino(
+  {
+    level: isDev ? "debug" : "info",
+    redact: { paths: redactPaths, censor: "[redacted]" },
+    base,
+    timestamp: pino.stdTimeFunctions.isoTime,
+    messageKey: "message",
+  },
+  stream as any,
+);
 
 export const log = {
-  info(bindings?: Bindings, message?: string) {
-    emit("info", bindings, message);
+  info(bindings?: LogBindings, message?: string) {
+    logger.info(bindings ?? {}, message);
   },
-  warn(bindings?: Bindings, message?: string) {
-    emit("warn", bindings, message);
+  warn(bindings?: LogBindings, message?: string) {
+    logger.warn(bindings ?? {}, message);
   },
-  error(bindings?: Bindings, message?: string) {
-    emit("error", bindings, message);
+  error(bindings?: LogBindings, message?: string) {
+    logger.error(bindings ?? {}, message);
   },
-  debug(bindings?: Bindings, message?: string) {
-    emit("debug", bindings, message);
+  debug(bindings?: LogBindings, message?: string) {
+    logger.debug(bindings ?? {}, message);
   },
 };

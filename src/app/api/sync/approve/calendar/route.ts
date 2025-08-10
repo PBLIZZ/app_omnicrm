@@ -1,30 +1,41 @@
-import { NextResponse } from "next/server";
-import { db } from "@/server/db/client";
-import { jobs } from "@/server/db/schema";
+/** POST /api/sync/approve/calendar — enqueue Calendar sync (auth required). Errors: 404 not_found, 400 invalid_body, 401 Unauthorized */
+// no NextResponse used; use helpers
 import { logSync } from "@/server/sync/audit";
 import { randomUUID } from "node:crypto";
 import { getServerUserId } from "@/server/auth/user";
+import { err, ok } from "@/server/http/responses";
+import { enqueue } from "@/server/jobs/enqueue";
+import { z } from "zod";
+import { toApiError } from "@/server/jobs/types";
 
-export async function POST() {
+const approveBodySchema = z
+  .object({
+    reason: z.string().max(200).optional(),
+  })
+  .strict();
+
+export async function POST(req: Request) {
   let userId: string;
   try {
     userId = await getServerUserId();
-  } catch (e: any) {
-    const status = e?.status ?? 401;
-    return NextResponse.json({ error: e.message ?? "Unauthorized" }, { status });
+  } catch (error: unknown) {
+    const { status, message } = toApiError(error);
+    return err(status, message);
   }
 
   if (process.env["FEATURE_GOOGLE_CALENDAR_RO"] !== "1") {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return err(404, "not_found");
+  }
+
+  try {
+    const raw = await req.json().catch(() => ({}));
+    approveBodySchema.parse(raw ?? {});
+  } catch {
+    return err(400, "invalid_body");
   }
 
   const batchId = randomUUID();
-  await db.insert(jobs).values({
-    userId,
-    kind: "google_calendar_sync",
-    payload: { batchId },
-    batchId,
-  });
+  await enqueue("google_calendar_sync", { batchId }, userId, batchId);
   await logSync(userId, "calendar", "approve", { batchId });
-  return NextResponse.json({ ok: true, batchId });
+  return ok({ batchId });
 }

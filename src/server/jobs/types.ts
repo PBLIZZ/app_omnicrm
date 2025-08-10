@@ -22,3 +22,37 @@ export type JobPayloadByKind = {
   normalize_google_email: BatchJobPayload;
   normalize_google_event: BatchJobPayload;
 };
+
+// Job database record structure (from schema)
+export interface JobRecord {
+  id: string;
+  userId: string;
+  kind: JobKind;
+  payload: unknown;
+  status: "queued" | "processing" | "done" | "error";
+  attempts: number;
+  batchId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Job handler function type - flexible to accommodate different job processor signatures
+export type JobHandler = (job: unknown, userId: string, ...args: unknown[]) => Promise<void>;
+
+// Error types for better error handling
+export interface JobError extends Error {
+  status?: number;
+  code?: string;
+  details?: Record<string, unknown>;
+}
+
+// API Error utility function
+export function toApiError(error: unknown): { status: number; message: string } {
+  if (error && typeof error === "object") {
+    const err = error as Record<string, unknown>;
+    const status = typeof err["status"] === "number" ? err["status"] : 401;
+    const message = typeof err["message"] === "string" ? err["message"] : "Unauthorized";
+    return { status, message };
+  }
+  return { status: 401, message: "Unauthorized" };
+}

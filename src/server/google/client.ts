@@ -2,12 +2,24 @@ import { google } from "googleapis";
 import { db } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
 import { userIntegrations } from "@/server/db/schema";
+import { decryptString, encryptString, isEncrypted } from "@/server/lib/crypto";
+import type { GmailClient } from "./gmail";
+import type { CalendarClient } from "./calendar";
 
 export type GoogleApisClients = {
   oauth2: InstanceType<typeof google.auth.OAuth2>;
-  gmail: ReturnType<typeof google.gmail>;
-  calendar: ReturnType<typeof google.calendar>;
+  gmail: GmailClient;
+  calendar: CalendarClient;
 };
+
+// Factories with precise return types for DI consumers/tests
+export function makeGmailClient(auth: InstanceType<typeof google.auth.OAuth2>): GmailClient {
+  return google.gmail({ version: "v1", auth });
+}
+
+export function makeCalendarClient(auth: InstanceType<typeof google.auth.OAuth2>): CalendarClient {
+  return google.calendar({ version: "v3", auth });
+}
 
 export async function getGoogleClients(userId: string): Promise<GoogleApisClients> {
   const rows = await db
@@ -27,9 +39,38 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
     process.env["GOOGLE_REDIRECT_URI"]!,
   );
 
+  // Decrypt and backfill if previously stored in plaintext
+  const decryptedAccess = isEncrypted(row.accessToken)
+    ? decryptString(row.accessToken)
+    : row.accessToken;
+  const decryptedRefresh = row.refreshToken
+    ? isEncrypted(row.refreshToken)
+      ? decryptString(row.refreshToken)
+      : row.refreshToken
+    : null;
+
+  // Backfill encryption once read
+  if (!isEncrypted(row.accessToken) || (row.refreshToken && !isEncrypted(row.refreshToken))) {
+    await db
+      .update(userIntegrations)
+      .set({
+        accessToken: isEncrypted(row.accessToken)
+          ? row.accessToken
+          : encryptString(decryptedAccess),
+        refreshToken:
+          row.refreshToken == null
+            ? null
+            : isEncrypted(row.refreshToken)
+              ? row.refreshToken
+              : encryptString(decryptedRefresh as string),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")));
+  }
+
   oauth2Client.setCredentials({
-    access_token: row.accessToken,
-    refresh_token: (row.refreshToken ?? null) as string | null,
+    access_token: decryptedAccess,
+    refresh_token: decryptedRefresh,
     expiry_date: row.expiryDate ? row.expiryDate.getTime() : null,
   });
 
@@ -38,8 +79,10 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
     await db
       .update(userIntegrations)
       .set({
-        accessToken: tokens.access_token ?? row.accessToken,
-        refreshToken: tokens.refresh_token ?? row.refreshToken,
+        accessToken:
+          tokens.access_token != null ? encryptString(tokens.access_token) : row.accessToken,
+        refreshToken:
+          tokens.refresh_token != null ? encryptString(tokens.refresh_token) : row.refreshToken,
         expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : row.expiryDate,
         updatedAt: new Date(),
       })
@@ -48,8 +91,8 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
   return {
     oauth2: oauth2Client,
-    gmail: google.gmail({ version: "v1", auth: oauth2Client }),
-    calendar: google.calendar({ version: "v3", auth: oauth2Client }),
+    gmail: makeGmailClient(oauth2Client),
+    calendar: makeCalendarClient(oauth2Client),
   };
 }
 

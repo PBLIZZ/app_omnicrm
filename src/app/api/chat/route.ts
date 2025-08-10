@@ -2,13 +2,17 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { withGuardrails } from "@/server/ai/with-guardrails";
+import { getServerUserId } from "@/server/auth/user";
 import { chatRequestSchema } from "./schema";
 // import your OpenRouter client here
 
 export async function POST(req: NextRequest) {
-  // TODO: replace with real auth session retrieval
-  const userId = req.headers.get("x-user-id") || ""; // e.g., from Supabase server session
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  let userId: string;
+  try {
+    userId = await getServerUserId();
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "unauthorized" }, { status: e?.status ?? 401 });
+  }
 
   const body = await req.json();
   const parsed = chatRequestSchema.safeParse(body);

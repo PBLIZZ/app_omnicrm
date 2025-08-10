@@ -1,46 +1,72 @@
 // Pagination helpers for robustness and rate safety
 import type { gmail_v1 } from "googleapis";
 import type { gmail as GmailFactory } from "googleapis/build/src/apis/gmail";
+import { getGoogleClients } from "./client";
+import { log } from "@/server/log";
 
-export async function listGmailMessageIds(gmail: ReturnType<typeof GmailFactory>, q: string) {
+export type GmailClient = ReturnType<typeof GmailFactory>;
+
+export interface GmailPreviewPrefs {
+  gmailQuery: string;
+  gmailLabelIncludes: string[];
+  gmailLabelExcludes: string[];
+}
+
+export interface GmailPreviewResult {
+  countByLabel: Record<string, number>;
+  sampleSubjects: string[];
+}
+
+export async function listGmailMessageIds(gmail: GmailClient, q: string) {
   const ids: string[] = [];
   let pageToken: string | undefined = undefined;
   do {
-    const params: any = {
+    const params: gmail_v1.Params$Resource$Users$Messages$List = {
       userId: "me",
       q,
       maxResults: 100,
       ...(pageToken ? { pageToken } : {}),
     };
-    const res: any = await gmail.users.messages.list(params);
-    (res.data.messages ?? []).forEach((m: any) => m.id && ids.push(m.id));
-    pageToken = res.data.nextPageToken || undefined;
+    // conservative timeout + small retry budget per page
+    const res = await callWithRetry(
+      () => gmail.users.messages.list(params, { timeout: 10_000 }),
+      "gmail.messages.list",
+    );
+    (res.data.messages ?? []).forEach((m) => m.id && ids.push(m.id));
+    pageToken = res.data.nextPageToken ?? undefined;
   } while (pageToken);
   return ids;
 }
 
-export async function getMessages(gmail: ReturnType<typeof GmailFactory>, ids: string[]) {
+export async function getMessages(gmail: GmailClient, ids: string[]) {
   const out: gmail_v1.Schema$Message[] = [];
   const chunk = 25;
   for (let i = 0; i < ids.length; i += chunk) {
     const slice = ids.slice(i, i + chunk);
     const results = await Promise.allSettled(
       slice.map((id) =>
-        gmail.users.messages.get({
-          userId: "me",
-          id,
-          format: "metadata",
-          metadataHeaders: [
-            "Subject",
-            "From",
-            "To",
-            "Date",
-            "Message-Id",
-            "List-Id",
-            "Delivered-To",
-            "Cc",
-          ],
-        }),
+        callWithRetry(
+          () =>
+            gmail.users.messages.get(
+              {
+                userId: "me",
+                id,
+                format: "metadata",
+                metadataHeaders: [
+                  "Subject",
+                  "From",
+                  "To",
+                  "Date",
+                  "Message-Id",
+                  "List-Id",
+                  "Delivered-To",
+                  "Cc",
+                ],
+              },
+              { timeout: 10_000 },
+            ),
+          "gmail.messages.get",
+        ),
       ),
     );
     for (const r of results) if (r.status === "fulfilled") out.push(r.value.data);
@@ -48,14 +74,8 @@ export async function getMessages(gmail: ReturnType<typeof GmailFactory>, ids: s
   }
   return out;
 }
-import { getGoogleClients } from "./client";
 
-type GmailPreview = {
-  countByLabel: Record<string, number>;
-  sampleSubjects: string[];
-};
-
-const CATEGORY_LABEL_MAP: Record<string, string> = {
+export const CATEGORY_LABEL_MAP: Record<string, string> = {
   Promotions: "CATEGORY_PROMOTIONS",
   Social: "CATEGORY_SOCIAL",
   Forums: "CATEGORY_FORUMS",
@@ -69,42 +89,47 @@ function toLabelId(labelName: string): string {
 
 export async function gmailPreview(
   userId: string,
-  prefs: {
-    gmailQuery: string;
-    gmailLabelIncludes: string[];
-    gmailLabelExcludes: string[];
-  },
-): Promise<GmailPreview> {
-  const { gmail } = await getGoogleClients(userId);
+  prefs: GmailPreviewPrefs,
+  injectedGmail?: GmailClient,
+): Promise<GmailPreviewResult> {
+  const gmail = injectedGmail ?? (await getGoogleClients(userId)).gmail;
 
   const q = prefs.gmailQuery;
   const includeIds = (prefs.gmailLabelIncludes ?? []).map(toLabelId).filter(Boolean);
   const excludeIds = (prefs.gmailLabelExcludes ?? []).map(toLabelId).filter(Boolean);
 
-  const messages: { id?: string | null }[] = [];
+  const messages: Pick<gmail_v1.Schema$Message, "id">[] = [];
   let pageToken: string | undefined = undefined;
   do {
-    const params: any = {
+    const params: gmail_v1.Params$Resource$Users$Messages$List = {
       userId: "me",
       q,
       maxResults: 100,
       ...(pageToken ? { pageToken } : {}),
     };
-    const listRes: any = await gmail.users.messages.list(params);
+    const listRes = await gmail.users.messages.list(params);
     messages.push(...(listRes.data.messages ?? []));
-    pageToken = listRes.data.nextPageToken || undefined;
+    pageToken = listRes.data.nextPageToken ?? undefined;
   } while (pageToken);
   const countByLabel: Record<string, number> = {};
   const sampleSubjects: string[] = [];
 
   for (const m of messages.slice(0, 50)) {
     if (!m.id) continue;
-    const msg = await gmail.users.messages.get({
-      userId: "me",
-      id: m.id,
-      format: "metadata",
-      metadataHeaders: ["Subject", "From", "To", "Date"],
-    });
+    const idVal = m.id as string; // guarded above
+    const msg = await callWithRetry(
+      () =>
+        gmail.users.messages.get(
+          {
+            userId: "me",
+            id: idVal,
+            format: "metadata",
+            metadataHeaders: ["Subject", "From", "To", "Date"],
+          },
+          { timeout: 10_000 },
+        ),
+      "gmail.messages.get",
+    );
     const payload = msg.data;
     const labelIds = payload.labelIds ?? [];
 
@@ -135,4 +160,20 @@ export async function gmailPreview(
   for (const [k, v] of topEntries) top[k] = v;
 
   return { countByLabel: top, sampleSubjects };
+}
+
+// Small retry helper with jitter. Keeps it simple and bounded.
+async function callWithRetry<T>(fn: () => Promise<T>, op: string, max = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < max; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const delay = Math.min(300 * 2 ** attempt, 2000) + Math.floor(Math.random() * 200);
+      if (attempt < max - 1) await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  log.warn({ op, error: String((lastErr as any)?.message ?? lastErr) }, "google_call_failed");
+  throw lastErr;
 }

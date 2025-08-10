@@ -1,22 +1,32 @@
-import { NextResponse } from "next/server";
+/** POST /api/sync/preview/calendar — compute Calendar preview (auth required). Errors: 404 not_found, 401 Unauthorized, 500 preview_failed */
+// no NextResponse usage; responses via helpers
 import { db } from "@/server/db/client";
 import { userSyncPrefs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { calendarPreview } from "@/server/google/calendar";
 import { logSync } from "@/server/sync/audit";
 import { getServerUserId } from "@/server/auth/user";
+import { err, ok } from "@/server/http/responses";
+import { z } from "zod";
+import { toApiError } from "@/server/jobs/types";
 
-export async function POST() {
+const previewBodySchema = z
+  .object({
+    testOnly: z.boolean().optional(),
+  })
+  .strict();
+
+export async function POST(req?: Request) {
   let userId: string;
   try {
     userId = await getServerUserId();
-  } catch (e: any) {
-    const status = e?.status ?? 401;
-    return NextResponse.json({ error: e.message ?? "Unauthorized" }, { status });
+  } catch (error: unknown) {
+    const { status, message } = toApiError(error);
+    return err(status, message);
   }
 
   if (process.env["FEATURE_GOOGLE_CALENDAR_RO"] !== "1") {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return err(404, "not_found");
   }
 
   const prefsRow = await db
@@ -31,15 +41,17 @@ export async function POST() {
   };
 
   try {
+    const raw = await req?.json?.().catch(() => ({}));
+    previewBodySchema.parse(raw ?? {});
     const preview = await calendarPreview(userId, {
       calendarIncludeOrganizerSelf: prefs.calendarIncludeOrganizerSelf,
       calendarIncludePrivate: prefs.calendarIncludePrivate,
       calendarTimeWindowDays: prefs.calendarTimeWindowDays,
     });
     await logSync(userId, "calendar", "preview", preview as unknown as Record<string, unknown>);
-    return NextResponse.json(preview);
+    return ok(preview);
   } catch (e: any) {
     const status = e?.status === 401 ? 401 : 500;
-    return NextResponse.json({ error: e?.message ?? "preview_failed" }, { status });
+    return err(status, "preview_failed");
   }
 }

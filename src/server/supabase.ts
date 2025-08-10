@@ -1,11 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import { env } from "@/lib/env";
 
-const url = process.env["NEXT_PUBLIC_SUPABASE_URL"]!;
-const pub = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"]!;
-const secret = process.env["SUPABASE_SECRET_KEY"];
+const url = env.NEXT_PUBLIC_SUPABASE_URL;
+const pub = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const secret = env.SUPABASE_SECRET_KEY;
 
-export const supabaseServerPublishable = createClient(url, pub); // honors RLS
+// RLS-honoring server client (use in request handlers acting on behalf of a user)
+export const supabaseServerPublishable = createClient(url, pub);
 
-export const supabaseServerAdmin = secret
-  ? createClient(url, secret) // bypasses RLS; use sparingly (backfills, system jobs)
-  : null;
+// Admin client bypasses RLS. Never expose to client code.
+export const supabaseServerAdmin = secret ? createClient(url, secret) : null;

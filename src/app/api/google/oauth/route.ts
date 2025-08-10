@@ -1,21 +1,25 @@
+/** GET /api/google/oauth — start Google OAuth (auth required). Errors: 400 invalid_scope, 401 Unauthorized */
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { logSync } from "@/server/sync/audit";
 import { getServerUserId } from "@/server/auth/user";
+import { err } from "@/server/http/responses";
+import { hmacSign, randomNonce } from "@/server/lib/crypto";
+import { toApiError } from "@/server/jobs/types";
 
 // GET /api/google/oauth?scope=gmail|calendar
 export async function GET(req: Request) {
   let userId: string;
   try {
     userId = await getServerUserId();
-  } catch (e) {
-    const status = (e as any)?.status ?? 401;
-    return NextResponse.json({ error: (e as any)?.message ?? "Unauthorized" }, { status });
+  } catch (error: unknown) {
+    const { status, message } = toApiError(error);
+    return err(status, message);
   }
 
   const scopeParam = new URL(req.url).searchParams.get("scope");
   if (!scopeParam || !["gmail", "calendar"].includes(scopeParam)) {
-    return NextResponse.json({ error: "invalid scope" }, { status: 400 });
+    return err(400, "invalid_scope", { scope: scopeParam });
   }
 
   const scopes =
@@ -29,14 +33,28 @@ export async function GET(req: Request) {
     process.env["GOOGLE_REDIRECT_URI"]!,
   );
 
+  // CSRF defense: set HMAC-signed nonce cookie and include only the nonce in state
+  const nonce = randomNonce(18);
+  const state = JSON.stringify({ n: nonce, s: scopeParam });
+  const sig = hmacSign(state);
+
   const url = oauth2.generateAuthUrl({
     access_type: "offline",
     include_granted_scopes: true,
     prompt: "consent",
     scope: scopes,
-    state: JSON.stringify({ userId, scope: scopeParam }),
+    state,
   });
 
-  await logSync(userId, scopeParam as any, "preview", { step: "oauth_init" });
-  return NextResponse.redirect(url);
+  await logSync(userId, scopeParam as "gmail" | "calendar", "preview", { step: "oauth_init" });
+  const res = NextResponse.redirect(url);
+  // Short lived, HttpOnly, SameSite=Strict
+  res.cookies.set("gauth", `${sig}.${nonce}`, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: true,
+    path: "/",
+    maxAge: 5 * 60, // 5 minutes
+  });
+  return res;
 }

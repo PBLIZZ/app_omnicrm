@@ -1,0 +1,7 @@
+// Service-role client for RLS-bypassing writes (raw_events, embeddings, ai_insights).
+import { createClient } from "@supabase/supabase-js";
+export const supaAdmin = createClient(
+  process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
+  process.env["SUPABASE_SERVICE_ROLE_KEY"]!,
+  { auth: { persistSession: false } },
+);

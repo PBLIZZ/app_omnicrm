@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { db } from "@/server/db/client";
+import { getDb } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
 import { userIntegrations } from "@/server/db/schema";
 import { decryptString, encryptString, isEncrypted } from "@/server/lib/crypto";
@@ -22,7 +22,8 @@ export function makeCalendarClient(auth: InstanceType<typeof google.auth.OAuth2>
 }
 
 export async function getGoogleClients(userId: string): Promise<GoogleApisClients> {
-  const rows = await db
+  const dbo = await getDb();
+  const rows = await dbo
     .select()
     .from(userIntegrations)
     .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")))
@@ -51,7 +52,7 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
   // Backfill encryption once read
   if (!isEncrypted(row.accessToken) || (row.refreshToken && !isEncrypted(row.refreshToken))) {
-    await db
+    await dbo
       .update(userIntegrations)
       .set({
         accessToken: isEncrypted(row.accessToken)
@@ -76,7 +77,8 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
   oauth2Client.on("tokens", async (tokens) => {
     if (!(tokens.access_token || tokens.refresh_token)) return;
-    await db
+    const dbo = await getDb();
+    await dbo
       .update(userIntegrations)
       .set({
         accessToken:

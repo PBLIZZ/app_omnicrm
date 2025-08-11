@@ -4,12 +4,12 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/server/db/client", () => {
   return {
     db: {
-      execute: async (query: any) => {
+      execute: async (query: { queryChunks?: Array<{ value?: string[] }> }) => {
         // Extract SQL from drizzle-orm query chunks
         const chunks = query?.queryChunks || [];
         const sqlParts = chunks
-          .filter((chunk: any) => chunk?.value)
-          .map((chunk: any) => chunk.value.join(""))
+          .filter((chunk: { value?: string[] }) => chunk?.value)
+          .map((chunk: { value: string[] }) => chunk.value.join(""))
           .join(" ");
 
         // Simulate each query used by guardrails.ts

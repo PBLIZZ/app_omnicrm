@@ -1,12 +1,12 @@
 import type { calendar_v3 } from "googleapis";
 import { getGoogleClients } from "./client";
-import { log } from "@/server/log";
+import { callWithRetry } from "./utils";
 
 export type CalendarClient = calendar_v3.Calendar;
 
 export interface CalendarPreviewPrefs {
-  calendarIncludeOrganizerSelf: "true" | "false";
-  calendarIncludePrivate: "true" | "false";
+  calendarIncludeOrganizerSelf: boolean; // was string, now boolean
+  calendarIncludePrivate: boolean; // was string, now boolean
   calendarTimeWindowDays: number;
 }
 
@@ -46,14 +46,10 @@ export async function calendarPreview(
   let count = 0;
 
   for (const e of events.slice(0, 200)) {
-    if (
-      prefs.calendarIncludeOrganizerSelf === "true" &&
-      e.organizer &&
-      e.organizer.self === false
-    ) {
+    if (prefs.calendarIncludeOrganizerSelf === true && e.organizer && e.organizer.self === false) {
       continue;
     }
-    if (prefs.calendarIncludePrivate === "false" && e.visibility === "private") {
+    if (prefs.calendarIncludePrivate === false && e.visibility === "private") {
       continue;
     }
     count += 1;
@@ -86,19 +82,4 @@ export async function listCalendarEvents(cal: CalendarClient, timeMin: string, t
   return items;
 }
 
-// Simple retry helper with jitter
-async function callWithRetry<T>(fn: () => Promise<T>, op: string, max = 3): Promise<T> {
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < max; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      const delay = Math.min(300 * 2 ** attempt, 2000) + Math.floor(Math.random() * 200);
-      if (attempt < max - 1) await new Promise((r) => setTimeout(r, delay));
-    }
-  }
-  const error = lastErr as { message?: string };
-  log.warn({ op, error: String(error?.message ?? lastErr) }, "google_call_failed");
-  throw lastErr;
-}
+// callWithRetry shared in ./utils

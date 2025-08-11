@@ -13,6 +13,9 @@ vi.mock("@/server/db/client", () => {
     select: () => ({
       from: () => ({
         where: () => ({
+          orderBy: () => ({
+            limit: async () => queuedJobs,
+          }),
           limit: async () => queuedJobs,
         }),
       }),

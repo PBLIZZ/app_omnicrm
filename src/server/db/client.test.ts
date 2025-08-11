@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 describe("db client lazy initialization", () => {
   const originalEnv = { ...process.env };
@@ -25,7 +26,13 @@ describe("db client lazy initialization", () => {
     const drizzle = () => ({ execute });
 
     const { getDb, __setDbDriversForTest } = await import("@/server/db/client");
-    __setDbDriversForTest({ ClientCtor: MockClient as any, drizzleFn: drizzle as any });
+    __setDbDriversForTest({
+      ClientCtor: MockClient as new (config: { connectionString: string }) => {
+        connect(): Promise<void>;
+        [key: string]: unknown;
+      },
+      drizzleFn: drizzle as (client: unknown) => NodePgDatabase,
+    });
 
     expect(constructCount).toBe(0);
 
@@ -49,8 +56,16 @@ describe("db client lazy initialization", () => {
     const drizzle = () => ({ execute });
 
     const { db, __setDbDriversForTest } = await import("@/server/db/client");
-    __setDbDriversForTest({ ClientCtor: MockClient as any, drizzleFn: drizzle as any });
-    const result = await (db as any).execute("select 1");
+    __setDbDriversForTest({
+      ClientCtor: MockClient as new (config: { connectionString: string }) => {
+        connect(): Promise<void>;
+        [key: string]: unknown;
+      },
+      drizzleFn: drizzle as (client: unknown) => NodePgDatabase,
+    });
+    const result = await (
+      db as NodePgDatabase & { execute: (query: string) => Promise<unknown> }
+    ).execute("select 1");
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ rows: [{ one: 1 }] });
   });
@@ -63,9 +78,17 @@ describe("db client lazy initialization", () => {
     }
     const drizzle = () => ({ execute: vi.fn() });
     const { getDb, db, __setDbDriversForTest } = await import("@/server/db/client");
-    __setDbDriversForTest({ ClientCtor: MockClient as any, drizzleFn: drizzle as any });
+    __setDbDriversForTest({
+      ClientCtor: MockClient as new (config: { connectionString: string }) => {
+        connect(): Promise<void>;
+        [key: string]: unknown;
+      },
+      drizzleFn: drizzle as (client: unknown) => NodePgDatabase,
+    });
     await expect(getDb()).rejects.toThrow(/DATABASE_URL is not set/);
 
-    await expect((db as any).execute("select 1")).rejects.toThrow();
+    await expect(
+      (db as NodePgDatabase & { execute: (query: string) => Promise<unknown> }).execute("select 1"),
+    ).rejects.toThrow();
   });
 });

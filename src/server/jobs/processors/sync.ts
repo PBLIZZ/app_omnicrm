@@ -1,4 +1,4 @@
-import { db } from "@/server/db/client";
+import { getDb } from "@/server/db/client";
 import { supaAdminGuard } from "@/server/db/supabase-admin";
 import { and, desc, eq } from "drizzle-orm";
 import { jobs, rawEvents, userSyncPrefs } from "@/server/db/schema";
@@ -11,7 +11,8 @@ import { listCalendarEvents } from "@/server/google/calendar";
 // Note: logging kept minimal to avoid noise during tight loops
 
 export async function lastEventTimestamp(userId: string, provider: "gmail" | "calendar") {
-  const rows = await db
+  const dbo = await getDb();
+  const rows = await dbo
     .select({ occurredAt: rawEvents.occurredAt })
     .from(rawEvents)
     .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, provider)))
@@ -27,8 +28,9 @@ export async function runGmailSync(
   userId: string,
   injected?: { gmail?: GmailClient },
 ) {
+  const dbo = await getDb();
   const gmail = injected?.gmail ?? (await getGoogleClients(userId)).gmail;
-  const prefsRow = await db
+  const prefsRow = await dbo
     .select()
     .from(userSyncPrefs)
     .where(eq(userSyncPrefs.userId, userId))
@@ -77,13 +79,14 @@ export async function runGmailSync(
 
       // service-role write: raw_events (allowed)
       await supaAdminGuard.insert("raw_events", {
-        userId,
+        user_id: userId,
         provider: "gmail",
         payload: msg,
-        occurredAt,
-        contactId: null,
-        batchId: batchId ?? null,
-        sourceMeta: { labelIds, fetchedAt: new Date().toISOString(), matchedQuery: q },
+        occurred_at: occurredAt as unknown as string, // supabase-js will serialize Date
+        contact_id: null,
+        batch_id: batchId ?? null,
+        source_meta: { labelIds, fetchedAt: new Date().toISOString(), matchedQuery: q },
+        source_id: (msg as { id?: string | null })?.id ?? undefined,
       });
       itemsInserted += 1;
       itemsFetched += 1;
@@ -107,7 +110,7 @@ export async function runGmailSync(
     }),
   );
 
-  await db.insert(jobs).values({
+  await dbo.insert(jobs).values({
     userId,
     kind: "normalize_google_email",
     payload: { batchId },
@@ -120,8 +123,9 @@ export async function runCalendarSync(
   userId: string,
   injected?: { calendar?: CalendarClient },
 ) {
+  const dbo = await getDb();
   const calendar = injected?.calendar ?? (await getGoogleClients(userId)).calendar;
-  const prefsRow = await db
+  const prefsRow = await dbo
     .select()
     .from(userSyncPrefs)
     .where(eq(userSyncPrefs.userId, userId))
@@ -146,14 +150,10 @@ export async function runCalendarSync(
   for (let i = 0; i < total; i++) {
     if (Date.now() > deadlineMs) break; // why: avoid runaway jobs on large calendars
     const e = items[i]!;
-    if (
-      (prefs?.calendarIncludeOrganizerSelf ?? "true") === "true" &&
-      e.organizer &&
-      e.organizer.self === false
-    ) {
+    if (prefs?.calendarIncludeOrganizerSelf === true && e.organizer && e.organizer.self === false) {
       continue;
     }
-    if ((prefs?.calendarIncludePrivate ?? "false") === "false" && e.visibility === "private") {
+    if (prefs?.calendarIncludePrivate === false && e.visibility === "private") {
       continue;
     }
     const startStr = e.start?.dateTime ?? e.start?.date;
@@ -161,13 +161,14 @@ export async function runCalendarSync(
     const occurredAt = new Date(startStr);
     // service-role write: raw_events (allowed)
     await supaAdminGuard.insert("raw_events", {
-      userId,
+      user_id: userId,
       provider: "calendar",
       payload: e,
-      occurredAt,
-      contactId: null,
-      batchId: batchId ?? null,
-      sourceMeta: { fetchedAt: new Date().toISOString() },
+      occurred_at: occurredAt as unknown as string,
+      contact_id: null,
+      batch_id: batchId ?? null,
+      source_meta: { fetchedAt: new Date().toISOString() },
+      source_id: (e as { id?: string | null })?.id ?? undefined,
     });
     itemsFetched += 1;
     itemsInserted += 1;
@@ -190,7 +191,7 @@ export async function runCalendarSync(
     }),
   );
 
-  await db.insert(jobs).values({
+  await dbo.insert(jobs).values({
     userId,
     kind: "normalize_google_event",
     payload: { batchId },

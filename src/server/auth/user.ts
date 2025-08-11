@@ -25,15 +25,7 @@ export async function getServerUserId(): Promise<string> {
     },
   );
 
-  const { data, error } = await supabase.auth.getUser();
-
-  // Debug logging
-  console.warn(`[DEBUG] getServerUserId - User data:`, {
-    hasUser: !!data?.user,
-    userId: data?.user?.id,
-    error: error?.message,
-    cookies: cookieStore.getAll().map((c) => c.name),
-  });
+  const { data } = await supabase.auth.getUser();
 
   if (data?.user?.id) return data.user.id;
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { db } from "@/server/db/client";
+import { getDb } from "@/server/db/client";
 
 const MONTHLY = Number(process.env["AI_CREDITS_MONTHLY"] ?? 200);
 const RPM = Number(process.env["AI_REQUESTS_PER_MINUTE"] ?? 8);
@@ -15,7 +15,8 @@ export { firstOfMonth }; // useful in tests
  */
 export async function ensureMonthlyQuota(userId: string) {
   const period = firstOfMonth();
-  await db.execute(sql`
+  const dbo = await getDb();
+  await dbo.execute(sql`
     insert into ai_quotas (user_id, period_start, credits_left)
     values (${userId}::uuid, ${period}, ${MONTHLY})
     on conflict (user_id) do update set
@@ -32,7 +33,8 @@ export async function ensureMonthlyQuota(userId: string) {
  * Do this BEFORE calling the model.
  */
 export async function trySpendCredit(userId: string): Promise<number | null> {
-  const { rows } = await db.execute(sql`
+  const dbo = await getDb();
+  const { rows } = await dbo.execute(sql`
     update ai_quotas
     set credits_left = credits_left - 1
     where user_id = ${userId}::uuid
@@ -47,7 +49,8 @@ export async function trySpendCredit(userId: string): Promise<number | null> {
  * Per-minute throttle using the usage log.
  */
 export async function checkRateLimit(userId: string): Promise<boolean> {
-  const { rows } = await db.execute(sql`
+  const dbo = await getDb();
+  const { rows } = await dbo.execute(sql`
     select count(*)::int as c
     from ai_usage
     where user_id = ${userId}::uuid
@@ -62,7 +65,8 @@ export async function checkRateLimit(userId: string): Promise<boolean> {
  */
 export async function underDailyCostCap(userId: string): Promise<boolean> {
   if (!DAILY_CAP_EUR || DAILY_CAP_EUR <= 0) return true;
-  const { rows } = await db.execute(sql`
+  const dbo = await getDb();
+  const { rows } = await dbo.execute(sql`
     select coalesce(sum(cost_usd), 0)::numeric as sum
     from ai_usage
     where user_id = ${userId}::uuid
@@ -84,7 +88,8 @@ export async function logUsage(params: {
   costUsd?: number;
 }) {
   const { userId, model, inputTokens = 0, outputTokens = 0, costUsd = 0 } = params;
-  await db.execute(sql`
+  const dbo = await getDb();
+  await dbo.execute(sql`
     insert into ai_usage (user_id, model, input_tokens, output_tokens, cost_usd)
     values (${userId}::uuid, ${model}, ${inputTokens}, ${outputTokens}, ${costUsd})
   `);

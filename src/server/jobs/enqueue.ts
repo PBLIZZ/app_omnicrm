@@ -1,4 +1,4 @@
-import { db } from "@/server/db/client";
+import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import type { JobKind, JobPayloadByKind } from "./types";
 
@@ -17,5 +17,6 @@ export async function enqueue<K extends JobKind>(
       insert into jobs (kind, payload, user_id, status)
       values (${kind}, ${payload as object}, ${userId}::uuid, 'queued')
     `;
-  await db.execute(insertSql);
+  const dbo = await getDb();
+  await dbo.execute(insertSql);
 }

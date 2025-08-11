@@ -7,7 +7,7 @@ describe("settings/sync/status route", () => {
     mocks.selects = [];
     vi.mock("@/server/auth/user", () => ({ getServerUserId: vi.fn().mockResolvedValue("user-1") }));
     vi.mock("@/server/db/client", () => ({
-      db: {
+      getDb: async () => ({
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation(() => ({
             where: vi.fn().mockImplementation(() => ({
@@ -18,7 +18,7 @@ describe("settings/sync/status route", () => {
             })),
           })),
         })),
-      },
+      }),
     }));
   });
 
@@ -49,9 +49,9 @@ describe("settings/sync/status route", () => {
     const res = await mod.GET();
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.googleConnected).toBe(true);
-    expect(json.lastSync.gmail).toBeDefined();
-    expect(typeof json.jobs.queued).toBe("number");
-    expect(typeof json.lastBatchId === "string" || json.lastBatchId === null).toBe(true);
+    expect(json.data.googleConnected).toBe(true);
+    expect(json.data.lastSync.gmail).toBeDefined();
+    expect(typeof json.data.jobs.queued).toBe("number");
+    expect(typeof json.data.lastBatchId === "string" || json.data.lastBatchId === null).toBe(true);
   });
 });

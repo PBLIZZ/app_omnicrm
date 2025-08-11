@@ -3,10 +3,10 @@ import { POST } from "./route";
 import type { NextRequest } from "next/server";
 vi.mock("@/server/auth/user", () => ({ getServerUserId: vi.fn().mockResolvedValue("u1") }));
 vi.mock("@/server/db/client", () => ({
-  db: {
+  getDb: async () => ({
     delete: () => ({ where: () => ({}) }),
     update: () => ({ set: () => ({ where: () => ({}) }) }),
-  },
+  }),
 }));
 
 describe("undo route", () => {

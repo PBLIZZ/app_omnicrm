@@ -22,7 +22,7 @@ This comprehensive architectural review examines the Gmail/Calendar sync system 
 
 **Rating: EXCELLENT** - The system implements a sophisticated **event-driven job queue architecture** with clear service boundaries:
 
-```
+```bash
 OAuth Flow → Preview Phase → Approve Phase → Job Processing → Data Normalization → User Interface
     ↓           ↓              ↓              ↓                ↓                  ↓
   Tokens    Audit Log    Job Enqueue    Raw Events     Interactions        Query API
@@ -62,7 +62,7 @@ const backoffMs = Math.min(BASE_DELAY_MS * 2 ** attempts, MAX_BACKOFF_MS);
 
 ### Data Architecture Excellence
 
-**Schema Design Quality: EXCELLENT**
+### Schema Design Quality: EXCELLENT
 
 ```sql
 -- Immutable raw data store
@@ -369,7 +369,7 @@ export const userSyncPrefs = pgTable("user_sync_prefs", {
 
 ### HIGH SEVERITY Issues
 
-**H1: Job Queue Horizontal Scaling**
+### H1: Job Queue Horizontal Scaling
 
 ```typescript
 // Current: Single-process job consumption per user
@@ -392,7 +392,7 @@ CREATE INDEX jobs_available_work ON jobs (status, claimed_at, updated_at DESC)
 WHERE status = 'queued';
 ```
 
-**H2: Rate Limiting Scalability**
+### H2: Rate Limiting Scalability
 
 ```typescript
 // Current: In-memory rate limiting
@@ -405,7 +405,7 @@ const buckets = new Map<string, { count: number; resetAt: number }>();
 
 ### MODERATE SEVERITY Issues
 
-**M1: Database Performance Optimization**
+### M1: Database Performance Optimization
 
 ```sql
 -- Missing composite indexes for job processing
@@ -417,13 +417,13 @@ WHERE status IN ('queued', 'processing');
 CREATE TABLE raw_events_gmail PARTITION OF raw_events FOR VALUES IN ('gmail');
 ```
 
-**M2: Enhanced Monitoring**
+### M2: Enhanced Monitoring
 
 - Add structured metrics for job queue health
 - Implement alerting for failed job rates
 - Monitor API rate limit consumption
 
-**M3: Circuit Breaker Implementation**
+### M3: Circuit Breaker Implementation
 
 ```typescript
 // Add resilience for external API calls
@@ -437,13 +437,13 @@ const gmailBreaker = new CircuitBreaker(gmailApiCall, {
 
 ### LOW SEVERITY Improvements
 
-**L1: Enhanced Configuration Management**
+### L1: Enhanced Configuration Management
 
 - Centralized feature flag system
 - Runtime configuration updates
 - Per-tenant configuration overrides
 
-**L2: Advanced Observability**
+### L2: Advanced Observability
 
 - OpenTelemetry integration
 - Distributed tracing across services
@@ -453,7 +453,7 @@ const gmailBreaker = new CircuitBreaker(gmailApiCall, {
 
 ### Scaling Strategy Recommendations
 
-**Phase 1: Immediate Improvements (1-3 months)**
+### Phase 1: Immediate Improvements (1-3 months)
 
 ```typescript
 // 1. Distributed job processing
@@ -481,14 +481,14 @@ class DistributedRateLimiter {
 }
 ```
 
-**Phase 2: Enhanced Resilience (3-6 months)**
+### Phase 2: Enhanced Resilience (3-6 months)
 
 1. **Circuit Breaker Patterns** for external APIs
 2. **Dead Letter Queue** for permanently failed jobs
 3. **Enhanced Monitoring** with business metrics
 4. **Database Partitioning** for large tables
 
-**Phase 3: Advanced Features (6-12 months)**
+### Phase 3: Advanced Features (6-12 months)
 
 1. **Real-time Sync** with webhook infrastructure
 2. **Multi-Region Support** for global deployment
@@ -526,7 +526,7 @@ const cache = new Redis(process.env.REDIS_URL);
 
 **End-to-End Flow Excellence:**
 
-```
+```bash
 1. OAuth Flow → Token Storage (Encrypted)
    ↓
 2. Preview Phase → Non-destructive API sampling
@@ -645,7 +645,7 @@ ON interactions (user_id, occurred_at DESC);
 
 ### Code Quality Metrics
 
-**Type Safety: EXCELLENT**
+### Type Safety: EXCELLENT
 
 - 100% TypeScript coverage with strict mode
 - Runtime validation with Zod schemas
@@ -704,7 +704,7 @@ class ResilientApiClient {
 
 ### Operational Readiness
 
-**Production Readiness Score: 8.5/10**
+### Production Readiness Score: 8.5/10
 
 **Strengths:**
 
@@ -725,28 +725,28 @@ The Gmail/Calendar sync system represents an **exceptionally well-architected so
 
 ### Key Architectural Achievements
 
-**1. Sophisticated Data Pipeline**
+### 1. Sophisticated Data Pipeline\*\*
 
 - **Immutable Raw Storage**: Preserves complete API responses for audit and reprocessing
 - **Incremental Processing**: Efficient delta syncs minimize API calls and processing time
 - **Batch Operations**: Grouped processing with comprehensive rollback capabilities
 - **Audit Trails**: Complete operational history for debugging and compliance
 
-**2. Production-Ready Security**
+### 2. Production-Ready Security\*\*
 
 - **Multi-Layer Protection**: RLS, encryption, CSRF, rate limiting, security headers
 - **Service Boundaries**: Clear separation between user and system operations
 - **Token Management**: Encrypted storage with automatic rotation and migration
 - **Access Control**: Comprehensive policies with defense-in-depth
 
-**3. Operational Excellence**
+### 3. Operational Excellence\*\*
 
 - **Comprehensive Logging**: Structured output with sensitive data redaction
 - **Error Recovery**: Sophisticated retry logic with exponential backoff
 - **Performance Controls**: Rate limiting and memory management
 - **Monitoring Ready**: Detailed metrics and operational visibility
 
-**4. Developer Experience**
+### 4. Developer Experience\*\*
 
 - **Type Safety**: Complete TypeScript coverage with runtime validation
 - **Clear Patterns**: Consistent interfaces and error handling
@@ -797,7 +797,7 @@ The architecture demonstrates exceptional engineering practices with minimal tec
 - **Operational Readiness (9/10)**: Production-ready with comprehensive monitoring
 - **Documentation (9/10)**: Excellent architectural and operational documentation
 
-**Recommendation: APPROVED FOR PRODUCTION**
+### Recommendation: APPROVED FOR PRODUCTION\*\*
 
 This Gmail/Calendar sync system demonstrates architectural excellence and is ready for production deployment. The sophisticated design patterns, comprehensive security controls, and operational readiness make it a exemplary implementation that can serve as a template for future integrations.
 

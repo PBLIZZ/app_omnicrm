@@ -2,39 +2,33 @@ import { describe, it, expect, vi } from "vitest";
 
 // 1) Mock the DB module BEFORE importing the code-under-test
 vi.mock("@/server/db/client", () => {
-  return {
-    db: {
-      execute: async (query: { queryChunks?: Array<{ value?: string[] }> }) => {
-        // Extract SQL from drizzle-orm query chunks
-        const chunks = query?.queryChunks || [];
-        const sqlParts = chunks
-          .filter((chunk: { value?: string[] }) => chunk?.value)
-          .map((chunk: { value: string[] }) => chunk.value.join(""))
-          .join(" ");
+  const db = {
+    execute: async (query: { queryChunks?: Array<{ value?: string[] }> }) => {
+      const chunks = query?.queryChunks || [];
+      const sqlParts = chunks
+        .filter((chunk: { value?: string[] }) => chunk?.value)
+        .map((chunk: { value: string[] }) => chunk.value.join(""))
+        .join(" ");
 
-        // Simulate each query used by guardrails.ts
-        if (sqlParts.includes("insert into ai_quotas")) {
-          return { rows: [] };
-        }
-        if (sqlParts.includes("update ai_quotas")) {
-          // pretend a credit was spent and 199 remain
-          return { rows: [{ credits_left: 199 }] };
-        }
-        if (sqlParts.includes("count(*)::int as c")) {
-          // per-minute count = 0
-          return { rows: [{ c: 0 }] };
-        }
-        if (sqlParts.includes("coalesce(sum(cost_usd), 0)::numeric as sum")) {
-          // today's cost = 0
-          return { rows: [{ sum: 0 }] };
-        }
-        if (sqlParts.includes("insert into ai_usage")) {
-          return { rows: [] };
-        }
+      if (sqlParts.includes("insert into ai_quotas")) {
         return { rows: [] };
-      },
+      }
+      if (sqlParts.includes("update ai_quotas")) {
+        return { rows: [{ credits_left: 199 }] };
+      }
+      if (sqlParts.includes("count(*)::int as c")) {
+        return { rows: [{ c: 0 }] };
+      }
+      if (sqlParts.includes("coalesce(sum(cost_usd), 0)::numeric as sum")) {
+        return { rows: [{ sum: 0 }] };
+      }
+      if (sqlParts.includes("insert into ai_usage")) {
+        return { rows: [] };
+      }
+      return { rows: [] };
     },
   };
+  return { getDb: async () => db, db };
 });
 
 // 2) Now import the functions under test

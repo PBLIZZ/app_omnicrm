@@ -22,7 +22,9 @@ vi.mock("@/server/db/client", () => {
     }),
     update: () => ({
       set: () => ({
-        where: async () => undefined,
+        where: () => ({
+          returning: async () => [{ id: "claimed" }],
+        }),
       }),
     }),
     execute: async (query: { queryChunks?: Array<{ value?: string[] }> }) => {
@@ -35,7 +37,7 @@ vi.mock("@/server/db/client", () => {
       return { rows: [] };
     },
   };
-  return { db };
+  return { getDb: async () => db, db };
 });
 
 // Auth mock
@@ -105,7 +107,7 @@ describe("jobs runner dispatch", () => {
 
     const res = await runJobs();
     const body = await res.json();
-    expect(body.processed).toBe(3);
+    expect(body.data.processed).toBe(3);
 
     expect(runGmailSync).toHaveBeenCalledTimes(1);
     expect(runEmbed).toHaveBeenCalledTimes(1);

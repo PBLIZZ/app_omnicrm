@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { GET, PUT } from "./route";
 vi.mock("@/server/auth/user", () => ({ getServerUserId: vi.fn().mockResolvedValue("u1") }));
 vi.mock("@/server/db/client", () => ({
-  db: {
+  getDb: async () => ({
     select: () => ({ from: () => ({ where: () => ({ limit: () => [] }) }) }),
     insert: () => ({ values: () => ({}) }),
     update: () => ({ set: () => ({ where: () => ({}) }) }),
-  },
+  }),
 }));
 
 // lightweight shape tests for prefs GET defaults

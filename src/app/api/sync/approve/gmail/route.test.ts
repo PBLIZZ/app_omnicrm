@@ -23,11 +23,15 @@ describe("gmail approve route", () => {
 
   it("returns ok envelope with batchId when enabled", async () => {
     process.env.FEATURE_GOOGLE_GMAIL_RO = "1";
+    const auditMod = await import("@/server/sync/audit");
+    const enqueueMod = await import("@/server/jobs/enqueue");
     const userMod = await import("@/server/auth/user");
     (
       userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
     ).mockResolvedValue("u1");
-    const res = await POST();
+    (auditMod.logSync as vi.Mock).mockResolvedValue(undefined);
+    (enqueueMod.enqueue as vi.Mock).mockResolvedValue(undefined);
+    const res = await POST(new Request("https://example.com", { method: "POST", body: "{}" }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);

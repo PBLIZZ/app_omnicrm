@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/server/auth/user", () => ({ getServerUserId: vi.fn() }));
 vi.mock("@/server/db/client", () => ({
-  db: { select: () => ({ from: () => ({ where: () => ({ limit: () => [] }) }) }) },
+  getDb: async () => ({ select: () => ({ from: () => ({ where: () => ({ limit: () => [] }) }) }) }),
 }));
 vi.mock("@/server/google/gmail", () => ({ gmailPreview: vi.fn().mockResolvedValue({ count: 0 }) }));
 vi.mock("@/server/sync/audit", () => ({ logSync: vi.fn() }));
@@ -31,7 +31,7 @@ describe("gmail preview route", () => {
       userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
     ).mockResolvedValue("u1");
     const { POST } = await import("./route");
-    const res = await POST();
+    const res = await POST(new Request("https://example.com", { method: "POST", body: "{}" }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);

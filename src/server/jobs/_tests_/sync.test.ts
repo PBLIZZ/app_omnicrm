@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { gmail_v1, calendar_v3 } from "googleapis";
 
+// Hoisted shared in-memory stores for mocks
+const shared = vi.hoisted(() => {
+  return {
+    rawEvents: [] as Array<Record<string, unknown>>,
+    jobs: [] as Array<Record<string, unknown>>,
+    prefsStore: [] as Array<Record<string, unknown>>,
+  };
+});
+
 vi.mock("@/server/db/client", () => {
-  const rawEvents: unknown[] = [];
-  const jobs: unknown[] = [];
-  const prefsStore: unknown[] = [];
   const db = {
     select: () => ({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -15,7 +21,7 @@ vi.mock("@/server/db/client", () => {
             limit: async () => [],
           }),
           limit: async () => {
-            return prefsStore.length ? [prefsStore[0]] : [];
+            return shared.prefsStore.length ? [shared.prefsStore[0]!] : [];
           },
         }),
       }),
@@ -23,18 +29,53 @@ vi.mock("@/server/db/client", () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     insert: (_table: unknown) => ({
       values: async (row: Record<string, unknown>) => {
-        if (row && row.provider) {
-          rawEvents.push(row);
-        } else if (row && row.kind) {
-          jobs.push(row);
+        if ((row as { provider?: unknown }).provider) {
+          shared.rawEvents.push(row);
+        } else if ((row as { kind?: unknown }).kind) {
+          shared.jobs.push(row);
         }
       },
     }),
   } as const;
   return {
     __esModule: true,
+    getDb: async () => db,
     db,
-    mockDbState: { rawEvents, jobs, setPrefs: (p: unknown) => (prefsStore[0] = p) },
+    mockDbState: {
+      rawEvents: shared.rawEvents,
+      jobs: shared.jobs,
+      setPrefs: (p: unknown) => (shared.prefsStore[0] = p as Record<string, unknown>),
+    },
+  };
+});
+
+// Mock supabase admin service-role writes to push into our in-memory rawEvents
+vi.mock("@/server/db/supabase-admin", () => {
+  function toCamelCaseKeys(row: Record<string, unknown>): Record<string, unknown> {
+    const mapping: Record<string, string> = {
+      user_id: "userId",
+      occurred_at: "occurredAt",
+      contact_id: "contactId",
+      batch_id: "batchId",
+      source_meta: "sourceMeta",
+      source_id: "sourceId",
+    };
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      out[mapping[key] ?? key] = value;
+    }
+    return out;
+  }
+  return {
+    __esModule: true,
+    supaAdminGuard: {
+      insert: async (_table: string, values: Record<string, unknown>) => {
+        shared.rawEvents.push(toCamelCaseKeys(values));
+        return [] as unknown[];
+      },
+      upsert: async () => [],
+      update: async () => [],
+    },
   };
 });
 
@@ -127,8 +168,8 @@ describe("sync processors with injected clients", () => {
   it("calendar: applies organizer/private filters, paginates, writes raw_events and follow-up job", async () => {
     mockDbState.setPrefs({
       userId: "u1",
-      calendarIncludeOrganizerSelf: "true",
-      calendarIncludePrivate: "false",
+      calendarIncludeOrganizerSelf: true,
+      calendarIncludePrivate: false,
       calendarTimeWindowDays: 60,
     });
 

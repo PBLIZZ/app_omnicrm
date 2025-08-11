@@ -6,11 +6,9 @@ import { z } from "zod";
 const baseSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url({ message: "Invalid NEXT_PUBLIC_SUPABASE_URL" }),
-  // Accept either key name; many examples use ANON_KEY, this codebase uses PUBLISHABLE_DEFAULT_KEY
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: z.string().optional(),
+  // Required publishable key for browser/server RLS client
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: z.string(),
   SUPABASE_SECRET_KEY: z.string().optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   APP_ENCRYPTION_KEY: z.string().min(1, "APP_ENCRYPTION_KEY is required"),
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
@@ -39,23 +37,15 @@ function validateEncryptionKey(value: string): void {
   );
 }
 
-export type Env = z.infer<typeof baseSchema> & {
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string;
-};
+export type Env = z.infer<typeof baseSchema> & { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string };
 
 export const env: Env = (() => {
   const parsed = baseSchema.parse(process.env);
 
-  // Publishable key resolution (require at least one)
-  const pubKey =
-    parsed.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || parsed.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!pubKey) {
-    throw new Error(
-      "Missing publishable key: set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    );
-  }
+  // Publishable key resolution (single source of truth)
+  const pubKey = parsed.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
-  const secretKey = parsed.SUPABASE_SECRET_KEY || parsed.SUPABASE_SERVICE_ROLE_KEY;
+  const secretKey = parsed.SUPABASE_SECRET_KEY;
 
   // Service-role key required in production (server-side only)
   if (parsed.NODE_ENV === "production" && !secretKey) {

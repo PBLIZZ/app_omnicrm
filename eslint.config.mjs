@@ -14,7 +14,6 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   ...compat.extends("prettier"),
   {
-    ignores: ["drizzle/**", "drizzle_app/**"],
     plugins: {
       "unused-imports": unusedImports,
     },
@@ -37,12 +36,7 @@ const eslintConfig = [
     },
   },
   {
-    files: [
-      "src/server/db/schema.ts",
-      "src/server/db/schema.introspected.ts",
-      "src/server/db/relations.introspected.ts",
-      "src/server/db/relations.ts",
-    ],
+    files: ["src/server/db/schema.ts"],
     rules: {
       "@typescript-eslint/ban-ts-comment": "off",
     },

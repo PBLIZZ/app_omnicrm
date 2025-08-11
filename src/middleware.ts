@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import "@/lib/env"; // fail-fast env validation at edge import
-import { hmacSign, hmacVerify, randomNonce } from "@/server/lib/crypto";
+import { hmacSign, hmacVerify, randomNonce } from "@/server/lib/crypto-edge";
 
 // Configurable limits (env or sane defaults)
 const MAX_JSON_BYTES = Number(process.env["API_MAX_JSON_BYTES"] ?? 1_000_000); // 1MB
@@ -24,7 +24,7 @@ function allowRequest(key: string): boolean {
   return false;
 }
 
-export function middleware(req: NextRequest): ReturnType<typeof NextResponse.next> {
+export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const requestId =
     (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
@@ -46,6 +46,30 @@ export function middleware(req: NextRequest): ReturnType<typeof NextResponse.nex
 
   const url = req.nextUrl;
   const isApi = url.pathname.startsWith("/api/");
+
+  // Proactively issue CSRF cookies on any safe request (pages or API) if missing
+  const hasCsrfEarly =
+    Boolean(req.cookies.get("csrf")?.value) && Boolean(req.cookies.get("csrf_sig")?.value);
+  const isSafeMethod = ["GET", "HEAD", "OPTIONS"].includes(req.method);
+  if (isSafeMethod && !hasCsrfEarly) {
+    const nonce = randomNonce(18);
+    const sig = await hmacSign(nonce);
+    res.cookies.set("csrf", nonce, {
+      httpOnly: false,
+      sameSite: "strict",
+      secure: isProd,
+      path: "/",
+      maxAge: 60 * 60,
+    });
+    res.cookies.set("csrf_sig", sig, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: isProd,
+      path: "/",
+      maxAge: 60 * 60,
+    });
+  }
+
   if (!isApi) return res;
 
   // Method allow-list for selected API route families
@@ -114,8 +138,30 @@ export function middleware(req: NextRequest): ReturnType<typeof NextResponse.nex
     }
   }
 
-  // CSRF: for mutating requests from browsers, require custom header with signed token
+  // Proactively issue CSRF cookies on safe requests if missing
+  const hasCsrf =
+    Boolean(req.cookies.get("csrf")?.value) && Boolean(req.cookies.get("csrf_sig")?.value);
   const isUnsafe = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+  if (!isUnsafe && !hasCsrf) {
+    const nonce = randomNonce(18);
+    const sig = await hmacSign(nonce);
+    res.cookies.set("csrf", nonce, {
+      httpOnly: false,
+      sameSite: "strict",
+      secure: isProd,
+      path: "/",
+      maxAge: 60 * 60,
+    });
+    res.cookies.set("csrf_sig", sig, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: isProd,
+      path: "/",
+      maxAge: 60 * 60,
+    });
+  }
+
+  // CSRF: for mutating requests from browsers, require custom header with signed token
   if (isUnsafe) {
     const nonceCookie = req.cookies.get("csrf")?.value;
     const sigCookie = req.cookies.get("csrf_sig")?.value;
@@ -123,27 +169,33 @@ export function middleware(req: NextRequest): ReturnType<typeof NextResponse.nex
     if (!nonceCookie || !sigCookie) {
       // issue tokens to be used on next request (double-submit cookie)
       const nonce = randomNonce(18);
-      const sig = hmacSign(nonce);
-      res.cookies.set("csrf", nonce, {
+      const sig = await hmacSign(nonce);
+      // Create the actual response to return and attach cookies to it
+      const out = new NextResponse(JSON.stringify({ error: "missing_csrf" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      });
+      out.cookies.set("csrf", nonce, {
         httpOnly: false,
         sameSite: "strict",
         secure: isProd,
         path: "/",
         maxAge: 60 * 60, // 1 hour
       });
-      res.cookies.set("csrf_sig", sig, {
+      out.cookies.set("csrf_sig", sig, {
         httpOnly: true,
         sameSite: "strict",
         secure: isProd,
         path: "/",
         maxAge: 60 * 60,
       });
-      return new NextResponse(JSON.stringify({ error: "missing_csrf" }), {
-        status: 403,
-        headers: { "content-type": "application/json" },
-      });
+      return out;
     } else {
-      if (!csrfHeader || csrfHeader !== nonceCookie || !hmacVerify(nonceCookie, sigCookie)) {
+      if (
+        !csrfHeader ||
+        csrfHeader !== nonceCookie ||
+        !(await hmacVerify(nonceCookie, sigCookie))
+      ) {
         return new NextResponse(JSON.stringify({ error: "invalid_csrf" }), {
           status: 403,
           headers: { "content-type": "application/json" },

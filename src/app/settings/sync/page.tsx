@@ -40,10 +40,12 @@ interface APIResponse {
 }
 
 interface PreviewAPIResponse extends APIResponse {
-  countByLabel?: Record<string, number>;
-  sampleSubjects?: string[];
-  count?: number;
-  sampleTitles?: string[];
+  data?: {
+    countByLabel?: Record<string, number>;
+    sampleSubjects?: string[];
+    count?: number;
+    sampleTitles?: string[];
+  };
 }
 
 export default function SyncSettingsPage() {
@@ -78,14 +80,27 @@ export default function SyncSettingsPage() {
   async function callJSON(url: string, body?: Record<string, unknown>): Promise<APIResponse> {
     setBusy(true);
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "x-csrf-token": getCsrf() || "", "content-type": "application/json" },
-        body: body ? JSON.stringify(body) : null,
-      });
-      const j = (await res.json()) as APIResponse;
-      if (!res.ok) throw new Error(j?.error || res.statusText);
-      return j;
+      const doPost = async () =>
+        fetch(url, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "x-csrf-token": getCsrf() || "", "content-type": "application/json" },
+          body: body ? JSON.stringify(body) : null,
+        });
+
+      // First attempt
+      let res = await doPost();
+      let j = (await res.json()) as APIResponse;
+      if (res.ok) return j;
+      // If server just issued CSRF cookies, retry once with fresh header
+      if (res.status === 403 && j?.error === "missing_csrf") {
+        // allow cookies to be persisted to document.cookie before retrying
+        await new Promise((r) => setTimeout(r, 50));
+        res = await doPost();
+        j = (await res.json()) as APIResponse;
+        if (res.ok) return j;
+      }
+      throw new Error(j?.error || res.statusText);
     } finally {
       setBusy(false);
     }
@@ -327,11 +342,11 @@ export default function SyncSettingsPage() {
               const result = (await callJSON(
                 `${base}/api/sync/preview/gmail`,
               )) as PreviewAPIResponse;
-              if (result.countByLabel && result.sampleSubjects) {
-                setGmail({
-                  countByLabel: result.countByLabel,
-                  sampleSubjects: result.sampleSubjects,
-                });
+              const d = result?.data;
+              if (result.ok && d?.countByLabel && d?.sampleSubjects) {
+                setGmail({ countByLabel: d.countByLabel, sampleSubjects: d.sampleSubjects });
+              } else if (!result.ok) {
+                alert(`Preview failed: ${result.error ?? "unknown_error"}`);
               }
             }}
           >
@@ -344,8 +359,11 @@ export default function SyncSettingsPage() {
               const result = (await callJSON(
                 `${base}/api/sync/preview/calendar`,
               )) as PreviewAPIResponse;
-              if (result.count !== undefined && result.sampleTitles) {
-                setCalendar({ count: result.count, sampleTitles: result.sampleTitles });
+              const d = result?.data;
+              if (result.ok && d && d.count !== undefined && d.sampleTitles) {
+                setCalendar({ count: d.count, sampleTitles: d.sampleTitles });
+              } else if (!result.ok) {
+                alert(`Preview failed: ${result.error ?? "unknown_error"}`);
               }
             }}
           >
@@ -392,8 +410,13 @@ export default function SyncSettingsPage() {
             disabled={busy}
             className="px-3 py-2 rounded border"
             onClick={async () => {
-              const j = await callJSON(`${base}/api/sync/approve/gmail`);
-              setBatchId(j.batchId ?? null);
+              const j = (await callJSON(`${base}/api/sync/approve/gmail`)) as {
+                ok?: boolean;
+                data?: { batchId?: string };
+                error?: string;
+              };
+              if (j.ok) setBatchId(j.data?.batchId ?? null);
+              else alert(`Approve failed: ${j.error ?? "unknown_error"}`);
             }}
           >
             Approve Gmail Import
@@ -402,8 +425,13 @@ export default function SyncSettingsPage() {
             disabled={busy}
             className="px-3 py-2 rounded border"
             onClick={async () => {
-              const j = await callJSON(`${base}/api/sync/approve/calendar`);
-              setBatchId(j.batchId ?? null);
+              const j = (await callJSON(`${base}/api/sync/approve/calendar`)) as {
+                ok?: boolean;
+                data?: { batchId?: string };
+                error?: string;
+              };
+              if (j.ok) setBatchId(j.data?.batchId ?? null);
+              else alert(`Approve failed: ${j.error ?? "unknown_error"}`);
             }}
           >
             Approve Calendar Import
@@ -412,8 +440,13 @@ export default function SyncSettingsPage() {
             disabled={busy}
             className="px-3 py-2 rounded border"
             onClick={async () => {
-              const j = await callJSON(`${base}/api/jobs/runner`, {});
-              alert(`Processed: ${j.processed}`);
+              const j = (await callJSON(`${base}/api/jobs/runner`, {})) as {
+                ok?: boolean;
+                data?: { processed?: number };
+                error?: string;
+              };
+              if (j.ok) alert(`Processed: ${j.data?.processed ?? 0}`);
+              else alert(`Run jobs failed: ${j.error ?? "unknown_error"}`);
             }}
           >
             Run Jobs

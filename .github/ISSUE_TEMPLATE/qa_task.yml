@@ -1,0 +1,56 @@
+name: QA Task
+description: Work for the QA role (test plans, verification, E2E)
+title: "QA: <short summary>"
+labels: ["role:qa", "type:task"]
+assignees: []
+body:
+  - type: input
+    id: chat
+    attributes:
+      label: Chat thread URL
+      description: Link to the chat instance driving this task
+      placeholder: https://...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Regression
+        - Feature Verification
+        - E2E Coverage
+        - Performance/Load
+        - Accessibility
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Systems and features covered
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Test Plan
+      description: Test cases and expected results
+      placeholder: |
+        - [ ] Case: ... (expected: ...)
+        - [ ] Case: ... (expected: ...)
+    validations:
+      required: true
+  - type: textarea
+    id: automation
+    attributes:
+      label: Automation Notes
+      description: What to automate (unit/integration/E2E) and how
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Definition of Done
+      options:
+        - label: Test results attached
+        - label: Failures triaged with linked bugs
+        - label: E2E gaps captured for follow-up

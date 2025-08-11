@@ -1,0 +1,51 @@
+name: Docs Task
+description: Work for the Documentation role (README, API docs, runbooks)
+title: "DOCS: <short summary>"
+labels: ["role:docs", "type:task"]
+assignees: []
+body:
+  - type: input
+    id: chat
+    attributes:
+      label: Chat thread URL
+      description: Link to the chat instance driving this task
+      placeholder: https://...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Product/Concepts
+        - API/Contracts
+        - Architecture
+        - Runbooks/Operations
+        - Developer Onboarding
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What docs to add/update; target audience
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What must be included and how users will validate it
+      placeholder: |
+        - [ ] Up-to-date examples
+        - [ ] Edge cases covered
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Definition of Done
+      options:
+        - label: Docs reviewed for clarity and accuracy
+        - label: Links verified; no dead links
+        - label: Screenshots/diagrams updated as needed

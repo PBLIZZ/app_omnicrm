@@ -1,0 +1,6 @@
+# Use GitHub Issue Forms; disable blank issues
+blank_issues_enabled: false
+contact_links:
+  - name: Questions or ideas
+    url: https://github.com/PBLIZZ/app_omnicrm/discussions
+    about: Use Discussions for non-actionable ideas or questions.

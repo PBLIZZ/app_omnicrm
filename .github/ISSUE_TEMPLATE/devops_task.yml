@@ -1,0 +1,65 @@
+name: DevOps Task
+description: Work for the DevOps role (CI/CD, infra, environments, automation)
+title: "DEVOPS: <short summary>"
+labels: ["role:devops", "type:task"]
+assignees: []
+body:
+  - type: input
+    id: chat
+    attributes:
+      label: Chat thread URL
+      description: Link to the chat instance driving this task
+      placeholder: https://...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CI/CD
+        - Observability
+        - Security/Secrets
+        - Infrastructure as Code
+        - Performance/Scaling
+        - Developer Experience
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Background, constraints, target environments, and risks
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Rollout Plan
+      description: Steps to implement, validate, and roll back if needed
+      placeholder: |
+        1. ...
+        2. ...
+        3. Rollback: ...
+    validations:
+      required: true
+  - type: textarea
+    id: testplan
+    attributes:
+      label: Validation / Test Plan
+      description: How we prove the change works (incl. synthetic checks)
+      placeholder: |
+        - CI: ...
+        - Staging: ...
+        - Production: ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Definition of Done
+      options:
+        - label: Secrets handled via secure storage; no plaintext in repo
+        - label: Monitoring/alerts updated as needed
+        - label: Runbooks updated
+        - label: Performance and cost impact reviewed

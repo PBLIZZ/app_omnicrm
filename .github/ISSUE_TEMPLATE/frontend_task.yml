@@ -1,0 +1,70 @@
+name: Frontend Task
+description: Work for the Frontend developer role (UI, pages, components)
+title: "FE: <short summary>"
+labels: ["role:frontend", "type:task"]
+assignees: []
+body:
+  - type: input
+    id: chat
+    attributes:
+      label: Chat thread URL
+      description: Link to the chat instance driving this task
+      placeholder: https://...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - UI/Styling
+        - Components
+        - Pages/Routes
+        - State/Data fetching
+        - Accessibility
+        - Performance
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Briefly describe the background and constraints
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements / Acceptance Criteria
+      description: Bullet points of what must be true for this to be complete
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: testplan
+    attributes:
+      label: Test Plan
+      description: Unit/integration/E2E coverage required and scenarios to verify
+      placeholder: |
+        - Unit: ...
+        - Integration: ...
+        - E2E: ...
+    validations:
+      required: true
+  - type: textarea
+    id: ux
+    attributes:
+      label: UX Notes
+      description: States, empty/error/loading paths, and a11y considerations
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Definition of Done
+      options:
+        - label: Code adheres to project style and avoids technical debt
+        - label: Tests written and passing (unit/integration/E2E as applicable)
+        - label: Accessibility reviewed (keyboard, screen-reader, contrast)
+        - label: Performance considerations addressed (lazy-load, memoization)
+        - label: Screenshots or short video attached if UI changes

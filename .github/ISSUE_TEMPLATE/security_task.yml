@@ -1,0 +1,59 @@
+name: Security Task
+description: Work for the Security role (threat modeling, hardening, reviews)
+title: "SEC: <short summary>"
+labels: ["role:security", "type:task"]
+assignees: []
+body:
+  - type: input
+    id: chat
+    attributes:
+      label: Chat thread URL
+      description: Link to the chat instance driving this task
+      placeholder: https://...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Threat Modeling
+        - Dependency/Supply Chain
+        - Auth/Z Review
+        - Data/RLS/PII
+        - Secrets/Config
+        - Infra/Network
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Background, assets, data classification, and trust boundaries
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements / Acceptance Criteria
+      description: Security outcomes and verification steps
+      placeholder: |
+        - [ ] No plaintext secrets
+        - [ ] RLS policies enforced
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation Plan
+      description: How we test the security change (dyn/static scans, manual)
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Definition of Done
+      options:
+        - label: Risks documented and mitigations implemented
+        - label: Evidence of verification attached
+        - label: Monitoring/alerts updated as needed

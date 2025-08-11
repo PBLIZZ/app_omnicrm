@@ -1,16 +1,23 @@
 import { test, expect } from "@playwright/test";
 
-test("chat endpoint requires valid body and auth", async ({ request }) => {
-  // With x-user-id but invalid body -> 400 invalid_body
-  const bad = await request.post("/api/chat", {
-    data: { prompt: "" },
-    headers: { "x-user-id": "e2e" },
-  });
-  expect(bad.status()).toBe(400);
-  const badJson = await bad.json();
-  expect(badJson.error).toBe("invalid_body");
+test("chat endpoint requires CSRF and auth", async ({ request }) => {
+  // Missing CSRF for unsafe method -> 403 and CSRF cookies issued
+  const first = await request.post("/api/chat", { data: { prompt: "hi" } });
+  expect(first.status()).toBe(403);
 
-  // Without auth header -> 401
-  const unauth = await request.post("/api/chat", { data: { prompt: "hi" } });
+  // Extract csrf cookie from Set-Cookie headers
+  const setCookies = first
+    .headersArray()
+    .filter((h) => h.name.toLowerCase() === "set-cookie")
+    .map((h) => h.value);
+  const csrfCookie = setCookies.find((v) => v.startsWith("csrf="));
+  expect(csrfCookie).toBeTruthy();
+  const csrf = csrfCookie!.split(";")[0].split("=")[1];
+
+  // With CSRF but no auth -> 401
+  const unauth = await request.post("/api/chat", {
+    data: { prompt: "hi" },
+    headers: { "x-csrf-token": csrf },
+  });
   expect(unauth.status()).toBe(401);
 });

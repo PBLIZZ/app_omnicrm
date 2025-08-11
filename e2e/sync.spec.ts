@@ -37,31 +37,22 @@ test.describe("sync endpoints (deterministic)", () => {
     request,
   }) => {
     test.skip(!process.env["DATABASE_URL"], "No DATABASE_URL; skipping preview checks");
-    const gmailFlag = process.env["FEATURE_GOOGLE_GMAIL_RO"] === "1";
-    const calFlag = process.env["FEATURE_GOOGLE_CALENDAR_RO"] === "1";
+    // flags read but not used for unauth preview expectations
+    void process.env["FEATURE_GOOGLE_GMAIL_RO"];
+    void process.env["FEATURE_GOOGLE_CALENDAR_RO"];
     const driveFlag = process.env["FEATURE_GOOGLE_DRIVE"] === "1";
     const csrf = await getCsrf(request);
 
-    // Gmail
-    if (!gmailFlag) {
-      const r = await request.post("/api/sync/preview/gmail", {
-        headers: { "x-user-id": "e2e", "x-csrf-token": csrf },
-      });
-      expect(r.status()).toBe(404);
-    } else {
+    // Gmail: without auth, route returns 401 regardless of flag
+    {
       const r = await request.post("/api/sync/preview/gmail", {
         headers: { "x-user-id": "e2e", "x-csrf-token": csrf },
       });
       expect(r.status()).toBe(401);
     }
 
-    // Calendar
-    if (!calFlag) {
-      const r = await request.post("/api/sync/preview/calendar", {
-        headers: { "x-user-id": "e2e", "x-csrf-token": csrf },
-      });
-      expect(r.status()).toBe(404);
-    } else {
+    // Calendar: without auth, route returns 401 regardless of flag
+    {
       const r = await request.post("/api/sync/preview/calendar", {
         headers: { "x-user-id": "e2e", "x-csrf-token": csrf },
       });

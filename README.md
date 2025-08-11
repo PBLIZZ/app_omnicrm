@@ -5,7 +5,7 @@ This app targets Vercel with Supabase-managed Postgres. Manual SQL is source of 
 Required environment variables (server fails fast if missing):
 
 - NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)
+- NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 - SUPABASE_SECRET_KEY (production only, server-side only)
 - APP_ENCRYPTION_KEY (32-byte; base64 preferred)
 - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
@@ -16,6 +16,7 @@ Recommendations:
 - Use base64 32-byte value for `APP_ENCRYPTION_KEY`.
 - Configure `APP_ORIGINS` for allowed CORS origins.
 - Healthcheck: set `HEALTHCHECK_URL` GitHub secret to your `/api/health` URL to enable scheduled uptime checks.
+- Example environment file: see `docs/ops/env.example` for a commented template.
 
 Where to look for logs:
 

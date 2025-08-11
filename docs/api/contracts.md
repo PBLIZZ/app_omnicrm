@@ -145,3 +145,16 @@ Unless stated, all endpoints require an authenticated Supabase session cookie an
 - Auth: required, CSRF required
 - Response: `{ ok: true, data: { processed: number } }`
 - Errors: 401 Unauthorized
+
+## Error catalog
+
+Canonical error strings used across the API. Prefer these for consistency:
+
+- unauthorized — authentication required or invalid session
+- invalid_body — request body failed validation
+- not_found — feature flag disabled or resource missing
+- preview_failed — upstream/provider error during preview
+- approve_failed — failed to enqueue or validate approval
+- rate_limited — too many requests
+- payload_too_large — request exceeded size limit
+- missing_csrf / invalid_csrf — CSRF token issues

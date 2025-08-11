@@ -1,8 +1,8 @@
 /** GET /api/settings/sync/status — aggregated sync status (auth required). Errors: 401 Unauthorized */
 // NextResponse not used; using helpers
 import { getServerUserId } from "@/server/auth/user";
-import { db } from "@/server/db/client";
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { getDb } from "@/server/db/client";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { jobs, rawEvents, syncAudit, userIntegrations } from "@/server/db/schema";
 import { err, ok } from "@/server/http/responses";
 import { toApiError } from "@/server/jobs/types";
@@ -16,8 +16,9 @@ export async function GET() {
     return err(status, message);
   }
 
+  const dbo = await getDb();
   // Connection status
-  const integrations = await db
+  const integrations = await dbo
     .select()
     .from(userIntegrations)
     .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")))
@@ -25,13 +26,13 @@ export async function GET() {
   const googleConnected = !!integrations[0];
 
   // Last sync per provider (based on latest created_at of raw_events)
-  const [gmailLast] = await db
+  const [gmailLast] = await dbo
     .select({ createdAt: rawEvents.createdAt })
     .from(rawEvents)
     .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, "gmail")))
     .orderBy(desc(rawEvents.createdAt))
     .limit(1);
-  const [calendarLast] = await db
+  const [calendarLast] = await dbo
     .select({ createdAt: rawEvents.createdAt })
     .from(rawEvents)
     .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, "calendar")))
@@ -39,7 +40,7 @@ export async function GET() {
     .limit(1);
 
   // Last approved scopes from audit (optional badges)
-  const [gmailApprove] = await db
+  const [gmailApprove] = await dbo
     .select({ payload: syncAudit.payload })
     .from(syncAudit)
     .where(
@@ -51,7 +52,7 @@ export async function GET() {
     )
     .orderBy(desc(syncAudit.createdAt))
     .limit(1);
-  const [calendarApprove] = await db
+  const [calendarApprove] = await dbo
     .select({ payload: syncAudit.payload })
     .from(syncAudit)
     .where(
@@ -65,26 +66,36 @@ export async function GET() {
     .limit(1);
 
   // Job counts for Google-related kinds
-  const [queued] = await db
+  const googleJobKinds = [
+    "google_gmail_sync",
+    "google_calendar_sync",
+    "normalize_google_email",
+    "normalize_google_event",
+  ] as const;
+  const [queued] = await dbo
     .select({ n: sql<number>`count(*)` })
     .from(jobs)
     .where(
-      and(eq(jobs.userId, userId), like(jobs.kind, sql`'google_%'`), eq(jobs.status, "queued")),
+      and(eq(jobs.userId, userId), eq(jobs.status, "queued"), inArray(jobs.kind, googleJobKinds)),
     )
     .limit(1);
-  const [done] = await db
+  const [done] = await dbo
     .select({ n: sql<number>`count(*)` })
     .from(jobs)
-    .where(and(eq(jobs.userId, userId), like(jobs.kind, sql`'google_%'`), eq(jobs.status, "done")))
+    .where(
+      and(eq(jobs.userId, userId), eq(jobs.status, "done"), inArray(jobs.kind, googleJobKinds)),
+    )
     .limit(1);
-  const [error] = await db
+  const [error] = await dbo
     .select({ n: sql<number>`count(*)` })
     .from(jobs)
-    .where(and(eq(jobs.userId, userId), like(jobs.kind, sql`'google_%'`), eq(jobs.status, "error")))
+    .where(
+      and(eq(jobs.userId, userId), eq(jobs.status, "error"), inArray(jobs.kind, googleJobKinds)),
+    )
     .limit(1);
 
   // Discover last batchId (most recent approved gmail/calendar approve audit won't always carry batchId; read from latest job)
-  const [lastBatch] = await db
+  const [lastBatch] = await dbo
     .select({ batchId: jobs.batchId })
     .from(jobs)
     .where(and(eq(jobs.userId, userId)))

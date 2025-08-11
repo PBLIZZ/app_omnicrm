@@ -3,7 +3,7 @@ import { logSync } from "@/server/sync/audit";
 import { randomUUID } from "node:crypto";
 import { getServerUserId } from "@/server/auth/user";
 import { enqueue } from "@/server/jobs/enqueue";
-import { err, ok } from "@/server/http/responses";
+import { err, ok, safeJson } from "@/server/http/responses";
 import { z } from "zod";
 import { toApiError } from "@/server/jobs/types";
 
@@ -14,7 +14,7 @@ const approveBodySchema = z
   })
   .strict();
 
-export async function POST(req?: Request) {
+export async function POST(req: Request) {
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -23,14 +23,15 @@ export async function POST(req?: Request) {
     return err(status, message);
   }
 
-  if (process.env["FEATURE_GOOGLE_GMAIL_RO"] !== "1") {
+  const gmailFlag = String(process.env["FEATURE_GOOGLE_GMAIL_RO"] ?? "").toLowerCase();
+  if (!["1", "true", "yes", "on"].includes(gmailFlag)) {
     return err(404, "not_found");
   }
 
   // Validate input (even if currently unused) to harden handler surface
   try {
-    const raw = await req?.json?.().catch(() => ({}));
-    approveBodySchema.parse(raw ?? {});
+    const raw = (await safeJson<Record<string, unknown>>(req)) ?? {};
+    approveBodySchema.parse(raw);
   } catch {
     return err(400, "invalid_body");
   }

@@ -16,7 +16,7 @@ const previewBodySchema = z
   })
   .strict();
 
-export async function POST(req?: Request) {
+export async function POST(req: Request) {
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -25,28 +25,28 @@ export async function POST(req?: Request) {
     return err(status, message);
   }
 
-  if (process.env["FEATURE_GOOGLE_CALENDAR_RO"] !== "1") {
+  const calFlag = String(process.env["FEATURE_GOOGLE_CALENDAR_RO"] ?? "").toLowerCase();
+  if (!["1", "true", "yes", "on"].includes(calFlag)) {
     return err(404, "not_found");
   }
 
-  const db = await getDb();
-  const prefsRow = await db
-    .select()
-    .from(userSyncPrefs)
-    .where(eq(userSyncPrefs.userId, userId))
-    .limit(1);
-  const prefs = prefsRow[0] ?? {
-    calendarIncludeOrganizerSelf: "true" as const,
-    calendarIncludePrivate: "false" as const,
-    calendarTimeWindowDays: 60,
-  };
-
   try {
-    const raw = await req?.json?.().catch(() => ({}));
+    const db = await getDb();
+    const prefsRow = await db
+      .select()
+      .from(userSyncPrefs)
+      .where(eq(userSyncPrefs.userId, userId))
+      .limit(1);
+    const prefs = prefsRow[0] ?? {
+      calendarIncludeOrganizerSelf: true,
+      calendarIncludePrivate: false,
+      calendarTimeWindowDays: 60,
+    };
+    const raw = await req.json().catch(() => ({}));
     previewBodySchema.parse(raw ?? {});
     const preview = await calendarPreview(userId, {
-      calendarIncludeOrganizerSelf: prefs.calendarIncludeOrganizerSelf,
-      calendarIncludePrivate: prefs.calendarIncludePrivate,
+      calendarIncludeOrganizerSelf: Boolean(prefs.calendarIncludeOrganizerSelf),
+      calendarIncludePrivate: Boolean(prefs.calendarIncludePrivate),
       calendarTimeWindowDays: prefs.calendarTimeWindowDays,
     });
     await logSync(userId, "calendar", "preview", preview as unknown as Record<string, unknown>);

@@ -24,7 +24,7 @@ describe("sync prefs route", () => {
       new Request("https://example.com", {
         method: "PUT",
         body: JSON.stringify({ gmailQuery: "x" }),
-      }) as any,
+      }) as Request,
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, data: {} });

@@ -1,16 +1,19 @@
 /** GET/PUT /api/settings/sync/prefs — read/write sync preferences (auth required). Errors: 401 Unauthorized, 400 invalid_body */
 import type { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { db } from "@/server/db/client";
+import { getDb } from "@/server/db/client";
 import { eq } from "drizzle-orm";
 import { userSyncPrefs } from "@/server/db/schema";
 import { err, ok } from "@/server/http/responses";
 import { toApiError } from "@/server/jobs/types";
+import { safeJson } from "@/server/http/responses";
+import { z } from "zod";
 
 export async function GET() {
   try {
     const userId = await getServerUserId();
-    const rows = await db
+    const dbo = await getDb();
+    const rows = await dbo
       .select()
       .from(userSyncPrefs)
       .where(eq(userSyncPrefs.userId, userId))
@@ -19,8 +22,8 @@ export async function GET() {
       gmailQuery: "category:primary -in:chats -in:drafts newer_than:30d",
       gmailLabelIncludes: [],
       gmailLabelExcludes: ["Promotions", "Social", "Forums", "Updates"],
-      calendarIncludeOrganizerSelf: "true",
-      calendarIncludePrivate: "false",
+      calendarIncludeOrganizerSelf: true,
+      calendarIncludePrivate: false,
       calendarTimeWindowDays: 60,
       driveIngestionMode: "none",
       driveFolderIds: [],
@@ -35,22 +38,46 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   try {
     const userId = await getServerUserId();
-    const body = await req.json();
-    const rows = await db
+    const dbo = await getDb();
+    const prefsSchema = z
+      .object({
+        gmailQuery: z.string().max(500).optional(),
+        gmailLabelIncludes: z.array(z.string()).max(100).optional(),
+        gmailLabelExcludes: z.array(z.string()).max(100).optional(),
+        calendarIncludeOrganizerSelf: z.union([z.boolean(), z.string()]).optional(),
+        calendarIncludePrivate: z.union([z.boolean(), z.string()]).optional(),
+        calendarTimeWindowDays: z.number().int().min(1).max(365).optional(),
+        driveIngestionMode: z.enum(["none", "picker", "folders"]).optional(),
+        driveFolderIds: z.array(z.string()).max(100).optional(),
+      })
+      .strict();
+    const raw = (await safeJson<Record<string, unknown>>(req)) ?? {};
+    const body = prefsSchema.parse(raw);
+    const toBool = (v: unknown, d: boolean): boolean => {
+      if (typeof v === "boolean") return v;
+      if (typeof v === "string") return v === "true";
+      return d;
+    };
+    const rows = await dbo
       .select()
       .from(userSyncPrefs)
       .where(eq(userSyncPrefs.userId, userId))
       .limit(1);
     if (rows[0]) {
-      await db
+      await dbo
         .update(userSyncPrefs)
         .set({
           gmailQuery: body.gmailQuery ?? rows[0].gmailQuery,
           gmailLabelIncludes: body.gmailLabelIncludes ?? rows[0].gmailLabelIncludes,
           gmailLabelExcludes: body.gmailLabelExcludes ?? rows[0].gmailLabelExcludes,
-          calendarIncludeOrganizerSelf:
-            body.calendarIncludeOrganizerSelf ?? rows[0].calendarIncludeOrganizerSelf,
-          calendarIncludePrivate: body.calendarIncludePrivate ?? rows[0].calendarIncludePrivate,
+          calendarIncludeOrganizerSelf: toBool(
+            body.calendarIncludeOrganizerSelf,
+            rows[0].calendarIncludeOrganizerSelf,
+          ),
+          calendarIncludePrivate: toBool(
+            body.calendarIncludePrivate,
+            rows[0].calendarIncludePrivate,
+          ),
           calendarTimeWindowDays: body.calendarTimeWindowDays ?? rows[0].calendarTimeWindowDays,
           driveIngestionMode: body.driveIngestionMode ?? rows[0].driveIngestionMode,
           driveFolderIds: body.driveFolderIds ?? rows[0].driveFolderIds,
@@ -58,7 +85,7 @@ export async function PUT(req: NextRequest) {
         })
         .where(eq(userSyncPrefs.userId, userId));
     } else {
-      await db.insert(userSyncPrefs).values({
+      await dbo.insert(userSyncPrefs).values({
         userId,
         gmailQuery: body.gmailQuery,
         gmailLabelIncludes: body.gmailLabelIncludes ?? [],
@@ -68,8 +95,8 @@ export async function PUT(req: NextRequest) {
           "Forums",
           "Updates",
         ],
-        calendarIncludeOrganizerSelf: body.calendarIncludeOrganizerSelf ?? "true",
-        calendarIncludePrivate: body.calendarIncludePrivate ?? "false",
+        calendarIncludeOrganizerSelf: toBool(body.calendarIncludeOrganizerSelf, true),
+        calendarIncludePrivate: toBool(body.calendarIncludePrivate, false),
         calendarTimeWindowDays: body.calendarTimeWindowDays ?? 60,
         driveIngestionMode: body.driveIngestionMode ?? "none",
         driveFolderIds: body.driveFolderIds ?? [],

@@ -15,7 +15,9 @@ describe("gmail preview route", () => {
   it("returns 404 with {ok:false} when feature flag disabled", async () => {
     process.env.FEATURE_GOOGLE_GMAIL_RO = "0";
     const userMod = await import("@/server/auth/user");
-    (userMod.getServerUserId as any).mockResolvedValue("u1");
+    (
+      userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
+    ).mockResolvedValue("u1");
     const { POST } = await import("./route");
     const res = await POST();
     expect(res.status).toBe(404);
@@ -25,7 +27,9 @@ describe("gmail preview route", () => {
   it("returns ok envelope when enabled", async () => {
     process.env.FEATURE_GOOGLE_GMAIL_RO = "1";
     const userMod = await import("@/server/auth/user");
-    (userMod.getServerUserId as any).mockResolvedValue("u1");
+    (
+      userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
+    ).mockResolvedValue("u1");
     const { POST } = await import("./route");
     const res = await POST();
     expect(res.status).toBe(200);

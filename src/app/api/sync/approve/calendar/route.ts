@@ -3,7 +3,7 @@
 import { logSync } from "@/server/sync/audit";
 import { randomUUID } from "node:crypto";
 import { getServerUserId } from "@/server/auth/user";
-import { err, ok } from "@/server/http/responses";
+import { err, ok, safeJson } from "@/server/http/responses";
 import { enqueue } from "@/server/jobs/enqueue";
 import { z } from "zod";
 import { toApiError } from "@/server/jobs/types";
@@ -23,13 +23,14 @@ export async function POST(req: Request) {
     return err(status, message);
   }
 
-  if (process.env["FEATURE_GOOGLE_CALENDAR_RO"] !== "1") {
+  const calFlag = String(process.env["FEATURE_GOOGLE_CALENDAR_RO"] ?? "").toLowerCase();
+  if (!["1", "true", "yes", "on"].includes(calFlag)) {
     return err(404, "not_found");
   }
 
   try {
-    const raw = await req.json().catch(() => ({}));
-    approveBodySchema.parse(raw ?? {});
+    const raw = (await safeJson<Record<string, unknown>>(req)) ?? {};
+    approveBodySchema.parse(raw);
   } catch {
     return err(400, "invalid_body");
   }

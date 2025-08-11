@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 describe("settings/sync/status route", () => {
-  const mocks = vi.hoisted(() => ({ selects: [] as any[] }));
+  const mocks = vi.hoisted(() => ({ selects: [] as unknown[] }));
 
   beforeEach(() => {
     mocks.selects = [];

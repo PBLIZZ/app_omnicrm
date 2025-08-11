@@ -13,7 +13,9 @@ describe("gmail approve route", () => {
   it("returns 404 with error envelope when feature disabled", async () => {
     process.env.FEATURE_GOOGLE_GMAIL_RO = "0";
     const userMod = await import("@/server/auth/user");
-    (userMod.getServerUserId as any).mockResolvedValue("u1");
+    (
+      userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
+    ).mockResolvedValue("u1");
     const res = await POST();
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ ok: false, error: "not_found", details: null });
@@ -22,7 +24,9 @@ describe("gmail approve route", () => {
   it("returns ok envelope with batchId when enabled", async () => {
     process.env.FEATURE_GOOGLE_GMAIL_RO = "1";
     const userMod = await import("@/server/auth/user");
-    (userMod.getServerUserId as any).mockResolvedValue("u1");
+    (
+      userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
+    ).mockResolvedValue("u1");
     const res = await POST();
     expect(res.status).toBe(200);
     const json = await res.json();

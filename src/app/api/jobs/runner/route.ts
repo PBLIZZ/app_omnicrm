@@ -1,5 +1,5 @@
-import { db } from "@/server/db/client";
-import { and, eq } from "drizzle-orm";
+import { getDb } from "@/server/db/client";
+import { and, desc, eq } from "drizzle-orm";
 import { jobs } from "@/server/db/schema";
 import { runCalendarSync, runGmailSync } from "@/server/jobs/processors/sync";
 import {
@@ -14,6 +14,7 @@ import { log } from "@/server/log";
 import { ok, err } from "@/server/http/responses";
 
 export async function POST() {
+  const dbo = await getDb();
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -24,10 +25,12 @@ export async function POST() {
   }
 
   // pull queued jobs for this user
-  const queued = await db
+  const queued = await dbo
     .select()
     .from(jobs)
     .where(and(eq(jobs.userId, userId), eq(jobs.status, "queued")))
+    // why: aligns with (user_id, status, updated_at desc) index for predictable scheduling
+    .orderBy(desc(jobs.updatedAt))
     .limit(25);
   let processed = 0;
 
@@ -46,15 +49,6 @@ export async function POST() {
   };
 
   for (const job of queued as JobRecord[]) {
-    // Defensive: ensure job belongs to the authenticated user
-    if (job.userId !== userId) {
-      await db
-        .update(jobs)
-        .set({ status: "error", attempts: job.attempts + 1, updatedAt: new Date() })
-        .where(eq(jobs.id, job.id));
-      continue;
-    }
-
     // Exponential backoff: skip too-soon retries based on updatedAt + backoff(attempts)
     const attempts = Number(job.attempts ?? 0);
     const backoffMs = Math.min(BASE_DELAY_MS * 2 ** attempts, MAX_BACKOFF_MS);
@@ -68,21 +62,26 @@ export async function POST() {
     try {
       const handler = handlers[job.kind as JobKind];
       if (!handler) {
-        await db
+        await dbo
           .update(jobs)
           .set({ status: "error", attempts: job.attempts + 1, updatedAt: new Date() })
           .where(eq(jobs.id, job.id));
         continue;
       }
 
-      // mark processing
-      await db
+      // Atomically claim the job for this user to avoid races
+      const claimed = await dbo
         .update(jobs)
         .set({ status: "processing", updatedAt: new Date() })
-        .where(eq(jobs.id, job.id));
+        .where(and(eq(jobs.id, job.id), eq(jobs.userId, userId), eq(jobs.status, "queued")))
+        .returning({ id: jobs.id });
+      if (claimed.length === 0) {
+        // another worker/user claimed or job no longer queued
+        continue;
+      }
 
       await handler(job as unknown, userId);
-      await db
+      await dbo
         .update(jobs)
         .set({ status: "done", updatedAt: new Date() })
         .where(eq(jobs.id, job.id));
@@ -95,14 +94,24 @@ export async function POST() {
 
       if (willRetry) {
         // Re-queue with incremented attempts; runner enforces time-based backoff using updatedAt
-        await db
+        await dbo
           .update(jobs)
-          .set({ status: "queued", attempts: nextAttempts, updatedAt: new Date() })
+          .set({
+            status: "queued",
+            attempts: nextAttempts,
+            updatedAt: new Date(),
+            lastError: (error as { message?: string }).message ?? "unknown_error",
+          })
           .where(eq(jobs.id, job.id));
       } else {
-        await db
+        await dbo
           .update(jobs)
-          .set({ status: "error", attempts: nextAttempts, updatedAt: new Date() })
+          .set({
+            status: "error",
+            attempts: nextAttempts,
+            updatedAt: new Date(),
+            lastError: (error as { message?: string }).message ?? "unknown_error",
+          })
           .where(eq(jobs.id, job.id));
       }
 

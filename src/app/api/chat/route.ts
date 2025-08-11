@@ -10,8 +10,12 @@ export async function POST(req: NextRequest) {
   let userId: string;
   try {
     userId = await getServerUserId();
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unauthorized" }, { status: e?.status ?? 401 });
+  } catch (e: unknown) {
+    const error = e as { message?: string; status?: number };
+    return NextResponse.json(
+      { error: error?.message ?? "unauthorized" },
+      { status: error?.status ?? 401 },
+    );
   }
 
   const body = await req.json();

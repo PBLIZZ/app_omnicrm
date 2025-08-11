@@ -16,7 +16,7 @@ Recommendations:
 - Use base64 32-byte value for `APP_ENCRYPTION_KEY`.
 - Configure `APP_ORIGINS` for allowed CORS origins.
 - Healthcheck: set `HEALTHCHECK_URL` GitHub secret to your `/api/health` URL to enable scheduled uptime checks.
-- Example environment file: see `docs/ops/env.example` for a commented template.
+- Example environment files: use the root `.env.example` (synced from `docs/ops/env.example`) for local setup. The `docs/ops/env.example` remains the source template.
 
 Where to look for logs:
 

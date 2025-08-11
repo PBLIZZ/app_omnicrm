@@ -5,7 +5,7 @@ Cost: near zero. No migrations in CI; manual SQL is source of truth.
 
 ## 1) Environment Variables
 
-Create `.env.local` for local dev and set Vercel Project Environment Variables.
+Create `.env.local` for local dev and set Vercel Project Environment Variables. You can start by copying the root `.env.example` and filling values.
 
 Server-only (never exposed to client):
 

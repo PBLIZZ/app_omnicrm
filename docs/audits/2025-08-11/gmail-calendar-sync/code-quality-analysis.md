@@ -8,7 +8,7 @@
 
 This comprehensive code quality analysis evaluates the Gmail/Calendar sync implementation across multiple dimensions including file organization, TypeScript usage, error handling, code duplication, and maintainability. The analysis reveals a well-structured codebase with strong separation of concerns, though several opportunities for improvement exist around type safety, code deduplication, and component architecture.
 
-**Overall Grade: B+ (Good with room for improvement)**
+### Overall Grade: B+ (Good with room for improvement)
 
 ---
 
@@ -51,7 +51,7 @@ This comprehensive code quality analysis evaluates the Gmail/Calendar sync imple
 
 **Critical Duplication Patterns:**
 
-1. **Auth handling pattern** (lines 19-24 in both files):
+##### Auth handling pattern (lines 19-24 in both files)
 
 ```typescript
 let userId: string;
@@ -63,7 +63,7 @@ try {
 }
 ```
 
-2. **Feature flag validation** (lines 26-29):
+##### Feature flag validation (lines 26-29)
 
 ```typescript
 const flag = String(process.env["FEATURE_GOOGLE_*_RO"] ?? "").toLowerCase();
@@ -72,7 +72,7 @@ if (!["1", "true", "yes", "on"].includes(flag)) {
 }
 ```
 
-3. **Request body validation pattern** (lines 32-37):
+##### Request body validation pattern (lines 32-37)
 
 ```typescript
 try {
@@ -115,7 +115,7 @@ try {
 
 ## 3. TypeScript Usage & Type Safety
 
-### **MODERATE** Issues Found
+### MODERATE Issues Found
 
 #### Type Definition Inconsistencies
 
@@ -200,7 +200,7 @@ const raw = await req.json().catch(() => ({}));
 
 ## 5. Complexity Analysis
 
-### **MODERATE** Issues Found
+### MODERATE-Issues Found
 
 #### Function Complexity
 
@@ -238,7 +238,7 @@ const raw = await req.json().catch(() => ({}));
 
 ## 6. Naming Conventions
 
-### **LOW** Issues Found
+### LOW Issues Found
 
 #### Consistent Naming Patterns
 
@@ -265,7 +265,7 @@ const chunk = 25;
 
 ## 7. Documentation & Comments
 
-### **MODERATE** Issues Found
+### MODERATE Issues-Found
 
 #### Code Documentation Quality
 
@@ -298,39 +298,45 @@ const chunk = 25;
 
 ### **CRITICAL** Priority (Immediate Action Required)
 
-1. **Extract Shared API Route Middleware**
-   - Create reusable middleware for auth validation, feature flag checks, and request validation
-   - **Files:** All `/Users/peterjamesblizzard/projects/app_omnicrm/src/app/api/sync/*/route.ts`
-   - **Impact:** Reduces duplication by ~40 lines per route, improves consistency
+#### Extract Shared API Route Middleware
 
-2. **Consolidate Retry Logic**
-   - Extract `callWithRetry` into shared utility module
-   - **Files:** `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/google/gmail.ts`, `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/google/calendar.ts`
-   - **Impact:** Eliminates 30+ lines of duplication, centralizes error handling
+- Create reusable middleware for auth validation, feature flag checks, and request validation
+- **Files:** All `/Users/peterjamesblizzard/projects/app_omnicrm/src/app/api/sync/*/route.ts`
+- **Impact:** Reduces duplication by ~40 lines per route, improves consistency
+
+#### Consolidate Retry Logic
+
+- Extract `callWithRetry` into shared utility module
+- **Files:** `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/google/gmail.ts`, `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/google/calendar.ts`
+- **Impact:** Eliminates 30+ lines of duplication, centralizes error handling
 
 ### **HIGH** Priority (Next Sprint)
 
-3. **Refactor UI Component**
-   - Split `/Users/peterjamesblizzard/projects/app_omnicrm/src/app/settings/sync/page.tsx` into smaller components
-   - Extract custom hooks for API calls and state management
-   - **Impact:** Improves testability and maintainability
+#### Refactor UI Component
 
-4. **Fix Type Safety Issues**
-   - Convert boolean preferences from string to proper boolean types
-   - Add discriminated unions for job payloads
-   - **Files:** Type definitions across sync implementation
+- Split `/Users/peterjamesblizzard/projects/app_omnicrm/src/app/settings/sync/page.tsx` into smaller components
+- Extract custom hooks for API calls and state management
+- **Impact:** Improves testability and maintainability
+
+#### Fix Type Safety Issues
+
+- Convert boolean preferences from string to proper boolean types
+- Add discriminated unions for job payloads
+- **Files:** Type definitions across sync implementation
 
 ### **MODERATE** Priority (Future Iterations)
 
-5. **Reduce Function Complexity**
-   - Break down `runGmailSync` and `runCalendarSync` into smaller functions
-   - Extract data processing logic from sync orchestration
-   - **File:** `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/jobs/processors/sync.ts`
+#### Reduce Function Complexity
 
-6. **Enhance Database Type Safety**
-   - Add schema validation to Supabase admin operations
-   - Implement typed database interfaces
-   - **File:** `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/db/supabase-admin.ts`
+- Break down `runGmailSync` and `runCalendarSync` into smaller functions
+- Extract data processing logic from sync orchestration
+- **File:** `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/jobs/processors/sync.ts`
+
+#### Enhance Database Type Safety
+
+- Add schema validation to Supabase admin operations
+- Implement typed database interfaces
+- **File:** `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/db/supabase-admin.ts`
 
 ---
 
@@ -353,7 +359,7 @@ const chunk = 25;
 
 1. **Create Shared Abstractions**
 
-   ```
+   ```typescript
    src/server/sync/
    ├── middleware/          # Auth, validation, feature flags
    ├── types/              # Shared type definitions
@@ -363,7 +369,7 @@ const chunk = 25;
 
 2. **UI Component Architecture**
 
-   ```
+   ```typescript
    src/app/settings/sync/
    ├── components/         # Smaller, focused components
    ├── hooks/             # API calls and state management

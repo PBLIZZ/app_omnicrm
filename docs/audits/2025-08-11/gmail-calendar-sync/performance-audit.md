@@ -436,7 +436,7 @@ console.log(
 
 ### Phase 1: Critical Fixes (1-2 weeks)
 
-**Priority: CRITICAL/HIGH**
+### Priority: CRITICAL/HIGH
 
 1. **Implement Batch Database Operations**
    - Refactor normalization processors to use batch queries
@@ -455,7 +455,7 @@ console.log(
 
 ### Phase 2: Performance Optimization (2-4 weeks)
 
-**Priority: MODERATE/HIGH**
+### Priority: MODERATE/HIGH
 
 1. **Improve Job Processing**
    - Add controlled concurrency for job execution
@@ -474,7 +474,7 @@ console.log(
 
 ### Phase 3: Scalability Improvements (4-6 weeks)
 
-**Priority: MODERATE**
+### Priority: MODERATE
 
 1. **Production Monitoring**
    - APM integration (DataDog, New Relic, etc.)

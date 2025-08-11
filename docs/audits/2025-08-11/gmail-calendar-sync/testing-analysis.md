@@ -296,7 +296,7 @@
 
 1. **Complete User Workflows**
 
-   ```
+   ```typescript
    User Journey: First-time Gmail Sync
    1. OAuth authorization → Google consent screen
    2. Token callback → Database storage
@@ -308,7 +308,7 @@
 
 2. **Error Recovery Workflows**
 
-   ```
+   ```typescript
    Scenario: Network Failure During Sync
    1. Initiate large Gmail sync
    2. Simulate network interruption
@@ -319,7 +319,7 @@
 
 3. **Concurrent User Scenarios**
 
-   ```
+   ```typescript
    Scenario: Multiple Users Simultaneous Sync
    1. Initialize 5 concurrent Gmail syncs
    2. Verify resource isolation
@@ -329,7 +329,8 @@
    ```
 
 4. **Performance Boundary Testing**
-   ```
+
+   ```typescript
    Scenario: Large Dataset Processing
    1. Connect account with 50k+ emails
    2. Initiate complete sync

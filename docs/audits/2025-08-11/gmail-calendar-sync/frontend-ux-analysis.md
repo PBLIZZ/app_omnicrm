@@ -25,21 +25,21 @@ This analysis evaluates the current sync settings interface (`/src/app/settings/
 
 #### 1. User Experience Flow Issues
 
-**OAuth Connection Flow**
+##### OAuth Connection Flow
 
 - ❌ **CRITICAL**: No feedback on connection success/failure
 - ❌ **CRITICAL**: Users redirected away with no return status indication
 - ❌ **CRITICAL**: No clear indication of required vs optional scopes
 - **Impact**: Users abandon the flow due to uncertainty
 
-**Preview Functionality**
+##### Preview Functionality
 
 - ❌ **HIGH**: No loading indicators during preview generation
 - ❌ **HIGH**: Poor data presentation (raw label dumps)
 - ❌ **MODERATE**: No data freshness indicators
 - **Impact**: Users don't understand what will be synced
 
-**Approval Process**
+##### Approval Process
 
 - ❌ **CRITICAL**: No confirmation dialog for irreversible operations
 - ❌ **CRITICAL**: No preview of consequences before approval
@@ -48,14 +48,14 @@ This analysis evaluates the current sync settings interface (`/src/app/settings/
 
 #### 2. Job Execution & Monitoring
 
-**Progress Indication**
+##### Progress Indication
 
 - ❌ **CRITICAL**: No progress bars or status during job execution
 - ❌ **CRITICAL**: No real-time updates of job queue processing
 - ❌ **HIGH**: Jobs can fail silently with no user notification
 - **Impact**: Users don't know if sync is working or stuck
 
-**Error Handling**
+##### Error Handling
 
 - ❌ **CRITICAL**: `alert()` dialogs for error messages (poor UX)
 - ❌ **HIGH**: No actionable error recovery suggestions
@@ -64,19 +64,19 @@ This analysis evaluates the current sync settings interface (`/src/app/settings/
 
 #### 3. Accessibility & Usability Issues
 
-**Keyboard Navigation**
+##### Keyboard Navigation
 
 - ❌ **HIGH**: No proper focus management
 - ❌ **HIGH**: Missing skip links for complex form sections
 - ❌ **MODERATE**: Inconsistent tab order
 
-**Screen Reader Support**
+##### Screen Reader Support
 
 - ❌ **HIGH**: Missing ARIA labels for dynamic content
 - ❌ **HIGH**: No live regions for status updates
 - ❌ **MODERATE**: Poor semantic structure
 
-**Visual Feedback**
+##### Visual Feedback
 
 - ❌ **HIGH**: No disabled/loading states for buttons during operations
 - ❌ **MODERATE**: Poor color contrast on some elements
@@ -84,19 +84,19 @@ This analysis evaluates the current sync settings interface (`/src/app/settings/
 
 #### 4. Missing UI Components
 
-**Status Dashboard**
+##### Status Dashboard
 
 - ❌ **CRITICAL**: No comprehensive sync history view
 - ❌ **HIGH**: No job queue visualization
 - ❌ **HIGH**: No sync analytics or insights
 
-**Batch Management**
+##### Batch Management
 
 - ❌ **CRITICAL**: No batch operation tracking interface
 - ❌ **HIGH**: Poor undo operation visibility
 - ❌ **HIGH**: No confirmation for destructive operations
 
-**Configuration Management**
+##### Configuration Management
 
 - ❌ **HIGH**: Preferences form has poor UX patterns
 - ❌ **MODERATE**: No field validation feedback
@@ -348,7 +348,7 @@ const usePollingJobUpdates = () =>
 
 #### Feature-based Structure
 
-```
+```typescript
 src/app/settings/sync/
 ├── components/
 │   ├── SyncStatusCard/
@@ -380,7 +380,7 @@ import { LoadingState, ErrorState, EmptyState } from "@/components/states";
 
 ### 1. WCAG 2.1 AA Compliance
 
-#### Keyboard Navigation
+#### Keyboard-Navigation
 
 ```tsx
 // Proper focus management
@@ -394,7 +394,7 @@ const useFocusManagement = () => {
 };
 ```
 
-#### Screen Reader Support
+#### Screen-Reader Support
 
 ```tsx
 // Live regions for dynamic updates

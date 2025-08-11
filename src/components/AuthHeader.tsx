@@ -9,7 +9,9 @@ export default function AuthHeader() {
   useEffect(() => {
     getSupabaseBrowser()
       .auth.getUser()
-      .then(({ data }) => setEmail(data.user?.email ?? null));
+      .then(({ data }: { data: { user: { email?: string } | null } }) =>
+        setEmail(data.user?.email ?? null),
+      );
   }, []);
 
   return (

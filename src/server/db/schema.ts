@@ -1,9 +1,11 @@
 // SCHEMA: canonical — keep this file in sync with the SQL in supabase/sql/
-// This schema is TYPES-ONLY (no migrations). You apply schema changes via Supabase SQL Editor.
+// NOTE: This file is TYPES-ONLY. Schema changes (tables, FKs, indexes, RLS) are applied via SQL in Supabase.
+// Keep the shapes in here in sync with the SQL under supabase/sql/*. Drizzle is not used for migrations.
 // We purposefully do NOT model FKs to auth.users here; we just use userId: uuid across tables.
 
 import {
   pgTable,
+  boolean,
   uuid,
   text,
   timestamp,
@@ -19,7 +21,7 @@ import { sql } from "drizzle-orm";
 
 // vector(1536) custom type for pgvector (embeddings.embedding)
 import { customType } from "drizzle-orm/pg-core";
-export const vector1536 = customType<{ data: number[] | null; driverData: any }>({
+export const vector1536 = customType<{ data: number[] | null; driverData: unknown }>({
   dataType() {
     return "vector(1536)";
   },
@@ -41,6 +43,24 @@ export const aiInsights = pgTable("ai_insights", {
   kind: text("kind").notNull(), // summary | next_step | risk | persona
   content: jsonb("content").notNull(), // structured LLM output
   model: text("model"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiQuotas = pgTable("ai_quotas", {
+  userId: uuid("user_id").primaryKey(), // references auth.users(id) in SQL
+  periodStart: timestamp("period_start", { mode: "date" }).notNull(),
+  creditsLeft: integer("credits_left").notNull(),
+});
+
+export const aiUsage = pgTable("ai_usage", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  costUsd: numeric("cost_usd", { precision: 8, scale: 4 }).notNull().default("0"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -111,6 +131,7 @@ export const jobs = pgTable("jobs", {
   status: text("status").notNull().default("queued"),
   attempts: integer("attempts").notNull().default(0),
   batchId: uuid("batch_id"),
+  lastError: text("last_error"), // ✅ new (nullable)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -126,6 +147,7 @@ export const rawEvents = pgTable("raw_events", {
   occurredAt: timestamp("occurred_at").notNull(),
   sourceMeta: jsonb("source_meta"),
   batchId: uuid("batch_id"),
+  sourceId: text("source_id"), // ✅ new (nullable)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -178,9 +200,7 @@ export const userIntegrations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({
-    pk: primaryKey({ columns: [t.userId, t.provider] }),
-  }),
+  (t) => [primaryKey({ columns: [t.userId, t.provider] })],
 );
 
 export const userSyncPrefs = pgTable("user_sync_prefs", {
@@ -196,14 +216,8 @@ export const userSyncPrefs = pgTable("user_sync_prefs", {
     .array()
     .notNull()
     .default(sql`'{Promotions,Social,Forums,Updates}'::text[]`),
-  calendarIncludeOrganizerSelf: text("calendar_include_organizer_self")
-    .$type<"true" | "false">()
-    .notNull()
-    .default("true"),
-  calendarIncludePrivate: text("calendar_include_private")
-    .$type<"true" | "false">()
-    .notNull()
-    .default("false"),
+  calendarIncludeOrganizerSelf: boolean("calendar_include_organizer_self").notNull().default(true), // ✅ matches SQL default true
+  calendarIncludePrivate: boolean("calendar_include_private").notNull().default(false), // ✅ matches SQL default false
   calendarTimeWindowDays: integer("calendar_time_window_days").notNull().default(60),
   driveIngestionMode: text("drive_ingestion_mode").notNull().default("none"), // none | picker | folders
   driveFolderIds: text("drive_folder_ids")
@@ -215,33 +229,11 @@ export const userSyncPrefs = pgTable("user_sync_prefs", {
 });
 
 export const syncAudit = pgTable("sync_audit", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
+  id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").notNull(),
   provider: text("provider").notNull(), // gmail | calendar | drive
   action: text("action").notNull(), // preview | approve | undo
   payload: jsonb("payload"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-// ---------- AI Spend Guardrails (optional but recommended) ----------
-
-export const aiQuotas = pgTable("ai_quotas", {
-  userId: uuid("user_id").primaryKey(), // references auth.users(id) in SQL
-  periodStart: timestamp("period_start", { mode: "date" }).notNull(),
-  creditsLeft: integer("credits_left").notNull(),
-});
-
-export const aiUsage = pgTable("ai_usage", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull(),
-  model: text("model").notNull(),
-  inputTokens: integer("input_tokens").notNull().default(0),
-  outputTokens: integer("output_tokens").notNull().default(0),
-  costUsd: numeric("cost_usd", { precision: 8, scale: 4 }).notNull().default("0"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

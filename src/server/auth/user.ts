@@ -12,18 +12,29 @@ export async function getServerUserId(): Promise<string> {
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
       cookies: {
-        getAll() {
-          const all = cookieStore.getAll?.() ?? [];
-          return all.map((c: { name: string; value: string }) => ({
-            name: c.name,
-            value: c.value,
-          }));
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set() {
+          // no-op in API route context
+        },
+        remove() {
+          // no-op in API route context
         },
       },
     },
   );
 
-  const { data } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
+
+  // Debug logging
+  console.warn(`[DEBUG] getServerUserId - User data:`, {
+    hasUser: !!data?.user,
+    userId: data?.user?.id,
+    error: error?.message,
+    cookies: cookieStore.getAll().map((c) => c.name),
+  });
+
   if (data?.user?.id) return data.user.id;
 
   throw Object.assign(new Error("Unauthorized"), { status: 401 });

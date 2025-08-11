@@ -36,13 +36,13 @@ export async function POST() {
   const MAX_BACKOFF_MS = 60_000; // cap backoff to 60s
 
   const handlers: Record<JobKind, JobHandler> = {
-    google_gmail_sync: runGmailSync,
-    google_calendar_sync: runCalendarSync,
+    google_gmail_sync: runGmailSync as unknown as JobHandler,
+    google_calendar_sync: runCalendarSync as unknown as JobHandler,
     normalize: async () => {},
-    embed: runEmbed,
-    insight: runInsight,
-    normalize_google_email: runNormalizeGoogleEmail,
-    normalize_google_event: runNormalizeGoogleEvent,
+    embed: runEmbed as unknown as JobHandler,
+    insight: runInsight as unknown as JobHandler,
+    normalize_google_email: runNormalizeGoogleEmail as unknown as JobHandler,
+    normalize_google_event: runNormalizeGoogleEvent as unknown as JobHandler,
   };
 
   for (const job of queued as JobRecord[]) {
@@ -81,7 +81,7 @@ export async function POST() {
         .set({ status: "processing", updatedAt: new Date() })
         .where(eq(jobs.id, job.id));
 
-      await handler(job, userId);
+      await handler(job as unknown, userId);
       await db
         .update(jobs)
         .set({ status: "done", updatedAt: new Date() })

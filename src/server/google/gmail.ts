@@ -2,6 +2,7 @@
 import type { gmail_v1 } from "googleapis";
 import type { gmail as GmailFactory } from "googleapis/build/src/apis/gmail";
 import { getGoogleClients } from "./client";
+import { toLabelId } from "./constants";
 import { log } from "@/server/log";
 
 export type GmailClient = ReturnType<typeof GmailFactory>;
@@ -75,17 +76,7 @@ export async function getMessages(gmail: GmailClient, ids: string[]) {
   return out;
 }
 
-export const CATEGORY_LABEL_MAP: Record<string, string> = {
-  Promotions: "CATEGORY_PROMOTIONS",
-  Social: "CATEGORY_SOCIAL",
-  Forums: "CATEGORY_FORUMS",
-  Updates: "CATEGORY_UPDATES",
-  Primary: "CATEGORY_PERSONAL",
-};
-
-function toLabelId(labelName: string): string {
-  return CATEGORY_LABEL_MAP[labelName] ?? labelName;
-}
+// label map and transformer imported from ./constants
 
 export async function gmailPreview(
   userId: string,
@@ -174,6 +165,7 @@ async function callWithRetry<T>(fn: () => Promise<T>, op: string, max = 3): Prom
       if (attempt < max - 1) await new Promise((r) => setTimeout(r, delay));
     }
   }
-  log.warn({ op, error: String((lastErr as any)?.message ?? lastErr) }, "google_call_failed");
+  const error = lastErr as { message?: string };
+  log.warn({ op, error: String(error?.message ?? lastErr) }, "google_call_failed");
   throw lastErr;
 }

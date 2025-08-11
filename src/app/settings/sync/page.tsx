@@ -5,15 +5,56 @@ import { useState } from "react";
 type PreviewGmail = { countByLabel: Record<string, number>; sampleSubjects: string[] };
 type PreviewCalendar = { count: number; sampleTitles: string[] };
 
+interface SyncStatus {
+  googleConnected: boolean;
+  flags?: {
+    gmail: boolean;
+    calendar: boolean;
+  };
+  lastSync?: {
+    gmail: string | null;
+    calendar: string | null;
+  };
+  jobs?: {
+    queued: number;
+    done: number;
+    error: number;
+  };
+  lastBatchId?: string;
+}
+
+interface SyncPreferences {
+  gmailQuery?: string;
+  gmailLabelIncludes?: string[];
+  gmailLabelExcludes?: string[];
+  calendarIncludeOrganizerSelf?: string;
+  calendarIncludePrivate?: string;
+  calendarTimeWindowDays?: number;
+}
+
+interface APIResponse {
+  ok?: boolean;
+  error?: string;
+  batchId?: string;
+  processed?: number;
+}
+
+interface PreviewAPIResponse extends APIResponse {
+  countByLabel?: Record<string, number>;
+  sampleSubjects?: string[];
+  count?: number;
+  sampleTitles?: string[];
+}
+
 export default function SyncSettingsPage() {
   const [gmail, setGmail] = useState<PreviewGmail | null>(null);
   const [calendar, setCalendar] = useState<PreviewCalendar | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<any>(null);
+  const [status, setStatus] = useState<SyncStatus | null>(null);
   const base = ""; // same-origin
 
-  const [prefs, setPrefs] = useState<any>(null);
+  const [prefs, setPrefs] = useState<SyncPreferences | null>(null);
   // Read CSRF token from cookie (double-submit) and include in mutating requests
   function getCsrf(): string {
     if (typeof document === "undefined") return "";
@@ -23,7 +64,7 @@ export default function SyncSettingsPage() {
 
   async function loadPrefs() {
     const res = await fetch(`/api/settings/sync/prefs`);
-    const j = await res.json();
+    const j = (await res.json()) as SyncPreferences;
     setPrefs(j);
   }
   async function savePrefs() {
@@ -34,7 +75,7 @@ export default function SyncSettingsPage() {
     });
   }
 
-  async function callJSON(url: string, body?: any) {
+  async function callJSON(url: string, body?: Record<string, unknown>): Promise<APIResponse> {
     setBusy(true);
     try {
       const res = await fetch(url, {
@@ -42,7 +83,7 @@ export default function SyncSettingsPage() {
         headers: { "x-csrf-token": getCsrf() || "", "content-type": "application/json" },
         body: body ? JSON.stringify(body) : null,
       });
-      const j = await res.json();
+      const j = (await res.json()) as APIResponse;
       if (!res.ok) throw new Error(j?.error || res.statusText);
       return j;
     } finally {
@@ -56,7 +97,9 @@ export default function SyncSettingsPage() {
       <div className="text-sm text-neutral-600">
         <button
           className="px-2 py-1 rounded border"
-          onClick={async () => setStatus(await (await fetch(`/api/settings/sync/status`)).json())}
+          onClick={async () =>
+            setStatus((await (await fetch(`/api/settings/sync/status`)).json()) as SyncStatus)
+          }
         >
           Refresh Status
         </button>
@@ -96,7 +139,9 @@ export default function SyncSettingsPage() {
         <div className="flex gap-2 items-end">
           <button
             className="px-2 py-1 rounded border"
-            onClick={async () => setStatus(await (await fetch(`/api/settings/sync/status`)).json())}
+            onClick={async () =>
+              setStatus((await (await fetch(`/api/settings/sync/status`)).json()) as SyncStatus)
+            }
           >
             Refresh Status
           </button>
@@ -109,7 +154,7 @@ export default function SyncSettingsPage() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ batchId: status.lastBatchId }),
                 });
-                const j = await res.json();
+                const j = (await res.json()) as APIResponse;
                 alert(`Undo: ${j.ok ? "ok" : j.error}`);
               }}
             >
@@ -133,7 +178,11 @@ export default function SyncSettingsPage() {
                 <input
                   className="border rounded px-2 py-1"
                   value={prefs.gmailQuery ?? ""}
-                  onChange={(e) => setPrefs((p: any) => ({ ...p, gmailQuery: e.target.value }))}
+                  onChange={(e) =>
+                    setPrefs((p) =>
+                      p ? { ...p, gmailQuery: e.target.value } : { gmailQuery: e.target.value },
+                    )
+                  }
                 />
               </label>
               <label className="grid gap-1">
@@ -142,13 +191,22 @@ export default function SyncSettingsPage() {
                   className="border rounded px-2 py-1"
                   value={(prefs.gmailLabelIncludes ?? []).join(",")}
                   onChange={(e) =>
-                    setPrefs((p: any) => ({
-                      ...p,
-                      gmailLabelIncludes: e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    }))
+                    setPrefs((p) =>
+                      p
+                        ? {
+                            ...p,
+                            gmailLabelIncludes: e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          }
+                        : {
+                            gmailLabelIncludes: e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          },
+                    )
                   }
                 />
               </label>
@@ -158,13 +216,22 @@ export default function SyncSettingsPage() {
                   className="border rounded px-2 py-1"
                   value={(prefs.gmailLabelExcludes ?? []).join(",")}
                   onChange={(e) =>
-                    setPrefs((p: any) => ({
-                      ...p,
-                      gmailLabelExcludes: e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    }))
+                    setPrefs((p) =>
+                      p
+                        ? {
+                            ...p,
+                            gmailLabelExcludes: e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          }
+                        : {
+                            gmailLabelExcludes: e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          },
+                    )
                   }
                 />
               </label>
@@ -174,10 +241,16 @@ export default function SyncSettingsPage() {
                     type="checkbox"
                     checked={prefs.calendarIncludeOrganizerSelf === "true"}
                     onChange={(e) =>
-                      setPrefs((p: any) => ({
-                        ...p,
-                        calendarIncludeOrganizerSelf: e.target.checked ? "true" : "false",
-                      }))
+                      setPrefs((p) =>
+                        p
+                          ? {
+                              ...p,
+                              calendarIncludeOrganizerSelf: e.target.checked ? "true" : "false",
+                            }
+                          : {
+                              calendarIncludeOrganizerSelf: e.target.checked ? "true" : "false",
+                            },
+                      )
                     }
                   />
                   <span>Include organizer self</span>
@@ -187,10 +260,16 @@ export default function SyncSettingsPage() {
                     type="checkbox"
                     checked={prefs.calendarIncludePrivate === "true"}
                     onChange={(e) =>
-                      setPrefs((p: any) => ({
-                        ...p,
-                        calendarIncludePrivate: e.target.checked ? "true" : "false",
-                      }))
+                      setPrefs((p) =>
+                        p
+                          ? {
+                              ...p,
+                              calendarIncludePrivate: e.target.checked ? "true" : "false",
+                            }
+                          : {
+                              calendarIncludePrivate: e.target.checked ? "true" : "false",
+                            },
+                      )
                     }
                   />
                   <span>Include private events</span>
@@ -202,10 +281,16 @@ export default function SyncSettingsPage() {
                     className="border rounded px-2 py-1"
                     value={prefs.calendarTimeWindowDays ?? 60}
                     onChange={(e) =>
-                      setPrefs((p: any) => ({
-                        ...p,
-                        calendarTimeWindowDays: Number(e.target.value) || 60,
-                      }))
+                      setPrefs((p) =>
+                        p
+                          ? {
+                              ...p,
+                              calendarTimeWindowDays: Number(e.target.value) || 60,
+                            }
+                          : {
+                              calendarTimeWindowDays: Number(e.target.value) || 60,
+                            },
+                      )
                     }
                   />
                 </label>
@@ -238,14 +323,31 @@ export default function SyncSettingsPage() {
           <button
             disabled={busy}
             className="px-3 py-2 rounded border"
-            onClick={async () => setGmail(await callJSON(`${base}/api/sync/preview/gmail`))}
+            onClick={async () => {
+              const result = (await callJSON(
+                `${base}/api/sync/preview/gmail`,
+              )) as PreviewAPIResponse;
+              if (result.countByLabel && result.sampleSubjects) {
+                setGmail({
+                  countByLabel: result.countByLabel,
+                  sampleSubjects: result.sampleSubjects,
+                });
+              }
+            }}
           >
             Preview Gmail
           </button>
           <button
             disabled={busy}
             className="px-3 py-2 rounded border"
-            onClick={async () => setCalendar(await callJSON(`${base}/api/sync/preview/calendar`))}
+            onClick={async () => {
+              const result = (await callJSON(
+                `${base}/api/sync/preview/calendar`,
+              )) as PreviewAPIResponse;
+              if (result.count !== undefined && result.sampleTitles) {
+                setCalendar({ count: result.count, sampleTitles: result.sampleTitles });
+              }
+            }}
           >
             Preview Calendar
           </button>
@@ -291,7 +393,7 @@ export default function SyncSettingsPage() {
             className="px-3 py-2 rounded border"
             onClick={async () => {
               const j = await callJSON(`${base}/api/sync/approve/gmail`);
-              setBatchId(j.batchId);
+              setBatchId(j.batchId ?? null);
             }}
           >
             Approve Gmail Import
@@ -301,7 +403,7 @@ export default function SyncSettingsPage() {
             className="px-3 py-2 rounded border"
             onClick={async () => {
               const j = await callJSON(`${base}/api/sync/approve/calendar`);
-              setBatchId(j.batchId);
+              setBatchId(j.batchId ?? null);
             }}
           >
             Approve Calendar Import

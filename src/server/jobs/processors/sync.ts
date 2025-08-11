@@ -1,9 +1,11 @@
 import { db } from "@/server/db/client";
+import { supaAdminGuard } from "@/server/db/supabase-admin";
 import { and, desc, eq } from "drizzle-orm";
 import { jobs, rawEvents, userSyncPrefs } from "@/server/db/schema";
 import { getGoogleClients } from "@/server/google/client";
 import type { GmailClient } from "@/server/google/gmail";
 import { listGmailMessageIds } from "@/server/google/gmail";
+import { toLabelId } from "@/server/google/constants";
 import type { CalendarClient } from "@/server/google/calendar";
 import { listCalendarEvents } from "@/server/google/calendar";
 // Note: logging kept minimal to avoid noise during tight loops
@@ -34,14 +36,7 @@ export async function runGmailSync(
   const prefs = prefsRow[0];
   const since = await lastEventTimestamp(userId, "gmail");
 
-  const CATEGORY_LABEL_MAP: Record<string, string> = {
-    Promotions: "CATEGORY_PROMOTIONS",
-    Social: "CATEGORY_SOCIAL",
-    Forums: "CATEGORY_FORUMS",
-    Updates: "CATEGORY_UPDATES",
-    Primary: "CATEGORY_PERSONAL",
-  };
-  const toLabelId = (name: string) => CATEGORY_LABEL_MAP[name] ?? name;
+  // label constants and transformer centralized
 
   const q = `${prefs?.gmailQuery ?? "newer_than:30d"}`;
   const batchId = (job.payload?.["batchId"] as string | undefined) ?? undefined;
@@ -55,11 +50,13 @@ export async function runGmailSync(
   // fetch in small chunks to avoid 429s
   const chunk = 25;
   const startedAt = Date.now();
+  const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job to avoid runaways
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
 
   for (let i = 0; i < total; i += chunk) {
+    if (Date.now() > deadlineMs) break; // why: protect against long-running loops when API is slow
     const slice = ids.slice(i, i + chunk);
     const results = await Promise.allSettled(
       slice.map((id) => gmail.users.messages.get({ userId: "me", id, format: "full" })),
@@ -78,7 +75,8 @@ export async function runGmailSync(
         continue;
       }
 
-      await db.insert(rawEvents).values({
+      // service-role write: raw_events (allowed)
+      await supaAdminGuard.insert("raw_events", {
         userId,
         provider: "gmail",
         payload: msg,
@@ -138,6 +136,7 @@ export async function runCalendarSync(
 
   // Calendar: process paginated items with caps & light filtering
   const startedAt = Date.now();
+  const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job
   let itemsFetched = 0;
   let itemsInserted = 0;
   const itemsSkipped = 0;
@@ -145,6 +144,7 @@ export async function runCalendarSync(
   const MAX_PER_RUN = 2000;
   const total = Math.min(items.length, MAX_PER_RUN);
   for (let i = 0; i < total; i++) {
+    if (Date.now() > deadlineMs) break; // why: avoid runaway jobs on large calendars
     const e = items[i]!;
     if (
       (prefs?.calendarIncludeOrganizerSelf ?? "true") === "true" &&
@@ -159,7 +159,8 @@ export async function runCalendarSync(
     const startStr = e.start?.dateTime ?? e.start?.date;
     if (!startStr) continue;
     const occurredAt = new Date(startStr);
-    await db.insert(rawEvents).values({
+    // service-role write: raw_events (allowed)
+    await supaAdminGuard.insert("raw_events", {
       userId,
       provider: "calendar",
       payload: e,

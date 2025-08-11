@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 describe("/api/db-ping", () => {
   beforeEach(() => {
@@ -12,9 +13,15 @@ describe("/api/db-ping", () => {
       connect = vi.fn().mockResolvedValue(undefined);
     }
     const execute = vi.fn().mockResolvedValue(undefined);
-    const drizzle = () => ({ execute });
+    const drizzle = () => ({ execute }) as NodePgDatabase;
     const { __setDbDriversForTest } = await import("@/server/db/client");
-    __setDbDriversForTest({ ClientCtor: MockClient as any, drizzleFn: drizzle as any });
+    __setDbDriversForTest({
+      ClientCtor: MockClient as new (config: { connectionString: string }) => {
+        connect(): Promise<void>;
+        [key: string]: unknown;
+      },
+      drizzleFn: drizzle as (client: unknown) => NodePgDatabase,
+    });
 
     const { GET } = await import("./route");
     const res = await GET();
@@ -29,9 +36,15 @@ describe("/api/db-ping", () => {
       connect = vi.fn().mockResolvedValue(undefined);
     }
     const execute = vi.fn().mockRejectedValue(new Error("db down"));
-    const drizzle = () => ({ execute });
+    const drizzle = () => ({ execute }) as NodePgDatabase;
     const { __setDbDriversForTest } = await import("@/server/db/client");
-    __setDbDriversForTest({ ClientCtor: MockClient as any, drizzleFn: drizzle as any });
+    __setDbDriversForTest({
+      ClientCtor: MockClient as new (config: { connectionString: string }) => {
+        connect(): Promise<void>;
+        [key: string]: unknown;
+      },
+      drizzleFn: drizzle as (client: unknown) => NodePgDatabase,
+    });
 
     const { GET } = await import("./route");
     const res = await GET();

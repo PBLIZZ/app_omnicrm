@@ -1,6 +1,6 @@
 /** POST /api/sync/preview/gmail — compute Gmail preview (auth required). Errors: 404 not_found, 401 Unauthorized, 500 preview_failed */
 // no NextResponse usage; responses via helpers
-import { db } from "@/server/db/client";
+import { getDb } from "@/server/db/client";
 import { userSyncPrefs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { gmailPreview } from "@/server/google/gmail";
@@ -29,6 +29,7 @@ export async function POST(req?: Request) {
     return err(404, "not_found");
   }
 
+  const db = await getDb();
   const prefsRow = await db
     .select()
     .from(userSyncPrefs)
@@ -50,8 +51,9 @@ export async function POST(req?: Request) {
     });
     await logSync(userId, "gmail", "preview", preview as unknown as Record<string, unknown>);
     return ok(preview ?? {});
-  } catch (e: any) {
-    const status = e?.status === 401 ? 401 : 500;
+  } catch (e: unknown) {
+    const error = e as { status?: number };
+    const status = error?.status === 401 ? 401 : 500;
     return err(status, "preview_failed");
   }
 }

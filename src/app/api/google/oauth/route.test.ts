@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GET } from "./route";
+import type { NextRequest } from "next/server";
 
 vi.mock("@/server/sync/audit", () => ({ logSync: vi.fn() }));
 vi.mock("@/server/auth/user", () => ({ getServerUserId: vi.fn() }));
@@ -27,9 +28,11 @@ describe("google oauth route", () => {
 
   it("returns 400 with error envelope for invalid scope", async () => {
     const userMod = await import("@/server/auth/user");
-    (userMod.getServerUserId as any).mockResolvedValue("u1");
+    (
+      userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
+    ).mockResolvedValue("u1");
     const req = new Request("https://example.com/api/google/oauth?scope=foo");
-    const res = await GET(req as any);
+    const res = await GET(req as NextRequest);
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json).toEqual({ ok: false, error: "invalid_scope", details: { scope: "foo" } });
@@ -37,9 +40,11 @@ describe("google oauth route", () => {
 
   it("returns 401 with error envelope when unauthorized", async () => {
     const userMod = await import("@/server/auth/user");
-    (userMod.getServerUserId as any).mockRejectedValue({ status: 401, message: "Unauthorized" });
+    (
+      userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
+    ).mockRejectedValue({ status: 401, message: "Unauthorized" });
     const req = new Request("https://example.com/api/google/oauth?scope=gmail");
-    const res = await GET(req as any);
+    const res = await GET(req as NextRequest);
     expect(res.status).toBe(401);
     const json = await res.json();
     expect(json).toEqual({ ok: false, error: "Unauthorized", details: null });

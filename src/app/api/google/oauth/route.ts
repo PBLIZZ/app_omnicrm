@@ -48,12 +48,15 @@ export async function GET(req: Request) {
 
   await logSync(userId, scopeParam as "gmail" | "calendar", "preview", { step: "oauth_init" });
   const res = NextResponse.redirect(url);
-  // Short lived, HttpOnly, SameSite=Strict
+  // Short lived, HttpOnly. Use SameSite=Lax so the cookie is sent on top-level
+  // redirect back from accounts.google.com to our callback.
+  const isProd = process.env.NODE_ENV === "production";
   res.cookies.set("gauth", `${sig}.${nonce}`, {
     httpOnly: true,
-    sameSite: "strict",
-    secure: true,
-    path: "/",
+    sameSite: "lax",
+    secure: isProd,
+    // Restrict cookie to the callback route to avoid conflicts with other flows
+    path: "/api/google/oauth/callback",
     maxAge: 5 * 60, // 5 minutes
   });
   return res;

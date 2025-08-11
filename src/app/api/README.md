@@ -24,6 +24,8 @@ import { z } from "zod";
 const Body = z.object({ name: z.string().min(1) }).strict();
 
 export async function POST(req: Request) {
+  // Optional: basic requestId logging if you propagate it from middleware
+  const requestId = (req.headers as any)?.get?.("x-request-id");
   try {
     await getServerUserId();
   } catch (e: any) {

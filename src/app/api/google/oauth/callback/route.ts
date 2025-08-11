@@ -1,7 +1,7 @@
 /** GET /api/google/oauth/callback — handle Google OAuth redirect (auth required). Errors: 400 invalid_state|missing_code_or_state, 401 Unauthorized */
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
-import { db } from "@/server/db/client";
+import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
 import { logSync } from "@/server/sync/audit";
 import { and, eq } from "drizzle-orm";
@@ -10,6 +10,7 @@ import { encryptString, hmacVerify } from "@/server/lib/crypto";
 import { getServerUserId } from "@/server/auth/user";
 
 export async function GET(req: NextRequest) {
+  const db = await getDb();
   const code = req.nextUrl.searchParams.get("code");
   const stateRaw = req.nextUrl.searchParams.get("state");
   if (!code || !stateRaw) return err(400, "missing_code_or_state");
@@ -18,11 +19,12 @@ export async function GET(req: NextRequest) {
   let userId: string;
   try {
     userId = await getServerUserId();
-  } catch (e: any) {
-    return err(e?.status ?? 401, e?.message ?? "Unauthorized");
+  } catch (e: unknown) {
+    const error = e as { status?: number; message?: string };
+    return err(error?.status ?? 401, error?.message ?? "Unauthorized");
   }
 
-  let parsed: any;
+  let parsed: { n: string; s: string };
   try {
     parsed = JSON.parse(stateRaw);
   } catch {
@@ -77,7 +79,9 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  await logSync(userId, parsed.s, "approve", { grantedScopes: tokens.scope });
+  await logSync(userId, parsed.s as "gmail" | "calendar" | "drive", "approve", {
+    grantedScopes: tokens.scope,
+  });
 
   // Clear nonce cookie
   const res = NextResponse.redirect(new URL("/settings/sync?connected=google", req.url));

@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import crypto from "crypto";
 
 // Small, focused cryptography helpers for application-level secrets
 // - AES-256-GCM for confidentiality + integrity

@@ -1,7 +1,7 @@
 "use client";
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
-let _client: ReturnType<typeof createClient> | null = null;
+let _client: ReturnType<typeof createBrowserClient> | null = null;
 
 export function getSupabaseBrowser() {
   if (_client) return _client;
@@ -15,10 +15,8 @@ export function getSupabaseBrowser() {
       );
     }
     // return a dummy no-op client during build (won't be used in SSR)
-    return (_client ??= createClient("http://localhost:54321", "public-anon-key"));
+    return (_client ??= createBrowserClient("http://localhost:54321", "public-anon-key"));
   }
-  _client = createClient(url, key, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-  });
+  _client = createBrowserClient(url, key);
   return _client;
 }

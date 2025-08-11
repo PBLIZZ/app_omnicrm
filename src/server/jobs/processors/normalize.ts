@@ -1,4 +1,5 @@
 import { db } from "@/server/db/client";
+import { supaAdminGuard } from "@/server/db/supabase-admin";
 import { and, eq } from "drizzle-orm";
 import { interactions, rawEvents } from "@/server/db/schema";
 // No verbose logging here to keep normalization fast and predictable
@@ -9,6 +10,7 @@ export async function runNormalizeGoogleEmail(
 ) {
   const batchId = job.payload?.batchId as string | undefined;
   const startedAt = Date.now();
+  const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job to avoid runaways
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
@@ -24,6 +26,7 @@ export async function runNormalizeGoogleEmail(
     );
 
   for (const r of rows) {
+    if (Date.now() > deadlineMs) break; // why: protect against unexpectedly large batches
     itemsFetched += 1;
     const payload = r.payload as {
       payload?: { headers?: Array<{ name?: string | null; value?: string | null }> };
@@ -54,19 +57,24 @@ export async function runNormalizeGoogleEmail(
       }
     }
 
-    await db.insert(interactions).values({
-      userId,
-      contactId: null,
-      type: "email",
-      subject: subject ?? undefined,
-      bodyText: snippet ?? undefined,
-      bodyRaw: null,
-      occurredAt: r.occurredAt,
-      source: "gmail",
-      sourceId: messageId ?? undefined,
-      sourceMeta: r.sourceMeta,
-      batchId: r.batchId ?? undefined,
-    });
+    // service-role write: interactions (allowed). Upsert to skip duplicates via unique index.
+    await supaAdminGuard.upsert(
+      "interactions",
+      {
+        userId,
+        contactId: null,
+        type: "email",
+        subject: subject ?? undefined,
+        bodyText: snippet ?? undefined,
+        bodyRaw: null,
+        occurredAt: r.occurredAt,
+        source: "gmail",
+        sourceId: messageId ?? undefined,
+        sourceMeta: r.sourceMeta,
+        batchId: r.batchId ?? undefined,
+      },
+      { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
+    );
     itemsInserted += 1;
   }
   const durationMs = Date.now() - startedAt;
@@ -80,6 +88,7 @@ export async function runNormalizeGoogleEmail(
       itemsInserted,
       itemsSkipped,
       durationMs,
+      timedOut: Date.now() > deadlineMs,
     }),
   );
 }
@@ -90,6 +99,7 @@ export async function runNormalizeGoogleEvent(
 ) {
   const batchId = job.payload?.batchId as string | undefined;
   const startedAt = Date.now();
+  const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
@@ -105,6 +115,7 @@ export async function runNormalizeGoogleEvent(
     );
 
   for (const r of rows) {
+    if (Date.now() > deadlineMs) break; // why: avoid runaway normalization
     itemsFetched += 1;
     const payload = r.payload as {
       summary?: string | null;
@@ -133,19 +144,24 @@ export async function runNormalizeGoogleEvent(
       }
     }
 
-    await db.insert(interactions).values({
-      userId,
-      contactId: null,
-      type: "meeting",
-      subject: summary ?? undefined,
-      bodyText: desc ?? undefined,
-      bodyRaw: null,
-      occurredAt: r.occurredAt,
-      source: "calendar",
-      sourceId: eventId ?? undefined,
-      sourceMeta: r.sourceMeta,
-      batchId: r.batchId ?? undefined,
-    });
+    // service-role write: interactions (allowed). Upsert to skip duplicates via unique index.
+    await supaAdminGuard.upsert(
+      "interactions",
+      {
+        userId,
+        contactId: null,
+        type: "meeting",
+        subject: summary ?? undefined,
+        bodyText: desc ?? undefined,
+        bodyRaw: null,
+        occurredAt: r.occurredAt,
+        source: "calendar",
+        sourceId: eventId ?? undefined,
+        sourceMeta: r.sourceMeta,
+        batchId: r.batchId ?? undefined,
+      },
+      { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
+    );
     itemsInserted += 1;
   }
   const durationMs = Date.now() - startedAt;
@@ -159,6 +175,7 @@ export async function runNormalizeGoogleEvent(
       itemsInserted,
       itemsSkipped,
       durationMs,
+      timedOut: Date.now() > deadlineMs,
     }),
   );
 }

@@ -98,6 +98,7 @@ async function callWithRetry<T>(fn: () => Promise<T>, op: string, max = 3): Prom
       if (attempt < max - 1) await new Promise((r) => setTimeout(r, delay));
     }
   }
-  log.warn({ op, error: String((lastErr as any)?.message ?? lastErr) }, "google_call_failed");
+  const error = lastErr as { message?: string };
+  log.warn({ op, error: String(error?.message ?? lastErr) }, "google_call_failed");
   throw lastErr;
 }

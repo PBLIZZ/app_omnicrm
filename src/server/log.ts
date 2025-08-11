@@ -33,7 +33,7 @@ const logger = pino(
     timestamp: pino.stdTimeFunctions.isoTime,
     messageKey: "message",
   },
-  stream as any,
+  stream as pino.DestinationStream,
 );
 
 export const log = {

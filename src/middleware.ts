@@ -35,15 +35,14 @@ export function middleware(req: NextRequest): ReturnType<typeof NextResponse.nex
   res.headers.set("X-Frame-Options", "DENY");
   res.headers.set("Referrer-Policy", "no-referrer");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  // Minimal CSP: conservative defaults
-  res.headers.set(
-    "Content-Security-Policy",
-    [
-      "script-src 'self'",
-      "connect-src 'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com",
-      "frame-ancestors 'none'",
-    ].join("; "),
-  );
+
+  // CSP: strict in production, relaxed in development for HMR
+  const isProd = process.env.NODE_ENV === "production";
+  const csp = isProd
+    ? "script-src 'self'; connect-src 'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com; frame-ancestors 'none';"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' http://localhost:3000 ws://localhost:3000 https://*.supabase.co https://www.googleapis.com; frame-ancestors 'none';";
+
+  res.headers.set("Content-Security-Policy", csp);
 
   const url = req.nextUrl;
   const isApi = url.pathname.startsWith("/api/");
@@ -91,7 +90,7 @@ export function middleware(req: NextRequest): ReturnType<typeof NextResponse.nex
   // Rate limit by IP + user if available (via Supabase cookie presence is opaque; key by IP+cookie length)
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    (req as any).ip ||
+    (req as NextRequest & { ip?: string }).ip ||
     req.headers.get("x-real-ip") ||
     "unknown";
   const sessionLen = (req.cookies.get("sb:token")?.value ?? "").length;
@@ -128,14 +127,14 @@ export function middleware(req: NextRequest): ReturnType<typeof NextResponse.nex
       res.cookies.set("csrf", nonce, {
         httpOnly: false,
         sameSite: "strict",
-        secure: true,
+        secure: isProd,
         path: "/",
         maxAge: 60 * 60, // 1 hour
       });
       res.cookies.set("csrf_sig", sig, {
         httpOnly: true,
         sameSite: "strict",
-        secure: true,
+        secure: isProd,
         path: "/",
         maxAge: 60 * 60,
       });

@@ -5,10 +5,11 @@ let dbInitPromise: Promise<NodePgDatabase> | null = null;
 
 // Test-only injection for deterministic mocking
 interface TestOverrides {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ClientCtor?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  drizzleFn?: any;
+  ClientCtor?: new (config: { connectionString: string }) => {
+    connect(): Promise<void>;
+    [key: string]: unknown;
+  };
+  drizzleFn?: (client: unknown) => NodePgDatabase;
 }
 
 let testOverrides: TestOverrides = {};
@@ -39,7 +40,8 @@ export async function getDb(): Promise<NodePgDatabase> {
       testOverrides.drizzleFn ?? (await import("drizzle-orm/node-postgres")).drizzle;
     const client = new ClientCtor({ connectionString: databaseUrl });
     await client.connect();
-    const instance = drizzleFn(client) as NodePgDatabase;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const instance = drizzleFn(client as any) as NodePgDatabase;
     dbInstance = instance;
     return instance;
   })();

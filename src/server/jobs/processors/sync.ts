@@ -9,6 +9,7 @@ import { toLabelId } from "@/server/google/constants";
 import type { CalendarClient } from "@/server/google/calendar";
 import { listCalendarEvents } from "@/server/google/calendar";
 // Note: logging kept minimal to avoid noise during tight loops
+import { log } from "@/server/log";
 
 export async function lastEventTimestamp(userId: string, provider: "gmail" | "calendar") {
   const dbo = await getDb();
@@ -42,6 +43,13 @@ export async function runGmailSync(
 
   const q = `${prefs?.gmailQuery ?? "newer_than:30d"}`;
   const batchId = (job.payload?.["batchId"] as string | undefined) ?? undefined;
+  const debugContext = {
+    requestId: undefined as string | undefined, // request-scoped id not available inside job processor
+    userId,
+    batchId: batchId ?? null,
+    jobId: job.id,
+    provider: "gmail" as const,
+  };
   const includeIds = (prefs?.gmailLabelIncludes ?? []).map(toLabelId);
   const excludeIds = (prefs?.gmailLabelExcludes ?? []).map(toLabelId);
 
@@ -49,6 +57,16 @@ export async function runGmailSync(
   const ids = await listGmailMessageIds(gmail, q);
   const MAX_PER_RUN = 2000;
   const total = Math.min(ids.length, MAX_PER_RUN);
+  log.info(
+    {
+      ...debugContext,
+      op: "gmail.sync.start",
+      candidates: ids.length,
+      total,
+      query: q,
+    },
+    "gmail_sync_start",
+  );
   // fetch in small chunks to avoid 429s
   const chunk = 25;
   const startedAt = Date.now();
@@ -97,17 +115,16 @@ export async function runGmailSync(
 
   const durationMs = Date.now() - startedAt;
   // Minimal structured metrics for Gmail sync run
-  // eslint-disable-next-line no-console
-  console.log(
-    JSON.stringify({
-      event: "gmail_sync_metrics",
-      userId,
-      batchId: batchId ?? null,
+  log.info(
+    {
+      ...debugContext,
+      op: "gmail.sync.metrics",
       itemsFetched,
       itemsInserted,
       itemsSkipped,
       durationMs,
-    }),
+    },
+    "gmail_sync_metrics",
   );
 
   await dbo.insert(jobs).values({
@@ -137,6 +154,13 @@ export async function runCalendarSync(
   const timeMin = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
   const timeMax = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
   const batchId = (job.payload?.["batchId"] as string | undefined) ?? undefined;
+  const debugContext = {
+    requestId: undefined as string | undefined,
+    userId,
+    batchId: batchId ?? null,
+    jobId: job.id,
+    provider: "calendar" as const,
+  };
 
   // Calendar: process paginated items with caps & light filtering
   const startedAt = Date.now();
@@ -147,6 +171,16 @@ export async function runCalendarSync(
   const items = await listCalendarEvents(calendar, timeMin, timeMax);
   const MAX_PER_RUN = 2000;
   const total = Math.min(items.length, MAX_PER_RUN);
+  log.info(
+    {
+      ...debugContext,
+      op: "calendar.sync.start",
+      candidates: items.length,
+      total,
+      windowDays: days,
+    },
+    "calendar_sync_start",
+  );
   for (let i = 0; i < total; i++) {
     if (Date.now() > deadlineMs) break; // why: avoid runaway jobs on large calendars
     const e = items[i]!;
@@ -178,17 +212,16 @@ export async function runCalendarSync(
 
   const durationMs = Date.now() - startedAt;
   // Minimal structured metrics for Calendar sync run
-  // eslint-disable-next-line no-console
-  console.log(
-    JSON.stringify({
-      event: "calendar_sync_metrics",
-      userId,
-      batchId: batchId ?? null,
+  log.info(
+    {
+      ...debugContext,
+      op: "calendar.sync.metrics",
       itemsFetched,
       itemsInserted,
       itemsSkipped,
       durationMs,
-    }),
+    },
+    "calendar_sync_metrics",
   );
 
   await dbo.insert(jobs).values({

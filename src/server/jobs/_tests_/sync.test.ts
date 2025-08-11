@@ -5,6 +5,7 @@ import type { gmail_v1, calendar_v3 } from "googleapis";
 const shared = vi.hoisted(() => {
   return {
     rawEvents: [] as Array<Record<string, unknown>>,
+    interactions: new Map<string, Record<string, unknown>>(),
     jobs: [] as Array<Record<string, unknown>>,
     prefsStore: [] as Array<Record<string, unknown>>,
   };
@@ -73,7 +74,20 @@ vi.mock("@/server/db/supabase-admin", () => {
         shared.rawEvents.push(toCamelCaseKeys(values));
         return [] as unknown[];
       },
-      upsert: async () => [],
+      upsert: async (table: string, values: Record<string, unknown>) => {
+        if (table === "interactions") {
+          const key = `${values.user_id as string}|${values.source as string}|${(values.source_id as string) ?? ""}`;
+          if (shared.interactions.has(key)) {
+            // conflict; ignore
+            return [] as unknown[];
+          }
+          const row = toCamelCaseKeys(values);
+          shared.interactions.set(key, row);
+          return [row] as unknown[];
+        }
+        // default passthrough
+        return [] as unknown[];
+      },
       update: async () => [],
     },
   };
@@ -81,9 +95,9 @@ vi.mock("@/server/db/supabase-admin", () => {
 
 import * as syncModule from "../processors/sync";
 import { runGmailSync, runCalendarSync } from "../processors/sync";
-import * as dbModule from "@/server/db/client";
+import * as dbModule from "../../db/client";
 const mockDbState = (
-  dbModule as {
+  dbModule as unknown as {
     mockDbState: { rawEvents: unknown[]; jobs: unknown[]; setPrefs: (p: unknown) => void };
   }
 ).mockDbState;
@@ -92,6 +106,7 @@ describe("sync processors with injected clients", () => {
   beforeEach(() => {
     mockDbState.rawEvents.length = 0;
     mockDbState.jobs.length = 0;
+    shared.interactions.clear();
   });
 
   it("gmail: applies include/exclude filters, paginates, writes raw_events and follow-up job", async () => {
@@ -157,12 +172,16 @@ describe("sync processors with injected clients", () => {
     // list called twice for pagination
     expect(listCalls.length).toBe(2);
     // rawEvents wrote only message 1
-    expect(mockDbState.rawEvents.length).toBe(1);
-    expect(mockDbState.rawEvents[0].provider).toBe("gmail");
-    expect(mockDbState.rawEvents[0].batchId).toBe("B");
-    expect(mockDbState.rawEvents[0].sourceMeta.matchedQuery).toBe("newer_than:30d");
+    expect(shared.rawEvents.length).toBe(1);
+    expect((shared.rawEvents[0] as { provider: string }).provider).toBe("gmail");
+    expect((shared.rawEvents[0] as { batchId: string }).batchId).toBe("B");
+    expect(
+      (shared.rawEvents[0] as { sourceMeta: { matchedQuery: string } }).sourceMeta.matchedQuery,
+    ).toBe("newer_than:30d");
     // follow-up job enqueued
-    expect(mockDbState.jobs.at(-1)?.kind).toBe("normalize_google_email");
+    expect((mockDbState.jobs.at(-1) as { kind: string } | undefined)?.kind).toBe(
+      "normalize_google_email",
+    );
   });
 
   it("calendar: applies organizer/private filters, paginates, writes raw_events and follow-up job", async () => {
@@ -234,9 +253,119 @@ describe("sync processors with injected clients", () => {
 
     expect(listCalls.length).toBe(2);
     // e1 and e4 should be inserted; e2 excluded (organizer.self false), e3 excluded (private)
-    expect(mockDbState.rawEvents.length).toBe(2);
-    expect(mockDbState.rawEvents[0].provider).toBe("calendar");
-    expect(mockDbState.rawEvents[0].batchId).toBe("CB");
-    expect(mockDbState.jobs.at(-1)?.kind).toBe("normalize_google_event");
+    expect(shared.rawEvents.length).toBe(2);
+    expect((shared.rawEvents[0] as { provider: string }).provider).toBe("calendar");
+    expect((shared.rawEvents[0] as { batchId: string }).batchId).toBe("CB");
+    expect((mockDbState.jobs.at(-1) as { kind: string } | undefined)?.kind).toBe(
+      "normalize_google_event",
+    );
+  });
+
+  it("emits structured logs including requestId, userId, and batchId for gmail and calendar processors", async () => {
+    const logCalls: Array<{ bindings: Record<string, unknown>; message?: string }> = [];
+    // Mock the logger module used by the processors
+    vi.resetModules();
+    vi.doMock("@/server/log", () => {
+      return {
+        __esModule: true,
+        log: {
+          info: (bindings?: Record<string, unknown>, message?: string) => {
+            logCalls.push({ bindings: bindings ?? {}, message });
+          },
+          warn: () => {},
+          error: () => {},
+          debug: () => {},
+        },
+      };
+    });
+
+    const { runGmailSync: gmailRunner, runCalendarSync: calendarRunner } = await import(
+      "../processors/sync"
+    );
+
+    // Gmail
+    mockDbState.setPrefs({
+      userId: "u1",
+      gmailQuery: "newer_than:30d",
+      gmailLabelIncludes: [],
+      gmailLabelExcludes: [],
+    });
+    const gmail = {
+      users: {
+        messages: {
+          list: async () => ({ data: { messages: [{ id: "1" }] } }),
+          get: async () => ({
+            data: {
+              id: "1",
+              labelIds: ["CATEGORY_PERSONAL"],
+              internalDate: String(Date.now()),
+            },
+          }),
+        },
+      },
+    } as unknown as import("googleapis").gmail_v1.Gmail;
+    await gmailRunner(
+      { id: "jg", payload: { batchId: "BG" } } as unknown as {
+        id: string;
+        payload: { batchId: string };
+      },
+      "u1",
+      { gmail },
+    );
+
+    // Calendar
+    mockDbState.setPrefs({
+      userId: "u1",
+      calendarIncludeOrganizerSelf: true,
+      calendarIncludePrivate: false,
+      calendarTimeWindowDays: 1,
+    });
+    const calendar = {
+      events: {
+        list: async () => ({
+          data: {
+            items: [
+              {
+                id: "e1",
+                organizer: { self: true },
+                visibility: "public",
+                start: { dateTime: new Date().toISOString() },
+              },
+            ],
+          },
+        }),
+      },
+    } as unknown as import("googleapis").calendar_v3.Calendar;
+    await calendarRunner(
+      { id: "jc", payload: { batchId: "BC" } } as unknown as {
+        id: string;
+        payload: { batchId: string };
+      },
+      "u1",
+      { calendar },
+    );
+
+    // Assertions: at least one log per provider with keys present
+    const hasGmailLog = logCalls.some((c) => {
+      const b = c.bindings;
+      return (
+        b["provider"] === "gmail" &&
+        b["userId"] === "u1" &&
+        b["batchId"] === "BG" &&
+        Object.prototype.hasOwnProperty.call(b, "requestId")
+      );
+    });
+    expect(hasGmailLog).toBe(true);
+
+    const hasCalendarLog = logCalls.some((c) => {
+      const b = c.bindings;
+      return (
+        b["provider"] === "calendar" &&
+        b["userId"] === "u1" &&
+        b["batchId"] === "BC" &&
+        Object.prototype.hasOwnProperty.call(b, "requestId")
+      );
+    });
+    expect(hasCalendarLog).toBe(true);
   });
 });

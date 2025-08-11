@@ -39,43 +39,6 @@ export async function listGmailMessageIds(gmail: GmailClient, q: string) {
   return ids;
 }
 
-export async function getMessages(gmail: GmailClient, ids: string[]) {
-  const out: gmail_v1.Schema$Message[] = [];
-  const chunk = 25;
-  for (let i = 0; i < ids.length; i += chunk) {
-    const slice = ids.slice(i, i + chunk);
-    const results = await Promise.allSettled(
-      slice.map((id) =>
-        callWithRetry(
-          () =>
-            gmail.users.messages.get(
-              {
-                userId: "me",
-                id,
-                format: "metadata",
-                metadataHeaders: [
-                  "Subject",
-                  "From",
-                  "To",
-                  "Date",
-                  "Message-Id",
-                  "List-Id",
-                  "Delivered-To",
-                  "Cc",
-                ],
-              },
-              { timeout: 10_000 },
-            ),
-          "gmail.messages.get",
-        ),
-      ),
-    );
-    for (const r of results) if (r.status === "fulfilled") out.push(r.value.data);
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  return out;
-}
-
 // label map and transformer imported from ./constants
 
 export async function gmailPreview(

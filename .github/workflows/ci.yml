@@ -2,114 +2,84 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [main, develop]
 
 jobs:
-  build-and-test:
-    name: Typecheck, Lint, Unit Tests
+  test:
     runs-on: ubuntu-latest
     environment: ci
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Setup pnpm
+    env:
+      NODE_ENV: test
+      # Local Postgres service for DB-coupled tests; override in env if you want a remote DB
+      DATABASE_URL: "postgresql://postgres:password@localhost:5432/test"
+      # Public client config
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
+      NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+      # Server-side secrets
+      APP_ENCRYPTION_KEY: ${{ secrets.APP_ENCRYPTION_KEY }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REDIRECT_URI: ${{ vars.GOOGLE_REDIRECT_URI }}
+      # Feature flags to keep tests deterministic
+      FEATURE_GOOGLE_GMAIL_RO: ${{ vars.FEATURE_GOOGLE_GMAIL_RO }}
+      FEATURE_GOOGLE_CALENDAR_RO: ${{ vars.FEATURE_GOOGLE_CALENDAR_RO }}
+      FEATURE_GOOGLE_DRIVE: ${{ vars.FEATURE_GOOGLE_DRIVE }}
+      # Optional API tunables
+      API_RATE_LIMIT_PER_MIN: ${{ vars.API_RATE_LIMIT_PER_MIN }}
+      API_MAX_JSON_BYTES: ${{ vars.API_MAX_JSON_BYTES }}
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
           cache: "pnpm"
 
-      - name: Install deps
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm run typecheck
-        env:
-          NODE_ENV: test
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
-          APP_ENCRYPTION_KEY: ${{ secrets.APP_ENCRYPTION_KEY }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GOOGLE_REDIRECT_URI: ${{ vars.GOOGLE_REDIRECT_URI }}
-          FEATURE_GOOGLE_GMAIL_RO: ${{ vars.FEATURE_GOOGLE_GMAIL_RO }}
-          FEATURE_GOOGLE_CALENDAR_RO: ${{ vars.FEATURE_GOOGLE_CALENDAR_RO }}
-          FEATURE_GOOGLE_DRIVE: ${{ vars.FEATURE_GOOGLE_DRIVE }}
-          API_RATE_LIMIT_PER_MIN: ${{ vars.API_RATE_LIMIT_PER_MIN }}
-          API_MAX_JSON_BYTES: ${{ vars.API_MAX_JSON_BYTES }}
+      - name: Audit (non-blocking)
+        run: pnpm audit || true
+
+      - name: Type check
+        run: pnpm typecheck
 
       - name: Lint
-        run: pnpm run lint
+        run: pnpm lint
 
       - name: Unit tests (Vitest)
-        run: pnpm run test
-        env:
-          NODE_ENV: test
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
-          APP_ENCRYPTION_KEY: ${{ secrets.APP_ENCRYPTION_KEY }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GOOGLE_REDIRECT_URI: ${{ vars.GOOGLE_REDIRECT_URI }}
-          FEATURE_GOOGLE_GMAIL_RO: ${{ vars.FEATURE_GOOGLE_GMAIL_RO }}
-          FEATURE_GOOGLE_CALENDAR_RO: ${{ vars.FEATURE_GOOGLE_CALENDAR_RO }}
-          FEATURE_GOOGLE_DRIVE: ${{ vars.FEATURE_GOOGLE_DRIVE }}
-          API_RATE_LIMIT_PER_MIN: ${{ vars.API_RATE_LIMIT_PER_MIN }}
-          API_MAX_JSON_BYTES: ${{ vars.API_MAX_JSON_BYTES }}
+        run: pnpm test
 
-  e2e:
-    name: E2E (Playwright)
-    runs-on: ubuntu-latest
-    environment: ci
-    timeout-minutes: 30
-    needs: build-and-test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - name: E2E tests
+        run: pnpm e2e
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Install deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps
-
-      # Note: E2E will skip DB-coupled tests if DATABASE_URL is not present
-      - name: Run E2E tests
-        run: pnpm run e2e
-        env:
-          NODE_ENV: test
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
-          APP_ENCRYPTION_KEY: ${{ secrets.APP_ENCRYPTION_KEY }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GOOGLE_REDIRECT_URI: ${{ vars.GOOGLE_REDIRECT_URI }}
-          FEATURE_GOOGLE_GMAIL_RO: ${{ vars.FEATURE_GOOGLE_GMAIL_RO }}
-          FEATURE_GOOGLE_CALENDAR_RO: ${{ vars.FEATURE_GOOGLE_CALENDAR_RO }}
-          FEATURE_GOOGLE_DRIVE: ${{ vars.FEATURE_GOOGLE_DRIVE }}
-          API_RATE_LIMIT_PER_MIN: ${{ vars.API_RATE_LIMIT_PER_MIN }}
-          API_MAX_JSON_BYTES: ${{ vars.API_MAX_JSON_BYTES }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Build
+        run: pnpm build

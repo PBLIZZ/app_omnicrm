@@ -1,7 +1,7 @@
 import { getDb } from "@/server/db/client";
 import { supaAdminGuard } from "@/server/db/supabase-admin";
 import { and, eq } from "drizzle-orm";
-import { interactions, rawEvents } from "@/server/db/schema";
+import { rawEvents } from "@/server/db/schema";
 // No verbose logging here to keep normalization fast and predictable
 
 export async function runNormalizeGoogleEmail(
@@ -39,40 +39,30 @@ export async function runNormalizeGoogleEmail(
     const subject = headers.find((h) => (h.name || "").toLowerCase() === "subject")?.value ?? null;
     const snippet = payload?.snippet ?? null;
     const messageId = payload?.id ?? null;
-    // Idempotency: if interaction with same (user_id, source, source_id) exists for this batch, skip
-    if (messageId) {
-      const existing = await dbo
-        .select({ id: interactions.id })
-        .from(interactions)
-        .where(
-          and(
-            eq(interactions.userId, userId),
-            eq(interactions.source, "gmail"),
-            eq(interactions.sourceId, messageId),
-          ),
-        )
-        .limit(1);
-      if (existing.length > 0) {
-        itemsSkipped += 1;
-        continue;
-      }
-    }
-
     // service-role write: interactions (allowed). Upsert to skip duplicates via unique index.
-    await supaAdminGuard.insert("interactions", {
-      user_id: userId,
-      contact_id: null,
-      type: "email",
-      subject: subject ?? undefined,
-      body_text: snippet ?? undefined,
-      body_raw: null,
-      occurred_at: r.occurredAt as unknown as string,
-      source: "gmail",
-      source_id: messageId ?? undefined,
-      source_meta: r.sourceMeta,
-      batch_id: r.batchId ?? undefined,
-    });
-    itemsInserted += 1;
+    const upsertRes = await supaAdminGuard.upsert(
+      "interactions",
+      {
+        user_id: userId,
+        contact_id: null,
+        type: "email",
+        subject: subject ?? undefined,
+        body_text: snippet ?? undefined,
+        body_raw: null,
+        occurred_at: (r as { occurredAt?: unknown }).occurredAt as string,
+        source: "gmail",
+        source_id: messageId ?? undefined,
+        source_meta: (r as { sourceMeta?: unknown }).sourceMeta,
+        batch_id: (r as { batchId?: unknown }).batchId as string | undefined,
+      },
+      { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
+    );
+    // If conflict ignored, many PostgREST setups return empty array; treat that as skipped
+    if (Array.isArray(upsertRes) && upsertRes.length > 0) {
+      itemsInserted += 1;
+    } else {
+      itemsSkipped += 1;
+    }
   }
   const durationMs = Date.now() - startedAt;
   // eslint-disable-next-line no-console
@@ -124,39 +114,29 @@ export async function runNormalizeGoogleEvent(
     const summary = payload?.summary ?? null;
     const desc = payload?.description ?? payload?.location ?? null;
     const eventId = payload?.id ?? null;
-    if (eventId) {
-      const existing = await dbo
-        .select({ id: interactions.id })
-        .from(interactions)
-        .where(
-          and(
-            eq(interactions.userId, userId),
-            eq(interactions.source, "calendar"),
-            eq(interactions.sourceId, eventId),
-          ),
-        )
-        .limit(1);
-      if (existing.length > 0) {
-        itemsSkipped += 1;
-        continue;
-      }
-    }
-
     // service-role write: interactions (allowed). Upsert to skip duplicates via unique index.
-    await supaAdminGuard.insert("interactions", {
-      user_id: userId,
-      contact_id: null,
-      type: "meeting",
-      subject: summary ?? undefined,
-      body_text: desc ?? undefined,
-      body_raw: null,
-      occurred_at: r.occurredAt as unknown as string,
-      source: "calendar",
-      source_id: eventId ?? undefined,
-      source_meta: r.sourceMeta,
-      batch_id: r.batchId ?? undefined,
-    });
-    itemsInserted += 1;
+    const upsertRes = await supaAdminGuard.upsert(
+      "interactions",
+      {
+        user_id: userId,
+        contact_id: null,
+        type: "meeting",
+        subject: summary ?? undefined,
+        body_text: desc ?? undefined,
+        body_raw: null,
+        occurred_at: (r as { occurredAt?: unknown }).occurredAt as string,
+        source: "calendar",
+        source_id: eventId ?? undefined,
+        source_meta: (r as { sourceMeta?: unknown }).sourceMeta,
+        batch_id: (r as { batchId?: unknown }).batchId as string | undefined,
+      },
+      { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
+    );
+    if (Array.isArray(upsertRes) && upsertRes.length > 0) {
+      itemsInserted += 1;
+    } else {
+      itemsSkipped += 1;
+    }
   }
   const durationMs = Date.now() - startedAt;
   // eslint-disable-next-line no-console

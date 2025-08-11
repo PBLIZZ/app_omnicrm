@@ -45,11 +45,57 @@ Environment: set `APP_ENCRYPTION_KEY` to a 32-byte key (base64, hex, or strong U
 
 ## Content Security Policy (CSP)
 
-- Minimal, conservative CSP applied at middleware:
-  - `script-src 'self'`
-  - `connect-src 'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com`
-  - `frame-ancestors 'none'`
-  - File: `src/middleware.ts`
+- Enforced in `src/middleware.ts` via the `Content-Security-Policy` response header.
+- Environment-aware:
+  - Production: strict, minimal surface
+  - Development: relaxed for HMR and local websockets
+
+### Directives in use
+
+| Directive         | Purpose                                 | Production value                                                               | Development value                                                                                   | Example header fragment                      |
+| ----------------- | --------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `script-src`      | Restrict where scripts can load from    | `'self'`                                                                       | `'self' 'unsafe-inline' 'unsafe-eval' blob:`                                                        | `script-src 'self'`                          |
+| `connect-src`     | Allow XHR/fetch/websocket endpoints     | `'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com` | `'self' http://localhost:3000 ws://localhost:3000 https://*.supabase.co https://www.googleapis.com` | `connect-src 'self' https://*.supabase.co …` |
+| `frame-ancestors` | Clickjacking defense (who can embed us) | `'none'`                                                                       | `'none'`                                                                                            | `frame-ancestors 'none'`                     |
+
+Notes:
+
+- We intentionally do not set `style-src`, `img-src`, or `default-src` at this time to avoid over-constraining Next.js dev tooling. We may lock these down further post-hardening.
+- `X-Frame-Options: DENY` is also sent for legacy UA defense, alongside `frame-ancestors 'none'`.
+
+### Effective header
+
+- Production:
+
+```
+Content-Security-Policy: script-src 'self'; connect-src 'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com; frame-ancestors 'none';
+```
+
+- Development:
+
+```
+Content-Security-Policy: script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' http://localhost:3000 ws://localhost:3000 https://*.supabase.co https://www.googleapis.com; frame-ancestors 'none';
+```
+
+### Validation
+
+- Curl (replace URL as needed):
+
+```sh
+curl -sI http://localhost:3000 | grep -i "^content-security-policy" || true
+```
+
+- Playwright (example assertion):
+
+```ts
+const csp = (await page.request.fetch("/", { method: "GET" }))
+  .headers()
+  .get("content-security-policy");
+expect(csp).toContain("script-src");
+expect(csp).toContain("frame-ancestors 'none'");
+```
+
+File of record: `src/middleware.ts`.
 
 ## Method Allow-list
 

@@ -22,8 +22,8 @@ Unless stated, all endpoints require an authenticated Supabase session cookie an
 - Path: `/api/db-ping`
 - Auth: none
 - Request: none
-- Response: `{ ok: true }`
-- Errors: `{ ok: false }` with 500 on DB error
+- Response: `{ ok: true, data: {} }`
+- Errors: `{ ok: false, error: "db_error", details: null }` with 500 on DB error
 
 ## Chat
 
@@ -31,7 +31,7 @@ Unless stated, all endpoints require an authenticated Supabase session cookie an
 - Path: `/api/chat`
 - Auth: required
 - Request: `{ prompt: string }`
-- Response: `{ ok: true, data: { text: string }, creditsLeft: number }`
+- Response: `{ ok: true, data: { text: string, creditsLeft: number } }`
 - Errors:
   - 400 `{ ok: false, error: "invalid_body" }`
   - 401 `{ ok: false, error: "unauthorized" }`

@@ -1,3 +1,4 @@
+import "@/lib/zod-error-map";
 import type { Metadata } from "next";
 import AuthHeader from "@/components/AuthHeader";
 import { Geist, Geist_Mono } from "next/font/google";

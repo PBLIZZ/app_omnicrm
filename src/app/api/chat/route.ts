@@ -1,8 +1,10 @@
-// src/app/api/chat/route.ts (skeleton—just to show the guardrails in action):
+// src/app/api/chat/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import "@/lib/zod-error-map";
 import { withGuardrails } from "@/server/ai/with-guardrails";
 import { getServerUserId } from "@/server/auth/user";
+import { ok, err, safeJson } from "@/server/http/responses";
 import { chatRequestSchema } from "./schema";
 // import your OpenRouter client here
 
@@ -12,19 +14,13 @@ export async function POST(req: NextRequest) {
     userId = await getServerUserId();
   } catch (e: unknown) {
     const error = e as { message?: string; status?: number };
-    return NextResponse.json(
-      { error: error?.message ?? "unauthorized" },
-      { status: error?.status ?? 401 },
-    );
+    return err(error?.status ?? 401, error?.message ?? "unauthorized");
   }
 
-  const body = await req.json();
+  const body = (await safeJson<unknown>(req)) ?? {};
   const parsed = chatRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid_body", details: parsed.error.flatten() },
-      { status: 400 },
-    );
+    return err(400, "invalid_body", parsed.error.flatten());
   }
   const { prompt } = parsed.data;
 
@@ -50,8 +46,8 @@ export async function POST(req: NextRequest) {
         : result.error === "rate_limited_daily_cost"
           ? 402
           : 429;
-    return NextResponse.json({ error: result.error }, { status });
+    return err(status, result.error);
   }
 
-  return NextResponse.json({ ...result.data, creditsLeft: result.creditsLeft });
+  return ok({ ...result.data, creditsLeft: result.creditsLeft });
 }

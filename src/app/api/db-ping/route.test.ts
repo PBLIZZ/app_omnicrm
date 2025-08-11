@@ -27,7 +27,7 @@ describe("/api/db-ping", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ ok: true });
+    expect(body).toEqual({ ok: true, data: {} });
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
@@ -50,7 +50,7 @@ describe("/api/db-ping", () => {
     const res = await GET();
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body).toEqual({ ok: false });
+    expect(body).toEqual({ ok: false, error: "db_error", details: null });
     expect(execute).toHaveBeenCalledTimes(1);
   });
 });

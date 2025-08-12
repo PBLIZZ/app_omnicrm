@@ -38,7 +38,13 @@ export async function middleware(req: NextRequest) {
 
   // CSP: strict in production, relaxed in development for HMR
   const isProd = process.env.NODE_ENV === "production";
-  function buildCsp(prod: boolean): string {
+  // Generate a per-response nonce for scripts/styles we explicitly allow
+  const cspNonce = randomNonce(18);
+  // Expose nonce for Next.js to attach to its inline runtime where supported
+  res.headers.set("x-nonce", cspNonce);
+  res.headers.set("x-csp-nonce", cspNonce);
+
+  function buildCsp(prod: boolean, nonce: string): string {
     const directives: Array<string> = [];
     // Baseline restrictions
     directives.push("default-src 'self'");
@@ -49,14 +55,25 @@ export async function middleware(req: NextRequest) {
 
     // Scripts
     if (prod) {
-      directives.push("script-src 'self'");
+      // Allow only inline scripts with our nonce; explicitly allow same-origin script elements
+      directives.push(`script-src 'self' 'nonce-${nonce}'`);
+      directives.push("script-src-elem 'self'");
+      // Explicitly forbid script attributes
+      directives.push("script-src-attr 'none'");
     } else {
       directives.push("script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:");
     }
 
     // Styles
-    // Note: Next.js may inject inline styles during dev; allow 'unsafe-inline' only in dev
-    directives.push(prod ? "style-src 'self'" : "style-src 'self' 'unsafe-inline'");
+    // Note: In production, allow only style elements that carry our nonce; block style attributes
+    // Keep legacy style-src for broad agent support and add style-src-elem to scope the nonce to elements
+    if (prod) {
+      directives.push("style-src 'self'");
+      directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
+      // Intentionally do not allow style-src-attr unsafe-inline to avoid attribute-level inline styles
+    } else {
+      directives.push("style-src 'self' 'unsafe-inline'");
+    }
 
     // Images and fonts
     directives.push("img-src 'self' data: blob: https:");
@@ -73,7 +90,7 @@ export async function middleware(req: NextRequest) {
 
     return directives.join("; ") + ";";
   }
-  res.headers.set("Content-Security-Policy", buildCsp(isProd));
+  res.headers.set("Content-Security-Policy", buildCsp(isProd, cspNonce));
 
   const url = req.nextUrl;
   const isApi = url.pathname.startsWith("/api/");

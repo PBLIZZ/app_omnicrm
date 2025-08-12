@@ -8,12 +8,12 @@ export async function getServerUserId(): Promise<string> {
   // Lazily read minimal env vars here to avoid importing full env validation at module load.
   // Use the publishable (anon) key for RLS-aware server client, never the service-role secret.
   const supabaseUrl = process.env["NEXT_PUBLIC_SUPABASE_URL"];
-  const supabaseAnonKey = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
-  if (!supabaseUrl || !supabaseAnonKey) {
+  const supabasePublishableKey = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
+  if (!supabaseUrl || !supabasePublishableKey) {
     throw Object.assign(new Error("Server misconfigured"), { status: 500 });
   }
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

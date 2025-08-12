@@ -13,7 +13,7 @@ if (!isTest && (!adminUrl || !adminKey)) {
     "missing_supabase_admin_env",
   );
 }
-const _supaAdmin = isTest
+const supaAdmin = isTest
   ? null
   : createClient(adminUrl || "", adminKey || "", {
       auth: { persistSession: false },
@@ -32,7 +32,7 @@ export const supaAdminGuard = {
       // In tests, we do not perform real writes; return empty result.
       return [] as unknown[];
     }
-    const { data, error } = await _supaAdmin!.from(table).insert(values).select();
+    const { data, error } = await supaAdmin!.from(table).insert(values).select();
     if (error) {
       log.warn(
         {
@@ -64,7 +64,7 @@ export const supaAdminGuard = {
     if (options?.ignoreDuplicates !== undefined)
       upsertOptions.ignoreDuplicates = options.ignoreDuplicates;
 
-    const { data, error } = await _supaAdmin!
+    const { data, error } = await supaAdmin!
       .from(table)
       .upsert(values as Record<string, unknown> | Array<Record<string, unknown>>, upsertOptions)
       .select();
@@ -90,7 +90,7 @@ export const supaAdminGuard = {
       // In tests, no-op and return empty result
       return [] as unknown[];
     }
-    const { data, error } = await _supaAdmin!.from(table).update(values).match(match).select();
+    const { data, error } = await supaAdmin!.from(table).update(values).match(match).select();
     if (error) {
       log.warn(
         {

@@ -3,27 +3,29 @@
 
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { env } from "@/lib/env";
 
 export async function getServerUserId(): Promise<string> {
   const cookieStore = await cookies();
-  const supabase = createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set() {
-          // no-op in API route context
-        },
-        remove() {
-          // no-op in API route context
-        },
+  // Lazily read minimal env vars here to avoid importing full env validation at module load.
+  const supabaseUrl = process.env["NEXT_PUBLIC_SUPABASE_URL"];
+  const supabaseAnonKey = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw Object.assign(new Error("Server misconfigured"), { status: 500 });
+  }
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value;
+      },
+      set() {
+        // no-op in API route context
+      },
+      remove() {
+        // no-op in API route context
       },
     },
-  );
+  });
 
   const { data } = await supabase.auth.getUser();
 

@@ -1,6 +1,5 @@
 import pino from "pino";
 import pretty from "pino-pretty";
-import { env } from "@/lib/env";
 
 export type LogBindings = Record<string, unknown> | undefined;
 
@@ -14,12 +13,15 @@ const redactPaths = [
   "payload.refreshToken",
 ];
 
+// Read NODE_ENV directly to avoid importing full env validation at module load.
+// This prevents tests/CI from failing early when optional env vars are absent.
+const nodeEnv = (process.env["NODE_ENV"] as "development" | "test" | "production") ?? "development";
 const base = {
   app: "omnicrm",
-  env: env.NODE_ENV,
+  env: nodeEnv,
 };
 
-const isDev = env.NODE_ENV !== "production";
+const isDev = nodeEnv !== "production";
 
 const stream = isDev
   ? pretty({ colorize: true, translateTime: "SYS:standard", singleLine: false })

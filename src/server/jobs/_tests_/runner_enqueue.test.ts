@@ -45,26 +45,38 @@ vi.mock("@/server/auth/user", () => ({
   getServerUserId: async () => "u1",
 }));
 
-// Processor mocks to verify dispatch
-const runGmailSync = vi.fn(async () => {});
-const runCalendarSync = vi.fn(async () => {});
-const runNormalizeGoogleEmail = vi.fn(async () => {});
-const runNormalizeGoogleEvent = vi.fn(async () => {});
-const runEmbed = vi.fn(async () => {});
-const runInsight = vi.fn(async () => {});
+// Processor mocks to verify dispatch (use hoisted vars to satisfy Vitest hoisting)
+const mocks = vi.hoisted(() => {
+  return {
+    runGmailSync: vi.fn(async () => {}),
+    runCalendarSync: vi.fn(async () => {}),
+    runNormalizeGoogleEmail: vi.fn(async () => {}),
+    runNormalizeGoogleEvent: vi.fn(async () => {}),
+    runEmbed: vi.fn(async () => {}),
+    runInsight: vi.fn(async () => {}),
+  };
+});
+const {
+  runGmailSync,
+  runCalendarSync,
+  runNormalizeGoogleEmail,
+  runNormalizeGoogleEvent,
+  runEmbed,
+  runInsight,
+} = mocks;
 vi.mock("@/server/jobs/processors/sync", () => ({
-  runGmailSync: runGmailSync,
-  runCalendarSync: runCalendarSync,
+  runGmailSync: mocks.runGmailSync,
+  runCalendarSync: mocks.runCalendarSync,
 }));
 vi.mock("@/server/jobs/processors/normalize", () => ({
-  runNormalizeGoogleEmail: runNormalizeGoogleEmail,
-  runNormalizeGoogleEvent: runNormalizeGoogleEvent,
+  runNormalizeGoogleEmail: mocks.runNormalizeGoogleEmail,
+  runNormalizeGoogleEvent: mocks.runNormalizeGoogleEvent,
 }));
 vi.mock("@/server/jobs/processors/embed", () => ({
-  runEmbed: runEmbed,
+  runEmbed: mocks.runEmbed,
 }));
 vi.mock("@/server/jobs/processors/insight", () => ({
-  runInsight: runInsight,
+  runInsight: mocks.runInsight,
 }));
 
 // SUT imports after mocks

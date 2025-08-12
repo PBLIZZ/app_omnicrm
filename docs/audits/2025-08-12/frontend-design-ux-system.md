@@ -33,13 +33,13 @@ This document provides comprehensive UI/UX specifications for transforming OmniC
 
 **Layout Structure:**
 
-```
+```bash
 ┌─────────────────────────────────────────────────────┐
-│ Header: Logo + Navigation + User Menu + Theme      │
+│ Header: Logo + Navigation + User Menu + Theme       │
 ├─────────────────────────────────────────────────────┤
-│ Welcome Banner (First-time users only)             │
+│ Welcome Banner (First-time users only)              │
 ├───────────────┬─────────────────────────────────────┤
-│ Quick Actions │ AI Assistant Chat (Collapsible)    │
+│ Quick Actions │ AI Assistant Chat (Collapsible)     │
 │ Panel         │                                     │
 ├───────────────┼─────────────────────────────────────┤
 │ Recent        │ Contact Insights                    │
@@ -106,7 +106,7 @@ Logo | Dashboard | Contacts | Calendar | Messages | Settings | [AI Assistant] | 
 
 **Mobile Navigation (Collapsible Menu):**
 
-```
+```bash
 ☰ → Sidebar with:
 ├── Dashboard
 ├── Contacts
@@ -120,7 +120,7 @@ Logo | Dashboard | Contacts | Calendar | Messages | Settings | [AI Assistant] | 
 
 **Breadcrumb Pattern:**
 
-```
+```bash
 Dashboard > Contacts > John Smith > Edit Contact
 ```
 

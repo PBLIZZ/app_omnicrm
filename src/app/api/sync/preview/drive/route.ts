@@ -12,13 +12,14 @@ const previewBodySchema = z
   .strict();
 
 export async function POST(req: Request) {
+  // If the feature is disabled, treat the route as not found regardless of auth
+  if (process.env["FEATURE_GOOGLE_DRIVE"] !== "1") return err(404, "drive_disabled");
   try {
     await getServerUserId();
   } catch (error: unknown) {
     const { status, message } = toApiError(error);
     return err(status, message);
   }
-  if (process.env["FEATURE_GOOGLE_DRIVE"] !== "1") return err(404, "drive_disabled");
   try {
     const raw = await req.json().catch(() => ({}));
     previewBodySchema.parse(raw ?? {});

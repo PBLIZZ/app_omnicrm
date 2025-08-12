@@ -25,7 +25,12 @@ function allowRequest(key: string): boolean {
 }
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
+  // Generate a per-request nonce and forward it to the app via request headers
+  const forwardHeaders = new Headers(req.headers);
+  const cspNonce = randomNonce(18);
+  forwardHeaders.set("x-nonce", cspNonce);
+  forwardHeaders.set("x-csp-nonce", cspNonce);
+  const res = NextResponse.next({ request: { headers: forwardHeaders } });
   const requestId =
     (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
       ? globalThis.crypto.randomUUID()
@@ -38,9 +43,7 @@ export async function middleware(req: NextRequest) {
 
   // CSP: strict in production, relaxed in development for HMR
   const isProd = process.env.NODE_ENV === "production";
-  // Generate a per-response nonce for scripts/styles we explicitly allow
-  const cspNonce = randomNonce(18);
-  // Expose nonce for Next.js to attach to its inline runtime where supported
+  // Expose nonce on the response as well for debugging/clients if needed
   res.headers.set("x-nonce", cspNonce);
   res.headers.set("x-csp-nonce", cspNonce);
 
@@ -53,27 +56,12 @@ export async function middleware(req: NextRequest) {
     directives.push("object-src 'none'");
     directives.push("frame-ancestors 'none'");
 
-    // Scripts
-    if (prod) {
-      // Allow only inline scripts with our nonce; explicitly allow same-origin script elements
-      directives.push(`script-src 'self' 'nonce-${nonce}'`);
-      directives.push("script-src-elem 'self'");
-      // Explicitly forbid script attributes
-      directives.push("script-src-attr 'none'");
-    } else {
-      directives.push("script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:");
-    }
+    // Scripts: allow same-origin, inline, and include our nonce for future strict wiring.
+    directives.push(`script-src 'self' 'unsafe-inline' 'strict-dynamic' 'nonce-${nonce}'`);
 
-    // Styles
-    // Note: In production, allow only style elements that carry our nonce; block style attributes
-    // Keep legacy style-src for broad agent support and add style-src-elem to scope the nonce to elements
-    if (prod) {
-      directives.push("style-src 'self'");
-      directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
-      // Intentionally do not allow style-src-attr unsafe-inline to avoid attribute-level inline styles
-    } else {
-      directives.push("style-src 'self' 'unsafe-inline'");
-    }
+    // Styles: allow same-origin and inline; include nonce for future strict wiring of style tags.
+    directives.push("style-src 'self' 'unsafe-inline'");
+    directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
 
     // Images and fonts
     directives.push("img-src 'self' data: blob: https:");

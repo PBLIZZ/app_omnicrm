@@ -52,25 +52,24 @@ const runNormalizeGoogleEmail = vi.fn(async () => {});
 const runNormalizeGoogleEvent = vi.fn(async () => {});
 const runEmbed = vi.fn(async () => {});
 const runInsight = vi.fn(async () => {});
-
 vi.mock("@/server/jobs/processors/sync", () => ({
-  runGmailSync: (...args: unknown[]) => runGmailSync(...args),
-  runCalendarSync: (...args: unknown[]) => runCalendarSync(...args),
+  runGmailSync: runGmailSync,
+  runCalendarSync: runCalendarSync,
 }));
 vi.mock("@/server/jobs/processors/normalize", () => ({
-  runNormalizeGoogleEmail: (...args: unknown[]) => runNormalizeGoogleEmail(...args),
-  runNormalizeGoogleEvent: (...args: unknown[]) => runNormalizeGoogleEvent(...args),
+  runNormalizeGoogleEmail: runNormalizeGoogleEmail,
+  runNormalizeGoogleEvent: runNormalizeGoogleEvent,
 }));
 vi.mock("@/server/jobs/processors/embed", () => ({
-  runEmbed: (...args: unknown[]) => runEmbed(...args),
+  runEmbed: runEmbed,
 }));
 vi.mock("@/server/jobs/processors/insight", () => ({
-  runInsight: (...args: unknown[]) => runInsight(...args),
+  runInsight: runInsight,
 }));
 
 // SUT imports after mocks
-import { POST as runJobs } from "@/app/api/jobs/runner/route";
-import { enqueue } from "@/server/jobs/enqueue";
+import { POST as runJobs } from "../../../app/api/jobs/runner/route";
+import { enqueue } from "../../../server/jobs/enqueue";
 
 beforeEach(() => {
   queuedJobs = [];

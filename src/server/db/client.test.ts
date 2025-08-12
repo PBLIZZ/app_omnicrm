@@ -25,13 +25,13 @@ describe("db client lazy initialization", () => {
     const execute = vi.fn().mockResolvedValue(undefined);
     const drizzle = () => ({ execute });
 
-    const { getDb, __setDbDriversForTest } = await import("@/server/db/client");
+    const { getDb, __setDbDriversForTest } = await import("../../server/db/client");
     __setDbDriversForTest({
-      ClientCtor: MockClient as new (config: { connectionString: string }) => {
+      ClientCtor: MockClient as unknown as new (config: { connectionString: string }) => {
         connect(): Promise<void>;
         [key: string]: unknown;
       },
-      drizzleFn: drizzle as (client: unknown) => NodePgDatabase,
+      drizzleFn: drizzle as unknown as (client: unknown) => NodePgDatabase,
     });
 
     expect(constructCount).toBe(0);
@@ -55,13 +55,13 @@ describe("db client lazy initialization", () => {
     const execute = vi.fn().mockResolvedValue({ rows: [{ one: 1 }] });
     const drizzle = () => ({ execute });
 
-    const { db, __setDbDriversForTest } = await import("@/server/db/client");
+    const { db, __setDbDriversForTest } = await import("../../server/db/client");
     __setDbDriversForTest({
-      ClientCtor: MockClient as new (config: { connectionString: string }) => {
+      ClientCtor: MockClient as unknown as new (config: { connectionString: string }) => {
         connect(): Promise<void>;
         [key: string]: unknown;
       },
-      drizzleFn: drizzle as (client: unknown) => NodePgDatabase,
+      drizzleFn: drizzle as unknown as (client: unknown) => NodePgDatabase,
     });
     const result = await (
       db as NodePgDatabase & { execute: (query: string) => Promise<unknown> }
@@ -77,13 +77,13 @@ describe("db client lazy initialization", () => {
       connect = vi.fn();
     }
     const drizzle = () => ({ execute: vi.fn() });
-    const { getDb, db, __setDbDriversForTest } = await import("@/server/db/client");
+    const { getDb, db, __setDbDriversForTest } = await import("../../server/db/client");
     __setDbDriversForTest({
-      ClientCtor: MockClient as new (config: { connectionString: string }) => {
+      ClientCtor: MockClient as unknown as new (config: { connectionString: string }) => {
         connect(): Promise<void>;
         [key: string]: unknown;
       },
-      drizzleFn: drizzle as (client: unknown) => NodePgDatabase,
+      drizzleFn: drizzle as unknown as (client: unknown) => NodePgDatabase,
     });
     await expect(getDb()).rejects.toThrow(/DATABASE_URL is not set/);
 

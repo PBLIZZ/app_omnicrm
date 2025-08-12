@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { NextRequest } from "next/server";
 import { GET, PUT } from "./route";
 vi.mock("@/server/auth/user", () => ({ getServerUserId: vi.fn().mockResolvedValue("u1") }));
 vi.mock("@/server/db/client", () => ({
@@ -20,12 +21,14 @@ describe("sync prefs route", () => {
   });
 
   it("PUT returns ok envelope", async () => {
-    const res = await PUT(
-      new Request("https://example.com", {
-        method: "PUT",
-        body: JSON.stringify({ gmailQuery: "x" }),
-      }) as Request,
-    );
+    const req = new Request("https://example.com", {
+      method: "PUT",
+      body: JSON.stringify({ gmailQuery: "x" }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }) as unknown as NextRequest; // NextRequest type compatibility without any
+    const res = await PUT(req);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, data: {} });
   });

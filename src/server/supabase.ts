@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
-import { env } from "@/lib/env";
+// Avoid importing env at module load to prevent build-time validation
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL;
-const pub = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; // publishable
-const secret = env.SUPABASE_SECRET_KEY; // secret (server-only)
+const url = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "";
+const pub = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"] ?? ""; // publishable
+const secret = process.env["SUPABASE_SECRET_KEY"] ?? ""; // secret (server-only)
 
 // RLS-honoring server client (use in request handlers acting on behalf of a user)
 export const supabaseServerPublishable = createClient(url, pub);

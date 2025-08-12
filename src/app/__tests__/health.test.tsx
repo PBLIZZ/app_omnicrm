@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { log } from "@/server/log";
+import { log } from "../../server/log";
 
 describe("sanity", () => {
   it("works", () => {

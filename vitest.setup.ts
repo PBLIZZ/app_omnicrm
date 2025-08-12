@@ -7,6 +7,6 @@ process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "https://ex
 process.env.NEXT_PUBLIC_SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || "public-anon-key";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || "public-key";
 process.env.APP_ENCRYPTION_KEY =
   process.env.APP_ENCRYPTION_KEY || "a_secure_but_test_only_encryption_key_32b";

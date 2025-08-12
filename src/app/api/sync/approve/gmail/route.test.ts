@@ -12,20 +12,20 @@ describe("gmail approve route", () => {
 
   it("returns 404 with error envelope when feature disabled", async () => {
     process.env.FEATURE_GOOGLE_GMAIL_RO = "0";
-    const userMod = await import("@/server/auth/user");
+    const userMod = await import("../../../../../server/auth/user");
     (
       userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
     ).mockResolvedValue("u1");
-    const res = await POST();
+    const res = await POST(new Request("https://example.com", { method: "POST", body: "{}" }));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ ok: false, error: "not_found", details: null });
   });
 
   it("returns ok envelope with batchId when enabled", async () => {
     process.env.FEATURE_GOOGLE_GMAIL_RO = "1";
-    const auditMod = await import("@/server/sync/audit");
-    const enqueueMod = await import("@/server/jobs/enqueue");
-    const userMod = await import("@/server/auth/user");
+    const auditMod = await import("../../../../../server/sync/audit");
+    const enqueueMod = await import("../../../../../server/jobs/enqueue");
+    const userMod = await import("../../../../../server/auth/user");
     (
       userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
     ).mockResolvedValue("u1");

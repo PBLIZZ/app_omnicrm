@@ -1,0 +1,1131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prompt Workbench — AI‑Assisted (Local, MVP)</title>
+    <!-- Tailwind (CDN build) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html {
+        font-family:
+          Inter,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Ubuntu,
+          Cantarell,
+          "Helvetica Neue",
+          Arial,
+          "Noto Sans",
+          sans-serif;
+      }
+      /* Subtle glass card */
+      .glass {
+        background: rgba(255, 255, 255, 0.04);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .kbd {
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-bottom-width: 2px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-size: 12px;
+      }
+      /* Simple scrollbar */
+      ::-webkit-scrollbar {
+        height: 8px;
+        width: 8px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+      }
+      .badge {
+        @apply px-2 py-0.5 text-xs rounded-full bg-white/10 border border-white/15;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 min-h-screen"
+  >
+    <!-- Header -->
+    <header class="sticky top-0 z-20 border-b border-white/10 bg-slate-950/70 backdrop-blur">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div class="size-8 rounded-xl bg-gradient-to-br from-sky-500 to-violet-500"></div>
+        <h1 class="text-lg font-semibold tracking-tight">
+          Prompt Workbench <span class="text-slate-400 font-normal">· AI‑Assisted</span>
+        </h1>
+        <div class="ml-auto flex items-center gap-3">
+          <div class="hidden md:flex items-center gap-2 glass rounded-lg px-3 py-2">
+            <label class="text-xs text-slate-400">Model</label>
+            <select id="modelSelect" class="bg-transparent outline-none text-sm">
+              <option value="openrouter/auto">openrouter/auto</option>
+              <option value="openai/gpt-4o-mini">openai/gpt-4o-mini</option>
+              <option value="openai/gpt-4o">openai/gpt-4o</option>
+              <option value="anthropic/claude-3.5-sonnet">anthropic/claude-3.5-sonnet</option>
+              <option value="google/gemini-1.5-pro">google/gemini-1.5-pro</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2 glass rounded-lg px-3 py-2">
+            <input
+              id="apiKey"
+              type="password"
+              placeholder="OpenRouter API Key"
+              class="bg-transparent outline-none text-sm w-56"
+            />
+            <button id="toggleKey" class="text-xs text-slate-400 hover:text-slate-200">show</button>
+            <button id="saveKey" class="text-xs bg-sky-600 hover:bg-sky-500 rounded px-2 py-1">
+              Save
+            </button>
+          </div>
+          <label class="flex items-center gap-2 text-xs text-slate-300">
+            <input id="useProxy" type="checkbox" class="accent-sky-500" /> Use local proxy
+          </label>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left rail: Builder -->
+      <section class="lg:col-span-7 space-y-4">
+        <div class="glass rounded-2xl p-4">
+          <div class="flex items-center gap-3">
+            <h2 class="text-base font-semibold">Prompt Builder</h2>
+            <span class="badge">AI‑assisted</span>
+            <div class="ml-auto flex items-center gap-2">
+              <select
+                id="templateSelect"
+                class="bg-white/5 border border-white/10 text-sm rounded-lg px-2 py-1"
+              >
+                <option value="zero">Zero‑Shot</option>
+                <option value="few">Few‑Shot</option>
+                <option value="cot">Chain‑of‑Thought</option>
+                <option value="iterative">Iterative</option>
+                <option value="negative">Negative</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="chain">Prompt Chaining</option>
+              </select>
+              <button
+                id="suggestTemplate"
+                class="text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15"
+              >
+                Suggest template
+              </button>
+            </div>
+          </div>
+
+          <!-- Intent -->
+          <div class="mt-4 grid grid-cols-1 gap-3">
+            <label class="text-xs text-slate-400"
+              >Intent (tell the AI what you want to achieve)</label
+            >
+            <div class="flex gap-2">
+              <input
+                id="intent"
+                class="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                placeholder="e.g., Generate a Next.js app with Tailwind and shadcn"
+              />
+              <button
+                data-ai="intent"
+                class="ai-btn text-xs px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500"
+              >
+                ✨ AI
+              </button>
+            </div>
+          </div>
+
+          <!-- Fields -->
+          <div class="mt-4 grid grid-cols-1 gap-4">
+            <!-- Role -->
+            <div>
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-slate-400">Role</label
+                ><button
+                  data-ai="role"
+                  class="ai-btn text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                >
+                  ✨ AI
+                </button>
+              </div>
+              <textarea
+                id="role"
+                class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                rows="2"
+                placeholder="You are a senior full‑stack engineer…"
+              ></textarea>
+            </div>
+            <!-- Task -->
+            <div>
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-slate-400">Task</label
+                ><button
+                  data-ai="task"
+                  class="ai-btn text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                >
+                  ✨ AI
+                </button>
+              </div>
+              <textarea
+                id="task"
+                class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                rows="3"
+                placeholder="Clearly describe what the model should do…"
+              ></textarea>
+            </div>
+            <!-- Context -->
+            <div>
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-slate-400">Context</label>
+                <div class="flex gap-2">
+                  <button
+                    data-ai="context"
+                    class="ai-btn text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                  >
+                    ✨ AI</button
+                  ><button
+                    id="extractVars"
+                    class="text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                  >
+                    ▣ Extract variables
+                  </button>
+                </div>
+              </div>
+              <textarea
+                id="context"
+                class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                rows="3"
+                placeholder="Background, constraints, existing code, repos, brand voice…"
+              ></textarea>
+            </div>
+            <!-- Audience -->
+            <div>
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-slate-400">Audience</label
+                ><button
+                  data-ai="audience"
+                  class="ai-btn text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                >
+                  ✨ AI
+                </button>
+              </div>
+              <input
+                id="audience"
+                class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                placeholder="e.g., Wellness solopreneurs, non‑admin developers"
+              />
+            </div>
+            <!-- Constraints -->
+            <div>
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-slate-400">Constraints</label
+                ><button
+                  data-ai="constraints"
+                  class="ai-btn text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                >
+                  ✨ AI
+                </button>
+              </div>
+              <textarea
+                id="constraints"
+                class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                rows="2"
+                placeholder="Must be TypeScript‑strict, avoid any, no external services…"
+              ></textarea>
+            </div>
+            <!-- Output format -->
+            <div>
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-slate-400">Output Format</label
+                ><button
+                  data-ai="format"
+                  class="ai-btn text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                >
+                  ✨ AI
+                </button>
+              </div>
+              <textarea
+                id="format"
+                class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                rows="3"
+                placeholder="JSON schema, Markdown structure, file tree, etc."
+              ></textarea>
+            </div>
+            <!-- Style / Tone / Language -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label class="text-xs text-slate-400">Style</label>
+                <input
+                  id="style"
+                  class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                  placeholder="e.g., Linear/Notion vibe, concise"
+                />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400">Tone</label>
+                <input
+                  id="tone"
+                  class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                  placeholder="e.g., professional, practical"
+                />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400">Language</label>
+                <input
+                  id="language"
+                  class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                  placeholder="English (en-GB)"
+                />
+              </div>
+            </div>
+            <!-- Few-shot examples -->
+            <div id="fewshotBlock" class="hidden">
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-slate-400">Few‑Shot Examples</label
+                ><button
+                  data-ai="examples"
+                  class="ai-btn text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                >
+                  ✨ AI
+                </button>
+              </div>
+              <textarea
+                id="examples"
+                class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+                rows="4"
+                placeholder="Example pairs. Use delimiter \n---\n between examples."
+              ></textarea>
+            </div>
+
+            <!-- Variables table -->
+            <div class="glass rounded-xl p-3">
+              <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold">Variables</h3>
+                <div class="flex gap-2">
+                  <button
+                    id="addVar"
+                    class="text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                  >
+                    + Add
+                  </button>
+                  <button
+                    id="loadVarLib"
+                    class="text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                  >
+                    Load from library
+                  </button>
+                  <button
+                    id="saveVarLib"
+                    class="text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+                  >
+                    Save to library
+                  </button>
+                </div>
+              </div>
+              <div id="vars" class="mt-2 grid gap-2"></div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex flex-wrap gap-2">
+              <button id="enhance" class="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500">
+                ✨ Enhance Prompt
+              </button>
+              <button id="compile" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15">
+                Compile
+              </button>
+              <button id="test" class="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500">
+                Run Test
+              </button>
+              <button
+                id="savePrompt"
+                class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500"
+              >
+                Save to Library
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview & Test Output -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="glass rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold">Compiled Prompt</h3>
+              <button
+                id="copyPrompt"
+                class="text-xs px-2 py-1.5 rounded bg-white/10 hover:bg-white/15"
+              >
+                Copy
+              </button>
+            </div>
+            <pre
+              id="compiled"
+              class="whitespace-pre-wrap text-sm text-slate-200 min-h-[160px]"
+            ></pre>
+          </div>
+          <div class="glass rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold">Test Output</h3>
+              <div class="flex items-center gap-2 text-xs">
+                <select id="rate" class="bg-white/5 border border-white/10 rounded px-2 py-1">
+                  <option value="">Rate…</option>
+                  <option value="great">✅ Great</option>
+                  <option value="needs_work">⚠️ Needs work</option>
+                  <option value="poor">❌ Poor</option>
+                </select>
+                <input
+                  id="notes"
+                  placeholder="Outcome notes…"
+                  class="bg-white/5 border border-white/10 rounded px-2 py-1 w-40"
+                />
+              </div>
+            </div>
+            <pre id="output" class="whitespace-pre-wrap text-sm text-slate-200 min-h-[160px]"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right rail: Library -->
+      <aside class="lg:col-span-5 space-y-4">
+        <div class="glass rounded-2xl p-4">
+          <div class="flex items-center gap-3">
+            <h2 class="text-base font-semibold">Prompt Library</h2>
+            <span id="count" class="badge">0</span>
+            <div class="ml-auto flex items-center gap-2">
+              <button
+                id="exportAll"
+                class="text-xs px-3 py-1.5 rounded bg-white/10 hover:bg-white/15"
+              >
+                Export JSON
+              </button>
+              <label
+                class="text-xs px-3 py-1.5 rounded bg-white/10 hover:bg-white/15 cursor-pointer"
+              >
+                Import JSON<input
+                  id="importFile"
+                  type="file"
+                  accept="application/json"
+                  class="hidden"
+                />
+              </label>
+            </div>
+          </div>
+          <div class="mt-3 flex gap-2">
+            <input
+              id="search"
+              placeholder="Search prompts…"
+              class="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+            />
+            <input
+              id="tagFilter"
+              placeholder="#tag…"
+              class="w-36 bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none"
+            />
+            <label class="flex items-center gap-2 text-xs text-slate-300"
+              ><input id="onlyFav" type="checkbox" class="accent-amber-500" /> Favs</label
+            >
+          </div>
+          <div id="library" class="mt-3 grid gap-2 max-h-[580px] overflow-auto pr-1"></div>
+        </div>
+      </aside>
+    </main>
+
+    <template id="varRow">
+      <div class="grid grid-cols-12 gap-2 items-center">
+        <input
+          placeholder="name (e.g., project_name)"
+          class="col-span-4 bg-white/5 border border-white/10 rounded px-2 py-1"
+        />
+        <input
+          placeholder="value"
+          class="col-span-7 bg-white/5 border border-white/10 rounded px-2 py-1"
+        />
+        <button class="col-span-1 text-xs px-2 py-1 rounded bg-rose-600 hover:bg-rose-500">
+          ✕
+        </button>
+      </div>
+    </template>
+
+    <script>
+      // ======= State & Storage =======
+      const LS_KEYS = {
+        PROMPTS: "promptWorkbench.prompts",
+        VARLIB: "promptWorkbench.varlib",
+        SETTINGS: "promptWorkbench.settings",
+      };
+
+      const state = {
+        prompts: [],
+        varlib: {},
+        settings: { model: "openrouter/auto", apiKey: "", useProxy: false },
+        compiled: "",
+        currentPromptId: null,
+      };
+
+      function savePrompts() {
+        localStorage.setItem(LS_KEYS.PROMPTS, JSON.stringify(state.prompts));
+        renderLibrary();
+      }
+      function loadPrompts() {
+        try {
+          state.prompts = JSON.parse(localStorage.getItem(LS_KEYS.PROMPTS) || "[]");
+        } catch {
+          state.prompts = [];
+        }
+      }
+      function saveVarlib() {
+        localStorage.setItem(LS_KEYS.VARLIB, JSON.stringify(state.varlib));
+      }
+      function loadVarlib() {
+        try {
+          state.varlib = JSON.parse(localStorage.getItem(LS_KEYS.VARLIB) || "{}");
+        } catch {
+          state.varlib = {};
+        }
+      }
+      function saveSettings() {
+        localStorage.setItem(LS_KEYS.SETTINGS, JSON.stringify(state.settings));
+      }
+      function loadSettings() {
+        try {
+          const s = JSON.parse(localStorage.getItem(LS_KEYS.SETTINGS) || "{}");
+          Object.assign(state.settings, s);
+        } catch {}
+      }
+      function uuid() {
+        return crypto.randomUUID
+          ? crypto.randomUUID()
+          : "xxxx-4xxx-yxxx-xxxx".replace(/[xy]/g, (c) => {
+              const r = (Math.random() * 16) | 0,
+                v = c === "x" ? r : (r & 0x3) | 0x8;
+              return v.toString(16);
+            });
+      }
+
+      // ======= UI Helpers =======
+      const $ = (sel) => document.querySelector(sel);
+      const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+      function getFieldValues() {
+        return {
+          template: $("#templateSelect").value,
+          intent: $("#intent").value.trim(),
+          role: $("#role").value.trim(),
+          task: $("#task").value.trim(),
+          context: $("#context").value.trim(),
+          audience: $("#audience").value.trim(),
+          constraints: $("#constraints").value.trim(),
+          format: $("#format").value.trim(),
+          style: $("#style").value.trim(),
+          tone: $("#tone").value.trim(),
+          language: $("#language").value.trim() || "English",
+          examples: $("#examples").value.trim(),
+          vars: getVarsFromUI(),
+        };
+      }
+
+      function setFieldValues(v) {
+        $("#templateSelect").value = v.template || "zero";
+        $("#intent").value = v.intent || "";
+        $("#role").value = v.role || "";
+        $("#task").value = v.task || "";
+        $("#context").value = v.context || "";
+        $("#audience").value = v.audience || "";
+        $("#constraints").value = v.constraints || "";
+        $("#format").value = v.format || "";
+        $("#style").value = v.style || "";
+        $("#tone").value = v.tone || "";
+        $("#language").value = v.language || "";
+        $("#examples").value = v.examples || "";
+        setVarsToUI(v.vars || {});
+        toggleFewshot();
+      }
+
+      function toggleFewshot() {
+        const t = $("#templateSelect").value;
+        $("#fewshotBlock").classList.toggle("hidden", !(t === "few" || t === "hybrid"));
+      }
+
+      function getVarsFromUI() {
+        const rows = $$("#vars > div");
+        const out = {};
+        rows.forEach((row) => {
+          const [name, val] = row.querySelectorAll("input");
+          const k = name.value.trim();
+          const v = val.value.trim();
+          if (k) out[k] = v;
+        });
+        return out;
+      }
+      function setVarsToUI(obj) {
+        $("#vars").innerHTML = "";
+        Object.entries(obj || {}).forEach(([k, v]) => addVarRow(k, v));
+      }
+
+      function addVarRow(name = "", value = "") {
+        const tpl = document.getElementById("varRow");
+        const node = tpl.content.firstElementChild.cloneNode(true);
+        const [nameInput, valueInput, delBtn] = node.querySelectorAll("input,button");
+        nameInput.value = name;
+        valueInput.value = value;
+        delBtn.onclick = () => node.remove();
+        $("#vars").appendChild(node);
+      }
+
+      // ======= AI Integration (OpenRouter) =======
+      async function callLLM(messages, { model, json = false } = {}) {
+        const useProxy = $("#useProxy").checked;
+        const endpoint = useProxy ? "/api/chat" : "https://openrouter.ai/api/v1/chat/completions";
+        const headers = { "Content-Type": "application/json" };
+        if (!useProxy) {
+          const key = $("#apiKey").value || state.settings.apiKey;
+          if (!key) throw new Error("No OpenRouter API key set");
+          headers["Authorization"] = `Bearer ${key}`;
+          headers["HTTP-Referer"] = "http://localhost";
+          headers["X-Title"] = "Prompt Workbench (Local)";
+        }
+        const body = {
+          model: model || state.settings.model || "openrouter/auto",
+          messages,
+          ...(json ? { response_format: { type: "json_object" } } : {}),
+          temperature: 0.3,
+        };
+        const res = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(`LLM error ${res.status}: ${t}`);
+        }
+        const data = await res.json();
+        const text = data?.choices?.[0]?.message?.content || "";
+        return text;
+      }
+
+      function buildSystemForField(field) {
+        return (
+          `You are an expert prompt engineer assisting a developer building a personal prompt.\n` +
+          `Return only the content for the requested section: ${field}. Keep it concise but specific. ` +
+          `Use the user's context and intent. Avoid meta explanations.`
+        );
+      }
+
+      async function aiFill(field) {
+        const vals = getFieldValues();
+        const user = {
+          intent: vals.intent,
+          role: vals.role,
+          task: vals.task,
+          context: vals.context,
+          audience: vals.audience,
+          constraints: vals.constraints,
+          format: vals.format,
+          style: vals.style,
+          tone: vals.tone,
+          language: vals.language,
+          template: vals.template,
+        };
+        const msg = [
+          { role: "system", content: buildSystemForField(field) },
+          {
+            role: "user",
+            content: `Here is what I have so far (JSON):\n${JSON.stringify(user, null, 2)}\n\nReturn only the ${field} text.`,
+          },
+        ];
+        const out = await callLLM(msg, { model: $("#modelSelect").value });
+        const map = {
+          role: "#role",
+          task: "#task",
+          context: "#context",
+          audience: "#audience",
+          constraints: "#constraints",
+          format: "#format",
+          intent: "#intent",
+          examples: "#examples",
+        };
+        const sel = map[field];
+        if (sel) $(sel).value = out.trim();
+        if (field === "intent") $("#task").value ||= out.trim();
+      }
+
+      async function extractVariables() {
+        const ctx = $("#context").value.trim();
+        if (!ctx) return alert("Add some context text first.");
+        const msg = [
+          {
+            role: "system",
+            content:
+              'Extract reusable variable placeholders from the user context. Respond as JSON: {"variables": {"var_name": "example value"}}. Use snake_case names.',
+          },
+          { role: "user", content: ctx },
+        ];
+        const raw = await callLLM(msg, { model: $("#modelSelect").value });
+        let json;
+        try {
+          json = JSON.parse(raw);
+        } catch {
+          alert("Could not parse variables JSON.");
+          return;
+        }
+        const vars = json.variables || {};
+        // merge into UI
+        const existing = getVarsFromUI();
+        setVarsToUI({ ...vars, ...existing });
+      }
+
+      async function enhancePrompt() {
+        const compiled = compilePrompt();
+        const msg = [
+          {
+            role: "system",
+            content:
+              "Improve the prompt to be clearer, more specific, with crisp constraints. Return ONLY the improved prompt text.",
+          },
+          { role: "user", content: compiled },
+        ];
+        const out = await callLLM(msg, { model: $("#modelSelect").value });
+        $("#compiled").textContent = out.trim();
+        state.compiled = out.trim();
+      }
+
+      async function runTest() {
+        const compiled = state.compiled || compilePrompt();
+        const msgs = [
+          { role: "system", content: "You are the target model. Obey the prompt as written." },
+          { role: "user", content: compiled },
+        ];
+        $("#output").textContent = "Running…";
+        try {
+          const out = await callLLM(msgs, { model: $("#modelSelect").value });
+          $("#output").textContent = out.trim();
+        } catch (e) {
+          $("#output").textContent = e.message;
+        }
+      }
+
+      // ======= Prompt Compilation =======
+      function applyVars(text, vars) {
+        return text.replace(/\{\{(.*?)\}\}/g, (_, k) => vars[k.trim()] ?? `{{${k}}}`);
+      }
+
+      function compilePrompt() {
+        const v = getFieldValues();
+        const vars = v.vars || {};
+        const block = (name, body) =>
+          body ? `# ${name}\n${applyVars(body.trim(), vars)}\n\n` : "";
+        let preface = "";
+        if (v.template === "cot")
+          preface = "Use clear step-by-step reasoning before final answer.\n\n";
+        if (v.template === "iterative")
+          preface = "Ask 3 clarifying questions first if needed, then proceed.\n\n";
+        if (v.template === "negative")
+          preface = 'Avoid vague generalities, avoid hallucinations, avoid "as an AI".\n\n';
+
+        let few = "";
+        if (v.template === "few" || v.template === "hybrid") {
+          if (v.examples) {
+            const parts = v.examples
+              .split(/\n---\n/g)
+              .map((s) => s.trim())
+              .filter(Boolean);
+            few =
+              parts.map((p, i) => `## Example ${i + 1}\n${applyVars(p, vars)}`).join("\n\n") +
+              "\n\n";
+          }
+        }
+
+        const out = [
+          block("Role", v.role),
+          block("Task", v.task || v.intent),
+          block("Context", v.context),
+          block("Audience", v.audience),
+          block("Constraints", v.constraints),
+          block("Output Format", v.format),
+          block(
+            "Style",
+            v.style
+              ? `${v.style}; Tone: ${v.tone || ""}; Language: ${v.language || ""}`.trim()
+              : v.tone || v.language
+                ? `Tone: ${v.tone || ""}; Language: ${v.language || ""}`
+                : "",
+          ),
+          preface ? `# Guidance\n${preface}\n` : "",
+          few ? `# Few‑Shot\n${few}` : "",
+        ]
+          .filter(Boolean)
+          .join("");
+
+        $("#compiled").textContent = out.trim();
+        state.compiled = out.trim();
+        return state.compiled;
+      }
+
+      // ======= Library =======
+      function tagSpan(t) {
+        return `<span class="badge mr-1">#${t}</span>`;
+      }
+
+      function renderLibrary() {
+        const q = $("#search").value.toLowerCase();
+        const t = $("#tagFilter").value.replace("#", "").trim().toLowerCase();
+        const favOnly = $("#onlyFav").checked;
+        const grid = $("#library");
+        grid.innerHTML = "";
+        let items = state.prompts.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        if (q)
+          items = items.filter(
+            (p) =>
+              (p.title || "").toLowerCase().includes(q) ||
+              (p.content || "").toLowerCase().includes(q) ||
+              (p.tags || []).some((x) => x.toLowerCase().includes(q)),
+          );
+        if (t) items = items.filter((p) => (p.tags || []).map((x) => x.toLowerCase()).includes(t));
+        if (favOnly) items = items.filter((p) => !!p.fav);
+        $("#count").textContent = items.length;
+
+        for (const p of items) {
+          const card = document.createElement("div");
+          card.className = "glass rounded-xl p-3";
+          card.innerHTML = `
+          <div class="flex items-start gap-2">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <h4 class="font-semibold truncate">${p.title || "Untitled prompt"}</h4>
+                ${p.fav ? '<span class="badge border-amber-500 text-amber-400">★</span>' : ""}
+                ${p.template ? `<span class="badge">${p.template}</span>` : ""}
+              </div>
+              <div class="mt-1 text-xs text-slate-400 truncate">${(p.content || "").slice(0, 180)}</div>
+              <div class="mt-2">${(p.tags || []).map(tagSpan).join("")}</div>
+              <div class="mt-2 text-xs text-slate-500">Used ${p.usageCount || 0}× ${p.model ? `· ${p.model}` : ""} ${p.lastOutcome ? `· ${p.lastOutcome.rating}` : ""}</div>
+            </div>
+            <div class="flex flex-col gap-2 items-end">
+              <button class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15" data-act="edit" data-id="${p.id}">Edit</button>
+              <button class="text-xs px-2 py-1 rounded ${p.fav ? "bg-amber-600 hover:bg-amber-500" : "bg-white/10 hover:bg-white/15"}" data-act="fav" data-id="${p.id}">${p.fav ? "Unfav" : "Fav"}</button>
+              <button class="text-xs px-2 py-1 rounded bg-rose-600 hover:bg-rose-500" data-act="del" data-id="${p.id}">Delete</button>
+            </div>
+          </div>`;
+          grid.appendChild(card);
+        }
+
+        // Events
+        grid.querySelectorAll("button[data-act]").forEach((btn) => {
+          btn.onclick = (e) => {
+            const id = e.currentTarget.dataset.id;
+            const act = e.currentTarget.dataset.act;
+            const i = state.prompts.findIndex((x) => x.id === id);
+            if (i < 0) return;
+            if (act === "edit") {
+              const p = state.prompts[i];
+              setFieldValues({
+                template: p.template,
+                intent: p.intent,
+                role: p.role,
+                task: p.task,
+                context: p.context,
+                audience: p.audience,
+                constraints: p.constraints,
+                format: p.format,
+                style: p.style,
+                tone: p.tone,
+                language: p.language,
+                examples: p.examples,
+                vars: p.vars,
+              });
+              state.currentPromptId = id;
+              compilePrompt();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+            if (act === "fav") {
+              state.prompts[i].fav = !state.prompts[i].fav;
+              savePrompts();
+            }
+            if (act === "del") {
+              if (confirm("Delete this prompt?")) {
+                state.prompts.splice(i, 1);
+                savePrompts();
+              }
+            }
+          };
+        });
+      }
+
+      function exportAll() {
+        const blob = new Blob([JSON.stringify(state.prompts, null, 2)], {
+          type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "prompts.json";
+        a.click();
+      }
+
+      async function importFile(file) {
+        const text = await file.text();
+        let arr;
+        try {
+          arr = JSON.parse(text);
+        } catch {
+          alert("Invalid JSON");
+          return;
+        }
+        if (!Array.isArray(arr)) return alert("Expected an array of prompts");
+        // merge with de-dupe by title+content hash
+        const key = (p) => (p.title || "") + "|" + (p.content || "");
+        const map = new Map(state.prompts.map((p) => [key(p), p]));
+        arr.forEach((p) => {
+          map.set(key(p), { ...p, id: uuid() });
+        });
+        state.prompts = Array.from(map.values());
+        savePrompts();
+      }
+
+      function saveCurrentToLibrary() {
+        const v = getFieldValues();
+        const compiled = state.compiled || compilePrompt();
+        const now = Date.now();
+        const payload = {
+          id: state.currentPromptId || uuid(),
+          title: v.task?.slice(0, 80) || v.intent?.slice(0, 80) || "Untitled",
+          template: v.template,
+          intent: v.intent,
+          role: v.role,
+          task: v.task,
+          context: v.context,
+          audience: v.audience,
+          constraints: v.constraints,
+          format: v.format,
+          style: v.style,
+          tone: v.tone,
+          language: v.language,
+          examples: v.examples,
+          vars: v.vars,
+          content: compiled,
+          tags: deriveTags(v),
+          usageCount: 0,
+          model: $("#modelSelect").value,
+          lastOutcome: null,
+          fav: false,
+          createdAt: state.currentPromptId ? undefined : now,
+          updatedAt: now,
+        };
+        if (state.currentPromptId) {
+          const i = state.prompts.findIndex((x) => x.id === state.currentPromptId);
+          if (i >= 0)
+            state.prompts[i] = { ...state.prompts[i], ...payload, id: state.currentPromptId };
+        } else {
+          state.prompts.unshift(payload);
+        }
+        savePrompts();
+        alert("Saved to library");
+      }
+
+      function deriveTags(v) {
+        const auto = [];
+        if (v.template) auto.push(v.template);
+        if ((v.task || "").match(/next\.js|react|typescript|tailwind/i)) auto.push("dev");
+        if ((v.audience || "").match(/wellness|yoga|massage/i)) auto.push("wellness");
+        return Array.from(new Set(auto));
+      }
+
+      function recordOutcome() {
+        const r = $("#rate").value;
+        const n = $("#notes").value.trim();
+        if (!state.currentPromptId) {
+          return;
+        }
+        const i = state.prompts.findIndex((x) => x.id === state.currentPromptId);
+        if (i < 0) return;
+        state.prompts[i].lastOutcome = r ? { rating: r, notes: n, at: Date.now() } : null;
+        state.prompts[i].usageCount = (state.prompts[i].usageCount || 0) + 1;
+        savePrompts();
+      }
+
+      // ======= Boot =======
+      function boot() {
+        loadSettings();
+        loadPrompts();
+        loadVarlib();
+        $("#modelSelect").value = state.settings.model;
+        $("#apiKey").value = state.settings.apiKey || "";
+        $("#useProxy").checked = state.settings.useProxy || false;
+        toggleFewshot();
+        renderLibrary();
+      }
+
+      // ======= Events =======
+      window.addEventListener("load", boot);
+
+      $("#templateSelect").addEventListener("change", toggleFewshot);
+
+      $$(".ai-btn").forEach((btn) =>
+        btn.addEventListener("click", async (e) => {
+          const field = e.currentTarget.dataset.ai;
+          e.currentTarget.textContent = "…";
+          try {
+            await aiFill(field);
+          } finally {
+            e.currentTarget.textContent = "✨ AI";
+          }
+        }),
+      );
+
+      $("#extractVars").addEventListener("click", async (e) => {
+        e.currentTarget.textContent = "…";
+        try {
+          await extractVariables();
+        } finally {
+          e.currentTarget.textContent = "▣ Extract variables";
+        }
+      });
+
+      $("#enhance").addEventListener("click", async (e) => {
+        e.currentTarget.textContent = "…";
+        try {
+          await enhancePrompt();
+        } finally {
+          e.currentTarget.textContent = "✨ Enhance Prompt";
+        }
+      });
+
+      $("#compile").addEventListener("click", compilePrompt);
+      $("#copyPrompt").addEventListener("click", () => {
+        const c = $("#compiled").textContent;
+        navigator.clipboard.writeText(c);
+        const btn = $("#copyPrompt");
+        const old = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = old), 1000);
+      });
+
+      $("#test").addEventListener("click", async (e) => {
+        await runTest();
+        recordOutcome();
+      });
+
+      $("#savePrompt").addEventListener("click", saveCurrentToLibrary);
+
+      $("#addVar").addEventListener("click", () => addVarRow());
+
+      $("#loadVarLib").addEventListener("click", () => {
+        // simple list prompt
+        const names = Object.keys(state.varlib);
+        if (names.length === 0) return alert("Variable library is empty.");
+        const pick = prompt(`Enter variable set name to load:\n${names.join(", ")}`);
+        if (pick && state.varlib[pick]) setVarsToUI(state.varlib[pick]);
+      });
+
+      $("#saveVarLib").addEventListener("click", () => {
+        const name = prompt("Save current variables as name:");
+        if (!name) return;
+        state.varlib[name] = getVarsFromUI();
+        saveVarlib();
+        alert("Saved variable set.");
+      });
+
+      $("#exportAll").addEventListener("click", exportAll);
+      $("#importFile").addEventListener("change", (e) => {
+        const f = e.target.files?.[0];
+        if (f) importFile(f);
+        e.target.value = "";
+      });
+
+      $("#search").addEventListener("input", renderLibrary);
+      $("#tagFilter").addEventListener("input", renderLibrary);
+      $("#onlyFav").addEventListener("change", renderLibrary);
+
+      $("#saveKey").addEventListener("click", () => {
+        state.settings.apiKey = $("#apiKey").value.trim();
+        state.settings.model = $("#modelSelect").value;
+        state.settings.useProxy = $("#useProxy").checked;
+        saveSettings();
+        alert("Saved API key & settings locally");
+      });
+
+      $("#toggleKey").addEventListener("click", () => {
+        const el = $("#apiKey");
+        el.type = el.type === "password" ? "text" : "password";
+        $("#toggleKey").textContent = el.type === "password" ? "show" : "hide";
+      });
+
+      $("#suggestTemplate").addEventListener("click", async (e) => {
+        const intent = $("#intent").value.trim();
+        if (!intent) return alert("Add an intent first.");
+        e.currentTarget.textContent = "…";
+        try {
+          const msg = [
+            {
+              role: "system",
+              content:
+                "Choose the best prompt methodology for the user intent. Answer with one token from this set: zero|few|cot|iterative|negative|hybrid|chain. Prefer few for patternized outputs with examples; cot for reasoning; iterative for ambiguous; negative to enforce constraints; hybrid if combining approaches helps; chain if multi-step needed.",
+            },
+            { role: "user", content: intent },
+          ];
+          let out = await callLLM(msg, { model: $("#modelSelect").value });
+          out = (out || "").toLowerCase().trim();
+          const map = {
+            zero: "zero",
+            few: "few",
+            cot: "cot",
+            iterative: "iterative",
+            negative: "negative",
+            hybrid: "hybrid",
+            chain: "chain",
+          };
+          const val = Object.keys(map).find((k) => out.includes(k)) || "zero";
+          $("#templateSelect").value = val;
+          toggleFewshot();
+        } finally {
+          e.currentTarget.textContent = "Suggest template";
+        }
+      });
+    </script>
+
+    <!--
+  ===================
+  OPTIONAL LOCAL PROXY (recommended)
+  Save as proxy.mjs and run with:  
+    OPENROUTER_API_KEY=sk_or_... node proxy.mjs
+  This keeps your key out of the browser and avoids CORS.
+  ===================
+
+  import express from 'express';
+  import fetch from 'node-fetch';
+  const app = express(); app.use(express.json());
+  const PORT = process.env.PORT || 8787;
+  const ORIGIN = 'https://openrouter.ai/api/v1/chat/completions';
+  const KEY = process.env.OPENROUTER_API_KEY;
+  if(!KEY){ console.error('Set OPENROUTER_API_KEY'); process.exit(1); }
+
+  app.post('/api/chat', async (req,res)=>{
+    try{
+      const r = await fetch(ORIGIN, {
+        method: 'POST',
+        headers: {
+          'Content-Type':'application/json',
+          'Authorization': `Bearer ${KEY}`,
+          'HTTP-Referer': 'http://localhost',
+          'X-Title': 'Prompt Workbench (Local Proxy)'
+        },
+        body: JSON.stringify(req.body)
+      });
+      const text = await r.text();
+      res.status(r.status).send(text);
+    }catch(err){
+      res.status(500).send(String(err));
+    }
+  });
+
+  app.listen(PORT, ()=> console.log('Local proxy on http://localhost:'+PORT));
+
+  --></body>
+</html>

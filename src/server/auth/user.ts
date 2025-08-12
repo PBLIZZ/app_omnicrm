@@ -1,5 +1,4 @@
 // Reads the authenticated user id (Supabase) for API routes.
-// Falls back to "x-user-id" only in dev if no session is found.
 
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -7,6 +6,7 @@ import { createServerClient } from "@supabase/ssr";
 export async function getServerUserId(): Promise<string> {
   const cookieStore = await cookies();
   // Lazily read minimal env vars here to avoid importing full env validation at module load.
+  // Use the publishable (anon) key for RLS-aware server client, never the service-role secret.
   const supabaseUrl = process.env["NEXT_PUBLIC_SUPABASE_URL"];
   const supabaseAnonKey = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -15,14 +15,8 @@ export async function getServerUserId(): Promise<string> {
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
-      },
-      set() {
-        // no-op in API route context
-      },
-      remove() {
-        // no-op in API route context
+      getAll() {
+        return cookieStore.getAll();
       },
     },
   });

@@ -13,11 +13,12 @@ if (!isTest && (!adminUrl || !adminKey)) {
     "missing_supabase_admin_env",
   );
 }
-const supaAdmin = isTest
-  ? null
-  : createClient(adminUrl || "", adminKey || "", {
-      auth: { persistSession: false },
-    });
+// Only initialize the service-role client when both URL and KEY are present, and not in tests.
+// This prevents build-time failures during Next.js page data collection when secrets are not set.
+const supaAdmin =
+  !isTest && adminUrl && adminKey
+    ? createClient(adminUrl, adminKey, { auth: { persistSession: false } })
+    : null;
 
 // Allow-list of tables that the service role may write to.
 const ALLOWED_TABLES = new Set(["raw_events", "interactions", "ai_insights", "embeddings"]);
@@ -31,6 +32,10 @@ export const supaAdminGuard = {
     if (isTest) {
       // In tests, we do not perform real writes; return empty result.
       return [] as unknown[];
+    }
+    if (!supaAdmin) {
+      log.warn({ op: "supa_admin_use", table }, "admin_client_unavailable");
+      throw new Error("admin_client_unavailable");
     }
     const { data, error } = await supaAdmin!.from(table).insert(values).select();
     if (error) {
@@ -58,6 +63,10 @@ export const supaAdminGuard = {
     if (isTest) {
       // In tests, no-op and return empty result
       return [] as unknown[];
+    }
+    if (!supaAdmin) {
+      log.warn({ op: "supa_admin_use", table }, "admin_client_unavailable");
+      throw new Error("admin_client_unavailable");
     }
     const upsertOptions: { onConflict?: string; ignoreDuplicates?: boolean } = {};
     if (options?.onConflict) upsertOptions.onConflict = options.onConflict;
@@ -89,6 +98,10 @@ export const supaAdminGuard = {
     if (isTest) {
       // In tests, no-op and return empty result
       return [] as unknown[];
+    }
+    if (!supaAdmin) {
+      log.warn({ op: "supa_admin_use", table }, "admin_client_unavailable");
+      throw new Error("admin_client_unavailable");
     }
     const { data, error } = await supaAdmin!.from(table).update(values).match(match).select();
     if (error) {

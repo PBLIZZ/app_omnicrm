@@ -15,7 +15,7 @@ export function getSupabaseBrowser() {
       );
     }
     // return a dummy no-op client during build (won't be used in SSR)
-    return (_client ??= createBrowserClient("http://localhost:54321", "public-anon-key"));
+    return (_client ??= createBrowserClient("http://localhost:54321", "public-key"));
   }
   _client = createBrowserClient(url, key);
   return _client;

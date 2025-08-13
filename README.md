@@ -1,24 +1,34 @@
-# Deploy & Secrets
+# OmniCRM
 
-This app targets Vercel with Supabase-managed Postgres. Manual SQL is source of truth; no migrations run in CI.
+AI‑first CRM built with Next.js and Supabase. This README gives a quick overview and links to deeper docs.
 
-Required environment variables (server fails fast if missing):
+## Quick start
 
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
-- SUPABASE_SECRET_KEY (production only, server-side only)
-- APP_ENCRYPTION_KEY (32-byte; base64 preferred)
-- GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+```bash
+pnpm install
+cp docs/ops/env.example .env.local
+pnpm dev
+```
 
-Recommendations:
+## Repo layout
 
-- Scope secrets: do not expose service role to any client bundle. Only set as Server env in Vercel.
-- Use base64 32-byte value for `APP_ENCRYPTION_KEY`.
-- Configure `APP_ORIGINS` for allowed CORS origins.
-- Healthcheck: set `HEALTHCHECK_URL` GitHub secret to your `/api/health` URL to enable scheduled uptime checks.
-- Example environment files: use the root `.env.example` (synced from `docs/ops/env.example`) for local setup. The `docs/ops/env.example` remains the source template.
+```
+src/
+  app/       # Next.js App Router (API and pages)
+  components/# UI components (shadcn + app components)
+  server/    # Business logic (auth, db, jobs, ai, google)
+docs/        # Project documentation (see below)
+supabase/    # SQL files (source of truth for DB changes)
+```
 
-Where to look for logs:
+## Documentation
 
-- Vercel function logs (includes request id via `x-request-id`).
-- Application logs use structured JSON via Pino with token redaction.
+- Docs index: docs/README.md
+- Security overview: SECURITY.md
+- API overview: docs/api/README.md
+- Ops/deploy: docs/ops/README.md
+- Database doctrine: docs/database/README.md
+- Roadmap: docs/roadmap/README.md
+- Testing/QA: docs/qa/README.md
+
+For AI‑assistant specific guidance, see `CLAUDE.md`.

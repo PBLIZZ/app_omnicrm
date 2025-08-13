@@ -63,7 +63,7 @@ export async function middleware(req: NextRequest) {
     // - Production: strict (no inline/eval); require nonce for inline and allow same-origin script elements.
     if (prod) {
       directives.push(`script-src 'self' 'nonce-${nonce}'`);
-      directives.push(`script-src-elem 'self'`);
+      directives.push(`script-src-elem 'self' 'nonce-${nonce}'`);
     } else {
       directives.push(
         `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' 'nonce-${nonce}' blob:`,

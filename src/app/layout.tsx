@@ -30,7 +30,18 @@ export default async function RootLayout({
   const nonce = hdrs.get("x-csp-nonce") ?? hdrs.get("x-nextjs-nonce") ?? undefined;
   return (
     <html lang="en">
-      <head>{nonce ? <meta property="csp-nonce" content={nonce} /> : null}</head>
+      <head>
+        {nonce ? <meta property="csp-nonce" content={nonce} /> : null}
+        {nonce ? (
+          <script
+            nonce={nonce}
+            dangerouslySetInnerHTML={{
+              __html:
+                "(function(){var m=document.querySelector(\"meta[property=\\\"csp-nonce\\\"]\");if(!m)return;var v=m.getAttribute('content');if(!v)return;window.__webpack_nonce__=v;var _ce=document.createElement;document.createElement=function(t){var el=_ce.call(document,t);if(t==='style'){try{el.setAttribute('nonce',v);}catch(_){}}return el;};})();",
+            }}
+          />
+        ) : null}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         data-csp-nonce={nonce}

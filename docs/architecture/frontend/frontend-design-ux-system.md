@@ -100,7 +100,7 @@ This document provides comprehensive UI/UX specifications for transforming OmniC
 
 **Header Navigation (Always Visible):**
 
-```
+```bash
 Logo | Dashboard | Contacts | Calendar | Messages | Settings | [AI Assistant] | [Profile]
 ```
 
@@ -749,7 +749,7 @@ toast.success("Contacts synchronized", {
 
 #### **OAuth Connection Flow**
 
-**Step 1: Integration Overview**
+##### Step 1: Integration Overview
 
 ```tsx
 <Card className="max-w-2xl mx-auto">

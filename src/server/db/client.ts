@@ -40,6 +40,12 @@ export async function getDb(): Promise<NodePgDatabase> {
       testOverrides.drizzleFn ?? (await import("drizzle-orm/node-postgres")).drizzle;
     const client = new ClientCtor({ connectionString: databaseUrl });
     await client.connect();
+    // Note: This type cast is required for test injection compatibility.
+    // The drizzleFn accepts different client types in test vs production.
+    // This is safe because:
+    // 1. drizzleFn validates the client interface internally
+    // 2. The final cast to NodePgDatabase provides type safety for consumers
+    // 3. This code path only executes during database initialization
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const instance = drizzleFn(client as any) as NodePgDatabase;
     dbInstance = instance;

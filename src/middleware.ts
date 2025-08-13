@@ -63,8 +63,7 @@ export async function middleware(req: NextRequest) {
     // - Production: strict (no inline/eval); require nonce for inline and allow same-origin script elements.
     if (prod) {
       directives.push(`script-src 'self' 'nonce-${nonce}'`);
-      directives.push("script-src-attr 'none'");
-      directives.push(`script-src-elem 'self' 'nonce-${nonce}'`);
+      directives.push(`script-src-elem 'self'`);
     } else {
       directives.push(
         `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' 'nonce-${nonce}' blob:`,
@@ -77,7 +76,6 @@ export async function middleware(req: NextRequest) {
     if (prod) {
       directives.push("style-src 'self'");
       directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
-      directives.push("style-src-attr 'none'");
     } else {
       directives.push("style-src 'self' 'unsafe-inline'");
       directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);

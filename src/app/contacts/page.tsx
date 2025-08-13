@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ContactListSkeleton } from "@/components/contacts/ContactListSkeleton";
+import { ContactListItem } from "@/components/contacts/ContactListItem";
 
 interface ContactItem {
 	id: string;
@@ -69,18 +70,14 @@ export default function ContactsPage() {
 					) : (
 						<div className="divide-y">
 							{contacts.map((c) => (
-								<div key={c.id} className="flex items-center p-4 gap-3">
-									<div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-										{c.displayName.slice(0, 1)}
-									</div>
-									<div className="flex-1 min-w-0">
-										<div className="font-medium truncate">{c.displayName}</div>
-										<div className="text-sm text-muted-foreground truncate">
-											{c.primaryEmail || c.primaryPhone || "No contact info"}
-										</div>
-									</div>
-									<Button variant="outline" size="sm">Open</Button>
-								</div>
+								<ContactListItem
+									key={c.id}
+									id={c.id}
+									displayName={c.displayName}
+									primaryEmail={c.primaryEmail}
+									primaryPhone={c.primaryPhone}
+									onOpen={() => { /* TODO: navigate to /contacts/[id] */ }}
+								/>
 							))}
 						</div>
 					)}

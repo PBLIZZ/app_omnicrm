@@ -87,6 +87,7 @@ export default function GoogleOAuthTestPage() {
     addLog("info", "Running connectivity test");
 
     try {
+      // Simple health check - doesn't need OkEnvelope as it's just a status check
       const response = await fetch("/api/health");
       const isHealthy = response.ok;
 

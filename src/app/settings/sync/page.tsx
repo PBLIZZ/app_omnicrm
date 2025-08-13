@@ -2,337 +2,386 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-
-type PreviewGmail = { countByLabel: Record<string, number>; sampleSubjects: string[] };
-type PreviewCalendar = { count: number; sampleTitles: string[] };
-
-interface SyncStatus {
-  googleConnected: boolean;
-  flags?: {
-    gmail: boolean;
-    calendar: boolean;
-  };
-  lastSync?: {
-    gmail: string | null;
-    calendar: string | null;
-  };
-  jobs?: {
-    queued: number;
-    done: number;
-    error: number;
-  };
-  lastBatchId?: string;
-}
-
-interface SyncPreferences {
-  gmailQuery?: string;
-  gmailLabelIncludes?: string[];
-  gmailLabelExcludes?: string[];
-  calendarIncludeOrganizerSelf?: string;
-  calendarIncludePrivate?: string;
-  calendarTimeWindowDays?: number;
-}
-
-interface APIResponse {
-  ok?: boolean;
-  error?: string;
-  batchId?: string;
-  processed?: number;
-}
-
-interface PreviewAPIResponse extends APIResponse {
-  data?: {
-    countByLabel?: Record<string, number>;
-    sampleSubjects?: string[];
-    count?: number;
-    sampleTitles?: string[];
-  };
-}
+import {
+  getSyncStatus,
+  getSyncPreferences,
+  updateSyncPreferences,
+  previewGmailSync,
+  previewCalendarSync,
+  approveGmailSync,
+  approveCalendarSync,
+  runJobs,
+  undoSync,
+  type SyncStatus,
+  type SyncPreferences,
+  type PreviewGmailResponse,
+  type PreviewCalendarResponse,
+} from "@/lib/api/sync";
 
 export default function SyncSettingsPage() {
-  const [gmail, setGmail] = useState<PreviewGmail | null>(null);
-  const [calendar, setCalendar] = useState<PreviewCalendar | null>(null);
+  const [gmail, setGmail] = useState<PreviewGmailResponse | null>(null);
+  const [calendar, setCalendar] = useState<PreviewCalendarResponse | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<SyncStatus | null>(null);
-  const base = ""; // same-origin
 
   const [prefs, setPrefs] = useState<SyncPreferences | null>(null);
-  // Read CSRF token from cookie (double-submit) and include in mutating requests
-  function getCsrf(): string {
-    if (typeof document === "undefined") return "";
-    const m = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
-    return m ? decodeURIComponent(m[1] ?? "") : "";
-  }
 
   async function loadPrefs() {
-    const res = await fetch(`/api/settings/sync/prefs`);
-    const j = (await res.json()) as SyncPreferences;
-    setPrefs(j);
-  }
-  async function savePrefs() {
-    await fetch(`/api/settings/sync/prefs`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "x-csrf-token": getCsrf() || "" },
-      body: JSON.stringify(prefs ?? {}),
-    });
-  }
-
-  async function callJSON(url: string, body?: Record<string, unknown>): Promise<APIResponse> {
-    setBusy(true);
     try {
-      const doPost = async () =>
-        fetch(url, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "x-csrf-token": getCsrf() || "", "content-type": "application/json" },
-          body: body ? JSON.stringify(body) : null,
-        });
+      setBusy(true);
+      const preferences = await getSyncPreferences();
+      setPrefs(preferences);
+    } catch (error) {
+      // Error already handled by fetchJson
+      console.error("Failed to load preferences:", error);
+    } finally {
+      setBusy(false);
+    }
+  }
 
-      // First attempt
-      let res = await doPost();
-      let j = (await res.json()) as APIResponse;
-      if (res.ok) return j;
-      // If server just issued CSRF cookies, retry once with fresh header
-      if (res.status === 403 && j?.error === "missing_csrf") {
-        // allow cookies to be persisted to document.cookie before retrying
-        await new Promise((r) => setTimeout(r, 50));
-        res = await doPost();
-        j = (await res.json()) as APIResponse;
-        if (res.ok) return j;
-      }
-      throw new Error(j?.error || res.statusText);
+  async function savePrefs() {
+    if (!prefs) return;
+
+    try {
+      setBusy(true);
+      await updateSyncPreferences(prefs);
+      toast.success("Preferences saved successfully");
+    } catch (error) {
+      // Error already handled by fetchJson
+      console.error("Failed to save preferences:", error);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Sync Settings</h1>
-      <div className="text-sm text-neutral-600">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={async () =>
-            setStatus((await (await fetch(`/api/settings/sync/status`)).json()) as SyncStatus)
-          }
-        >
-          Refresh Status
-        </Button>
-        {status && (
-          <div className="mt-2 grid gap-1">
-            <div>Google connected: {String(status.googleConnected)}</div>
-            <div>
-              Flags: Gmail {String(status.flags?.gmail)} / Calendar {String(status.flags?.calendar)}
-            </div>
-            <div>
-              Last sync — Gmail: {status.lastSync?.gmail ?? "-"} / Calendar:{" "}
-              {status.lastSync?.calendar ?? "-"}
-            </div>
-            <div>
-              Jobs — queued: {status.jobs?.queued} done: {status.jobs?.done} error:{" "}
-              {status.jobs?.error}
-            </div>
-          </div>
-        )}
+    <div className="container max-w-4xl mx-auto py-8 space-y-8" aria-busy={busy}>
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {busy ? "Working…" : ""}
+      </div>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Sync Settings</h1>
+        <p className="text-muted-foreground mt-2">
+          Manage your Google account connections and sync preferences.
+        </p>
       </div>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-medium">Connect Accounts</h2>
-        <div className="flex gap-3">
-          <Button asChild>
-            <a href={`/api/google/oauth?scope=gmail`}>Connect Gmail (read-only)</a>
-          </Button>
-          <Button asChild variant="outline">
-            <a href={`/api/google/oauth?scope=calendar`}>Connect Calendar (read-only)</a>
-          </Button>
-        </div>
-        <p className="text-sm text-neutral-500">Incremental consent; only the scope you pick.</p>
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="text-lg font-medium">Preferences</h2>
-        <div className="flex gap-2 items-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () =>
-              setStatus((await (await fetch(`/api/settings/sync/status`)).json()) as SyncStatus)
-            }
-          >
-            Refresh Status
-          </Button>
-          {status?.lastBatchId && (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Sync Status</CardTitle>
+              <CardDescription>Current connection and sync information</CardDescription>
+            </div>
             <Button
               variant="outline"
               size="sm"
               onClick={async () => {
-                const res = await fetch(`/api/sync/undo`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ batchId: status.lastBatchId }),
-                });
-                const j = (await res.json()) as APIResponse;
-                if (j.ok) toast.success("Undo completed");
-                else toast.error("Undo failed", { description: j.error ?? "unknown_error" });
+                try {
+                  setBusy(true);
+                  const statusData = await getSyncStatus();
+                  setStatus(statusData);
+                  toast.success("Status refreshed");
+                } catch (error) {
+                  console.error("Failed to refresh status:", error);
+                } finally {
+                  setBusy(false);
+                }
               }}
+              disabled={busy}
             >
-              Undo Last Import
+              {busy ? "Loading…" : "Refresh Status"}
             </Button>
-          )}
-        </div>
-        <div className="grid gap-2 border rounded p-3 text-sm">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={loadPrefs}>Load Prefs</Button>
-            <Button variant="outline" size="sm" onClick={savePrefs}>Save Prefs</Button>
           </div>
-          {prefs && (
-            <>
-              <label className="grid gap-1">
-                <span>Gmail query</span>
-                <input
-                  className="border rounded px-2 py-1"
-                  value={prefs.gmailQuery ?? ""}
-                  onChange={(e) =>
-                    setPrefs((p) =>
-                      p ? { ...p, gmailQuery: e.target.value } : { gmailQuery: e.target.value },
-                    )
-                  }
-                />
-              </label>
-              <label className="grid gap-1">
-                <span>Gmail include labels (comma)</span>
-                <input
-                  className="border rounded px-2 py-1"
-                  value={(prefs.gmailLabelIncludes ?? []).join(",")}
-                  onChange={(e) =>
-                    setPrefs((p) =>
-                      p
-                        ? {
-                            ...p,
-                            gmailLabelIncludes: e.target.value
-                              .split(",")
-                              .map((s) => s.trim())
-                              .filter(Boolean),
-                          }
-                        : {
-                            gmailLabelIncludes: e.target.value
-                              .split(",")
-                              .map((s) => s.trim())
-                              .filter(Boolean),
-                          },
-                    )
-                  }
-                />
-              </label>
-              <label className="grid gap-1">
-                <span>Gmail exclude labels (comma)</span>
-                <input
-                  className="border rounded px-2 py-1"
-                  value={(prefs.gmailLabelExcludes ?? []).join(",")}
-                  onChange={(e) =>
-                    setPrefs((p) =>
-                      p
-                        ? {
-                            ...p,
-                            gmailLabelExcludes: e.target.value
-                              .split(",")
-                              .map((s) => s.trim())
-                              .filter(Boolean),
-                          }
-                        : {
-                            gmailLabelExcludes: e.target.value
-                              .split(",")
-                              .map((s) => s.trim())
-                              .filter(Boolean),
-                          },
-                    )
-                  }
-                />
-              </label>
-              <div className="grid gap-2">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={prefs.calendarIncludeOrganizerSelf === "true"}
-                    onChange={(e) =>
-                      setPrefs((p) =>
-                        p
-                          ? {
-                              ...p,
-                              calendarIncludeOrganizerSelf: e.target.checked ? "true" : "false",
-                            }
-                          : {
-                              calendarIncludeOrganizerSelf: e.target.checked ? "true" : "false",
-                            },
-                      )
-                    }
-                  />
-                  <span>Include organizer self</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={prefs.calendarIncludePrivate === "true"}
-                    onChange={(e) =>
-                      setPrefs((p) =>
-                        p
-                          ? {
-                              ...p,
-                              calendarIncludePrivate: e.target.checked ? "true" : "false",
-                            }
-                          : {
-                              calendarIncludePrivate: e.target.checked ? "true" : "false",
-                            },
-                      )
-                    }
-                  />
-                  <span>Include private events</span>
-                </label>
-                <label className="grid gap-1">
-                  <span>Calendar time window (days)</span>
-                  <input
-                    type="number"
-                    className="border rounded px-2 py-1"
-                    value={prefs.calendarTimeWindowDays ?? 60}
-                    onChange={(e) =>
-                      setPrefs((p) =>
-                        p
-                          ? {
-                              ...p,
-                              calendarTimeWindowDays: Number(e.target.value) || 60,
-                            }
-                          : {
-                              calendarTimeWindowDays: Number(e.target.value) || 60,
-                            },
-                      )
-                    }
-                  />
-                </label>
+        </CardHeader>
+        <CardContent>
+          {status && (
+            <div className="grid gap-4">
+              <div className="flex items-center justify-between">
+                <Label>Google Connected</Label>
+                <Badge variant={status.googleConnected ? "default" : "secondary"}>
+                  {status.googleConnected ? "Connected" : "Not Connected"}
+                </Badge>
               </div>
-            </>
+
+              <div className="flex items-center justify-between">
+                <Label>Gmail Access</Label>
+                <Badge variant={status.flags?.gmail ? "default" : "outline"}>
+                  {status.flags?.gmail ? "Authorized" : "Not Authorized"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label>Calendar Access</Label>
+                <Badge variant={status.flags?.calendar ? "default" : "outline"}>
+                  {status.flags?.calendar ? "Authorized" : "Not Authorized"}
+                </Badge>
+              </div>
+
+              {(status.lastSync?.gmail || status.lastSync?.calendar) && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Last Sync</Label>
+                    <div className="grid gap-1 text-sm text-muted-foreground">
+                      {status.lastSync.gmail && <div>Gmail: {status.lastSync.gmail}</div>}
+                      {status.lastSync.calendar && <div>Calendar: {status.lastSync.calendar}</div>}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {status.jobs && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Background Jobs</Label>
+                    <div className="flex gap-4 text-sm">
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">Queued:</span>
+                        <Badge variant="outline">{status.jobs.queued}</Badge>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">Completed:</span>
+                        <Badge variant="default">{status.jobs.done}</Badge>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">Errors:</span>
+                        <Badge variant={status.jobs.error > 0 ? "destructive" : "outline"}>
+                          {status.jobs.error}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           )}
-        </div>
-        {status && (
-          <div className="mt-2 grid gap-1 text-sm text-neutral-600">
-            <div>Google connected: {String(status.googleConnected)}</div>
-            <div>
-              Flags: Gmail {String(status.flags?.gmail)} / Calendar {String(status.flags?.calendar)}
-            </div>
-            <div>
-              Last sync — Gmail: {status.lastSync?.gmail ?? "-"} / Calendar:{" "}
-              {status.lastSync?.calendar ?? "-"}
-            </div>
-            <div>
-              Jobs — queued: {status.jobs?.queued} done: {status.jobs?.done} error:{" "}
-              {status.jobs?.error}
-            </div>
-            <div>Last batchId: {status.lastBatchId ?? "-"}</div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Connect Accounts</CardTitle>
+          <CardDescription>
+            Connect your Google services with incremental consent - only authorize what you need.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild>
+              <a href={`/api/google/oauth?scope=gmail`}>Connect Gmail (read-only)</a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href={`/api/google/oauth?scope=calendar`}>Connect Calendar (read-only)</a>
+            </Button>
           </div>
-        )}
-      </section>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Sync Preferences</CardTitle>
+              <CardDescription>Configure how your data is synchronized</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={loadPrefs} disabled={busy}>
+                Load Settings
+              </Button>
+              <Button variant="outline" size="sm" onClick={savePrefs} disabled={busy || !prefs}>
+                Save Settings
+              </Button>
+              {status?.lastBatchId && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={async () => {
+                    if (!status.lastBatchId) return;
+                    try {
+                      setBusy(true);
+                      await undoSync(status.lastBatchId);
+                      toast.success("Import undone successfully");
+                      const newStatus = { ...status };
+                      delete newStatus.lastBatchId;
+                      setStatus(newStatus);
+                    } catch (error) {
+                      // Error already handled by fetchJson
+                      console.error("Failed to undo import:", error);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  disabled={busy}
+                >
+                  Undo Last Import
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {prefs ? (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium">Gmail Settings</h4>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="gmail-query">Gmail Query</Label>
+                    <Input
+                      id="gmail-query"
+                      placeholder="e.g., has:attachment newer_than:30d"
+                      value={prefs.gmailQuery ?? ""}
+                      onChange={(e) =>
+                        setPrefs((p) =>
+                          p ? { ...p, gmailQuery: e.target.value } : { gmailQuery: e.target.value },
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gmail-include">Include Labels (comma-separated)</Label>
+                    <Input
+                      id="gmail-include"
+                      placeholder="e.g., IMPORTANT, INBOX"
+                      value={(prefs.gmailLabelIncludes ?? []).join(", ")}
+                      onChange={(e) =>
+                        setPrefs((p) =>
+                          p
+                            ? {
+                                ...p,
+                                gmailLabelIncludes: e.target.value
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              }
+                            : {
+                                gmailLabelIncludes: e.target.value
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              },
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gmail-exclude">Exclude Labels (comma-separated)</Label>
+                    <Input
+                      id="gmail-exclude"
+                      placeholder="e.g., SPAM, TRASH"
+                      value={(prefs.gmailLabelExcludes ?? []).join(", ")}
+                      onChange={(e) =>
+                        setPrefs((p) =>
+                          p
+                            ? {
+                                ...p,
+                                gmailLabelExcludes: e.target.value
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              }
+                            : {
+                                gmailLabelExcludes: e.target.value
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              },
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium">Calendar Settings</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="include-organizer" className="text-sm">
+                      Include events you organize
+                    </Label>
+                    <Switch
+                      id="include-organizer"
+                      checked={prefs.calendarIncludeOrganizerSelf === "true"}
+                      onCheckedChange={(checked) =>
+                        setPrefs((p) =>
+                          p
+                            ? {
+                                ...p,
+                                calendarIncludeOrganizerSelf: checked ? "true" : "false",
+                              }
+                            : {
+                                calendarIncludeOrganizerSelf: checked ? "true" : "false",
+                              },
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="include-private" className="text-sm">
+                      Include private events
+                    </Label>
+                    <Switch
+                      id="include-private"
+                      checked={prefs.calendarIncludePrivate === "true"}
+                      onCheckedChange={(checked) =>
+                        setPrefs((p) =>
+                          p
+                            ? {
+                                ...p,
+                                calendarIncludePrivate: checked ? "true" : "false",
+                              }
+                            : {
+                                calendarIncludePrivate: checked ? "true" : "false",
+                              },
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="time-window">Sync Time Window (days)</Label>
+                    <Input
+                      id="time-window"
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={prefs.calendarTimeWindowDays ?? 60}
+                      onChange={(e) =>
+                        setPrefs((p) =>
+                          p
+                            ? {
+                                ...p,
+                                calendarTimeWindowDays: Number(e.target.value) || 60,
+                              }
+                            : {
+                                calendarTimeWindowDays: Number(e.target.value) || 60,
+                              },
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Click &quot;Load Settings&quot; to configure your sync preferences.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Preview Imports</h2>
@@ -341,14 +390,15 @@ export default function SyncSettingsPage() {
             disabled={busy}
             variant="outline"
             onClick={async () => {
-              const result = (await callJSON(
-                `${base}/api/sync/preview/gmail`,
-              )) as PreviewAPIResponse;
-              const d = result?.data;
-              if (result.ok && d?.countByLabel && d?.sampleSubjects) {
-                setGmail({ countByLabel: d.countByLabel, sampleSubjects: d.sampleSubjects });
-              } else if (!result.ok) {
-                toast.error("Preview failed", { description: result.error ?? "unknown_error" });
+              try {
+                setBusy(true);
+                const result = await previewGmailSync();
+                setGmail(result);
+              } catch (error) {
+                // Error already handled by fetchJson
+                console.error("Failed to preview Gmail:", error);
+              } finally {
+                setBusy(false);
               }
             }}
           >
@@ -358,14 +408,15 @@ export default function SyncSettingsPage() {
             disabled={busy}
             variant="outline"
             onClick={async () => {
-              const result = (await callJSON(
-                `${base}/api/sync/preview/calendar`,
-              )) as PreviewAPIResponse;
-              const d = result?.data;
-              if (result.ok && d && d.count !== undefined && d.sampleTitles) {
-                setCalendar({ count: d.count, sampleTitles: d.sampleTitles });
-              } else if (!result.ok) {
-                toast.error("Preview failed", { description: result.error ?? "unknown_error" });
+              try {
+                setBusy(true);
+                const result = await previewCalendarSync();
+                setCalendar(result);
+              } catch (error) {
+                // Error already handled by fetchJson
+                console.error("Failed to preview Calendar:", error);
+              } finally {
+                setBusy(false);
               }
             }}
           >
@@ -412,13 +463,19 @@ export default function SyncSettingsPage() {
             disabled={busy}
             variant="outline"
             onClick={async () => {
-              const j = (await callJSON(`${base}/api/sync/approve/gmail`)) as {
-                ok?: boolean;
-                data?: { batchId?: string };
-                error?: string;
-              };
-              if (j.ok) setBatchId(j.data?.batchId ?? null);
-              else toast.error("Approve failed", { description: j.error ?? "unknown_error" });
+              try {
+                setBusy(true);
+                const result = await approveGmailSync();
+                setBatchId(result.batchId);
+                toast.success("Gmail sync approved", {
+                  description: `Batch ID: ${result.batchId}`,
+                });
+              } catch (error) {
+                // Error already handled by fetchJson
+                console.error("Failed to approve Gmail sync:", error);
+              } finally {
+                setBusy(false);
+              }
             }}
           >
             Approve Gmail Import
@@ -427,13 +484,19 @@ export default function SyncSettingsPage() {
             disabled={busy}
             variant="outline"
             onClick={async () => {
-              const j = (await callJSON(`${base}/api/sync/approve/calendar`)) as {
-                ok?: boolean;
-                data?: { batchId?: string };
-                error?: string;
-              };
-              if (j.ok) setBatchId(j.data?.batchId ?? null);
-              else toast.error("Approve failed", { description: j.error ?? "unknown_error" });
+              try {
+                setBusy(true);
+                const result = await approveCalendarSync();
+                setBatchId(result.batchId);
+                toast.success("Calendar sync approved", {
+                  description: `Batch ID: ${result.batchId}`,
+                });
+              } catch (error) {
+                // Error already handled by fetchJson
+                console.error("Failed to approve Calendar sync:", error);
+              } finally {
+                setBusy(false);
+              }
             }}
           >
             Approve Calendar Import
@@ -442,13 +505,18 @@ export default function SyncSettingsPage() {
             disabled={busy}
             variant="outline"
             onClick={async () => {
-              const j = (await callJSON(`${base}/api/jobs/runner`, {})) as {
-                ok?: boolean;
-                data?: { processed?: number };
-                error?: string;
-              };
-              if (j.ok) toast.success("Jobs processed", { description: String(j.data?.processed ?? 0) });
-              else toast.error("Run jobs failed", { description: j.error ?? "unknown_error" });
+              try {
+                setBusy(true);
+                const result = await runJobs();
+                toast.success("Jobs processed", {
+                  description: `Processed ${result.processed} jobs`,
+                });
+              } catch (error) {
+                // Error already handled by fetchJson
+                console.error("Failed to run jobs:", error);
+              } finally {
+                setBusy(false);
+              }
             }}
           >
             Run Jobs

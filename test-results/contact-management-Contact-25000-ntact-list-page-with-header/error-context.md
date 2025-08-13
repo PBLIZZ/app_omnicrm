@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- link "Skip to main content":
+    - /url: "#main-content"
+- text: OmniCRM
+- navigation:
+    - link "Dashboard":
+        - /url: /
+    - link "Contacts":
+        - /url: /contacts
+    - link "Settings":
+        - /url: /settings/sync
+- link "Sign in":
+    - /url: /login
+- main:
+    - heading "Contacts" [level=1]
+    - text: Search, filter and manage your contacts.
+    - textbox "Search contacts"
+    - button "Create new contact": New Contact
+    - button "More actions": More
+    - link "Connect Google":
+        - /url: /settings/sync
+    - heading "Filter Contacts" [level=3]
+    - text: Recently active
+    - switch
+    - text: Has email
+    - switch
+    - text: Has phone
+    - switch
+    - text: Needs follow-up
+    - switch
+    - heading "Source" [level=4]
+    - text: Gmail Import
+    - switch
+    - text: Manual
+    - switch
+    - text: Upload
+    - switch
+    - text: Calendar Sync
+    - switch
+    - heading "Last Contact" [level=4]
+    - combobox: Any time
+    - heading "AI Insights" [level=4]
+    - text: High priority
+    - switch
+    - text: At risk
+    - switch
+    - text: Strong relationship
+    - switch
+    - button "Clear Filters"
+    - text: 📇
+    - heading "No contacts yet" [level=3]
+    - paragraph: Import your existing contacts or connect Google to sync automatically.
+- region "Notifications alt+T"
+- alert: Contacts
+```

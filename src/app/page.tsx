@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChatWidget } from "@/components/chat/ChatWidget";
 
 export default function Home() {
   const router = useRouter();
@@ -50,7 +49,7 @@ export default function Home() {
           </Card>
         </div>
 
-        <ChatWidget />
+        {/* Chat assistant scaffold intentionally removed for production readiness */}
       </div>
     </div>
   );

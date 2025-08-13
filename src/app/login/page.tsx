@@ -10,19 +10,39 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogle, setIsGoogle] = useState(false);
+
+  function isValidEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    const { error } = await getSupabaseBrowser().auth.signInWithOtp({ email });
-    if (error) setErr(error.message);
-    else setSent(true);
+    if (!isValidEmail(email.trim())) {
+      setErr("Enter a valid email address");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const { error } = await getSupabaseBrowser().auth.signInWithOtp({ email: email.trim() });
+      if (error) setErr(error.message);
+      else setSent(true);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function handleGoogleSignIn() {
     setErr(null);
-    // Use server-initiated flow so PKCE verifier and session cookies are handled server-side
-    window.location.assign(`/auth/signin/google`);
+    setIsGoogle(true);
+    try {
+      // Use server-initiated flow so PKCE verifier and session cookies are handled server-side
+      window.location.assign(`/auth/signin/google`);
+    } finally {
+      // no-op; navigation will replace page
+    }
   }
 
   return (
@@ -33,7 +53,13 @@ export default function LoginPage() {
       ) : (
         <div className="space-y-4">
           {/* Google OAuth Sign In */}
-          <Button onClick={handleGoogleSignIn} className="w-full" variant="outline">
+          <Button
+            onClick={handleGoogleSignIn}
+            className="w-full"
+            variant="outline"
+            disabled={isGoogle}
+            aria-disabled={isGoogle}
+          >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -52,7 +78,7 @@ export default function LoginPage() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            Continue with Google
+            {isGoogle ? "Redirecting…" : "Continue with Google"}
           </Button>
 
           <div className="relative">
@@ -63,7 +89,7 @@ export default function LoginPage() {
           </div>
 
           {/* Email Magic Link Sign In */}
-          <form onSubmit={handleSignIn} className="space-y-3">
+          <form onSubmit={handleSignIn} className="space-y-3" aria-busy={isSubmitting}>
             <label htmlFor="email" className="text-sm font-medium">
               Email address
             </label>
@@ -75,13 +101,23 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              aria-invalid={err ? "true" : "false"}
+              aria-describedby={err ? "email-error" : undefined}
             />
-            <Button variant="outline" className="w-full">
-              Send magic link
+            {err && (
+              <p id="email-error" className="text-sm text-red-600">
+                {err}
+              </p>
+            )}
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={isSubmitting}
+              aria-disabled={isSubmitting}
+            >
+              {isSubmitting ? "Sending…" : "Send magic link"}
             </Button>
           </form>
-
-          {err && <p className="text-sm text-red-600 text-center">{err}</p>}
         </div>
       )}
     </div>

@@ -85,6 +85,7 @@ export function ContactListHeader(props: Props) {
               onClick={() => (onNewContact ? onNewContact() : setOpenNew(true))}
               size="sm"
               aria-label="Create new contact"
+              autoFocus
             >
               New Contact
             </Button>

@@ -125,6 +125,19 @@ export async function middleware(req: NextRequest) {
     });
   }
 
+  // E2E convenience: if E2E_USER_ID env is present, set a non-secure cookie for user id
+  // This is only for non-production to drive Playwright tests without external auth
+  const e2eUserId = process.env["E2E_USER_ID"];
+  if (e2eUserId && !isProd) {
+    res.cookies.set("e2e_uid", e2eUserId, {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: false,
+      path: "/",
+      maxAge: 60 * 60,
+    });
+  }
+
   if (!isApi) return res;
 
   // Method allow-list for selected API route families

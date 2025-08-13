@@ -1,4 +1,8 @@
-// Sync API utility functions
+/**
+ * Sync API functions using centralized fetchJson helper
+ */
+
+import { fetchGet, fetchPost } from "@/lib/api";
 
 export interface SyncStatus {
   googleConnected: boolean;
@@ -37,85 +41,115 @@ export interface PreviewCalendarResponse {
   sampleTitles: string[];
 }
 
+export interface ApprovalResponse {
+  batchId: string;
+}
+
+export interface JobsRunResponse {
+  processed: number;
+}
+
+export interface UndoResponse {
+  success: boolean;
+}
+
+/**
+ * Get sync status
+ */
 export async function getSyncStatus(): Promise<SyncStatus> {
-  const response = await fetch("/api/settings/sync/status");
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  return response.json();
+  return fetchGet<SyncStatus>("/api/settings/sync/status");
 }
 
+/**
+ * Get sync preferences
+ */
 export async function getSyncPreferences(): Promise<SyncPreferences> {
-  const response = await fetch("/api/settings/sync/prefs");
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  return response.json();
+  return fetchGet<SyncPreferences>("/api/settings/sync/prefs");
 }
 
-export async function updateSyncPreferences(prefs: SyncPreferences): Promise<void> {
-  const response = await fetch("/api/settings/sync/prefs", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(prefs),
+/**
+ * Update sync preferences
+ */
+export async function updateSyncPreferences(prefs: SyncPreferences): Promise<SyncPreferences> {
+  return fetchPost<SyncPreferences>("/api/settings/sync/prefs", prefs, {
+    errorToastTitle: "Failed to save preferences",
   });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
 }
 
+/**
+ * Preview Gmail sync
+ */
 export async function previewGmailSync(): Promise<PreviewGmailResponse> {
-  const response = await fetch("/api/sync/preview/gmail", { method: "POST" });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  return data.data;
+  return fetchPost<PreviewGmailResponse>(
+    "/api/sync/preview/gmail",
+    {},
+    {
+      errorToastTitle: "Gmail preview failed",
+    },
+  );
 }
 
+/**
+ * Preview Calendar sync
+ */
 export async function previewCalendarSync(): Promise<PreviewCalendarResponse> {
-  const response = await fetch("/api/sync/preview/calendar", { method: "POST" });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  return data.data;
+  return fetchPost<PreviewCalendarResponse>(
+    "/api/sync/preview/calendar",
+    {},
+    {
+      errorToastTitle: "Calendar preview failed",
+    },
+  );
 }
 
-export async function approveGmailSync(): Promise<{ batchId: string }> {
-  const response = await fetch("/api/sync/approve/gmail", { method: "POST" });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  return data.data;
+/**
+ * Approve Gmail sync
+ */
+export async function approveGmailSync(): Promise<ApprovalResponse> {
+  return fetchPost<ApprovalResponse>(
+    "/api/sync/approve/gmail",
+    {},
+    {
+      errorToastTitle: "Gmail sync approval failed",
+    },
+  );
 }
 
-export async function approveCalendarSync(): Promise<{ batchId: string }> {
-  const response = await fetch("/api/sync/approve/calendar", { method: "POST" });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  return data.data;
+/**
+ * Approve Calendar sync
+ */
+export async function approveCalendarSync(): Promise<ApprovalResponse> {
+  return fetchPost<ApprovalResponse>(
+    "/api/sync/approve/calendar",
+    {},
+    {
+      errorToastTitle: "Calendar sync approval failed",
+    },
+  );
 }
 
-export async function runJobs(): Promise<{ processed: number }> {
-  const response = await fetch("/api/jobs/runner", { method: "POST" });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  return data.data;
+/**
+ * Run background jobs
+ */
+export async function runJobs(): Promise<JobsRunResponse> {
+  return fetchPost<JobsRunResponse>(
+    "/api/jobs/runner",
+    {},
+    {
+      errorToastTitle: "Job execution failed",
+    },
+  );
 }
 
-export async function undoSync(batchId: string): Promise<void> {
-  const response = await fetch("/api/sync/undo", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ batchId }),
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
+/**
+ * Undo sync by batch ID
+ */
+export async function undoSync(batchId: string): Promise<UndoResponse> {
+  return fetchPost<UndoResponse>(
+    "/api/sync/undo",
+    { batchId },
+    {
+      errorToastTitle: "Undo failed",
+    },
+  );
 }

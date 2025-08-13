@@ -34,7 +34,9 @@ export default async function RootLayout({
         {nonce ? <meta property="csp-nonce" content={nonce} /> : null}
         {nonce ? (
           <script
+            id="csp-nonce-bootstrap"
             nonce={nonce}
+            suppressHydrationWarning
             dangerouslySetInnerHTML={{
               __html:
                 "(function(){var m=document.querySelector(\"meta[property=\\\"csp-nonce\\\"]\");if(!m)return;var v=m.getAttribute('content');if(!v)return;window.__webpack_nonce__=v;var _ce=document.createElement;document.createElement=function(t){var el=_ce.call(document,t);if(t==='style'){try{el.setAttribute('nonce',v);}catch(_){}}return el;};})();",

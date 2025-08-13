@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 type PreviewGmail = { countByLabel: Record<string, number>; sampleSubjects: string[] };
 type PreviewCalendar = { count: number; sampleTitles: string[] };
@@ -110,14 +112,15 @@ export default function SyncSettingsPage() {
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Sync Settings</h1>
       <div className="text-sm text-neutral-600">
-        <button
-          className="px-2 py-1 rounded border"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={async () =>
             setStatus((await (await fetch(`/api/settings/sync/status`)).json()) as SyncStatus)
           }
         >
           Refresh Status
-        </button>
+        </Button>
         {status && (
           <div className="mt-2 grid gap-1">
             <div>Google connected: {String(status.googleConnected)}</div>
@@ -139,12 +142,12 @@ export default function SyncSettingsPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-medium">Connect Accounts</h2>
         <div className="flex gap-3">
-          <a className="px-3 py-2 rounded border" href={`/api/google/oauth?scope=gmail`}>
-            Connect Gmail (read-only)
-          </a>
-          <a className="px-3 py-2 rounded border" href={`/api/google/oauth?scope=calendar`}>
-            Connect Calendar (read-only)
-          </a>
+          <Button asChild>
+            <a href={`/api/google/oauth?scope=gmail`}>Connect Gmail (read-only)</a>
+          </Button>
+          <Button asChild variant="outline">
+            <a href={`/api/google/oauth?scope=calendar`}>Connect Calendar (read-only)</a>
+          </Button>
         </div>
         <p className="text-sm text-neutral-500">Incremental consent; only the scope you pick.</p>
       </section>
@@ -152,17 +155,19 @@ export default function SyncSettingsPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-medium">Preferences</h2>
         <div className="flex gap-2 items-end">
-          <button
-            className="px-2 py-1 rounded border"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={async () =>
               setStatus((await (await fetch(`/api/settings/sync/status`)).json()) as SyncStatus)
             }
           >
             Refresh Status
-          </button>
+          </Button>
           {status?.lastBatchId && (
-            <button
-              className="px-2 py-1 rounded border"
+            <Button
+              variant="outline"
+              size="sm"
               onClick={async () => {
                 const res = await fetch(`/api/sync/undo`, {
                   method: "POST",
@@ -170,21 +175,18 @@ export default function SyncSettingsPage() {
                   body: JSON.stringify({ batchId: status.lastBatchId }),
                 });
                 const j = (await res.json()) as APIResponse;
-                alert(`Undo: ${j.ok ? "ok" : j.error}`);
+                if (j.ok) toast.success("Undo completed");
+                else toast.error("Undo failed", { description: j.error ?? "unknown_error" });
               }}
             >
               Undo Last Import
-            </button>
+            </Button>
           )}
         </div>
         <div className="grid gap-2 border rounded p-3 text-sm">
           <div className="flex items-center gap-2">
-            <button className="px-2 py-1 rounded border" onClick={loadPrefs}>
-              Load Prefs
-            </button>
-            <button className="px-2 py-1 rounded border" onClick={savePrefs}>
-              Save Prefs
-            </button>
+            <Button variant="outline" size="sm" onClick={loadPrefs}>Load Prefs</Button>
+            <Button variant="outline" size="sm" onClick={savePrefs}>Save Prefs</Button>
           </div>
           {prefs && (
             <>
@@ -335,9 +337,9 @@ export default function SyncSettingsPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Preview Imports</h2>
         <div className="flex gap-3">
-          <button
+          <Button
             disabled={busy}
-            className="px-3 py-2 rounded border"
+            variant="outline"
             onClick={async () => {
               const result = (await callJSON(
                 `${base}/api/sync/preview/gmail`,
@@ -346,15 +348,15 @@ export default function SyncSettingsPage() {
               if (result.ok && d?.countByLabel && d?.sampleSubjects) {
                 setGmail({ countByLabel: d.countByLabel, sampleSubjects: d.sampleSubjects });
               } else if (!result.ok) {
-                alert(`Preview failed: ${result.error ?? "unknown_error"}`);
+                toast.error("Preview failed", { description: result.error ?? "unknown_error" });
               }
             }}
           >
             Preview Gmail
-          </button>
-          <button
+          </Button>
+          <Button
             disabled={busy}
-            className="px-3 py-2 rounded border"
+            variant="outline"
             onClick={async () => {
               const result = (await callJSON(
                 `${base}/api/sync/preview/calendar`,
@@ -363,12 +365,12 @@ export default function SyncSettingsPage() {
               if (result.ok && d && d.count !== undefined && d.sampleTitles) {
                 setCalendar({ count: d.count, sampleTitles: d.sampleTitles });
               } else if (!result.ok) {
-                alert(`Preview failed: ${result.error ?? "unknown_error"}`);
+                toast.error("Preview failed", { description: result.error ?? "unknown_error" });
               }
             }}
           >
             Preview Calendar
-          </button>
+          </Button>
         </div>
 
         {gmail && (
@@ -406,9 +408,9 @@ export default function SyncSettingsPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Approve & Run</h2>
         <div className="flex gap-3">
-          <button
+          <Button
             disabled={busy}
-            className="px-3 py-2 rounded border"
+            variant="outline"
             onClick={async () => {
               const j = (await callJSON(`${base}/api/sync/approve/gmail`)) as {
                 ok?: boolean;
@@ -416,14 +418,14 @@ export default function SyncSettingsPage() {
                 error?: string;
               };
               if (j.ok) setBatchId(j.data?.batchId ?? null);
-              else alert(`Approve failed: ${j.error ?? "unknown_error"}`);
+              else toast.error("Approve failed", { description: j.error ?? "unknown_error" });
             }}
           >
             Approve Gmail Import
-          </button>
-          <button
+          </Button>
+          <Button
             disabled={busy}
-            className="px-3 py-2 rounded border"
+            variant="outline"
             onClick={async () => {
               const j = (await callJSON(`${base}/api/sync/approve/calendar`)) as {
                 ok?: boolean;
@@ -431,26 +433,26 @@ export default function SyncSettingsPage() {
                 error?: string;
               };
               if (j.ok) setBatchId(j.data?.batchId ?? null);
-              else alert(`Approve failed: ${j.error ?? "unknown_error"}`);
+              else toast.error("Approve failed", { description: j.error ?? "unknown_error" });
             }}
           >
             Approve Calendar Import
-          </button>
-          <button
+          </Button>
+          <Button
             disabled={busy}
-            className="px-3 py-2 rounded border"
+            variant="outline"
             onClick={async () => {
               const j = (await callJSON(`${base}/api/jobs/runner`, {})) as {
                 ok?: boolean;
                 data?: { processed?: number };
                 error?: string;
               };
-              if (j.ok) alert(`Processed: ${j.data?.processed ?? 0}`);
-              else alert(`Run jobs failed: ${j.error ?? "unknown_error"}`);
+              if (j.ok) toast.success("Jobs processed", { description: String(j.data?.processed ?? 0) });
+              else toast.error("Run jobs failed", { description: j.error ?? "unknown_error" });
             }}
           >
             Run Jobs
-          </button>
+          </Button>
         </div>
         {batchId && <div className="text-sm text-neutral-600">Last batchId: {batchId}</div>}
       </section>

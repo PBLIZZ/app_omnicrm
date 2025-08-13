@@ -65,7 +65,7 @@ async function getHmacKey(): Promise<CryptoKey> {
   cachedKeyPromise = (async () => {
     let keyBytes = getMasterKeyBytes();
     if (keyBytes.length < 32) {
-      const digest = await crypto.subtle.digest("SHA-256", keyBytes.buffer as ArrayBuffer);
+      const digest = await crypto.subtle.digest("SHA-256", keyBytes as unknown as ArrayBuffer);
       keyBytes = new Uint8Array(digest);
     }
     // Pass a TypedArray (Uint8Array) and cast to BufferSource to satisfy TS libs
@@ -88,7 +88,7 @@ export function randomNonce(length = 16): string {
 
 export async function hmacSign(data: string): Promise<string> {
   const key = await getHmacKey();
-  const sig = await crypto.subtle.sign("HMAC", key, toBytesUtf8(data).buffer as ArrayBuffer);
+  const sig = await crypto.subtle.sign("HMAC", key, toBytesUtf8(data) as unknown as ArrayBuffer);
   return base64urlEncodeBytes(new Uint8Array(sig));
 }
 

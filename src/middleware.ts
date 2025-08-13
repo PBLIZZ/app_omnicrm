@@ -24,7 +24,7 @@ function allowRequest(key: string): boolean {
   return false;
 }
 
-export async function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest): Promise<NextResponse> {
   // Generate a per-request nonce and forward it to the app via request headers
   const forwardHeaders = new Headers(req.headers);
   const cspNonce = randomNonce(18);

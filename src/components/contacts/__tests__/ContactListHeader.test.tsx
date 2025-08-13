@@ -75,7 +75,7 @@ describe("ContactListHeader (Simplified)", () => {
   it("does not show bulk actions when no items selected", () => {
     render(<MockContactListHeader {...defaultProps} selectedCount={0} />);
 
-    expect(screen.queryByText("0 selected")).not.toBeDefined();
+    expect(screen.queryByText("0 selected")).toBeNull();
   });
 
   it("shows bulk actions when items are selected", () => {

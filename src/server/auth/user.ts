@@ -4,6 +4,11 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
 export async function getServerUserId(): Promise<string> {
+  // E2E/dev: allow fixed user via env without requiring prior cookie roundtrip
+  if (process.env["NODE_ENV"] !== "production") {
+    const eid = process.env["E2E_USER_ID"];
+    if (eid && eid.length > 0) return eid;
+  }
   // E2E/browser flows: allow a fixed user via cookie when not in production
   try {
     const cookieStore = await cookies();

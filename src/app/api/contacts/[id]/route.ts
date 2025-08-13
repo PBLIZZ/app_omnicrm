@@ -6,8 +6,8 @@ import { getDb } from "@/server/db/client";
 import { contacts } from "@/server/db/schema";
 import { err, ok, safeJson } from "@/server/http/responses";
 
-export async function GET(_req: Request, ctx: unknown) {
-  const { params } = ctx as { params: { id: string } };
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -15,8 +15,6 @@ export async function GET(_req: Request, ctx: unknown) {
     const error = e as { message?: string; status?: number };
     return err(error?.status ?? 401, error?.message ?? "unauthorized");
   }
-
-  const id = params.id;
   if (!id) return err(400, "invalid_id");
 
   const dbo = await getDb();
@@ -55,8 +53,8 @@ const putSchema = z
   })
   .strict();
 
-export async function PUT(req: Request, ctx: unknown) {
-  const { params } = ctx as { params: { id: string } };
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -64,8 +62,6 @@ export async function PUT(req: Request, ctx: unknown) {
     const error = e as { message?: string; status?: number };
     return err(error?.status ?? 401, error?.message ?? "unauthorized");
   }
-
-  const id = params.id;
   if (!id) return err(400, "invalid_id");
 
   const body = (await safeJson<unknown>(req)) ?? {};
@@ -116,8 +112,8 @@ export async function PUT(req: Request, ctx: unknown) {
   });
 }
 
-export async function DELETE(_req: Request, ctx: unknown) {
-  const { params } = ctx as { params: { id: string } };
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -125,7 +121,6 @@ export async function DELETE(_req: Request, ctx: unknown) {
     const error = e as { message?: string; status?: number };
     return err(error?.status ?? 401, error?.message ?? "unauthorized");
   }
-  const id = params.id;
   if (!id) return err(400, "invalid_id");
 
   const dbo = await getDb();

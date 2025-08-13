@@ -56,14 +56,32 @@ export function ContactEditDialog({ open, onOpenChange, contact, onContactUpdate
   );
 
   const hasChanges = useMemo(() => {
-    const baseline = JSON.stringify({
-      ...contact,
-      tags: contact.tags || [],
-      notes: contact.notes || "",
-    });
-    const current = JSON.stringify({ ...form, tags: parsedTags, notes: form.notes || "" });
-    return baseline !== current;
-  }, [contact, form, parsedTags]);
+    // Efficient shallow comparison instead of expensive JSON.stringify
+    if (form.displayName !== contact.displayName) return true;
+    if (form.primaryEmail !== contact.primaryEmail) return true;
+    if (form.primaryPhone !== contact.primaryPhone) return true;
+    if ((form.notes || "") !== (contact.notes || "")) return true;
+
+    // Compare tags arrays
+    const contactTags = contact.tags || [];
+    if (parsedTags.length !== contactTags.length) return true;
+    for (let i = 0; i < parsedTags.length; i++) {
+      if (parsedTags[i] !== contactTags[i]) return true;
+    }
+
+    return false;
+  }, [
+    contact.displayName,
+    contact.primaryEmail,
+    contact.primaryPhone,
+    contact.notes,
+    contact.tags,
+    form.displayName,
+    form.primaryEmail,
+    form.primaryPhone,
+    form.notes,
+    parsedTags,
+  ]);
 
   function validate(input: EditableContact): Record<string, string> {
     const next: Record<string, string> = {};
@@ -122,10 +140,16 @@ export function ContactEditDialog({ open, onOpenChange, contact, onContactUpdate
 
   return (
     <Dialog open={open} onOpenChange={handleDismiss}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"
+        aria-labelledby="edit-contact-title"
+        aria-describedby="edit-contact-description"
+      >
         <DialogHeader>
-          <DialogTitle>Edit Contact</DialogTitle>
-          <DialogDescription>Update contact information and preferences.</DialogDescription>
+          <DialogTitle id="edit-contact-title">Edit Contact</DialogTitle>
+          <DialogDescription id="edit-contact-description">
+            Update contact information and preferences.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">

@@ -1,0 +1,294 @@
+{
+  "sprint": {
+    "title": "Critical Security & Infrastructure Sprint - August 2025",
+    "start_date": "2025-08-13",
+    "end_date": "2025-08-27",
+    "duration_weeks": 2,
+    "priority_level": "CRITICAL",
+    "audit_baseline": "2025-08-13 comprehensive audit findings"
+  },
+  "critical_blockers": [
+    {
+      "id": "SECURITY-001",
+      "title": "Secure OpenRouter AI Proxy Endpoint",
+      "priority": "P0-CRITICAL",
+      "severity": "CRITICAL",
+      "labels": ["security", "ai", "vulnerability"],
+      "persona": "backend-security-developer",
+      "estimated_hours": 6,
+      "description": "CRITICAL: OpenRouter proxy endpoint provides unauthenticated access to AI models, creating financial and security risk",
+      "acceptance_criteria": [
+        "Add user authentication requirement to /api/openrouter",
+        "Implement comprehensive input validation with Zod schemas",
+        "Apply AI guardrails to prevent quota bypass and cost exploitation",
+        "Add rate limiting specific to external AI model access",
+        "Test with actual AI model requests to ensure security"
+      ],
+      "risk_level": "HIGH",
+      "business_impact": "CRITICAL - Financial exploitation, unauthorized AI access",
+      "technical_debt": false,
+      "dependencies": []
+    },
+    {
+      "id": "SECURITY-002",
+      "title": "Implement Database Error Sanitization",
+      "priority": "P0-CRITICAL",
+      "severity": "CRITICAL",
+      "labels": ["security", "backend", "database"],
+      "persona": "backend-security-developer",
+      "estimated_hours": 4,
+      "description": "CRITICAL: Contact APIs expose database errors and constraints, revealing internal architecture",
+      "acceptance_criteria": [
+        "Add database error handling wrapper for all contact endpoints",
+        "Map internal database errors to safe, generic client messages",
+        "Implement structured error logging for debugging while protecting production",
+        "Test error handling with various database constraint violations",
+        "Ensure no sensitive database schema information is exposed"
+      ],
+      "risk_level": "HIGH",
+      "business_impact": "HIGH - Information disclosure, attack surface enumeration",
+      "technical_debt": false,
+      "dependencies": []
+    },
+    {
+      "id": "BUILD-001",
+      "title": "Fix TypeScript Compilation Build Failure",
+      "priority": "P0-CRITICAL",
+      "severity": "CRITICAL",
+      "labels": ["build", "typescript", "deployment"],
+      "persona": "frontend-developer",
+      "estimated_hours": 2,
+      "description": "CRITICAL: TypeScript compilation error in crypto-edge.ts preventing deployments",
+      "acceptance_criteria": [
+        "Resolve BufferSource type casting issue in crypto-edge.ts",
+        "Test build pipeline thoroughly in development and CI",
+        "Ensure production deployment capability is restored",
+        "Verify no regression in cryptographic functionality",
+        "Update type definitions if necessary"
+      ],
+      "risk_level": "MEDIUM",
+      "business_impact": "CRITICAL - Blocks all production deployments",
+      "technical_debt": false,
+      "dependencies": []
+    }
+  ],
+  "high_priority_tasks": [
+    {
+      "id": "PERF-001",
+      "title": "Implement Database Connection Pooling",
+      "priority": "P1-HIGH",
+      "severity": "HIGH",
+      "labels": ["performance", "database", "scalability"],
+      "persona": "backend-performance-developer",
+      "estimated_hours": 6,
+      "description": "HIGH: Single database connection limiting concurrent users to ~50-100, implement connection pooling",
+      "acceptance_criteria": [
+        "Replace single connection with pg.Pool (10-15 connections per instance)",
+        "Support 500-1000 concurrent users vs current 50-100 limit",
+        "Add connection monitoring and health checks",
+        "Test under load with multiple concurrent requests",
+        "Implement graceful connection handling and cleanup"
+      ],
+      "risk_level": "MEDIUM",
+      "business_impact": "HIGH - 10x improvement in concurrent user capacity",
+      "technical_debt": false,
+      "dependencies": []
+    },
+    {
+      "id": "SECURITY-003",
+      "title": "Fix AI Rate Limiting Race Conditions",
+      "priority": "P1-HIGH",
+      "severity": "HIGH",
+      "labels": ["security", "ai", "performance"],
+      "persona": "backend-security-developer",
+      "estimated_hours": 6,
+      "description": "HIGH: AI guardrails implement database-based rate limiting vulnerable to race conditions during concurrent requests",
+      "acceptance_criteria": [
+        "Implement atomic rate limiting with Redis or database locks",
+        "Add proper concurrency handling for quota checks across all AI endpoints",
+        "Test race condition scenarios with concurrent request simulation",
+        "Ensure rate limits cannot be bypassed through concurrent exploitation",
+        "Monitor and alert on rate limiting effectiveness"
+      ],
+      "risk_level": "MEDIUM",
+      "business_impact": "HIGH - Prevents quota bypass and cost exploitation",
+      "technical_debt": false,
+      "dependencies": []
+    },
+    {
+      "id": "SECURITY-004",
+      "title": "Add PostgreSQL LIKE Pattern Escaping",
+      "priority": "P1-HIGH",
+      "severity": "HIGH",
+      "labels": ["security", "backend", "database"],
+      "persona": "backend-security-developer",
+      "estimated_hours": 4,
+      "description": "HIGH: Contact search functionality uses unescaped LIKE patterns, vulnerable to injection and performance attacks",
+      "acceptance_criteria": [
+        "Escape special PostgreSQL LIKE characters (%, _, \\) in search queries",
+        "Add performance protection against search query exhaustion attacks",
+        "Validate and sanitize search input with proper regex patterns",
+        "Test with malicious search patterns to ensure protection",
+        "Implement search query monitoring and alerting"
+      ],
+      "risk_level": "MEDIUM",
+      "business_impact": "MEDIUM - Query injection risk, performance exhaustion",
+      "technical_debt": false,
+      "dependencies": []
+    },
+    {
+      "id": "SECURITY-005",
+      "title": "Complete Gmail Query Validation",
+      "priority": "P1-HIGH",
+      "severity": "HIGH",
+      "labels": ["security", "google-integration", "backend"],
+      "persona": "backend-security-developer",
+      "estimated_hours": 4,
+      "description": "HIGH: Gmail query injection vulnerability persists from previous audit - user-supplied query strings passed directly to Google's Gmail API",
+      "acceptance_criteria": [
+        "Implement comprehensive query string validation for Gmail API calls",
+        "Add allowlist for safe Gmail query operators",
+        "Prevent injection through malicious query construction",
+        "Test with various malicious query patterns",
+        "Add query validation monitoring and logging"
+      ],
+      "risk_level": "MEDIUM",
+      "business_impact": "MEDIUM - Unauthorized data access, API quota abuse",
+      "technical_debt": true,
+      "dependencies": []
+    },
+    {
+      "id": "TEST-001",
+      "title": "Fix E2E Test Reliability Issues",
+      "priority": "P1-HIGH",
+      "severity": "HIGH",
+      "labels": ["testing", "quality", "ci-cd"],
+      "persona": "qa-developer",
+      "estimated_hours": 8,
+      "description": "HIGH: 8/42 E2E tests failing (19% failure rate) due to timeout and CSRF issues affecting deployment confidence",
+      "acceptance_criteria": [
+        "Resolve timeout issues affecting multiple test suites",
+        "Fix CSRF token handling problems in chat tests",
+        "Improve database state isolation between tests",
+        "Implement better wait strategies and retry logic",
+        "Achieve >90% E2E test pass rate consistently"
+      ],
+      "risk_level": "LOW",
+      "business_impact": "MEDIUM - Deployment confidence, development velocity",
+      "technical_debt": false,
+      "dependencies": []
+    },
+    {
+      "id": "TEST-002",
+      "title": "Add Comprehensive Health Endpoint Testing",
+      "priority": "P1-HIGH",
+      "severity": "HIGH",
+      "labels": ["testing", "monitoring", "backend"],
+      "persona": "qa-developer",
+      "estimated_hours": 3,
+      "description": "HIGH: Critical monitoring endpoint (/api/health) completely untested, missing production readiness verification",
+      "acceptance_criteria": [
+        "Test critical monitoring endpoint (/api/health)",
+        "Validate database connectivity checks",
+        "Ensure production readiness verification",
+        "Test error handling for database failures",
+        "Add health endpoint monitoring to CI/CD pipeline"
+      ],
+      "risk_level": "LOW",
+      "business_impact": "MEDIUM - Production monitoring reliability",
+      "technical_debt": false,
+      "dependencies": []
+    }
+  ],
+  "moderate_priority_tasks": [
+    {
+      "id": "PERF-002",
+      "title": "Implement User Preferences Caching",
+      "priority": "P2-MODERATE",
+      "severity": "MODERATE",
+      "labels": ["performance", "caching", "backend"],
+      "persona": "backend-performance-developer",
+      "estimated_hours": 4,
+      "description": "MODERATE: Database query for user preferences on every job causing unnecessary load, implement caching for 80% reduction",
+      "acceptance_criteria": [
+        "Implement in-memory cache for user sync preferences with TTL",
+        "Reduce user preferences database queries by 80%",
+        "Add cache invalidation strategy for preference updates",
+        "Monitor cache hit rates and effectiveness",
+        "Test cache behavior under various load conditions"
+      ],
+      "risk_level": "LOW",
+      "business_impact": "MEDIUM - Improved performance, reduced database load",
+      "technical_debt": false,
+      "dependencies": []
+    },
+    {
+      "id": "PERF-003",
+      "title": "Implement Batch Database Operations",
+      "priority": "P2-MODERATE",
+      "severity": "MODERATE",
+      "labels": ["performance", "database", "backend"],
+      "persona": "backend-performance-developer",
+      "estimated_hours": 6,
+      "description": "MODERATE: Individual database insertions during sync operations causing high transaction overhead, implement batching",
+      "acceptance_criteria": [
+        "Replace individual insertions with batch operations for sync processing",
+        "Implement proper error handling for batch operations",
+        "Reduce database round-trips by 70% for large syncs",
+        "Test batch processing with large datasets",
+        "Monitor batch operation performance and errors"
+      ],
+      "risk_level": "LOW",
+      "business_impact": "MEDIUM - Significantly improved sync performance",
+      "technical_debt": false,
+      "dependencies": []
+    },
+    {
+      "id": "TEST-003",
+      "title": "Expand Component Testing Coverage",
+      "priority": "P2-MODERATE",
+      "severity": "MODERATE",
+      "labels": ["testing", "frontend", "quality"],
+      "persona": "frontend-developer",
+      "estimated_hours": 16,
+      "description": "MODERATE: Component testing coverage at 13% (5/39 components tested), expand to 80% focusing on critical components",
+      "acceptance_criteria": [
+        "Test 34/39 remaining untested components, prioritizing critical ones",
+        "Focus on AuthHeader, ContactEditDialog, NewContactDialog first",
+        "Add comprehensive accessibility testing coverage",
+        "Achieve 80% component testing coverage",
+        "Implement component testing best practices and patterns"
+      ],
+      "risk_level": "LOW",
+      "business_impact": "LOW - Improved code quality, reduced regression risk",
+      "technical_debt": false,
+      "dependencies": []
+    }
+  ],
+  "sprint_summary": {
+    "total_tasks": 10,
+    "critical_tasks": 3,
+    "high_priority_tasks": 5,
+    "moderate_priority_tasks": 2,
+    "estimated_total_hours": 63,
+    "primary_focus_areas": ["security", "performance", "testing"],
+    "key_personas": [
+      "backend-security-developer",
+      "backend-performance-developer",
+      "qa-developer",
+      "frontend-developer"
+    ],
+    "success_criteria": [
+      "All critical security vulnerabilities resolved",
+      "Build system reliability restored (100% deployment success)",
+      "Database performance improved 10x (support 500+ concurrent users)",
+      "E2E test reliability >90%",
+      "No production security incidents"
+    ],
+    "risk_assessment": {
+      "overall_risk": "MEDIUM",
+      "highest_risk_areas": ["OpenRouter security", "database connection pooling"],
+      "mitigation_strategies": ["Thorough testing", "Gradual rollout", "Monitoring and alerting"]
+    }
+  }
+}

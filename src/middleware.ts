@@ -77,8 +77,8 @@ export async function middleware(req: NextRequest) {
       directives.push("style-src 'self'");
       directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
     } else {
+      // In development do not require nonce on <style> elements to avoid HMR/React dev tool conflicts
       directives.push("style-src 'self' 'unsafe-inline'");
-      directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
     }
 
     // Images and fonts

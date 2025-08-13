@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   if (env.NODE_ENV === "production") {
-    return err("not_found", "Not found", 404);
+    return err(404, "not_found");
   }
   const url = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "<undefined>";
   const key = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"] ?? "<undefined>";

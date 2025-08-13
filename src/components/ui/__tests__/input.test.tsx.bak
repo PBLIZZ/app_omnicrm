@@ -1,0 +1,317 @@
+import React from "react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Input } from "../input";
+
+describe("Input", () => {
+  describe("rendering", () => {
+    it("renders input with default props", () => {
+      render(<Input />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toBeInTheDocument();
+      expect(input).toHaveClass("flex", "h-10", "w-full");
+    });
+
+    it("renders with placeholder", () => {
+      render(<Input placeholder="Enter text..." />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("placeholder", "Enter text...");
+    });
+
+    it("renders with value", () => {
+      render(<Input value="test value" readOnly />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveValue("test value");
+    });
+
+    it("applies custom className", () => {
+      render(<Input className="custom-class" />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveClass("custom-class");
+    });
+
+    it("forwards ref correctly", () => {
+      const ref = vi.fn();
+      render(<Input ref={ref} />);
+      
+      expect(ref).toHaveBeenCalled();
+    });
+  });
+
+  describe("input types", () => {
+    it("renders text input by default", () => {
+      render(<Input />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("type", "text");
+    });
+
+    it("renders email input", () => {
+      render(<Input type="email" />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("type", "email");
+    });
+
+    it("renders password input", () => {
+      render(<Input type="password" />);
+      
+      const input = document.querySelector('input[type="password"]');
+      expect(input).toBeInTheDocument();
+    });
+
+    it("renders number input", () => {
+      render(<Input type="number" />);
+      
+      const input = screen.getByRole("spinbutton");
+      expect(input).toHaveAttribute("type", "number");
+    });
+
+    it("renders search input", () => {
+      render(<Input type="search" />);
+      
+      const input = screen.getByRole("searchbox");
+      expect(input).toHaveAttribute("type", "search");
+    });
+  });
+
+  describe("states", () => {
+    it("handles disabled state", () => {
+      render(<Input disabled />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toBeDisabled();
+      expect(input).toHaveClass("disabled:cursor-not-allowed");
+    });
+
+    it("handles readonly state", () => {
+      render(<Input readOnly value="readonly value" />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("readonly");
+      expect(input).toHaveValue("readonly value");
+    });
+
+    it("handles required state", () => {
+      render(<Input required />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("required");
+    });
+  });
+
+  describe("user interaction", () => {
+    it("calls onChange when typing", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      
+      render(<Input onChange={onChange} />);
+      
+      const input = screen.getByRole("textbox");
+      await user.type(input, "hello");
+      
+      expect(onChange).toHaveBeenCalledTimes(5); // Once for each character
+      expect(input).toHaveValue("hello");
+    });
+
+    it("calls onFocus and onBlur", async () => {
+      const user = userEvent.setup();
+      const onFocus = vi.fn();
+      const onBlur = vi.fn();
+      
+      render(<Input onFocus={onFocus} onBlur={onBlur} />);
+      
+      const input = screen.getByRole("textbox");
+      
+      await user.click(input);
+      expect(onFocus).toHaveBeenCalledTimes(1);
+      
+      await user.tab();
+      expect(onBlur).toHaveBeenCalledTimes(1);
+    });
+
+    it("calls onKeyDown", async () => {
+      const user = userEvent.setup();
+      const onKeyDown = vi.fn();
+      
+      render(<Input onKeyDown={onKeyDown} />);
+      
+      const input = screen.getByRole("textbox");
+      input.focus();
+      
+      await user.keyboard("{Enter}");
+      expect(onKeyDown).toHaveBeenCalledWith(
+        expect.objectContaining({ key: "Enter" })
+      );
+    });
+
+    it("does not call onChange when disabled", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      
+      render(<Input onChange={onChange} disabled />);
+      
+      const input = screen.getByRole("textbox");
+      await user.click(input);
+      await user.keyboard("test");
+      
+      expect(onChange).not.toHaveBeenCalled();
+      expect(input).toHaveValue("");
+    });
+  });
+
+  describe("accessibility", () => {
+    it("supports aria-label", () => {
+      render(<Input aria-label="Custom input label" />);
+      
+      const input = screen.getByLabelText("Custom input label");
+      expect(input).toBeInTheDocument();
+    });
+
+    it("supports aria-describedby", () => {
+      render(
+        <>
+          <Input aria-describedby="input-description" />
+          <div id="input-description">Input description</div>
+        </>
+      );
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("aria-describedby", "input-description");
+    });
+
+    it("supports aria-invalid", () => {
+      render(<Input aria-invalid />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("aria-invalid", "true");
+    });
+
+    it("is keyboard accessible", async () => {
+      const user = userEvent.setup();
+      
+      render(<Input />);
+      
+      const input = screen.getByRole("textbox");
+      
+      // Tab to focus
+      await user.tab();
+      expect(input).toHaveFocus();
+      
+      // Type text
+      await user.keyboard("test");
+      expect(input).toHaveValue("test");
+      
+      // Tab away
+      await user.tab();
+      expect(input).not.toHaveFocus();
+    });
+  });
+
+  describe("HTML attributes", () => {
+    it("forwards all HTML input attributes", () => {
+      render(
+        <Input
+          name="test-input"
+          id="test-input"
+          autoComplete="email"
+          maxLength={100}
+          minLength={5}
+          pattern="[a-z]+"
+          data-testid="test-input"
+        />
+      );
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("name", "test-input");
+      expect(input).toHaveAttribute("id", "test-input");
+      expect(input).toHaveAttribute("autocomplete", "email");
+      expect(input).toHaveAttribute("maxlength", "100");
+      expect(input).toHaveAttribute("minlength", "5");
+      expect(input).toHaveAttribute("pattern", "[a-z]+");
+      expect(input).toHaveAttribute("data-testid", "test-input");
+    });
+
+    it("supports form attributes", () => {
+      render(<Input form="test-form" />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveAttribute("form", "test-form");
+    });
+  });
+
+  describe("styling", () => {
+    it("applies focus styles", async () => {
+      const user = userEvent.setup();
+      
+      render(<Input />);
+      
+      const input = screen.getByRole("textbox");
+      await user.click(input);
+      
+      expect(input).toHaveClass("focus-visible:ring-2");
+    });
+
+    it("applies border and background styles", () => {
+      render(<Input />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveClass("border-input", "bg-background");
+    });
+
+    it("applies disabled opacity styles", () => {
+      render(<Input disabled />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveClass("disabled:opacity-50");
+    });
+  });
+
+  describe("controlled vs uncontrolled", () => {
+    it("works as controlled component", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      
+      const ControlledInput = () => {
+        const [value, setValue] = React.useState("");
+        return (
+          <Input
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              onChange(e);
+            }}
+          />
+        );
+      };
+      
+      render(<ControlledInput />);
+      
+      const input = screen.getByRole("textbox");
+      await user.type(input, "controlled");
+      
+      expect(input).toHaveValue("controlled");
+      expect(onChange).toHaveBeenCalled();
+    });
+
+    it("works as uncontrolled component", async () => {
+      const user = userEvent.setup();
+      
+      render(<Input defaultValue="initial" />);
+      
+      const input = screen.getByRole("textbox");
+      expect(input).toHaveValue("initial");
+      
+      await user.clear(input);
+      await user.type(input, "uncontrolled");
+      
+      expect(input).toHaveValue("uncontrolled");
+    });
+  });
+});
+

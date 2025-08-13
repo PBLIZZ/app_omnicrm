@@ -6,11 +6,11 @@
     - heading "Add New Contact" [level=2]
     - paragraph: Create a new contact. Only the name is required.
     - text: Full Name *
-    - textbox "Full Name *": Alice Johnson
+    - textbox "Full Name *": John Doe
     - text: Email
-    - textbox "Email": alice@company.com
+    - textbox "Email": john@example.com
     - text: Phone
-    - textbox "Phone"
+    - textbox "Phone": "+1234567890"
     - text: Tags
     - textbox "Tags"
     - paragraph: Separate tags with commas

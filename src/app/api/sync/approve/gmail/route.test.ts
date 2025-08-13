@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, type MockedFunction, type Mock } from "vitest";
 import { POST } from "./route";
 
 vi.mock("@/server/auth/user", () => ({ getServerUserId: vi.fn() }));
@@ -13,9 +13,9 @@ describe("gmail approve route", () => {
   it("returns 404 with error envelope when feature disabled", async () => {
     process.env.FEATURE_GOOGLE_GMAIL_RO = "0";
     const userMod = await import("../../../../../server/auth/user");
-    (
-      userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
-    ).mockResolvedValue("u1");
+    (userMod.getServerUserId as MockedFunction<typeof userMod.getServerUserId>).mockResolvedValue(
+      "u1",
+    );
     const res = await POST(new Request("https://example.com", { method: "POST", body: "{}" }));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ ok: false, error: "not_found", details: null });
@@ -26,11 +26,11 @@ describe("gmail approve route", () => {
     const auditMod = await import("../../../../../server/sync/audit");
     const enqueueMod = await import("../../../../../server/jobs/enqueue");
     const userMod = await import("../../../../../server/auth/user");
-    (
-      userMod.getServerUserId as vi.MockedFunction<typeof userMod.getServerUserId>
-    ).mockResolvedValue("u1");
-    (auditMod.logSync as vi.Mock).mockResolvedValue(undefined);
-    (enqueueMod.enqueue as vi.Mock).mockResolvedValue(undefined);
+    (userMod.getServerUserId as MockedFunction<typeof userMod.getServerUserId>).mockResolvedValue(
+      "u1",
+    );
+    (auditMod.logSync as Mock).mockResolvedValue(undefined);
+    (enqueueMod.enqueue as Mock).mockResolvedValue(undefined);
     const res = await POST(new Request("https://example.com", { method: "POST", body: "{}" }));
     expect(res.status).toBe(200);
     const json = await res.json();

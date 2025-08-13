@@ -21,7 +21,7 @@
     - button "More actions": More
     - link "Connect Google":
         - /url: /settings/sync
-    - heading "Filter Contacts" [level=3]
+    - heading "Filters" [level=3]
     - text: Recently active
     - switch
     - text: Has email
@@ -49,6 +49,9 @@
     - text: Strong relationship
     - switch
     - button "Clear Filters"
+    - text: 📇
+    - heading "No contacts yet" [level=3]
+    - paragraph: Import your existing contacts or connect Google to sync automatically.
 - region "Notifications alt+T"
-- alert
+- alert: Contacts
 ```

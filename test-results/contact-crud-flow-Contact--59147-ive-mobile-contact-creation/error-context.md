@@ -1,54 +1,22 @@
 # Page snapshot
 
 ```yaml
-- link "Skip to main content":
-    - /url: "#main-content"
-- text: OmniCRM
-- navigation:
-    - link "Dashboard":
-        - /url: /
-    - link "Contacts":
-        - /url: /contacts
-    - link "Settings":
-        - /url: /settings/sync
-- link "Sign in":
-    - /url: /login
-- main:
-    - heading "Contacts" [level=1]
-    - text: Search, filter and manage your contacts.
-    - textbox "Search contacts"
-    - button "Create new contact": New Contact
-    - button "More actions": More
-    - link "Connect Google":
-        - /url: /settings/sync
-    - heading "Filter Contacts" [level=3]
-    - text: Recently active
-    - switch
-    - text: Has email
-    - switch
-    - text: Has phone
-    - switch
-    - text: Needs follow-up
-    - switch
-    - heading "Source" [level=4]
-    - text: Gmail Import
-    - switch
-    - text: Manual
-    - switch
-    - text: Upload
-    - switch
-    - text: Calendar Sync
-    - switch
-    - heading "Last Contact" [level=4]
-    - combobox: Any time
-    - heading "AI Insights" [level=4]
-    - text: High priority
-    - switch
-    - text: At risk
-    - switch
-    - text: Strong relationship
-    - switch
-    - button "Clear Filters"
 - region "Notifications alt+T"
-- alert
+- dialog "Add New Contact":
+    - heading "Add New Contact" [level=2]
+    - paragraph: Create a new contact. Only the name is required.
+    - text: Full Name *
+    - textbox "Full Name *": Mobile Test User
+    - text: Email
+    - textbox "Email": mobile@test.com
+    - text: Phone
+    - textbox "Phone"
+    - text: Tags
+    - textbox "Tags"
+    - paragraph: Separate tags with commas
+    - text: Notes
+    - textbox "Notes"
+    - button "Cancel"
+    - button "Create Contact"
+    - button "Close"
 ```

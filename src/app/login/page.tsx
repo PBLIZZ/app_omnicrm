@@ -33,11 +33,7 @@ export default function LoginPage() {
       ) : (
         <div className="space-y-4">
           {/* Google OAuth Sign In */}
-          <Button
-            onClick={handleGoogleSignIn}
-            className="w-full bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-3"
-            variant="outline"
-          >
+          <Button onClick={handleGoogleSignIn} className="w-full" variant="outline">
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -68,7 +64,11 @@ export default function LoginPage() {
 
           {/* Email Magic Link Sign In */}
           <form onSubmit={handleSignIn} className="space-y-3">
+            <label htmlFor="email" className="text-sm font-medium">
+              Email address
+            </label>
             <input
+              id="email"
               type="email"
               placeholder="you@example.com"
               className="w-full border p-2 rounded"

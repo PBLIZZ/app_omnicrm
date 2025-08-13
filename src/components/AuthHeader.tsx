@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 export default function AuthHeader() {
@@ -16,7 +17,15 @@ export default function AuthHeader() {
 
   return (
     <div className="w-full border-b p-3 text-sm flex items-center justify-between">
-      <div>OmniCRM</div>
+      <div className="font-semibold">OmniCRM</div>
+      <nav className="hidden sm:flex items-center gap-4 text-muted-foreground">
+        <Link href="/" className="hover:underline">
+          Dashboard
+        </Link>
+        <Link href="/settings/sync" className="hover:underline">
+          Settings
+        </Link>
+      </nav>
       <div className="flex items-center gap-3">
         {email ? (
           <>
@@ -33,9 +42,9 @@ export default function AuthHeader() {
             </button>
           </>
         ) : (
-          <a className="px-2 py-1 border rounded" href="/login">
+          <Link className="px-2 py-1 border rounded" href="/login">
             Sign in
-          </a>
+          </Link>
         )}
       </div>
     </div>

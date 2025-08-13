@@ -30,6 +30,7 @@ export async function middleware(req: NextRequest) {
   const cspNonce = randomNonce(18);
   forwardHeaders.set("x-nonce", cspNonce);
   forwardHeaders.set("x-csp-nonce", cspNonce);
+  forwardHeaders.set("x-nextjs-nonce", cspNonce);
   const res = NextResponse.next({ request: { headers: forwardHeaders } });
   const requestId =
     (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
@@ -46,6 +47,7 @@ export async function middleware(req: NextRequest) {
   // Expose nonce on the response as well for debugging/clients if needed
   res.headers.set("x-nonce", cspNonce);
   res.headers.set("x-csp-nonce", cspNonce);
+  res.headers.set("x-nextjs-nonce", cspNonce);
 
   function buildCsp(prod: boolean, nonce: string): string {
     const directives: Array<string> = [];
@@ -57,19 +59,29 @@ export async function middleware(req: NextRequest) {
     directives.push("frame-ancestors 'none'");
 
     // Scripts:
-    // - In development, Next's HMR/react-refresh needs 'unsafe-eval'.
-    // - In production, omit 'unsafe-eval'. Keep inline + nonce to ensure boot until full nonce wiring.
+    // - Development: allow eval and inline for HMR/react-refresh.
+    // - Production: strict (no inline/eval); require nonce for inline and allow same-origin script elements.
     if (prod) {
-      directives.push(`script-src 'self' 'unsafe-inline' 'strict-dynamic' 'nonce-${nonce}'`);
+      directives.push(`script-src 'self' 'nonce-${nonce}'`);
+      directives.push("script-src-attr 'none'");
+      directives.push(`script-src-elem 'self' 'nonce-${nonce}'`);
     } else {
       directives.push(
         `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' 'nonce-${nonce}' blob:`,
       );
     }
 
-    // Styles: allow same-origin and inline; include nonce for future strict wiring of style tags.
-    directives.push("style-src 'self' 'unsafe-inline'");
-    directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
+    // Styles:
+    // - Production: strict — require nonce on style elements, disallow style attributes.
+    // - Development: allow inline for convenience.
+    if (prod) {
+      directives.push("style-src 'self'");
+      directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
+      directives.push("style-src-attr 'none'");
+    } else {
+      directives.push("style-src 'self' 'unsafe-inline'");
+      directives.push(`style-src-elem 'self' 'nonce-${nonce}'`);
+    }
 
     // Images and fonts
     directives.push("img-src 'self' data: blob: https:");

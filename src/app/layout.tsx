@@ -39,7 +39,7 @@ export default async function RootLayout({
             suppressHydrationWarning
             dangerouslySetInnerHTML={{
               __html:
-                "(function(){var m=document.querySelector(\"meta[property=\\\"csp-nonce\\\"]\");if(!m)return;var v=m.getAttribute('content');if(!v)return;window.__webpack_nonce__=v;var _ce=document.createElement;document.createElement=function(t){var el=_ce.call(document,t);if(t==='style'){try{el.setAttribute('nonce',v);}catch(_){}}return el;};})();",
+                "(function(){var m=document.querySelector(\"meta[property=\\\"csp-nonce\\\"]\");if(!m)return;var v=m.getAttribute('content');if(!v)return;window.__webpack_nonce__=v;try{document.querySelectorAll('style:not([nonce])').forEach(function(s){s.setAttribute('nonce',v);});}catch(_){}var _ce=document.createElement;document.createElement=function(t){var el=_ce.call(document,t);if(t==='style'){try{el.setAttribute('nonce',v);}catch(_){}}return el;};})();",
             }}
           />
         ) : null}

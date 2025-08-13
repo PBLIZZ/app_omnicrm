@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { cookies } from "next/headers";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (env.NODE_ENV === "production") {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
   try {
     // Debug: Show what cookies we have
     const cookieStore = await cookies();
@@ -36,7 +40,7 @@ export async function GET() {
     const message = error instanceof Error ? error.message : "Unknown error";
     const status = (error as { status?: number })?.status || 500;
 
-    // Debug: Show what cookies we have even on error
+    // Debug info only in non-production environments
     const cookieStore = await cookies();
     const allCookies = cookieStore.getAll();
     console.warn(

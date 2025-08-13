@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     // Bind Supabase cookie adapter to the redirect response so Set-Cookie is returned to the browser
-    const isProd = process.env.NODE_ENV === "production";
+    const isProd = env.NODE_ENV === "production";
     const supabase = createServerClient(
       env.NEXT_PUBLIC_SUPABASE_URL,
       env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -34,15 +34,17 @@ export async function GET(request: NextRequest) {
     );
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-
-    console.warn("[DEBUG] Auth callback result:", {
-      hasUser: !!data?.user,
-      userId: data?.user?.id,
-      error: error?.message,
-    });
+    if (env.NODE_ENV !== "production") {
+      console.warn("[DEBUG] Auth callback completed", {
+        hasUser: !!data?.user,
+        hasError: Boolean(error),
+      });
+    }
 
     if (error) {
-      console.error("OAuth callback error:", error);
+      if (env.NODE_ENV !== "production") {
+        console.error("OAuth callback error");
+      }
       return NextResponse.redirect(`${origin}/login?error=oauth_failed`);
     }
   }

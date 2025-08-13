@@ -55,21 +55,15 @@ export const env: Env = (() => {
   // Encryption key validation (fail-fast)
   validateEncryptionKey(parsed.APP_ENCRYPTION_KEY);
 
-  // Runtime guard: warn in production if feature flags are missing
-  if (parsed.NODE_ENV === "production") {
+  // Runtime guard: only warn outside production if feature flags are missing
+  if (parsed.NODE_ENV !== "production") {
     const gmail = process.env["FEATURE_GOOGLE_GMAIL_RO"];
     const cal = process.env["FEATURE_GOOGLE_CALENDAR_RO"];
     if (gmail == null || cal == null) {
-      console.warn(
-        JSON.stringify({
-          level: "warn",
-          message: "Missing FEATURE_GOOGLE_* flags in production",
-          missing: {
-            FEATURE_GOOGLE_GMAIL_RO: gmail == null,
-            FEATURE_GOOGLE_CALENDAR_RO: cal == null,
-          },
-        }),
-      );
+      console.warn("Missing FEATURE_GOOGLE_* flags", {
+        FEATURE_GOOGLE_GMAIL_RO: gmail == null,
+        FEATURE_GOOGLE_CALENDAR_RO: cal == null,
+      });
     }
   }
 

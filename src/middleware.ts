@@ -56,8 +56,16 @@ export async function middleware(req: NextRequest) {
     directives.push("object-src 'none'");
     directives.push("frame-ancestors 'none'");
 
-    // Scripts: allow same-origin, inline, and include our nonce for future strict wiring.
-    directives.push(`script-src 'self' 'unsafe-inline' 'strict-dynamic' 'nonce-${nonce}'`);
+    // Scripts:
+    // - In development, Next's HMR/react-refresh needs 'unsafe-eval'.
+    // - In production, omit 'unsafe-eval'. Keep inline + nonce to ensure boot until full nonce wiring.
+    if (prod) {
+      directives.push(`script-src 'self' 'unsafe-inline' 'strict-dynamic' 'nonce-${nonce}'`);
+    } else {
+      directives.push(
+        `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' 'nonce-${nonce}' blob:`,
+      );
+    }
 
     // Styles: allow same-origin and inline; include nonce for future strict wiring of style tags.
     directives.push("style-src 'self' 'unsafe-inline'");

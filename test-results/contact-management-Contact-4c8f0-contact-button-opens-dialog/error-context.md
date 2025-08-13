@@ -40,7 +40,7 @@
     - text: Calendar Sync
     - switch
     - heading "Last Contact" [level=4]
-    - combobox: Any time
+    - combobox
     - heading "AI Insights" [level=4]
     - text: High priority
     - switch
@@ -49,9 +49,5 @@
     - text: Strong relationship
     - switch
     - button "Clear Filters"
-    - text: 📇
-    - heading "No contacts yet" [level=3]
-    - paragraph: Import your existing contacts or connect Google to sync automatically.
 - region "Notifications alt+T"
-- alert: Contacts
 ```

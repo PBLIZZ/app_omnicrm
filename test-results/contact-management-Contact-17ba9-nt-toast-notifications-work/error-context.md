@@ -49,9 +49,131 @@
     - text: Strong relationship
     - switch
     - button "Clear Filters"
-    - text: 📇
-    - heading "No contacts yet" [level=3]
-    - paragraph: Import your existing contacts or connect Google to sync automatically.
+    - table:
+        - rowgroup:
+            - row "Select all contacts Sort by name descending Email Phone Sort by date added ascending Filter by date added":
+                - cell "Select all contacts":
+                    - checkbox "Select all contacts"
+                - cell "Sort by name descending":
+                    - button "Sort by name descending": Name ▲
+                - cell "Email"
+                - cell "Phone"
+                - cell "Sort by date added ascending Filter by date added":
+                    - button "Sort by date added ascending": Added
+                    - button "Filter by date added": Filter
+        - rowgroup:
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Demo Contact":
+                - cell "Select Demo Contact":
+                    - checkbox "Select Demo Contact"
+                - cell "Demo Contact"
+                - cell "demo@example.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact Mobile Test User":
+                - cell "Select Mobile Test User":
+                    - checkbox "Select Mobile Test User"
+                - cell "Mobile Test User"
+                - cell "mobile@test.com"
+                - cell "—"
+                - cell "13/08/2025"
 - region "Notifications alt+T"
-- alert: OmniCRM · Omnipotency.ai
+- alert
 ```

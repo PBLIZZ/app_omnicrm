@@ -115,11 +115,7 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
       setSuccess(true);
       onContactCreated?.(created);
       toast.success("Contact created", { description: `${created.displayName} has been added.` });
-
-      // Smooth close after showing success
-      setTimeout(() => {
-        onOpenChange(false);
-      }, 800);
+      onOpenChange(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error("Failed to create contact", { description: message });

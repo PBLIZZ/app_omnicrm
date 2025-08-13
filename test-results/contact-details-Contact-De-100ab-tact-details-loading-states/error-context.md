@@ -132,6 +132,20 @@
                 - cell "john@example.com"
                 - cell "+1234567890"
                 - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
 - region "Notifications alt+T":
     - list:
         - listitem:

@@ -33,8 +33,8 @@ export interface SyncStatus {
     calendar?: boolean;
   };
   lastSync?: {
-    gmail?: string;
-    calendar?: string;
+    gmail?: string | null;
+    calendar?: string | null;
   };
   jobs?: {
     queued: number;

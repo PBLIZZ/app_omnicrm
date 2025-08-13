@@ -1,22 +1,85 @@
 # Page snapshot
 
 ```yaml
-- region "Notifications alt+T"
-- dialog "Add New Contact":
-    - heading "Add New Contact" [level=2]
-    - paragraph: Create a new contact. Only the name is required.
-    - text: Full Name *
-    - textbox "Full Name *": John Doe
-    - text: Email
-    - textbox "Email": john@example.com
-    - text: Phone
-    - textbox "Phone": "+1234567890"
-    - text: Tags
-    - textbox "Tags"
-    - paragraph: Separate tags with commas
-    - text: Notes
-    - textbox "Notes"
-    - button "Cancel"
-    - button "Create Contact"
-    - button "Close"
+- link "Skip to main content":
+    - /url: "#main-content"
+- text: OmniCRM
+- link "Sign in":
+    - /url: /login
+- main:
+    - heading "Contacts" [level=1]
+    - text: Search, filter and manage your contacts.
+    - textbox "Search contacts"
+    - button "Create new contact": New Contact
+    - button "More actions": More
+    - link "Connect Google":
+        - /url: /settings/sync
+    - table:
+        - rowgroup:
+            - row "Select all contacts Sort by name descending Email Phone Sort by date added ascending Filter by date added":
+                - cell "Select all contacts":
+                    - checkbox "Select all contacts"
+                - cell "Sort by name descending":
+                    - button "Sort by name descending": Name ▲
+                - cell "Email"
+                - cell "Phone"
+                - cell "Sort by date added ascending Filter by date added":
+                    - button "Sort by date added ascending": Added
+                    - button "Filter by date added": Filter
+        - rowgroup:
+            - button "Open contact Demo Contact":
+                - cell "Select Demo Contact":
+                    - checkbox "Select Demo Contact"
+                - cell "Demo Contact"
+                - cell "demo@example.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+            - button "Open contact John Doe":
+                - cell "Select John Doe":
+                    - checkbox "Select John Doe"
+                - cell "John Doe"
+                - cell "john@example.com"
+                - cell "+1234567890"
+                - cell "13/08/2025"
+- region "Notifications alt+T":
+    - list:
+        - listitem:
+            - img
+            - text: Contact created John Doe has been added.
+- alert
 ```

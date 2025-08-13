@@ -49,9 +49,6 @@
     - text: Strong relationship
     - switch
     - button "Clear Filters"
-    - text: 📇
-    - heading "No contacts yet" [level=3]
-    - paragraph: Import your existing contacts or connect Google to sync automatically.
 - region "Notifications alt+T"
-- alert: Contacts
+- alert
 ```

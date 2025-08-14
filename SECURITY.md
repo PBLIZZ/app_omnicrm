@@ -67,13 +67,13 @@ Notes:
 
 - Production:
 
-```
+```bash
 Content-Security-Policy: script-src 'self'; connect-src 'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com; frame-ancestors 'none';
 ```
 
 - Development:
 
-```
+```bash
 Content-Security-Policy: script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' http://localhost:3000 ws://localhost:3000 https://*.supabase.co https://www.googleapis.com; frame-ancestors 'none';
 ```
 

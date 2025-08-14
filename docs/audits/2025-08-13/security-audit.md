@@ -227,7 +227,7 @@ await dbo
   .limit(1);
 ```
 
-3. **Development Authentication Controls** - Secure development conveniences with production guards:
+#### 3. **Development Authentication Controls** - Secure development conveniences with production guards
 
 ```typescript
 // E2E testing support with proper environment checks
@@ -237,7 +237,7 @@ if (process.env["NODE_ENV"] !== "production") {
 }
 ```
 
-4. **OAuth State Validation** - Excellent HMAC-signed state parameters prevent CSRF:
+#### 4. **OAuth State Validation** - Excellent HMAC-signed state parameters prevent CSRF
 
 ```typescript
 // Cryptographically secure OAuth state validation
@@ -262,7 +262,7 @@ if (!csrfHeader || csrfHeader !== nonceCookie || !(await hmacVerify(nonceCookie,
 }
 ```
 
-2. **Rate Limiting** - Effective protection with user context:
+#### 3. **Rate Limiting** - Effective protection with user context
 
 ```typescript
 // Intelligent rate limiting with session context
@@ -270,9 +270,11 @@ const sessionLen = (req.cookies.get("sb:token")?.value ?? "").length;
 const key = `${ip}:${sessionLen}`;
 ```
 
-3. **Security Headers** - Comprehensive security header implementation
-4. **Input Validation** - Consistent Zod schema validation across all endpoints
-5. **CORS Configuration** - Proper origin validation and credential handling
+#### 4. **Security Headers** - Comprehensive security header implementation
+
+#### 5. **Input Validation** - Consistent Zod schema validation across all endpoints
+
+#### 6. **CORS Configuration** - Proper origin validation and credential handling
 
 ### Data Protection & Encryption - EXCELLENT ✅
 
@@ -286,7 +288,9 @@ accessToken: encryptString(accessToken),
 refreshToken: refreshToken ? encryptString(refreshToken) : null,
 ```
 
-2. **Cryptographic Operations** - **SIGNIFICANTLY IMPROVED** crypto implementation in `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/lib/crypto-edge.ts`:
+#### 2. **Cryptographic Operations** - SIGNIFICANTLY IMPROVED
+
+Crypto implementation in `/Users/peterjamesblizzard/projects/app_omnicrm/src/server/lib/crypto-edge.ts`:
 
 ```typescript
 // Constant-time comparison prevents timing attacks
@@ -295,8 +299,9 @@ for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
 return diff === 0;
 ```
 
-3. **Key Management** - Robust encryption key validation and derivation
-4. **Environment Variable Security** - Fail-fast validation with proper error messages
+#### 3. **Key Management** - Robust encryption key validation and derivation
+
+#### 4. **Environment Variable Security** - Fail-fast validation with proper error messages
 
 ### Database Security & Access Control - EXCELLENT ✅
 
@@ -333,14 +338,16 @@ if (prod) {
 }
 ```
 
-2. **Security Headers** - Comprehensive protection:
-   - X-Content-Type-Options: nosniff
-   - X-Frame-Options: DENY
-   - Referrer-Policy: no-referrer
-   - Permissions-Policy: camera=(), microphone=(), geolocation=()
+#### 3. **Security Headers** - Comprehensive protection
 
-3. **Request Size Limits** - Configurable payload size protection
-4. **Nonce Generation** - Cryptographically secure nonce generation
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- Referrer-Policy: no-referrer
+- Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+#### 4. **Request Size Limits** - Configurable payload size protection
+
+#### 5. **Nonce Generation** - Cryptographically secure nonce generation
 
 ---
 

@@ -871,7 +871,7 @@ function processJob<K extends JobKind>(job: JobRecord<K>) {
 }
 ```
 
-#### 2. Performance Optimizations
+#### 2. Performance Optimization
 
 **Estimated Effort:** 1-2 days  
 **Impact:** Improved user experience and application responsiveness

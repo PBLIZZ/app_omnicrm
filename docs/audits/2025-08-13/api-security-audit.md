@@ -1402,6 +1402,7 @@ const securityConfig = {
    ```
 
 3. **Input Validation Completeness**
+
    ```typescript
    // Comprehensive validation for contact operations
    const postBodySchema = z
@@ -1504,6 +1505,7 @@ const securityConfig = {
    ```
 
 3. **Add AI-Specific Rate Limiting**
+
    ```typescript
    // Different limits for different AI operations
    const aiRateLimits = {

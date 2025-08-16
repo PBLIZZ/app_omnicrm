@@ -143,3 +143,5 @@ E2E tests use a bypass mechanism for development:
 - Row Level Security on all data access
 - The database schema is defined in the @src/server/db/schema.ts file. Reference it any time you need to understand the structure of data stored in the database.
 - Never make edits to the @src/server/db/schema.ts file. Instead ask the user to run a sql query in the supabase dashboard and once it has ran sucessfully the user will update the @src/server/db/schema.ts file and let you know. THis is for if you need to edit the database. You should treat the @src/server/db/schema.ts as read only.
+=======
+- we use pnpm

@@ -95,7 +95,7 @@ export function ContactListHeader(props: Props) {
               size="sm"
               aria-label="Create new contact"
             >
-              New Contact
+              Create new contact
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

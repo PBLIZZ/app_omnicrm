@@ -157,6 +157,7 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
               }}
               aria-invalid={errors["displayName"] ? "true" : "false"}
               aria-describedby={errors["displayName"] ? "nc-name-error" : undefined}
+              aria-label="Name"
               required
               autoFocus
               disabled={submitting}
@@ -185,6 +186,7 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
               }}
               aria-invalid={errors["primaryEmail"] ? "true" : "false"}
               aria-describedby={errors["primaryEmail"] ? "nc-email-error" : undefined}
+              aria-label="Email"
               placeholder="email@example.com"
               disabled={submitting}
             />
@@ -211,6 +213,7 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
               }}
               aria-invalid={errors["primaryPhone"] ? "true" : "false"}
               aria-describedby={errors["primaryPhone"] ? "nc-phone-error" : undefined}
+              aria-label="Phone"
               placeholder="+44 20 7123 4567"
               disabled={submitting}
             />
@@ -311,7 +314,7 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
                   Creating…
                 </>
               ) : (
-                "Create Contact"
+                "Save"
               )}
             </Button>
           </DialogFooter>

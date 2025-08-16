@@ -1,1 +1,35 @@
-{}
+{
+  "cookies": [
+    {
+      "name": "csrf",
+      "value": "mSeklKoj5LgFj9A9tzEIS1Pv",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1755383669.857549,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "csrf_sig",
+      "value": "e4BnEbVH7iB18AlrUuN6vgvKCzCOaS3gZogeezlWhjs",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1755383669.857936,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "e2e_uid",
+      "value": "3550f627-dbd7-4c5f-a13f-e59295c14676",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1755383670,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

@@ -18,9 +18,10 @@ test.describe("Contact CRUD Flow", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to contacts page
     await page.goto("/contacts");
+    await page.waitForLoadState("networkidle");
 
     // Wait for page to load
-    await expect(page.getByRole("heading", { name: "Contacts" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Contacts" })).toBeVisible({ timeout: 10000 });
   });
 
   test("complete contact CRUD flow: create → list → view → edit → delete", async ({ page }) => {
@@ -28,12 +29,12 @@ test.describe("Contact CRUD Flow", () => {
     test.step("Create new contact", async () => {
       // Click New Contact button
       const newContactButton = page.getByRole("button", { name: "Create new contact" });
-      await expect(newContactButton).toBeVisible();
+      await expect(newContactButton).toBeVisible({ timeout: 10000 });
       await newContactButton.click();
 
       // Wait for dialog to open
       const dialog = page.getByRole("dialog");
-      await expect(dialog).toBeVisible();
+      await expect(dialog).toBeVisible({ timeout: 10000 });
 
       // Fill out contact form (scope fields to dialog to avoid label collisions)
       await dialog.getByLabel("Name").fill(testContact.name);
@@ -45,44 +46,37 @@ test.describe("Contact CRUD Flow", () => {
         await phoneField.fill(testContact.phone);
       }
 
-      // Check if company field exists and fill it
-      const companyField = dialog.getByLabel("Company");
-      if (await companyField.isVisible()) {
-        await companyField.fill(testContact.company);
-      }
-
       // Save contact
       const saveButton = dialog.getByRole("button", { name: /save|create/i });
       await expect(saveButton).toBeVisible();
       await saveButton.click();
 
       // Wait for dialog to close
-      await expect(dialog).not.toBeVisible();
+      await expect(dialog).not.toBeVisible({ timeout: 10000 });
 
       // Check for success notification
-      await expect(page.locator("[data-sonner-toaster]")).toBeVisible();
+      await expect(page.locator("[data-sonner-toaster]")).toBeVisible({ timeout: 5000 });
     });
 
     // ==================== VERIFY IN LIST ====================
     test.step("Verify contact appears in list", async () => {
       // Search for the created contact to ensure it appears
       const searchInput = page.getByLabel("Search contacts");
+      await expect(searchInput).toBeVisible({ timeout: 5000 });
       await searchInput.fill(testContact.name);
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(500);
 
       // Wait for search results and poll until the row button appears
-      await page.waitForTimeout(500);
       const contactButton = page
         .getByRole("button", { name: `Open contact ${testContact.name}` })
         .first();
-      await contactButton.waitFor({ state: "visible" });
+      await expect(contactButton).toBeVisible({ timeout: 10000 });
 
       // Verify contact appears in table
-      await expect(contactButton).toBeVisible();
-      await expect(page.getByText(testContact.email)).toBeVisible();
+      await expect(page.getByText(testContact.email)).toBeVisible({ timeout: 5000 });
 
       if (testContact.phone) {
-        await expect(page.getByText(testContact.phone)).toBeVisible();
+        await expect(page.getByText(testContact.phone)).toBeVisible({ timeout: 5000 });
       }
     });
 

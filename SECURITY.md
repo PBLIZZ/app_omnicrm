@@ -124,4 +124,3 @@ File of record: `src/middleware.ts`.
 ## Notes
 
 - Keep helpers small and readable. Prefer incremental, auditable changes over large frameworks.
-

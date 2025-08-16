@@ -17,7 +17,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `pnpm test` - Run Vitest unit tests
 - `pnpm test:watch` - Run tests in watch mode
+- `pnpm test -t "TestName"` - Run specific test by name
 - `pnpm e2e` - Run Playwright end-to-end tests
+- `pnpm e2e --grep "TestSuite"` - Run specific E2E test suite
+- `pnpm e2e e2e/filename.spec.ts` - Run specific E2E file
+- `E2E_USER_ID=<uuid> pnpm e2e` - Run E2E with test user (see E2E Auth below)
 
 ### Recommended Development Flow
 
@@ -109,9 +113,19 @@ Production additionally requires:
 ### Testing Strategy
 
 - **Unit tests**: Vitest with jsdom for components and utilities
-- **API tests**: Test files alongside route handlers
-- **E2E tests**: Playwright covering user workflows
+- **API tests**: Test files alongside route handlers (`src/app/**/route.test.ts`)
+- **E2E tests**: Playwright covering user workflows (`e2e/*.spec.ts`)
 - **Coverage**: v8 provider with lcov reports
+- **Test patterns**: Use `src/**/__tests__/**/*.test.ts(x)` for unit tests
+
+### E2E Authentication
+
+E2E tests use a bypass mechanism for development:
+
+- Set `E2E_USER_ID=<uuid>` environment variable
+- Middleware sets `e2e_uid` cookie in non-production
+- Auth resolver uses test user ID when `e2e_uid` cookie is present
+- Playwright config includes default test user: `3550f627-dbd7-4c5f-a13f-e59295c14676`
 
 ### AI/LLM Features
 

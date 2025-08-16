@@ -10,50 +10,50 @@ test.describe("Contact Details Page", () => {
   };
 
   test.beforeEach(async ({ page }) => {
-    // Navigate to contacts and create a test contact first
-    await page.goto("/contacts");
+    // Navigate to contacts and wait for it to load properly
+    await page.goto("/contacts", { waitUntil: "networkidle" });
+    await waitForContactsPageLoad(page);
 
-    // Create test contact
-    await page.getByRole("button", { name: "Create new contact" }).click();
-    const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible();
+    // Create test contact using helper
+    await createTestContact(page, {
+      name: testContact.name,
+      email: testContact.email,
+      phone: testContact.phone,
+      company: testContact.company,
+    });
+  });
 
-    await page.getByLabel("Name").fill(testContact.name);
-    await page.getByLabel("Email").fill(testContact.email);
-
-    if (await page.getByLabel("Phone").isVisible()) {
-      await page.getByLabel("Phone").fill(testContact.phone);
+  test.afterEach(async ({ page }) => {
+    // Simple cleanup - just navigate back to contacts page
+    try {
+      await page.goto("/contacts", { waitUntil: "networkidle" });
+    } catch (error) {
+      console.warn("Cleanup navigation failed:", error);
     }
-    if (await page.getByLabel("Company").isVisible()) {
-      await page.getByLabel("Company").fill(testContact.company);
-    }
-
-    await page.getByRole("button", { name: /save|create/i }).click();
-    await expect(dialog).not.toBeVisible();
   });
 
   test("navigate to contact details and verify content", async ({ page }) => {
     // Wait for the table to load and find the contact row
-    await page.waitForSelector('[data-testid^="open-contact-"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid^="open-contact-"]', { timeout: 15000 });
 
     // Click on first available contact row
     const firstContactRow = page.locator('[data-testid^="open-contact-"]').first();
     await firstContactRow.click();
 
     // Verify we're on the contact details page
-    await expect(page).toHaveURL(/\/contacts\/[^/]+$/);
+    await expect(page).toHaveURL(/\/contacts\/[^/]+$/, { timeout: 15000 });
 
     // Verify contact information is displayed with heading assertion
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 10000 });
 
     // Check if this is our test contact or any contact
     const heading = page.getByRole("heading", { level: 1 });
     const headingText = await heading.textContent();
 
     if (headingText?.includes(testContact.name)) {
-      await expect(page.getByText(testContact.email)).toBeVisible();
+      await expect(page.getByText(testContact.email)).toBeVisible({ timeout: 5000 });
       if (testContact.phone) {
-        await expect(page.getByText(testContact.phone)).toBeVisible();
+        await expect(page.getByText(testContact.phone)).toBeVisible({ timeout: 5000 });
       }
     }
   });

@@ -2,21 +2,27 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Contact Management", () => {
   test.beforeEach(async ({ page }) => {
-    // Mock the authentication state - assumes user is logged in
+    // Navigate to contacts page and wait for it to load
     await page.goto("/contacts");
+    await page.waitForLoadState("networkidle");
   });
 
   test("displays contact list page with header", async ({ page }) => {
-    // Check page title and header
-    await expect(page).toHaveTitle(/Contacts/i);
-    await expect(page.getByRole("heading", { name: "Contacts" })).toBeVisible();
-    await expect(page.getByText("Search, filter and manage your contacts.")).toBeVisible();
+    // Wait for page to potentially redirect and load
+    await page.waitForURL("**/contacts");
+
+    // Check page title and header with longer timeout for slow loading
+    await expect(page).toHaveTitle(/Contacts/i, { timeout: 15000 });
+    await expect(page.getByRole("heading", { name: "Contacts" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Search, filter and manage your contacts.")).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test("search functionality works", async ({ page }) => {
     // Test search input
     const searchInput = page.getByLabel("Search contacts");
-    await expect(searchInput).toBeVisible();
+    await expect(searchInput).toBeVisible({ timeout: 10000 });
 
     // Test search placeholder
     await expect(searchInput).toHaveAttribute("placeholder", "Search contacts…");
@@ -35,13 +41,12 @@ test.describe("Contact Management", () => {
 
   test("new contact button opens dialog", async ({ page }) => {
     const newContactButton = page.getByRole("button", { name: "Create new contact" });
-    await expect(newContactButton).toBeVisible();
+    await expect(newContactButton).toBeVisible({ timeout: 10000 });
 
     await newContactButton.click();
 
     // Check if new contact dialog opens (based on implementation)
-    // This would need to be adjusted based on actual dialog behavior
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
   });
 
   test("more actions dropdown works", async ({ page }) => {

@@ -1,0 +1,214 @@
+# Page snapshot
+
+```yaml
+- link "Skip to main content":
+    - /url: "#main-content"
+- text: OmniCRM
+- navigation:
+    - link "Dashboard":
+        - /url: /
+    - link "Contacts":
+        - /url: /contacts
+    - link "Settings":
+        - /url: /settings/sync
+- link "Sign in":
+    - /url: /login
+- main:
+    - heading "Contacts" [level=1]
+    - text: 25 Search, filter and manage your contacts.
+    - textbox "Search contacts"
+    - button "Create new contact"
+    - button "More actions": More
+    - link "Connect Google":
+        - /url: /settings/sync
+    - table:
+        - rowgroup:
+            - row "Select all contacts Sort by name descending Email Phone Sort by date added ascending Filter by date added":
+                - cell "Select all contacts":
+                    - checkbox "Select all contacts"
+                - cell "Sort by name descending":
+                    - button "Sort by name descending": Name ▲
+                - cell "Email"
+                - cell "Phone"
+                - cell "Sort by date added ascending Filter by date added":
+                    - button "Sort by date added ascending": Added
+                    - button "Filter by date added": Filter
+        - rowgroup:
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "16/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "16/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Alice Johnson":
+                - cell "Select Alice Johnson":
+                    - checkbox "Select Alice Johnson"
+                - cell "Alice Johnson"
+                - cell "alice@company.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bob Smith":
+                - cell "Select Bob Smith":
+                    - checkbox "Select Bob Smith"
+                - cell "Bob Smith"
+                - cell "bob@startup.io"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bob Smith":
+                - cell "Select Bob Smith":
+                    - checkbox "Select Bob Smith"
+                - cell "Bob Smith"
+                - cell "bob@startup.io"
+                - cell "—"
+                - cell "16/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "16/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+            - button "Open contact Bulk Test 1":
+                - cell "Select Bulk Test 1":
+                    - checkbox "Select Bulk Test 1"
+                - cell "Bulk Test 1"
+                - cell "bulk1@test.com"
+                - cell "—"
+                - cell "13/08/2025"
+- region "Notifications alt+T"
+- alert
+```

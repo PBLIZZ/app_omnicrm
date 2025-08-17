@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 type PreviewGmail = { countByLabel: Record<string, number>; sampleSubjects: string[] };
@@ -66,17 +67,60 @@ export default function SyncSettingsPage() {
     return m ? decodeURIComponent(m[1] ?? "") : "";
   }
 
-  async function loadPrefs() {
-    const res = await fetch(`/api/settings/sync/prefs`);
-    const j = (await res.json()) as SyncPreferences;
-    setPrefs(j);
+  async function refreshStatus() {
+    try {
+      setBusy(true);
+      const response = await fetch(`/api/settings/sync/status`);
+      if (!response.ok) {
+        toast.error("Failed to refresh status", { description: `HTTP ${response.status}` });
+        return;
+      }
+      const statusData = (await response.json()) as SyncStatus;
+      setStatus(statusData);
+      toast.success("Status refreshed");
+    } catch {
+      toast.error("Failed to refresh status", { description: "Network error" });
+    } finally {
+      setBusy(false);
+    }
   }
+
+  async function loadPrefs() {
+    try {
+      setBusy(true);
+      const res = await fetch(`/api/settings/sync/prefs`);
+      if (!res.ok) {
+        toast.error("Failed to load preferences", { description: `HTTP ${res.status}` });
+        return;
+      }
+      const j = (await res.json()) as SyncPreferences;
+      setPrefs(j);
+      toast.success("Preferences loaded");
+    } catch {
+      toast.error("Failed to load preferences", { description: "Network error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function savePrefs() {
-    await fetch(`/api/settings/sync/prefs`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "x-csrf-token": getCsrf() || "" },
-      body: JSON.stringify(prefs ?? {}),
-    });
+    try {
+      setBusy(true);
+      const res = await fetch(`/api/settings/sync/prefs`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrf() || "" },
+        body: JSON.stringify(prefs ?? {}),
+      });
+      if (!res.ok) {
+        toast.error("Failed to save preferences", { description: `HTTP ${res.status}` });
+        return;
+      }
+      toast.success("Preferences saved");
+    } catch {
+      toast.error("Failed to save preferences", { description: "Network error" });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function callJSON(url: string, body?: Record<string, unknown>): Promise<APIResponse> {
@@ -112,14 +156,8 @@ export default function SyncSettingsPage() {
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Sync Settings</h1>
       <div className="text-sm text-neutral-600">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={async () =>
-            setStatus((await (await fetch(`/api/settings/sync/status`)).json()) as SyncStatus)
-          }
-        >
-          Refresh Status
+        <Button variant="outline" size="sm" onClick={refreshStatus} disabled={busy}>
+          {busy ? "Loading..." : "Refresh Status"}
         </Button>
         {status && (
           <div className="mt-2 grid gap-1">
@@ -155,28 +193,39 @@ export default function SyncSettingsPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-medium">Preferences</h2>
         <div className="flex gap-2 items-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () =>
-              setStatus((await (await fetch(`/api/settings/sync/status`)).json()) as SyncStatus)
-            }
-          >
-            Refresh Status
+          <Button variant="outline" size="sm" onClick={refreshStatus} disabled={busy}>
+            {busy ? "Loading..." : "Refresh Status"}
           </Button>
           {status?.lastBatchId && (
             <Button
               variant="outline"
               size="sm"
               onClick={async () => {
-                const res = await fetch(`/api/sync/undo`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ batchId: status.lastBatchId }),
-                });
-                const j = (await res.json()) as APIResponse;
-                if (j.ok) toast.success("Undo completed");
-                else toast.error("Undo failed", { description: j.error ?? "unknown_error" });
+                try {
+                  setBusy(true);
+                  const res = await fetch(`/api/sync/undo`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-csrf-token": getCsrf() || "",
+                    },
+                    body: JSON.stringify({ batchId: status.lastBatchId }),
+                  });
+                  const j = (await res.json()) as APIResponse;
+                  if (j.ok) {
+                    toast.success("Import undone successfully");
+                    // Refresh status to update UI
+                    await refreshStatus();
+                  } else {
+                    toast.error("Failed to undo import", {
+                      description: j.error ?? "Unknown error occurred",
+                    });
+                  }
+                } catch {
+                  toast.error("Failed to undo import", { description: "Network error" });
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
               Undo Last Import
@@ -185,28 +234,31 @@ export default function SyncSettingsPage() {
         </div>
         <div className="grid gap-2 border rounded p-3 text-sm">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={loadPrefs}>Load Prefs</Button>
-            <Button variant="outline" size="sm" onClick={savePrefs}>Save Prefs</Button>
+            <Button variant="outline" size="sm" onClick={loadPrefs} disabled={busy}>
+              {busy ? "Loading..." : "Load Prefs"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={savePrefs} disabled={busy || !prefs}>
+              {busy ? "Saving..." : "Save Prefs"}
+            </Button>
           </div>
           {prefs && (
             <>
               <label className="grid gap-1">
                 <span>Gmail query</span>
-                <input
-                  className="border rounded px-2 py-1"
+                <Input
                   value={prefs.gmailQuery ?? ""}
                   onChange={(e) =>
                     setPrefs((p) =>
                       p ? { ...p, gmailQuery: e.target.value } : { gmailQuery: e.target.value },
                     )
                   }
+                  placeholder="e.g., has:attachment newer_than:30d"
                 />
               </label>
               <label className="grid gap-1">
                 <span>Gmail include labels (comma)</span>
-                <input
-                  className="border rounded px-2 py-1"
-                  value={(prefs.gmailLabelIncludes ?? []).join(",")}
+                <Input
+                  value={(prefs.gmailLabelIncludes ?? []).join(", ")}
                   onChange={(e) =>
                     setPrefs((p) =>
                       p
@@ -225,13 +277,13 @@ export default function SyncSettingsPage() {
                           },
                     )
                   }
+                  placeholder="e.g., IMPORTANT, INBOX"
                 />
               </label>
               <label className="grid gap-1">
                 <span>Gmail exclude labels (comma)</span>
-                <input
-                  className="border rounded px-2 py-1"
-                  value={(prefs.gmailLabelExcludes ?? []).join(",")}
+                <Input
+                  value={(prefs.gmailLabelExcludes ?? []).join(", ")}
                   onChange={(e) =>
                     setPrefs((p) =>
                       p
@@ -250,6 +302,7 @@ export default function SyncSettingsPage() {
                           },
                     )
                   }
+                  placeholder="e.g., SPAM, TRASH"
                 />
               </label>
               <div className="grid gap-2">
@@ -293,9 +346,8 @@ export default function SyncSettingsPage() {
                 </label>
                 <label className="grid gap-1">
                   <span>Calendar time window (days)</span>
-                  <input
+                  <Input
                     type="number"
-                    className="border rounded px-2 py-1"
                     value={prefs.calendarTimeWindowDays ?? 60}
                     onChange={(e) =>
                       setPrefs((p) =>
@@ -309,6 +361,9 @@ export default function SyncSettingsPage() {
                             },
                       )
                     }
+                    min="1"
+                    max="365"
+                    placeholder="60"
                   />
                 </label>
               </div>
@@ -348,7 +403,9 @@ export default function SyncSettingsPage() {
               if (result.ok && d?.countByLabel && d?.sampleSubjects) {
                 setGmail({ countByLabel: d.countByLabel, sampleSubjects: d.sampleSubjects });
               } else if (!result.ok) {
-                toast.error("Preview failed", { description: result.error ?? "unknown_error" });
+                toast.error("Gmail preview failed", {
+                  description: result.error ?? "Unknown error occurred",
+                });
               }
             }}
           >
@@ -365,7 +422,9 @@ export default function SyncSettingsPage() {
               if (result.ok && d && d.count !== undefined && d.sampleTitles) {
                 setCalendar({ count: d.count, sampleTitles: d.sampleTitles });
               } else if (!result.ok) {
-                toast.error("Preview failed", { description: result.error ?? "unknown_error" });
+                toast.error("Calendar preview failed", {
+                  description: result.error ?? "Unknown error occurred",
+                });
               }
             }}
           >
@@ -417,8 +476,16 @@ export default function SyncSettingsPage() {
                 data?: { batchId?: string };
                 error?: string;
               };
-              if (j.ok) setBatchId(j.data?.batchId ?? null);
-              else toast.error("Approve failed", { description: j.error ?? "unknown_error" });
+              if (j.ok) {
+                setBatchId(j.data?.batchId ?? null);
+                toast.success("Gmail sync approved", {
+                  description: `Batch ID: ${j.data?.batchId}`,
+                });
+              } else {
+                toast.error("Failed to approve Gmail sync", {
+                  description: j.error ?? "Unknown error occurred",
+                });
+              }
             }}
           >
             Approve Gmail Import
@@ -432,8 +499,16 @@ export default function SyncSettingsPage() {
                 data?: { batchId?: string };
                 error?: string;
               };
-              if (j.ok) setBatchId(j.data?.batchId ?? null);
-              else toast.error("Approve failed", { description: j.error ?? "unknown_error" });
+              if (j.ok) {
+                setBatchId(j.data?.batchId ?? null);
+                toast.success("Calendar sync approved", {
+                  description: `Batch ID: ${j.data?.batchId}`,
+                });
+              } else {
+                toast.error("Failed to approve Calendar sync", {
+                  description: j.error ?? "Unknown error occurred",
+                });
+              }
             }}
           >
             Approve Calendar Import
@@ -447,8 +522,15 @@ export default function SyncSettingsPage() {
                 data?: { processed?: number };
                 error?: string;
               };
-              if (j.ok) toast.success("Jobs processed", { description: String(j.data?.processed ?? 0) });
-              else toast.error("Run jobs failed", { description: j.error ?? "unknown_error" });
+              if (j.ok) {
+                toast.success("Jobs processed successfully", {
+                  description: `Processed ${j.data?.processed ?? 0} jobs`,
+                });
+              } else {
+                toast.error("Failed to run jobs", {
+                  description: j.error ?? "Unknown error occurred",
+                });
+              }
             }}
           >
             Run Jobs

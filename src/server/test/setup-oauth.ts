@@ -11,8 +11,8 @@ export async function setupTestOAuthTokens(userId: string): Promise<void> {
     throw new Error("Test OAuth setup is not allowed in production");
   }
 
-  const accessToken = process.env.E2E_GOOGLE_ACCESS_TOKEN;
-  const refreshToken = process.env.E2E_GOOGLE_REFRESH_TOKEN;
+  const accessToken = process.env["E2E_GOOGLE_ACCESS_TOKEN"];
+  const refreshToken = process.env["E2E_GOOGLE_REFRESH_TOKEN"];
 
   if (!accessToken) {
     return;
@@ -52,5 +52,5 @@ export async function setupTestOAuthTokens(userId: string): Promise<void> {
 }
 
 export function hasTestOAuthTokens(): boolean {
-  return process.env.NODE_ENV !== "production" && !!process.env.E2E_GOOGLE_ACCESS_TOKEN;
+  return process.env.NODE_ENV !== "production" && !!process.env["E2E_GOOGLE_ACCESS_TOKEN"];
 }

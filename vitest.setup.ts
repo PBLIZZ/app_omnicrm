@@ -10,3 +10,21 @@ process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || "public-key";
 process.env.APP_ENCRYPTION_KEY =
   process.env.APP_ENCRYPTION_KEY || "a_secure_but_test_only_encryption_key_32b";
+
+// jsdom polyfills
+declare global {
+  interface HTMLElement {
+    scrollIntoView(arg?: boolean | ScrollIntoViewOptions): void;
+  }
+}
+
+if (typeof globalThis.HTMLElement !== "undefined") {
+  const proto = globalThis.HTMLElement.prototype as HTMLElement;
+  if (typeof proto.scrollIntoView !== "function") {
+    Object.defineProperty(proto, "scrollIntoView", {
+      value: () => {},
+      configurable: true,
+      writable: true,
+    });
+  }
+}

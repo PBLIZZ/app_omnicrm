@@ -24,7 +24,7 @@ function allowRequest(key: string): boolean {
   return false;
 }
 
-export async function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest): Promise<NextResponse> {
   // Generate a per-request nonce and forward it to the app via request headers
   const forwardHeaders = new Headers(req.headers);
   const cspNonce = randomNonce(18);
@@ -120,6 +120,19 @@ export async function middleware(req: NextRequest) {
       httpOnly: true,
       sameSite: "strict",
       secure: isProd,
+      path: "/",
+      maxAge: 60 * 60,
+    });
+  }
+
+  // E2E convenience: if E2E_USER_ID env is present, set a non-secure cookie for user id
+  // This is only for non-production to drive Playwright tests without external auth
+  const e2eUserId = process.env["E2E_USER_ID"];
+  if (e2eUserId && !isProd) {
+    res.cookies.set("e2e_uid", e2eUserId, {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: false,
       path: "/",
       maxAge: 60 * 60,
     });

@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactListSkeleton } from "@/components/contacts/ContactListSkeleton";
 import { ContactTable } from "@/components/contacts/ContactTable";
 import { useRouter } from "next/navigation";
 import { ContactListHeader } from "@/components/contacts/ContactListHeader";
-import {
-  ContactFilters,
-  ContactFiltersState,
-  defaultFilters,
-} from "@/components/contacts/ContactFilters";
 import { ConfirmDeleteDialog } from "@/components/contacts/ConfirmDeleteDialog";
 import { deleteContacts, fetchContacts } from "@/components/contacts/api";
 
@@ -26,14 +21,19 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [contacts, setContacts] = useState<ContactItem[]>([]);
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState<ContactFiltersState>(defaultFilters());
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
-  const selectedCount = Object.keys(rowSelection).filter((k) => rowSelection[k]).length;
-  const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
+  const selectedCount = useMemo(
+    () => Object.keys(rowSelection).filter((k) => rowSelection[k]).length,
+    [rowSelection],
+  );
+  const selectedIds = useMemo(
+    () => Object.keys(rowSelection).filter((k) => rowSelection[k]),
+    [rowSelection],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -64,7 +64,7 @@ export default function ContactsPage() {
     };
   }, [search]);
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
       await deleteContacts(selectedIds);
@@ -76,9 +76,9 @@ export default function ContactsPage() {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [selectedIds]);
 
-  const handleImportCsv = async (file: File) => {
+  const handleImportCsv = useCallback(async (file: File) => {
     // Placeholder import logic
     try {
       void file;
@@ -89,9 +89,9 @@ export default function ContactsPage() {
     } catch {
       // placeholder swallow
     }
-  };
+  }, []);
 
-  const handleExportCsv = () => {
+  const handleExportCsv = useCallback(() => {
     // Placeholder export logic
     const csvContent = "data:text/csv;charset=utf-8,Name,Email,Phone\n";
     const encodedUri = encodeURI(csvContent);
@@ -101,48 +101,54 @@ export default function ContactsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, []);
 
-  const handleSyncNow = async () => {
-    // Placeholder sync logic
-    try {
-      await new Promise((r) => setTimeout(r, 1500));
-      // no-op in placeholder
-    } catch {
-      // placeholder swallow
-    }
-  };
+  const handleContactCreated = useCallback((c: ContactItem) => {
+    setContacts((prev) => [c, ...prev]);
+  }, []);
+
+  const handleBulkActionEmail = useCallback(() => {
+    // placeholder
+  }, []);
+
+  const handleBulkActionTag = useCallback(() => {
+    // placeholder
+  }, []);
+
+  const handleBulkActionExport = useCallback(() => {
+    // placeholder
+  }, []);
+
+  const handleBulkActionDelete = useCallback(() => {
+    setShowDeleteConfirm(true);
+  }, []);
+
+  const handleOpenContact = useCallback(
+    (id: string) => {
+      router.push(`/contacts/${id}`);
+    },
+    [router],
+  );
+
+  // Sync now handler omitted to allow UI to show toast fallback via header
 
   return (
     <div className="p-0">
       <ContactListHeader
         searchQuery={search}
         onSearch={setSearch}
-        onContactCreated={(c) => {
-          setContacts((prev) => [c, ...prev]);
-        }}
+        onContactCreated={handleContactCreated}
         selectedCount={selectedCount}
-        onBulkActionEmail={() => {
-          // placeholder
-        }}
-        onBulkActionTag={() => {
-          // placeholder
-        }}
-        onBulkActionExport={() => {
-          // placeholder
-        }}
-        onBulkActionDelete={() => {
-          setShowDeleteConfirm(true);
-        }}
+        totalCount={contacts.length}
+        onBulkActionEmail={handleBulkActionEmail}
+        onBulkActionTag={handleBulkActionTag}
+        onBulkActionExport={handleBulkActionExport}
+        onBulkActionDelete={handleBulkActionDelete}
         onImportCsv={handleImportCsv}
         onExportCsv={handleExportCsv}
-        onSyncNow={handleSyncNow}
       />
-      <div className="m-6 flex gap-6">
-        <div className="hidden lg:block w-64 flex-shrink-0 border rounded-md">
-          <ContactFilters filters={filters} onChange={setFilters} className="h-full" />
-        </div>
-        <Card className="flex-1">
+      <div className="m-6">
+        <Card className="w-full">
           <CardContent>
             {loading ? (
               <ContactListSkeleton />
@@ -157,7 +163,7 @@ export default function ContactsPage() {
             ) : (
               <ContactTable
                 data={contacts}
-                onOpen={(id) => router.push(`/contacts/${id}`)}
+                onOpen={handleOpenContact}
                 rowSelection={rowSelection}
                 onRowSelectionChange={setRowSelection}
               />

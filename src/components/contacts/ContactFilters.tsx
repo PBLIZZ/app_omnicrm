@@ -47,7 +47,7 @@ export function ContactFilters({ filters, onChange, className }: Props) {
     <div className={className}>
       <div className="p-4 space-y-6">
         <div>
-          <h3 className="font-medium mb-3">Filter Contacts</h3>
+          <h3 className="font-medium mb-3">Filters</h3>
           <div className="space-y-3">
             <ToggleRow
               label="Recently active"

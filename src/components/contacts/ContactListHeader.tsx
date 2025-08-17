@@ -22,6 +22,7 @@ interface Props {
   onNewContact?: () => void;
   onContactCreated?: ((contact: CreatedContact) => void) | undefined;
   selectedCount?: number;
+  totalCount?: number;
   onBulkActionEmail?: (() => void) | undefined;
   onBulkActionTag?: (() => void) | undefined;
   onBulkActionExport?: (() => void) | undefined;
@@ -36,6 +37,7 @@ export function ContactListHeader(props: Props) {
     searchQuery,
     onSearch,
     selectedCount = 0,
+    totalCount = 0,
     onNewContact,
     onContactCreated,
     onBulkActionEmail,
@@ -64,7 +66,14 @@ export function ContactListHeader(props: Props) {
     <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
       <div className="flex flex-col space-y-4 p-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
         <div>
-          <h1 className="text-2xl font-bold">Contacts</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">Contacts</h1>
+            {totalCount > 0 && (
+              <span className="bg-primary text-primary-foreground px-2 py-1 rounded-full text-sm font-medium">
+                {totalCount}
+              </span>
+            )}
+          </div>
           <CardDescription>Search, filter and manage your contacts.</CardDescription>
         </div>
 

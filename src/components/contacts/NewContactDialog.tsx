@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -75,7 +75,7 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
     [rawTags],
   );
 
-  function validate(input: NewContactInput): Record<string, string> {
+  const validate = useCallback((input: NewContactInput): Record<string, string> => {
     const next: Record<string, string> = {};
     if (!input.displayName.trim()) next["displayName"] = "Name is required";
     if (input.primaryEmail && !isValidEmail(input.primaryEmail))
@@ -83,50 +83,49 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
     if (input.primaryPhone && !isValidPhone(input.primaryPhone))
       next["primaryPhone"] = "Enter a valid phone number";
     return next;
-  }
+  }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const payload: NewContactInput = { ...form, tags: parsedTags };
-    const nextErrors = validate(payload);
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
-      return;
-    }
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const payload: NewContactInput = { ...form, tags: parsedTags };
+      const nextErrors = validate(payload);
+      if (Object.keys(nextErrors).length > 0) {
+        setErrors(nextErrors);
+        return;
+      }
 
-    setSubmitting(true);
-    try {
-      const contactInput: CreateContactInput = {
-        displayName: payload.displayName.trim(),
-        primaryEmail: payload.primaryEmail?.trim() || null,
-        primaryPhone: payload.primaryPhone?.trim() || null,
-        tags: payload.tags,
-        notes: payload.notes?.trim() || null,
-        source: "manual",
-      };
-      const createdContact = await createContact(contactInput);
-      const created: CreatedContact = {
-        id: createdContact.id,
-        displayName: createdContact.displayName,
-        ...(createdContact.primaryEmail ? { primaryEmail: createdContact.primaryEmail } : {}),
-        ...(createdContact.primaryPhone ? { primaryPhone: createdContact.primaryPhone } : {}),
-        createdAt: createdContact.createdAt,
-      };
-      setSuccess(true);
-      onContactCreated?.(created);
-      toast.success("Contact created", { description: `${created.displayName} has been added.` });
-
-      // Smooth close after showing success
-      setTimeout(() => {
+      setSubmitting(true);
+      try {
+        const contactInput: CreateContactInput = {
+          displayName: payload.displayName.trim(),
+          primaryEmail: payload.primaryEmail?.trim() || null,
+          primaryPhone: payload.primaryPhone?.trim() || null,
+          tags: payload.tags,
+          notes: payload.notes?.trim() || null,
+          source: "manual",
+        };
+        const createdContact = await createContact(contactInput);
+        const created: CreatedContact = {
+          id: createdContact.id,
+          displayName: createdContact.displayName,
+          ...(createdContact.primaryEmail ? { primaryEmail: createdContact.primaryEmail } : {}),
+          ...(createdContact.primaryPhone ? { primaryPhone: createdContact.primaryPhone } : {}),
+          createdAt: createdContact.createdAt,
+        };
+        setSuccess(true);
+        onContactCreated?.(created);
+        toast.success("Contact created", { description: `${created.displayName} has been added.` });
         onOpenChange(false);
-      }, 800);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error("Failed to create contact", { description: message });
-    } finally {
-      setSubmitting(false);
-    }
-  }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        toast.error("Failed to create contact", { description: message });
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [form, parsedTags, validate, onContactCreated, onOpenChange],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,7 +143,7 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="space-y-2">
-            <Label htmlFor="nc-name">Full Name *</Label>
+            <Label htmlFor="nc-name">Name</Label>
             <Input
               id="nc-name"
               value={form.displayName}
@@ -268,7 +267,7 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || success || !form.displayName.trim()}>
+            <Button type="submit" disabled={submitting || success}>
               {success ? (
                 <>
                   <svg

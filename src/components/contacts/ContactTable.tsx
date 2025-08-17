@@ -305,8 +305,7 @@ export function ContactTable({
     if (!onSelectionChange) return;
     const ids = table.getSelectedRowModel().rows.map((r: Row<ContactRow>) => r.original.id);
     onSelectionChange(ids);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowSelection, data]);
+  }, [rowSelection, data, onSelectionChange, table]);
 
   return (
     <div className="rounded-md border">
@@ -340,6 +339,7 @@ export function ContactTable({
                 tabIndex={0}
                 role="button"
                 aria-label={`Open contact ${row.original.displayName}`}
+                data-testid={`open-contact-${row.original.id}`}
                 data-state={row.getIsSelected() ? "selected" : undefined}
               >
                 {row.getVisibleCells().map((cell: Cell<ContactRow, unknown>) => (

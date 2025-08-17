@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { GmailSyncButtonProps, OAuthError, SyncStatus } from "./types";
+import { getSyncStatus, previewGmailSync, approveGmailSync, runJobs } from "@/lib/api/sync";
 
 /**
  * GmailSyncButton - Handles Gmail sync operations with proper error handling
@@ -28,32 +29,20 @@ export function GmailSyncButton({
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
-  // Get CSRF token from cookie (following existing pattern in sync page)
-  const getCsrfToken = (): string => {
-    if (typeof document === "undefined") return "";
-    const match = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
-    return match ? decodeURIComponent(match[1] ?? "") : "";
-  };
-
   const checkSyncStatus = async (): Promise<SyncStatus | null> => {
     try {
       console.warn(`[GmailSyncButton] Checking sync status`, {
         timestamp: new Date().toISOString(),
       });
 
-      const response = await fetch("/api/settings/sync/status");
-      if (!response.ok) {
-        throw new Error(`Status check failed: ${response.statusText}`);
-      }
-
-      const status: SyncStatus = await response.json();
+      const status = await getSyncStatus();
 
       console.warn(`[GmailSyncButton] Sync status retrieved`, {
         status,
         timestamp: new Date().toISOString(),
       });
 
-      setSyncStatus(status);
+      setSyncStatus(status as SyncStatus);
       return status;
     } catch (error: unknown) {
       console.error(`[GmailSyncButton] Failed to check sync status`, error);
@@ -65,10 +54,8 @@ export function GmailSyncButton({
         timestamp: new Date(),
       };
 
-      toast.error("Status check failed", {
-        description: oauthError.message,
-      });
-
+      // Note: Error toast already shown by fetchJson
+      onSyncError?.(oauthError);
       return null;
     }
   };
@@ -85,20 +72,7 @@ export function GmailSyncButton({
         description: "Fetching sample data from your Gmail account",
       });
 
-      const response = await fetch("/api/sync/preview/gmail", {
-        method: "POST",
-        headers: {
-          "x-csrf-token": getCsrfToken(),
-          "content-type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Preview failed: ${response.statusText}`);
-      }
-
-      const previewData = await response.json();
+      const previewData = await previewGmailSync();
 
       console.warn(`[GmailSyncButton] Gmail preview completed`, {
         previewData,
@@ -161,23 +135,7 @@ export function GmailSyncButton({
         description: "Starting background sync process",
       });
 
-      const response = await fetch("/api/sync/approve/gmail", {
-        method: "POST",
-        headers: {
-          "x-csrf-token": getCsrfToken(),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          reason: "Manual sync from test interface",
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Sync approval failed: ${response.statusText}`);
-      }
-
-      const syncData = await response.json();
+      const syncData = await approveGmailSync();
       const batchId = syncData.batchId;
 
       console.warn(`[GmailSyncButton] Gmail sync approved`, {
@@ -231,21 +189,7 @@ export function GmailSyncButton({
         description: "Processing queued sync operations",
       });
 
-      const response = await fetch("/api/jobs/runner", {
-        method: "POST",
-        headers: {
-          "x-csrf-token": getCsrfToken(),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({}),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Job execution failed: ${response.statusText}`);
-      }
-
-      const jobData = await response.json();
+      const jobData = await runJobs();
 
       console.warn(`[GmailSyncButton] Jobs executed`, {
         jobData,

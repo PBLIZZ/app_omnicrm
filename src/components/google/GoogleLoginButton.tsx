@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 import { GoogleLoginButtonProps, OAuthError, GoogleOAuthScope } from "./types";
 
 /**
@@ -32,11 +33,7 @@ export function GoogleLoginButton({
 
     try {
       // Log the OAuth initiation
-      console.warn(`[GoogleLoginButton] Starting OAuth flow`, {
-        scope,
-        timestamp: new Date().toISOString(),
-        userAgent: navigator.userAgent,
-      });
+      logger.debug("Starting OAuth flow", { scope }, "GoogleLoginButton");
 
       toast.info(`Connecting to Google ${scope}...`, {
         description: "You'll be redirected to Google for authentication",
@@ -51,11 +48,11 @@ export function GoogleLoginButton({
       sessionStorage.setItem("oauth_scope", scope);
       sessionStorage.setItem("oauth_initiated_at", new Date().toISOString());
 
-      console.warn(`[GoogleLoginButton] Redirecting to OAuth URL`, {
-        oauthUrl,
-        returnUrl: currentUrl,
-        scope,
-      });
+      logger.debug(
+        "Redirecting to OAuth URL",
+        { oauthUrl, returnUrl: currentUrl, scope },
+        "GoogleLoginButton",
+      );
 
       // Perform the redirect
       window.location.href = oauthUrl;
@@ -71,7 +68,7 @@ export function GoogleLoginButton({
         timestamp: new Date(),
       };
 
-      console.error(`[GoogleLoginButton] OAuth initiation failed`, oauthError);
+      logger.error("OAuth initiation failed", oauthError, "GoogleLoginButton");
 
       toast.error("Authentication failed", {
         description: oauthError.message,
@@ -169,11 +166,15 @@ export function useOAuthCallback() {
       const initiatedScope = sessionStorage.getItem("oauth_scope") as GoogleOAuthScope;
       const returnUrl = sessionStorage.getItem("oauth_return_url");
 
-      console.warn(`[useOAuthCallback] OAuth completed successfully`, {
-        scope: initiatedScope,
-        returnUrl,
-        timestamp: new Date().toISOString(),
-      });
+      logger.info(
+        "OAuth completed successfully",
+        {
+          scope: initiatedScope,
+          returnUrl,
+          timestamp: new Date().toISOString(),
+        },
+        "useOAuthCallback",
+      );
 
       toast.success("Successfully connected to Google!", {
         description: initiatedScope
@@ -205,7 +206,7 @@ export function useOAuthCallback() {
         timestamp: new Date(),
       };
 
-      console.error(`[useOAuthCallback] OAuth failed`, oauthError);
+      logger.error("OAuth failed", oauthError, "useOAuthCallback");
 
       toast.error("Authentication failed", {
         description: `Error: ${error}`,

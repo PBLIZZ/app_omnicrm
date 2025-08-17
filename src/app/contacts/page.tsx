@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { ContactListHeader } from "@/components/contacts/ContactListHeader";
 import { ConfirmDeleteDialog } from "@/components/contacts/ConfirmDeleteDialog";
 import { deleteContacts, fetchContacts } from "@/components/contacts/api";
+import { logger } from "@/lib/logger";
 
 interface ContactItem {
   id: string;
@@ -53,7 +54,7 @@ export default function ContactsPage() {
             })),
           );
       } catch (error) {
-        console.error("Failed to fetch contacts:", error);
+        logger.error("Failed to fetch contacts", error, "ContactsPage");
         if (isMounted) setContacts([]);
       } finally {
         if (isMounted) setLoading(false);
@@ -73,7 +74,7 @@ export default function ContactsPage() {
       setRowSelection({});
       setShowDeleteConfirm(false);
     } catch (error) {
-      console.error("Failed to delete contacts:", error);
+      logger.error("Failed to delete contacts", error, "ContactsPage");
     } finally {
       setIsDeleting(false);
     }

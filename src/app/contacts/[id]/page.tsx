@@ -10,6 +10,7 @@ import { AIInsightsSection } from "../../../components/contacts/AIInsightsSectio
 import { ContactEditDialog } from "@/components/contacts/ContactEditDialog";
 import { fetchContact } from "@/components/contacts/api";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 interface ContactDetail {
   id: string;
@@ -49,7 +50,7 @@ export default function ContactDetailPage() {
         }
       } catch (error) {
         if (isMounted) {
-          console.error("Failed to fetch contact:", error);
+          logger.error("Failed to fetch contact", error, "ContactDetailPage");
           toast.error("Failed to load contact", {
             description: error instanceof Error ? error.message : "Unknown error occurred",
           });

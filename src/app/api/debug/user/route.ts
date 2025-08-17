@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +18,15 @@ export async function GET() {
       (c) => c.name.includes("sb") || c.name.includes("supabase"),
     );
 
-    console.warn(
-      "[DEBUG] All cookies:",
-      allCookies.map((c) => c.name),
+    logger.warn(
+      "[DEBUG] All cookies",
+      { cookieNames: allCookies.map((c) => c.name) },
+      "api/debug/user/GET",
     );
-    console.warn(
-      "[DEBUG] Supabase cookies:",
-      supabaseCookies.map((c) => c.name),
+    logger.warn(
+      "[DEBUG] Supabase cookies",
+      { cookieNames: supabaseCookies.map((c) => c.name) },
+      "api/debug/user/GET",
     );
 
     const userId = await getServerUserId();
@@ -43,9 +46,10 @@ export async function GET() {
     // Debug info only in non-production environments
     const cookieStore = await cookies();
     const allCookies = cookieStore.getAll();
-    console.warn(
-      "[DEBUG] Auth failed, cookies available:",
-      allCookies.map((c) => c.name),
+    logger.warn(
+      "[DEBUG] Auth failed, cookies available",
+      { cookieNames: allCookies.map((c) => c.name) },
+      "api/debug/user/GET",
     );
 
     return NextResponse.json(

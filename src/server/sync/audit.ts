@@ -1,5 +1,6 @@
 import { getDb } from "@/server/db/client";
 import { syncAudit } from "@/server/db/schema";
+import { logger } from "@/lib/logger";
 
 export async function logSync(
   userId: string,
@@ -25,8 +26,10 @@ export async function logSync(
   } catch (error) {
     // Best-effort logging; never block the request on audit failures
 
-    console.warn("[logSync] failed to write audit row", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.warn(
+      "[logSync] failed to write audit row",
+      { error: error instanceof Error ? error.message : String(error) },
+      "server/sync/audit#logSync",
+    );
   }
 }

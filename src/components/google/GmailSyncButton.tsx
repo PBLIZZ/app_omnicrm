@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 import { GmailSyncButtonProps, OAuthError, SyncStatus } from "./types";
 import { getSyncStatus, previewGmailSync, approveGmailSync, runJobs } from "@/lib/api/sync";
 
@@ -31,21 +32,24 @@ export function GmailSyncButton({
 
   const checkSyncStatus = async (): Promise<SyncStatus | null> => {
     try {
-      console.warn(`[GmailSyncButton] Checking sync status`, {
-        timestamp: new Date().toISOString(),
-      });
+      logger.debug(
+        "Checking sync status",
+        { timestamp: new Date().toISOString() },
+        "GmailSyncButton",
+      );
 
       const status = await getSyncStatus();
 
-      console.warn(`[GmailSyncButton] Sync status retrieved`, {
-        status,
-        timestamp: new Date().toISOString(),
-      });
+      logger.debug(
+        "Sync status retrieved",
+        { status, timestamp: new Date().toISOString() },
+        "GmailSyncButton",
+      );
 
       setSyncStatus(status as SyncStatus);
       return status;
     } catch (error: unknown) {
-      console.error(`[GmailSyncButton] Failed to check sync status`, error);
+      logger.error("Failed to check sync status", error, "GmailSyncButton");
 
       const oauthError: OAuthError = {
         code: "status_check_failed",
@@ -64,9 +68,11 @@ export function GmailSyncButton({
     setIsLoading(true);
 
     try {
-      console.warn(`[GmailSyncButton] Starting Gmail preview`, {
-        timestamp: new Date().toISOString(),
-      });
+      logger.debug(
+        "Starting Gmail preview",
+        { timestamp: new Date().toISOString() },
+        "GmailSyncButton",
+      );
 
       toast.info("Previewing Gmail sync...", {
         description: "Fetching sample data from your Gmail account",
@@ -74,10 +80,11 @@ export function GmailSyncButton({
 
       const previewData = await previewGmailSync();
 
-      console.warn(`[GmailSyncButton] Gmail preview completed`, {
-        previewData,
-        timestamp: new Date().toISOString(),
-      });
+      logger.debug(
+        "Gmail preview completed",
+        { previewData, timestamp: new Date().toISOString() },
+        "GmailSyncButton",
+      );
 
       const totalEmails = Object.values(previewData.countByLabel || {}).reduce(
         (a: number, b: unknown) => {
@@ -100,7 +107,7 @@ export function GmailSyncButton({
         timestamp: new Date(),
       };
 
-      console.error(`[GmailSyncButton] Gmail preview failed`, oauthError);
+      logger.error("Gmail preview failed", oauthError, "GmailSyncButton");
 
       toast.error("Preview failed", {
         description: oauthError.message,
@@ -117,9 +124,11 @@ export function GmailSyncButton({
     setIsLoading(true);
 
     try {
-      console.warn(`[GmailSyncButton] Starting Gmail sync approval`, {
-        timestamp: new Date().toISOString(),
-      });
+      logger.debug(
+        "Starting Gmail sync approval",
+        { timestamp: new Date().toISOString() },
+        "GmailSyncButton",
+      );
 
       // First check if we have proper authorization
       const status = await checkSyncStatus();
@@ -138,11 +147,11 @@ export function GmailSyncButton({
       const syncData = await approveGmailSync();
       const batchId = syncData.batchId;
 
-      console.warn(`[GmailSyncButton] Gmail sync approved`, {
-        batchId,
-        syncData,
-        timestamp: new Date().toISOString(),
-      });
+      logger.info(
+        "Gmail sync approved",
+        { batchId, syncData, timestamp: new Date().toISOString() },
+        "GmailSyncButton",
+      );
 
       toast.success("Gmail sync approved!", {
         description: `Batch ID: ${batchId}. Check the jobs section for progress.`,
@@ -164,7 +173,7 @@ export function GmailSyncButton({
         timestamp: new Date(),
       };
 
-      console.error(`[GmailSyncButton] Gmail sync approval failed`, oauthError);
+      logger.error("Gmail sync approval failed", oauthError, "GmailSyncButton");
 
       toast.error("Sync approval failed", {
         description: oauthError.message,
@@ -181,9 +190,7 @@ export function GmailSyncButton({
     setIsLoading(true);
 
     try {
-      console.warn(`[GmailSyncButton] Running jobs`, {
-        timestamp: new Date().toISOString(),
-      });
+      logger.debug("Running jobs", { timestamp: new Date().toISOString() }, "GmailSyncButton");
 
       toast.info("Running background jobs...", {
         description: "Processing queued sync operations",
@@ -191,10 +198,11 @@ export function GmailSyncButton({
 
       const jobData = await runJobs();
 
-      console.warn(`[GmailSyncButton] Jobs executed`, {
-        jobData,
-        timestamp: new Date().toISOString(),
-      });
+      logger.info(
+        "Jobs executed",
+        { jobData, timestamp: new Date().toISOString() },
+        "GmailSyncButton",
+      );
 
       toast.success("Jobs completed!", {
         description: `Processed: ${jobData.processed} jobs`,
@@ -214,7 +222,7 @@ export function GmailSyncButton({
         timestamp: new Date(),
       };
 
-      console.error(`[GmailSyncButton] Job execution failed`, oauthError);
+      logger.error("Job execution failed", oauthError, "GmailSyncButton");
 
       toast.error("Job execution failed", {
         description: oauthError.message,

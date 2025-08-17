@@ -113,8 +113,8 @@ export function ContactEditDialog({ open, onOpenChange, contact, onContactUpdate
       const updatedContact: EditableContact = {
         id: updated.id,
         displayName: updated.displayName,
-        primaryEmail: updated.primaryEmail ?? undefined,
-        primaryPhone: updated.primaryPhone ?? undefined,
+        ...(updated.primaryEmail != null ? { primaryEmail: updated.primaryEmail } : {}),
+        ...(updated.primaryPhone != null ? { primaryPhone: updated.primaryPhone } : {}),
         tags: parsedTags,
         notes: payload.notes ?? "",
         createdAt: updated.createdAt,

@@ -4,6 +4,7 @@ import React, { Component, ErrorInfo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { OAuthErrorBoundaryProps, OAuthError } from "./types";
+import { logger } from "@/lib/logger";
 
 interface State {
   hasError: boolean;
@@ -101,7 +102,7 @@ export class OAuthErrorBoundary extends Component<OAuthErrorBoundaryProps, State
       timestamp: new Date(),
     };
 
-    console.error("[OAuthErrorBoundary] Caught an error:", oauthError);
+    logger.error("Caught OAuth error", oauthError, "OAuthErrorBoundary");
 
     // Call the error callback if provided
     this.props.onError?.(error, errorInfo);
@@ -126,7 +127,7 @@ export class OAuthErrorBoundary extends Component<OAuthErrorBoundaryProps, State
   }
 
   resetError = () => {
-    console.warn("[OAuthErrorBoundary] Resetting error state");
+    logger.info("Resetting error state", undefined, "OAuthErrorBoundary");
     this.setState({
       hasError: false,
     });
@@ -154,7 +155,7 @@ export function useOAuthErrorHandler() {
   const [error, setError] = React.useState<OAuthError | null>(null);
 
   const handleError = React.useCallback((oauthError: OAuthError) => {
-    console.error("[useOAuthErrorHandler] OAuth error occurred:", oauthError);
+    logger.error("OAuth error occurred", oauthError, "useOAuthErrorHandler");
     setError(oauthError);
 
     // Optional: Report to monitoring service
@@ -170,7 +171,7 @@ export function useOAuthErrorHandler() {
   }, []);
 
   const clearError = React.useCallback(() => {
-    console.warn("[useOAuthErrorHandler] Clearing error state");
+    logger.info("Clearing OAuth error state", undefined, "useOAuthErrorHandler");
     setError(null);
   }, []);
 

@@ -40,3 +40,5 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 - Test user: `test-e2e@example.com` / `test-e2e-password-123`
 
 - Never use `any`
+
+- it might take you some effort and time to fix the lint errors properly but when we come sacross issues we need to resolve the underlying cause. It is not acceptable to put a comment, change the config file, add to ignore list, use underscore, or any other short term fix. Do Not Accrue Technical Debt.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { env } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -35,15 +36,19 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (env.NODE_ENV !== "production") {
-      console.warn("[DEBUG] Auth callback completed", {
-        hasUser: !!data?.user,
-        hasError: Boolean(error),
-      });
+      logger.debug(
+        "Auth callback completed",
+        {
+          hasUser: !!data?.user,
+          hasError: Boolean(error),
+        },
+        "auth/callback/GET",
+      );
     }
 
     if (error) {
       if (env.NODE_ENV !== "production") {
-        console.error("OAuth callback error");
+        logger.error("OAuth callback error", error, "auth/callback/GET");
       }
       return NextResponse.redirect(`${origin}/login?error=oauth_failed`);
     }

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 import {
   getSyncStatus,
   getSyncPreferences,
@@ -41,7 +42,7 @@ export default function SyncSettingsPage() {
       toast.success("Status refreshed");
     } catch (error) {
       toast.error("Failed to refresh status", { description: "Network error" });
-      console.error("Failed to refresh status:", error);
+      logger.error("Failed to refresh status", error, "SyncSettingsPage");
     } finally {
       setBusy(false);
     }
@@ -55,7 +56,7 @@ export default function SyncSettingsPage() {
       toast.success("Preferences loaded");
     } catch (error) {
       toast.error("Failed to load preferences", { description: "Network error" });
-      console.error("Failed to load preferences:", error);
+      logger.error("Failed to load preferences", error, "SyncSettingsPage");
     } finally {
       setBusy(false);
     }
@@ -70,7 +71,7 @@ export default function SyncSettingsPage() {
       toast.success("Preferences saved successfully");
     } catch (error) {
       toast.error("Failed to save preferences", { description: "Network error" });
-      console.error("Failed to save preferences:", error);
+      logger.error("Failed to save preferences", error, "SyncSettingsPage");
     } finally {
       setBusy(false);
     }
@@ -214,7 +215,7 @@ export default function SyncSettingsPage() {
                       setStatus(newStatus);
                     } catch (error) {
                       toast.error("Failed to undo import", { description: "Network error" });
-                      console.error("Failed to undo import:", error);
+                      logger.error("Failed to undo import", error, "SyncSettingsPage");
                     } finally {
                       setBusy(false);
                     }
@@ -395,7 +396,7 @@ export default function SyncSettingsPage() {
                 setGmail(result);
               } catch (error) {
                 toast.error("Gmail preview failed", { description: "Network error" });
-                console.error("Failed to preview Gmail:", error);
+                logger.error("Failed to preview Gmail", error, "SyncSettingsPage");
               } finally {
                 setBusy(false);
               }
@@ -413,7 +414,7 @@ export default function SyncSettingsPage() {
                 setCalendar(result);
               } catch (error) {
                 toast.error("Calendar preview failed", { description: "Network error" });
-                console.error("Failed to preview Calendar:", error);
+                logger.error("Failed to preview Calendar", error, "SyncSettingsPage");
               } finally {
                 setBusy(false);
               }
@@ -471,7 +472,7 @@ export default function SyncSettingsPage() {
                 });
               } catch (error) {
                 toast.error("Failed to approve Gmail sync", { description: "Network error" });
-                console.error("Failed to approve Gmail sync:", error);
+                logger.error("Failed to approve Gmail sync", error, "SyncSettingsPage");
               } finally {
                 setBusy(false);
               }
@@ -492,7 +493,7 @@ export default function SyncSettingsPage() {
                 });
               } catch (error) {
                 toast.error("Failed to approve Calendar sync", { description: "Network error" });
-                console.error("Failed to approve Calendar sync:", error);
+                logger.error("Failed to approve Calendar sync", error, "SyncSettingsPage");
               } finally {
                 setBusy(false);
               }
@@ -512,7 +513,7 @@ export default function SyncSettingsPage() {
                 });
               } catch (error) {
                 toast.error("Failed to run jobs", { description: "Network error" });
-                console.error("Failed to run jobs:", error);
+                logger.error("Failed to run jobs", error, "SyncSettingsPage");
               } finally {
                 setBusy(false);
               }

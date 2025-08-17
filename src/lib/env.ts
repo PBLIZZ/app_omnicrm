@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { logger } from "@/lib/logger";
 
 // Centralized environment validation. This module should be imported by
 // server-only code at module load so the app fails fast when misconfigured.
@@ -19,19 +20,50 @@ const baseSchema = z.object({
   APP_ORIGINS: z.string().optional(),
 });
 
+// Edge-safe byte length helpers (prefer Web APIs, fallback to Buffer if present)
+function byteLengthBase64(v: string): number {
+  try {
+    // Node fallback
+    if (typeof Buffer !== "undefined") return Buffer.from(v, "base64").length;
+  } catch {
+    // ignore
+  }
+  try {
+    if (typeof atob === "function") return atob(v).length;
+  } catch {
+    // ignore
+  }
+  return 0;
+}
+
+function byteLengthHex(v: string): number {
+  return v.length % 2 === 0 ? v.length / 2 : 0;
+}
+
+function byteLengthUtf8(v: string): number {
+  try {
+    if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(v).length;
+  } catch {
+    // ignore
+  }
+  try {
+    if (typeof Buffer !== "undefined") return Buffer.from(v, "utf8").length;
+  } catch {
+    // ignore
+  }
+  return v.length;
+}
+
 function validateEncryptionKey(value: string): void {
   // Prefer 32-byte base64; allow hex or utf8 length >= 32 for compatibility
   const isBase64 = /^[A-Za-z0-9+/=]+$/.test(value) && value.length % 4 === 0;
-  if (isBase64) {
-    try {
-      if (Buffer.from(value, "base64").length >= 32) return;
-    } catch {
-      // fallthrough
-    }
-  }
+  if (isBase64 && byteLengthBase64(value) >= 32) return;
+
   const isHex = /^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0;
-  if (isHex && Buffer.from(value, "hex").length >= 32) return;
-  if (Buffer.from(value, "utf8").length >= 32) return;
+  if (isHex && byteLengthHex(value) >= 32) return;
+
+  if (byteLengthUtf8(value) >= 32) return;
+
   throw new Error(
     "APP_ENCRYPTION_KEY must be a 32-byte key (base64 preferred; hex or utf8 length >= 32 accepted)",
   );
@@ -60,10 +92,14 @@ export const env: Env = (() => {
     const gmail = process.env["FEATURE_GOOGLE_GMAIL_RO"];
     const cal = process.env["FEATURE_GOOGLE_CALENDAR_RO"];
     if (gmail == null || cal == null) {
-      console.warn("Missing FEATURE_GOOGLE_* flags", {
-        FEATURE_GOOGLE_GMAIL_RO: gmail == null,
-        FEATURE_GOOGLE_CALENDAR_RO: cal == null,
-      });
+      logger.warn(
+        "Missing FEATURE_GOOGLE_* flags",
+        {
+          FEATURE_GOOGLE_GMAIL_RO: gmail == null,
+          FEATURE_GOOGLE_CALENDAR_RO: cal == null,
+        },
+        "env",
+      );
     }
   }
 

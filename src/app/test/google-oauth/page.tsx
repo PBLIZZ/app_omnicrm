@@ -15,6 +15,7 @@ import {
   type LogEntry,
   type GoogleOAuthScope,
 } from "@/components/google";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,15 @@ export default function GoogleOAuthTestPage() {
     };
 
     setLogs((prev) => [logEntry, ...prev].slice(0, 100)); // Keep last 100 logs
-    console.warn(`[GoogleOAuthTest] ${level.toUpperCase()}: ${action}`, logEntry);
+    // Unified logger with toasts on client
+    const component = "GoogleOAuthTestPage";
+    if (level === "error") {
+      logger.error(action, { scope, ...(details || {}), logEntry }, component);
+    } else if (level === "warn") {
+      logger.warn(action, { scope, ...(details || {}), logEntry }, component);
+    } else {
+      logger.info(action, { scope, ...(details || {}), logEntry }, component);
+    }
   };
 
   // Test result tracking

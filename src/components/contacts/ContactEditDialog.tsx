@@ -110,7 +110,7 @@ export function ContactEditDialog({ open, onOpenChange, contact, onContactUpdate
         tags: parsedTags,
         notes: payload.notes ?? null,
       });
-      onContactUpdated?.({
+      const updatedContact: EditableContact = {
         id: updated.id,
         displayName: updated.displayName,
         primaryEmail: updated.primaryEmail ?? undefined,
@@ -118,7 +118,8 @@ export function ContactEditDialog({ open, onOpenChange, contact, onContactUpdate
         tags: parsedTags,
         notes: payload.notes ?? "",
         createdAt: updated.createdAt,
-      } as unknown as EditableContact);
+      };
+      onContactUpdated?.(updatedContact);
       onOpenChange(false);
       toast.success("Contact updated", { description: `${updated.displayName} saved.` });
     } catch (err) {

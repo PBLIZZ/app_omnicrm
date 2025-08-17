@@ -52,7 +52,8 @@ export default function ContactsPage() {
               createdAt: d.createdAt,
             })),
           );
-      } catch {
+      } catch (error) {
+        console.error("Failed to fetch contacts:", error);
         if (isMounted) setContacts([]);
       } finally {
         if (isMounted) setLoading(false);

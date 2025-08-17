@@ -53,13 +53,7 @@ export default function LoginPage() {
       ) : (
         <div className="space-y-4">
           {/* Google OAuth Sign In */}
-          <Button
-            onClick={handleGoogleSignIn}
-            className="w-full"
-            variant="outline"
-            disabled={isGoogle}
-            aria-disabled={isGoogle}
-          >
+          <Button onClick={handleGoogleSignIn} className="w-full" variant="outline">
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"

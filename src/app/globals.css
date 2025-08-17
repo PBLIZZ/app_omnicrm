@@ -120,3 +120,20 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Chat widget entrance animation */
+@keyframes chat-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.chat-interface-enter {
+  animation: chat-enter 180ms ease-out both;
+  will-change: transform, opacity;
+}

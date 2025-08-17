@@ -25,6 +25,7 @@ export default function AuthHeader() {
         <Link href="/contacts" className="hover:underline">
           Contacts
         </Link>
+
         <Link href="/settings/sync" className="hover:underline">
           Settings
         </Link>

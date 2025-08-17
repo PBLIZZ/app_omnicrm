@@ -1,4 +1,4 @@
-import "@testing-library/jest-dom";
+import "@testing-library/jest-dom/vitest";
 // Ensure env defaults for tests that rely on Google OAuth configuration
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "test";
 process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "test";

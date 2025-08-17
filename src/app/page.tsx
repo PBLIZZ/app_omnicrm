@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { PricingCards } from "@/components/test-pricing-cards";
 import { EnhancedPricingCards } from "@/components/enhanced-pricing-cards";
 import { WellnessPricingCards } from "@/components/wellness-pricing-cards";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 
 export default function Home() {
   const router = useRouter();
@@ -82,8 +83,9 @@ export default function Home() {
             <WellnessPricingCards />
           </div>
         </div>
-
+        
         {/* Chat assistant scaffold intentionally removed for production readiness */}
+        <ChatWidget />
       </div>
     </div>
   );

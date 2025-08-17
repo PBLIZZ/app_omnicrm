@@ -10,6 +10,12 @@ import {
   getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
+  Table as ReactTable,
+  Column,
+  Row,
+  Cell,
+  Header,
+  HeaderGroup,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -33,6 +39,12 @@ export interface ContactRow {
   primaryEmail?: string | undefined;
   primaryPhone?: string | undefined;
   createdAt?: string | undefined;
+}
+
+interface DateFilterValue {
+  mode?: string;
+  from?: string;
+  to?: string;
 }
 
 interface Props {
@@ -96,7 +108,7 @@ export function ContactTable({
     () => [
       {
         id: "select",
-        header: ({ table }) => {
+        header: ({ table }: { table: ReactTable<ContactRow> }) => {
           const checked = table.getIsAllPageRowsSelected();
           const indeterminate = table.getIsSomePageRowsSelected();
           return (
@@ -112,7 +124,7 @@ export function ContactTable({
             />
           );
         },
-        cell: ({ row }) => (
+        cell: ({ row }: { row: Row<ContactRow> }) => (
           <input
             type="checkbox"
             aria-label={`Select ${row.original.displayName}`}
@@ -129,7 +141,7 @@ export function ContactTable({
       },
       {
         accessorKey: "displayName",
-        header: ({ column }) => (
+        header: ({ column }: { column: Column<ContactRow> }) => (
           <Button
             variant="ghost"
             className="px-0"
@@ -147,23 +159,31 @@ export function ContactTable({
             {column.getIsSorted() === "asc" ? " ▲" : column.getIsSorted() === "desc" ? " ▼" : ""}
           </Button>
         ),
-        cell: ({ row }) => <span className="font-medium">{row.original.displayName}</span>,
+        cell: ({ row }: { row: Row<ContactRow> }) => (
+          <span className="font-medium">{row.original.displayName}</span>
+        ),
         enableSorting: true,
         sortingFn: "alphanumeric",
       },
       {
         accessorKey: "primaryEmail",
         header: "Email",
-        cell: ({ row }) => row.original.primaryEmail || "—",
+        cell: ({ row }: { row: Row<ContactRow> }) => row.original.primaryEmail || "—",
       },
       {
         accessorKey: "primaryPhone",
         header: "Phone",
-        cell: ({ row }) => row.original.primaryPhone || "—",
+        cell: ({ row }: { row: Row<ContactRow> }) => row.original.primaryPhone || "—",
       },
       {
         accessorKey: "createdAt",
-        header: ({ column, table }) => (
+        header: ({
+          column,
+          table,
+        }: {
+          column: Column<ContactRow>;
+          table: ReactTable<ContactRow>;
+        }) => (
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -226,11 +246,7 @@ export function ContactTable({
                       aria-label="Filter from date"
                       onChange={(e) => {
                         const current =
-                          (table.getColumn("createdAt")?.getFilterValue() as {
-                            mode?: string;
-                            from?: string;
-                            to?: string;
-                          }) || {};
+                          (table.getColumn("createdAt")?.getFilterValue() as DateFilterValue) || {};
                         table
                           .getColumn("createdAt")
                           ?.setFilterValue({ ...current, mode: "range", from: e.target.value });
@@ -243,11 +259,7 @@ export function ContactTable({
                       aria-label="Filter to date"
                       onChange={(e) => {
                         const current =
-                          (table.getColumn("createdAt")?.getFilterValue() as {
-                            mode?: string;
-                            from?: string;
-                            to?: string;
-                          }) || {};
+                          (table.getColumn("createdAt")?.getFilterValue() as DateFilterValue) || {};
                         table
                           .getColumn("createdAt")
                           ?.setFilterValue({ ...current, mode: "range", to: e.target.value });
@@ -259,12 +271,12 @@ export function ContactTable({
             </DropdownMenu>
           </div>
         ),
-        cell: ({ row }) =>
+        cell: ({ row }: { row: Row<ContactRow> }) =>
           row.original.createdAt
             ? new Date(row.original.createdAt).toLocaleDateString("en-GB")
             : "—",
-        filterFn: (row, _columnId, value) => {
-          const v = value as { mode?: string; from?: string; to?: string } | undefined;
+        filterFn: (row: Row<ContactRow>, _columnId: string, value: DateFilterValue | undefined) => {
+          const v = value;
           if (!v || !v.mode || v.mode === "any") return true;
           return isInRange(row.original.createdAt, v.mode, v.from, v.to);
         },
@@ -281,7 +293,7 @@ export function ContactTable({
     state: { rowSelection: rowSelection ?? {}, sorting, columnFilters },
     enableRowSelection: true,
     onRowSelectionChange: onRowSelectionChange as (updater: Updater<RowSelectionState>) => void,
-    getRowId: (row) => row.id,
+    getRowId: (row: ContactRow) => row.id,
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -291,7 +303,7 @@ export function ContactTable({
 
   useEffect(() => {
     if (!onSelectionChange) return;
-    const ids = table.getSelectedRowModel().rows.map((r) => r.original.id);
+    const ids = table.getSelectedRowModel().rows.map((r: Row<ContactRow>) => r.original.id);
     onSelectionChange(ids);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowSelection, data]);
@@ -300,9 +312,9 @@ export function ContactTable({
     <div className="rounded-md border">
       <Table>
         <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
+          {table.getHeaderGroups().map((headerGroup: HeaderGroup<ContactRow>) => (
             <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
+              {headerGroup.headers.map((header: Header<ContactRow, unknown>) => (
                 <TableHead key={header.id}>
                   {header.isPlaceholder
                     ? null
@@ -314,7 +326,7 @@ export function ContactTable({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => (
+            table.getRowModel().rows.map((row: Row<ContactRow>) => (
               <TableRow
                 key={row.id}
                 className="cursor-pointer focus-within:bg-muted/50 hover:bg-muted/50"
@@ -330,7 +342,7 @@ export function ContactTable({
                 aria-label={`Open contact ${row.original.displayName}`}
                 data-state={row.getIsSelected() ? "selected" : undefined}
               >
-                {row.getVisibleCells().map((cell) => (
+                {row.getVisibleCells().map((cell: Cell<ContactRow, unknown>) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>

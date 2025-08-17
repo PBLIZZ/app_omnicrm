@@ -1,5 +1,18 @@
 - we use pnpm
 
+## Pull Request Workflow
+
+When adding commits from a feature branch to main, follow this process:
+
+1. **Create feature branch from main**: `git checkout -b feature-name`
+2. **Apply commits to feature branch**: Use `git cherry-pick` or apply changes directly
+3. **Push feature branch**: `git push -u origin feature-name`
+4. **Create PR**: Use `gh pr create` against main branch
+5. **Wait for CI tests**: Let GitHub Actions run typecheck, lint, tests, and build
+6. **Review and merge**: Only merge after all CI checks pass
+
+**NEVER commit directly to main branch.** Always use the PR process to ensure CI validation.
+
 ## Testing Environment
 
 - E2E tests require `.env.local` to be configured with `DATABASE_URL` and `FEATURE_GOOGLE_*` flags
@@ -25,3 +38,5 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 
 - Run `pnpm dev`, sign in at `/login`, complete OAuth at `/settings/sync`
 - Test user: `test-e2e@example.com` / `test-e2e-password-123`
+
+- Never use `any`

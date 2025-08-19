@@ -7,9 +7,9 @@ import { userSyncPrefs } from "@/server/db/schema";
 import { err, ok } from "@/server/http/responses";
 import { toApiError } from "@/server/jobs/types";
 import { safeJson } from "@/server/http/responses";
-import { z } from "zod";
+import { UserSyncPrefsUpdateSchema } from "@/server/schemas";
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   try {
     const userId = await getServerUserId();
     const dbo = await getDb();
@@ -35,24 +35,12 @@ export async function GET() {
   }
 }
 
-export async function PUT(req: NextRequest) {
+export async function PUT(req: NextRequest): Promise<Response> {
   try {
     const userId = await getServerUserId();
     const dbo = await getDb();
-    const prefsSchema = z
-      .object({
-        gmailQuery: z.string().max(500).optional(),
-        gmailLabelIncludes: z.array(z.string()).max(100).optional(),
-        gmailLabelExcludes: z.array(z.string()).max(100).optional(),
-        calendarIncludeOrganizerSelf: z.union([z.boolean(), z.string()]).optional(),
-        calendarIncludePrivate: z.union([z.boolean(), z.string()]).optional(),
-        calendarTimeWindowDays: z.number().int().min(1).max(365).optional(),
-        driveIngestionMode: z.enum(["none", "picker", "folders"]).optional(),
-        driveFolderIds: z.array(z.string()).max(100).optional(),
-      })
-      .strict();
     const raw = (await safeJson<Record<string, unknown>>(req)) ?? {};
-    const body = prefsSchema.parse(raw);
+    const body = UserSyncPrefsUpdateSchema.parse(raw);
     const toBool = (v: unknown, d: boolean): boolean => {
       if (typeof v === "boolean") return v;
       if (typeof v === "string") return v === "true";

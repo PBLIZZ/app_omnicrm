@@ -4,7 +4,7 @@ import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { ok } from "@/server/http/responses";
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   const ctx = await buildLogContext();
   log.info({ route: "/api/health", ...ctx }, "health ping");
   // Minimal self-check: if DB is configured, attempt a quick ping without blocking the response

@@ -14,7 +14,7 @@ const approveBodySchema = z
   })
   .strict();
 
-export async function POST(req: Request) {
+export async function POST(req: Request): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();

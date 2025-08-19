@@ -8,7 +8,7 @@ import { hmacSign, randomNonce } from "@/server/lib/crypto";
 import { toApiError } from "@/server/jobs/types";
 
 // GET /api/google/oauth?scope=gmail|calendar
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();

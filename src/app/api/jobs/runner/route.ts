@@ -9,19 +9,27 @@ import {
 import { runEmbed } from "@/server/jobs/processors/embed";
 import { runInsight } from "@/server/jobs/processors/insight";
 import { getServerUserId } from "@/server/auth/user";
-import type { JobKind, JobRecord, JobHandler, JobError } from "@/server/jobs/types";
+import type { JobKind, JobHandler, JobError } from "@/server/jobs/types";
 import { log } from "@/server/log";
 import { ok, err } from "@/server/http/responses";
 
-export async function POST() {
+export async function POST(): Promise<Response> {
   const dbo = await getDb();
   let userId: string;
   try {
     userId = await getServerUserId();
   } catch (error: unknown) {
-    const jobError = error as JobError;
-    const status = jobError.status ?? 401;
-    return err(status, jobError.message ?? "Unauthorized");
+    const isJobError = (e: unknown): e is JobError => {
+      return typeof e === "object" && e !== null && ("status" in e || "message" in e);
+    };
+
+    if (isJobError(error)) {
+      const status = typeof error.status === "number" ? error.status : 401;
+      const message = typeof error.message === "string" ? error.message : "Unauthorized";
+      return err(status, message);
+    } else {
+      return err(401, "Unauthorized");
+    }
   }
 
   // pull queued jobs for this user
@@ -39,16 +47,16 @@ export async function POST() {
   const MAX_BACKOFF_MS = 60_000; // cap backoff to 60s
 
   const handlers: Record<JobKind, JobHandler> = {
-    google_gmail_sync: runGmailSync as unknown as JobHandler,
-    google_calendar_sync: runCalendarSync as unknown as JobHandler,
+    google_gmail_sync: runGmailSync as JobHandler,
+    google_calendar_sync: runCalendarSync as JobHandler,
     normalize: async () => {},
-    embed: runEmbed as unknown as JobHandler,
-    insight: runInsight as unknown as JobHandler,
-    normalize_google_email: runNormalizeGoogleEmail as unknown as JobHandler,
-    normalize_google_event: runNormalizeGoogleEvent as unknown as JobHandler,
+    embed: runEmbed,
+    insight: runInsight,
+    normalize_google_email: runNormalizeGoogleEmail,
+    normalize_google_event: runNormalizeGoogleEvent,
   };
 
-  for (const job of queued as JobRecord[]) {
+  for (const job of queued) {
     // Exponential backoff: skip too-soon retries based on updatedAt + backoff(attempts)
     const attempts = Number(job.attempts ?? 0);
     const backoffMs = Math.min(BASE_DELAY_MS * 2 ** attempts, MAX_BACKOFF_MS);
@@ -80,7 +88,7 @@ export async function POST() {
         continue;
       }
 
-      await handler(job as unknown, userId);
+      await handler(job, userId);
       await dbo
         .update(jobs)
         .set({ status: "done", updatedAt: new Date() })
@@ -100,7 +108,7 @@ export async function POST() {
             status: "queued",
             attempts: nextAttempts,
             updatedAt: new Date(),
-            lastError: (error as { message?: string }).message ?? "unknown_error",
+            lastError: error instanceof Error ? error.message : "unknown_error",
           })
           .where(eq(jobs.id, job.id));
       } else {
@@ -110,19 +118,19 @@ export async function POST() {
             status: "error",
             attempts: nextAttempts,
             updatedAt: new Date(),
-            lastError: (error as { message?: string }).message ?? "unknown_error",
+            lastError: error instanceof Error ? error.message : "unknown_error",
           })
           .where(eq(jobs.id, job.id));
       }
 
-      const jobError = error as JobError;
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       log.warn(
         {
           jobId: job.id,
           kind: job.kind,
           attempts: nextAttempts,
           willRetry,
-          error: jobError.message ?? "Unknown error",
+          error: errorMessage,
         },
         "job_failed",
       );

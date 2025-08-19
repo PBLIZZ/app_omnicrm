@@ -6,7 +6,7 @@ import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   if (env.NODE_ENV === "production") {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -41,7 +41,7 @@ export async function GET() {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    const status = (error as { status?: number })?.status || 500;
+    const status = (error as { status?: number })?.status ?? 500;
 
     // Debug info only in non-production environments
     const cookieStore = await cookies();

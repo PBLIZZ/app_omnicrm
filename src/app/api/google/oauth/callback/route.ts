@@ -9,7 +9,7 @@ import { err } from "@/server/http/responses";
 import { encryptString, hmacVerify } from "@/server/lib/crypto";
 import { getServerUserId } from "@/server/auth/user";
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const db = await getDb();
   const code = req.nextUrl.searchParams.get("code");
   const stateRaw = req.nextUrl.searchParams.get("state");
@@ -20,13 +20,29 @@ export async function GET(req: NextRequest) {
   try {
     userId = await getServerUserId();
   } catch (e: unknown) {
-    const error = e as { status?: number; message?: string };
-    return err(error?.status ?? 401, error?.message ?? "Unauthorized");
+    const error = e instanceof Error ? e : new Error("Unknown error");
+    const status =
+      typeof (e as { status?: number }).status === "number"
+        ? (e as { status: number }).status
+        : 401;
+    const message = error.message || "Unauthorized";
+    return err(status, message);
   }
 
   let parsed: { n: string; s: string };
   try {
-    parsed = JSON.parse(stateRaw);
+    const parsedState = JSON.parse(stateRaw) as unknown;
+    // Type guard to ensure parsed state has expected structure
+    if (
+      typeof parsedState === "object" &&
+      parsedState !== null &&
+      "n" in parsedState &&
+      "s" in parsedState
+    ) {
+      parsed = parsedState as { n: string; s: string };
+    } else {
+      return err(400, "invalid_state");
+    }
   } catch {
     return err(400, "invalid_state");
   }

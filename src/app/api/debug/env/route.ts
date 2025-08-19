@@ -3,7 +3,7 @@ import { ok, err } from "@/server/http/responses";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   if (env.NODE_ENV === "production") {
     return err(404, "not_found", { message: "Not found" });
   }

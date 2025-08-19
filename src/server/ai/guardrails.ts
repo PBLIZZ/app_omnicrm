@@ -5,7 +5,7 @@ const MONTHLY = Number(process.env["AI_CREDITS_MONTHLY"] ?? 200);
 const RPM = Number(process.env["AI_REQUESTS_PER_MINUTE"] ?? 8);
 const DAILY_CAP_EUR = Number(process.env["AI_DAILY_EUR_HARDCAP"] ?? 0);
 
-function firstOfMonth(d = new Date()) {
+function firstOfMonth(d = new Date()): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 export { firstOfMonth }; // useful in tests
@@ -13,7 +13,7 @@ export { firstOfMonth }; // useful in tests
 /**
  * Ensure a quota row exists for the current month & refresh if month rolled over.
  */
-export async function ensureMonthlyQuota(userId: string) {
+export async function ensureMonthlyQuota(userId: string): Promise<void> {
   const period = firstOfMonth();
   const dbo = await getDb();
   await dbo.execute(sql`
@@ -86,7 +86,7 @@ export async function logUsage(params: {
   inputTokens?: number;
   outputTokens?: number;
   costUsd?: number;
-}) {
+}): Promise<void> {
   const { userId, model, inputTokens = 0, outputTokens = 0, costUsd = 0 } = params;
   const dbo = await getDb();
   await dbo.execute(sql`

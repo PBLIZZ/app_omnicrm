@@ -102,7 +102,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       primaryPhone: row.primaryPhone ?? null,
       source: row.source ?? null,
       createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
+      updatedAt: (row.updatedAt ?? row.createdAt).toISOString(),
     },
     { status: 201 },
   );

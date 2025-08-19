@@ -105,7 +105,7 @@ export function GoogleLoginButton({
     <div className="space-y-2">
       <Button
         onClick={handleLogin}
-        disabled={disabled || isLoading}
+        disabled={(disabled ?? false) || isLoading}
         variant={variant}
         size={size}
         className={cn("relative", isLoading && "cursor-not-allowed", className)}

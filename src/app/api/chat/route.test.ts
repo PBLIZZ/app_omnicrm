@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chatRequestSchema } from "./schema";
+import { SimpleChatRequestSchema as chatRequestSchema } from "@/server/schemas";
 
 describe("chat schema", () => {
   it("accepts valid prompt", () => {

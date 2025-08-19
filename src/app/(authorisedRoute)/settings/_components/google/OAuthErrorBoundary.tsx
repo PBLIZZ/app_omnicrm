@@ -141,7 +141,7 @@ export class OAuthErrorBoundary extends Component<OAuthErrorBoundaryProps, State
 
   override render(): React.ReactNode {
     if (this.state.hasError && this.state.error) {
-      const FallbackComponent = this.props.fallback || DefaultErrorFallback;
+      const FallbackComponent = this.props.fallback ?? DefaultErrorFallback;
 
       return (
         <div role="alert" className="oauth-error-boundary">
@@ -207,7 +207,7 @@ export function withOAuthErrorBoundary<P extends object>(
     </OAuthErrorBoundary>
   );
 
-  WithErrorBoundary.displayName = `withOAuthErrorBoundary(${WrappedComponent.displayName || WrappedComponent.name})`;
+  WithErrorBoundary.displayName = `withOAuthErrorBoundary(${WrappedComponent.displayName ?? WrappedComponent.name})`;
 
   return WithErrorBoundary;
 }

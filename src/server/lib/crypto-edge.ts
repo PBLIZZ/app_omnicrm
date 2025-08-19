@@ -159,9 +159,9 @@ export async function decryptString(value: string): Promise<string> {
   combined.set(ct, 0);
   combined.set(tag, ct.length);
   const plainBuf = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv as Uint8Array, tagLength: 128 },
+    { name: "AES-GCM", iv: iv.buffer as ArrayBuffer, tagLength: 128 },
     aesKey,
-    combined as Uint8Array,
+    combined,
   );
   return bytesToUtf8(new Uint8Array(plainBuf));
 }

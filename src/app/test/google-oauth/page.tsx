@@ -54,11 +54,11 @@ export default function GoogleOAuthTestPage(): JSX.Element {
     // Unified logger with toasts on client
     const component = "GoogleOAuthTestPage";
     if (level === "error") {
-      logger.error(action, { scope, ...(details || {}), logEntry }, component);
+      logger.error(action, { scope, ...(details ?? {}), logEntry }, component);
     } else if (level === "warn") {
-      logger.warn(action, { scope, ...(details || {}), logEntry }, component);
+      logger.warn(action, { scope, ...(details ?? {}), logEntry }, component);
     } else {
-      logger.info(action, { scope, ...(details || {}), logEntry }, component);
+      logger.info(action, { scope, ...(details ?? {}), logEntry }, component);
     }
   };
 

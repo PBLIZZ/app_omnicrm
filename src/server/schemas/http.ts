@@ -11,10 +11,29 @@ export const ErrorEnvelopeSchema = z.object({
   details: z.unknown().optional(),
 });
 
-export const Envelope = <T extends z.ZodType>(
+/**
+ * Creates a success envelope schema for a given data type.
+ *
+ * @template T
+ * @param {T} data - The data type to create a success envelope schema for.
+ * @returns {z.ZodObject<{ ok: z.ZodLiteral<true>; data: T }>} The success envelope schema.
+ */
+const SuccessEnvelopeSchema = <T extends z.ZodType>(
   data: T,
-): z.ZodDiscriminatedUnion<"ok", z.Primitive[]> =>
-  z.discriminatedUnion("ok", [z.object({ ok: z.literal(true), data }), ErrorEnvelopeSchema]);
+): z.ZodObject<{ ok: z.ZodLiteral<true>; data: T }> => z.object({ ok: z.literal(true), data });
+
+/**
+ * Creates an envelope schema that can be either a success or error envelope.
+ *
+ * @template T
+ * @param {T} data - The data type to create an envelope schema for.
+ * @returns {z.ZodDiscriminatedUnion<"ok", [z.ZodObject<{ ok: z.ZodLiteral<true>; data: T }>, z.ZodObject<{ ok: z.ZodLiteral<false>; error: z.ZodString; details: z.ZodUnknown }>]>} The envelope schema.
+ */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+export const Envelope = <T extends z.ZodType>(data: T) => {
+  const successSchema = SuccessEnvelopeSchema(data);
+  return z.discriminatedUnion("ok", [successSchema, ErrorEnvelopeSchema]);
+};
 
 export type ErrorEnvelope = z.infer<typeof ErrorEnvelopeSchema>;
 

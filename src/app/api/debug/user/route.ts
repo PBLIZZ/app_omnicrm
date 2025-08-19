@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { ok, err } from "@/server/http/responses";
 import { getServerUserId } from "@/server/auth/user";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
@@ -6,9 +6,9 @@ import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(): Promise<ReturnType<typeof ok> | ReturnType<typeof err>> {
   if (env.NODE_ENV === "production") {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return err(404, "not_found");
   }
   try {
     // Debug: Show what cookies we have
@@ -30,8 +30,7 @@ export async function GET(): Promise<NextResponse> {
     );
 
     const userId = await getServerUserId();
-    return NextResponse.json({
-      ok: true,
+    return ok({
       userId,
       debug: {
         totalCookies: allCookies.length,
@@ -52,16 +51,14 @@ export async function GET(): Promise<NextResponse> {
       "api/debug/user/GET",
     );
 
-    return NextResponse.json(
+    return err(
+      status,
+      message,
       {
-        ok: false,
-        error: message,
-        debug: {
-          totalCookies: allCookies.length,
-          cookieNames: allCookies.map((c) => c.name),
-        },
+        totalCookies: allCookies.length,
+        cookieNames: allCookies.map((c) => c.name),
       },
-      { status },
+      { file: "api/debug/user/route.ts" },
     );
   }
 }

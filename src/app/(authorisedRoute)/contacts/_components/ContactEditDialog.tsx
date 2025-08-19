@@ -112,7 +112,7 @@ export function ContactEditDialog({
         displayName: payload.displayName,
         primaryEmail: payload.primaryEmail ?? null,
         primaryPhone: payload.primaryPhone ?? null,
-        tags: parsedTags,
+        tags: payload.tags ?? [],
         notes: payload.notes ?? null,
       });
       const updatedContact: EditableContact = {

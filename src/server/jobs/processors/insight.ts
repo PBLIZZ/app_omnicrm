@@ -1,12 +1,12 @@
 import { supaAdminGuard } from "@/server/db/supabase-admin";
 
-export async function runInsight(job: unknown, userId: string): Promise<void> {
-  // Prevent unused parameter warnings
-  void job;
+import type { JobRecord } from "../types";
+
+export async function runInsight(job: JobRecord): Promise<void> {
   // Stub: create a placeholder insight row
   // service-role write: ai_insights (allowed)
   await supaAdminGuard.insert("ai_insights", {
-    userId,
+    userId: job.userId,
     subjectType: "inbox",
     kind: "summary",
     content: { placeholder: true } as Record<string, unknown>,

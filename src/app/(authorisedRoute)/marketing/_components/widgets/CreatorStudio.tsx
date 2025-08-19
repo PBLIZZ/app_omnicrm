@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Palette, ArrowRight, Sparkles, Image, Layers, Wand2 } from "lucide-react";
+import { Palette, ArrowRight, Sparkles, Image as ImageIcon, Layers, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui";
 import { Button } from "@/components/ui";
@@ -116,10 +116,7 @@ export function CreatorStudio(): JSX.Element {
                 </div>
               ) : (
                 <div className="text-center space-y-4">
-                  <Image
-                    className="h-16 w-16 mx-auto text-purple-300"
-                    alt="Content creator placeholder"
-                  />
+                  <ImageIcon className="h-16 w-16 mx-auto text-purple-300" />
                   <p className="text-sm text-muted-foreground z-10">
                     Enter a prompt and click &apos;Generate Content&apos;
                     <br />

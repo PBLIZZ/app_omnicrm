@@ -103,7 +103,6 @@ export function NewContactDialog({ open, onOpenChange, onContactCreated }: Props
           primaryPhone: payload.primaryPhone?.trim() ?? null,
           tags: payload.tags,
           notes: payload.notes?.trim() ?? null,
-          source: "manual",
         };
         const createdContact = await createContact(contactInput);
         const created: CreatedContact = {

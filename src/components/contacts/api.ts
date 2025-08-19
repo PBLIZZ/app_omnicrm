@@ -22,17 +22,15 @@ export interface ContactListResponse {
 
 export type CreateContactInput = {
   displayName: string;
-  primaryEmail?: string;
-  primaryPhone?: string;
-  company?: string;
-  notes?: string;
+  primaryEmail?: string | null;
+  primaryPhone?: string | null;
+  company?: string | null;
+  notes?: string | null;
   tags?: string[];
   lifecycleStage?: "lead" | "prospect" | "customer" | "advocate";
 };
 
-export type UpdateContactInput = Partial<CreateContactInput> & {
-  id: string;
-};
+export type UpdateContactInput = Partial<CreateContactInput>;
 
 async function parseJson<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error((await res.text().catch(() => null)) ?? res.statusText);

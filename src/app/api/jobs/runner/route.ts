@@ -1,15 +1,15 @@
 import { getDb } from "@/server/db/client";
 import { and, desc, eq } from "drizzle-orm";
 import { jobs } from "@/server/db/schema";
-import { runCalendarSync, runGmailSync } from "@/server/jobs/processors/sync";
+import { runEmbed } from "@/server/jobs/processors/embed";
+import { runInsight } from "@/server/jobs/processors/insight";
 import {
   runNormalizeGoogleEmail,
   runNormalizeGoogleEvent,
 } from "@/server/jobs/processors/normalize";
-import { runEmbed } from "@/server/jobs/processors/embed";
-import { runInsight } from "@/server/jobs/processors/insight";
+import { runGmailSync, runCalendarSync } from "@/server/jobs/processors/sync";
 import { getServerUserId } from "@/server/auth/user";
-import type { JobKind, JobHandler, JobError } from "@/server/jobs/types";
+import type { JobKind, JobHandler, JobError, JobRecord } from "@/server/jobs/types";
 import { log } from "@/server/log";
 import { ok, err } from "@/server/http/responses";
 
@@ -88,7 +88,7 @@ export async function POST(): Promise<Response> {
         continue;
       }
 
-      await handler(job, userId);
+      await handler(job as JobRecord);
       await dbo
         .update(jobs)
         .set({ status: "done", updatedAt: new Date() })

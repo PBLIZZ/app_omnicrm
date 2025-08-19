@@ -316,7 +316,7 @@ export function GmailSyncButton({
       <div className="flex flex-wrap gap-3">
         <Button
           onClick={handlePreviewSync}
-          disabled={disabled || isLoading}
+          disabled={(disabled ?? false) || isLoading}
           variant="outline"
           size={size}
           className={cn(className)}
@@ -329,7 +329,7 @@ export function GmailSyncButton({
 
         <Button
           onClick={handleApproveSync}
-          disabled={disabled || isLoading || !syncStatus?.flags?.gmail}
+          disabled={(disabled ?? false) || isLoading || !syncStatus?.flags?.gmail}
           variant={variant}
           size={size}
           className={cn(className)}
@@ -342,7 +342,7 @@ export function GmailSyncButton({
 
         <Button
           onClick={handleRunJobs}
-          disabled={disabled || isLoading}
+          disabled={(disabled ?? false) || isLoading}
           variant="secondary"
           size={size}
           className={cn(className)}

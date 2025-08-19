@@ -9,9 +9,9 @@ import { err, ok, safeJson } from "@/server/http/responses";
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ): Promise<Response> {
-  const { id } = await params;
+  const { id } = params;
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -53,11 +53,8 @@ export async function GET(
   });
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<Response> {
-  const { id } = await params;
+export async function PUT(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+  const { id } = params;
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -117,15 +114,15 @@ export async function PUT(
     primaryPhone: row.primaryPhone ?? null,
     source: row.source ?? null,
     createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt: (row.updatedAt ?? row.createdAt).toISOString(),
   });
 }
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ): Promise<Response> {
-  const { id } = await params;
+  const { id } = params;
   let userId: string;
   try {
     userId = await getServerUserId();

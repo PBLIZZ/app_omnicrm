@@ -1,11 +1,11 @@
 // src/app/api/openrouter/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { log } from "@/server/log";
 import { ChatRequestSchema } from "@/server/schemas";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-export async function POST(req: Request): Promise<NextResponse> {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     if (!process.env["OPENROUTER_API_KEY"]) {
       return new NextResponse("Missing OPENROUTER_API_KEY", { status: 500 });

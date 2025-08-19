@@ -1,5 +1,5 @@
 /** GET /api/google/oauth — start Google OAuth (auth required). Errors: 400 invalid_scope, 401 Unauthorized */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { logSync } from "@/server/sync/audit";
 import { getServerUserId } from "@/server/auth/user";
@@ -8,7 +8,7 @@ import { hmacSign, randomNonce } from "@/server/lib/crypto";
 import { toApiError } from "@/server/jobs/types";
 
 // GET /api/google/oauth?scope=gmail|calendar
-export async function GET(req: Request): Promise<Response> {
+export async function GET(req: NextRequest): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();

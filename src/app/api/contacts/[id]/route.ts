@@ -1,4 +1,5 @@
 // src/app/api/contacts/[id]/route.ts
+import { NextRequest } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { UpdateContactBodySchema } from "@/server/schemas";
@@ -8,10 +9,10 @@ import { contacts } from "@/server/db/schema";
 import { err, ok, safeJson } from "@/server/http/responses";
 
 export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } },
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const { id } = params;
+  const { id } = await params;
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -53,8 +54,11 @@ export async function GET(
   });
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }): Promise<Response> {
-  const { id } = params;
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const { id } = await params;
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -119,10 +123,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }):
 }
 
 export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string } },
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const { id } = params;
+  const { id } = await params;
   let userId: string;
   try {
     userId = await getServerUserId();

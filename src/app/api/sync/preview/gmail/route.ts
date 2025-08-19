@@ -1,5 +1,6 @@
 /** POST /api/sync/preview/gmail — compute Gmail preview (auth required). Errors: 404 not_found, 401 Unauthorized, 500 preview_failed */
 // no NextResponse usage; responses via helpers
+import { NextRequest } from "next/server";
 import { getDb } from "@/server/db/client";
 import { userSyncPrefs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
@@ -17,7 +18,7 @@ const previewBodySchema = z
   })
   .strict();
 
-export async function POST(req: Request): Promise<Response> {
+export async function POST(req: NextRequest): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();

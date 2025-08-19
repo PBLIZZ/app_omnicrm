@@ -11,7 +11,7 @@ const previewBodySchema = z
   })
   .strict();
 
-export async function POST(req: Request) {
+export async function POST(req: Request): Promise<Response> {
   // If the feature is disabled, treat the route as not found regardless of auth
   if (process.env["FEATURE_GOOGLE_DRIVE"] !== "1") return err(404, "drive_disabled");
   try {
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     return err(status, message);
   }
   try {
-    const raw = await req.json().catch(() => ({}));
+    const raw: unknown = await req.json().catch(() => ({}));
     previewBodySchema.parse(raw ?? {});
   } catch {
     return err(400, "invalid_body");

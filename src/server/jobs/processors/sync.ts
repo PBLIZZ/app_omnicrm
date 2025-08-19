@@ -8,10 +8,14 @@ import { listGmailMessageIds } from "@/server/google/gmail";
 import { toLabelId } from "@/server/google/constants";
 import type { CalendarClient } from "@/server/google/calendar";
 import { listCalendarEvents } from "@/server/google/calendar";
+import type { calendar_v3 } from "googleapis";
 // Note: logging kept minimal to avoid noise during tight loops
 import { log } from "@/server/log";
 
-export async function lastEventTimestamp(userId: string, provider: "gmail" | "calendar") {
+export async function lastEventTimestamp(
+  userId: string,
+  provider: "gmail" | "calendar",
+): Promise<Date> {
   const dbo = await getDb();
   const rows = await dbo
     .select({ occurredAt: rawEvents.occurredAt })
@@ -22,13 +26,30 @@ export async function lastEventTimestamp(userId: string, provider: "gmail" | "ca
   return rows[0]?.occurredAt ?? new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
 }
 
-type JobRow = typeof jobs.$inferSelect & { payload: Record<string, unknown> };
+// Define proper types for job payloads
+interface SyncJobPayload {
+  batchId?: string;
+}
+
+interface GmailMessagePayload {
+  id?: string;
+  labelIds?: string[];
+  internalDate?: string;
+  payload?: {
+    headers?: Array<{ name?: string; value?: string }>;
+  };
+}
+
+// Type for jobs with properly typed payload
+type JobRow = typeof jobs.$inferSelect & { payload: SyncJobPayload };
 
 export async function runGmailSync(
-  job: JobRow,
+  job: unknown,
   userId: string,
   injected?: { gmail?: GmailClient },
-) {
+): Promise<void> {
+  // Type guard to ensure job has the expected structure
+  const typedJob = job as JobRow;
   const dbo = await getDb();
   const gmail = injected?.gmail ?? (await getGoogleClients(userId)).gmail;
   const prefsRow = await dbo
@@ -42,12 +63,12 @@ export async function runGmailSync(
   // label constants and transformer centralized
 
   const q = `${prefs?.gmailQuery ?? "newer_than:30d"}`;
-  const batchId = (job.payload?.["batchId"] as string | undefined) ?? undefined;
+  const batchId = typedJob.payload?.batchId;
   const debugContext = {
     requestId: undefined as string | undefined, // request-scoped id not available inside job processor
     userId,
     batchId: batchId ?? null,
-    jobId: job.id,
+    jobId: typedJob.id,
     provider: "gmail" as const,
   };
   const includeIds = (prefs?.gmailLabelIncludes ?? []).map(toLabelId);
@@ -79,14 +100,14 @@ export async function runGmailSync(
     if (Date.now() > deadlineMs) break; // why: protect against long-running loops when API is slow
     const slice = ids.slice(i, i + chunk);
     const results = await Promise.allSettled(
-      slice.map((id) => gmail.users.messages.get({ userId: "me", id, format: "full" })),
+      slice.map((id: string) => gmail.users.messages.get({ userId: "me", id, format: "full" })),
     );
     for (const r of results) {
       if (r.status !== "fulfilled") continue;
-      const msg = r.value.data;
+      const msg = r.value.data as GmailMessagePayload;
       const labelIds = msg.labelIds ?? [];
-      if (includeIds.length > 0 && !labelIds.some((l) => includeIds.includes(l))) continue;
-      if (excludeIds.length > 0 && labelIds.some((l) => excludeIds.includes(l))) continue;
+      if (includeIds.length > 0 && !labelIds.some((l: string) => includeIds.includes(l))) continue;
+      if (excludeIds.length > 0 && labelIds.some((l: string) => excludeIds.includes(l))) continue;
 
       const internalMs = Number(msg.internalDate ?? 0);
       const occurredAt = internalMs ? new Date(internalMs) : new Date();
@@ -97,14 +118,14 @@ export async function runGmailSync(
 
       // service-role write: raw_events (allowed)
       await supaAdminGuard.insert("raw_events", {
-        user_id: userId,
+        userId,
         provider: "gmail",
         payload: msg,
-        occurred_at: occurredAt as unknown as string, // supabase-js will serialize Date
-        contact_id: null,
-        batch_id: batchId ?? null,
-        source_meta: { labelIds, fetchedAt: new Date().toISOString(), matchedQuery: q },
-        source_id: (msg as { id?: string | null })?.id ?? undefined,
+        occurredAt, // Date object
+        contactId: null,
+        batchId: batchId ?? null,
+        sourceMeta: { labelIds, fetchedAt: new Date().toISOString(), matchedQuery: q },
+        sourceId: msg.id ?? null,
       });
       itemsInserted += 1;
       itemsFetched += 1;
@@ -136,10 +157,12 @@ export async function runGmailSync(
 }
 
 export async function runCalendarSync(
-  job: JobRow,
+  job: unknown,
   userId: string,
   injected?: { calendar?: CalendarClient },
-) {
+): Promise<void> {
+  // Type guard to ensure job has the expected structure
+  const typedJob = job as JobRow;
   const dbo = await getDb();
   const calendar = injected?.calendar ?? (await getGoogleClients(userId)).calendar;
   const prefsRow = await dbo
@@ -153,12 +176,12 @@ export async function runCalendarSync(
   const days = prefs?.calendarTimeWindowDays ?? 60;
   const timeMin = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
   const timeMax = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
-  const batchId = (job.payload?.["batchId"] as string | undefined) ?? undefined;
+  const batchId = typedJob.payload?.batchId;
   const debugContext = {
     requestId: undefined as string | undefined,
     userId,
     batchId: batchId ?? null,
-    jobId: job.id,
+    jobId: typedJob.id,
     provider: "calendar" as const,
   };
 
@@ -168,7 +191,7 @@ export async function runCalendarSync(
   let itemsFetched = 0;
   let itemsInserted = 0;
   const itemsSkipped = 0;
-  const items = await listCalendarEvents(calendar, timeMin, timeMax);
+  const items: calendar_v3.Schema$Event[] = await listCalendarEvents(calendar, timeMin, timeMax);
   const MAX_PER_RUN = 2000;
   const total = Math.min(items.length, MAX_PER_RUN);
   log.info(
@@ -183,7 +206,8 @@ export async function runCalendarSync(
   );
   for (let i = 0; i < total; i++) {
     if (Date.now() > deadlineMs) break; // why: avoid runaway jobs on large calendars
-    const e = items[i]!;
+    const e = items[i];
+    if (!e) continue;
     if (prefs?.calendarIncludeOrganizerSelf === true && e.organizer && e.organizer.self === false) {
       continue;
     }
@@ -195,14 +219,14 @@ export async function runCalendarSync(
     const occurredAt = new Date(startStr);
     // service-role write: raw_events (allowed)
     await supaAdminGuard.insert("raw_events", {
-      user_id: userId,
+      userId,
       provider: "calendar",
       payload: e,
-      occurred_at: occurredAt as unknown as string,
-      contact_id: null,
-      batch_id: batchId ?? null,
-      source_meta: { fetchedAt: new Date().toISOString() },
-      source_id: (e as { id?: string | null })?.id ?? undefined,
+      occurredAt, // Date object
+      contactId: null,
+      batchId: batchId ?? null,
+      sourceMeta: { fetchedAt: new Date().toISOString() },
+      sourceId: e.id ?? null,
     });
     itemsFetched += 1;
     itemsInserted += 1;

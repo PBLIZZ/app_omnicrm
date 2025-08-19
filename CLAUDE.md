@@ -42,3 +42,8 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 - Never use `any`
 
 - it might take you some effort and time to fix the lint errors properly but when we come sacross issues we need to resolve the underlying cause. It is not acceptable to put a comment, change the config file, add to ignore list, use underscore, or any other short term fix. Do Not Accrue Technical Debt.
+
+- using as avoids typescript rules and is not permitted
+- COnsole logs should be replaced with toast if the message is for the user and logged to log.txt Rule Number One is not to create technical debt. Do not leave comments in the code fo routstanding work instead raise an issuie and post it to the project board on github.
+- ensure separation of concerns and prefer composable components to monolithic ones and incorporate error boundaries throughout the codebase
+- use pnpm to dev build test etc

@@ -17,11 +17,14 @@ This document summarizes the key security controls implemented in the app and wh
 ## Token Secrecy (At Rest)
 
 - Google `access_token` and `refresh_token` encrypted with AES-256-GCM using `APP_ENCRYPTION_KEY`.
-  - Crypto helpers: `src/server/lib/crypto.ts`
+  - Crypto helpers (Node): `src/server/lib/crypto.ts`
+  - Crypto helpers (Edge/Web Crypto): `src/server/lib/crypto-edge.ts` (used in middleware)
+  - Shared encoding utilities: `src/lib/encoding.ts` (UTF-8, hex, base64url)
+  - Format: versioned base64url components → `v1:<iv>:<ciphertext>:<tag>`
   - Write path (encrypt): OAuth callback
   - Read path (decrypt + backfill): `src/server/google/client.ts`
 
-Environment: set `APP_ENCRYPTION_KEY` to a 32-byte key (base64, hex, or strong UTF-8 string).
+Environment: set `APP_ENCRYPTION_KEY` to a 32-byte key. Accepted formats: base64url (preferred), base64, hex, or strong UTF-8 (≥ 32 bytes).
 
 ## Environment Validation
 
@@ -67,13 +70,13 @@ Notes:
 
 - Production:
 
-```
+```text
 Content-Security-Policy: script-src 'self'; connect-src 'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com; frame-ancestors 'none';
 ```
 
 - Development:
 
-```
+```text
 Content-Security-Policy: script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' http://localhost:3000 ws://localhost:3000 https://*.supabase.co https://www.googleapis.com; frame-ancestors 'none';
 ```
 

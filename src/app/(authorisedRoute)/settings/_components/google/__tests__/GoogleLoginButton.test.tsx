@@ -313,7 +313,7 @@ describe("GoogleLoginButton", () => {
 
 describe("useOAuthCallback", () => {
   // Mock React for the hook test
-  const TestComponent = () => {
+  const TestComponent = (): JSX.Element => {
     const { isComplete } = useOAuthCallback();
     return <div data-testid="completion-status">{isComplete ? "complete" : "incomplete"}</div>;
   };

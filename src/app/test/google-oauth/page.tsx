@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
  * - Error boundary demonstration
  * - Component interaction testing
  */
-export default function GoogleOAuthTestPage() {
+export default function GoogleOAuthTestPage(): JSX.Element {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [testResults, setTestResults] = useState<Record<string, boolean>>({});
   const { isComplete } = useOAuthCallback();
@@ -41,7 +41,7 @@ export default function GoogleOAuthTestPage() {
     action: string,
     scope?: GoogleOAuthScope,
     details?: Record<string, unknown>,
-  ) => {
+  ): void => {
     const logEntry: LogEntry = {
       timestamp: new Date(),
       level,
@@ -63,14 +63,14 @@ export default function GoogleOAuthTestPage() {
   };
 
   // Test result tracking
-  const markTestResult = (testName: string, success: boolean) => {
+  const markTestResult = (testName: string, success: boolean): void => {
     setTestResults((prev) => ({ ...prev, [testName]: success }));
     addLog(success ? "info" : "error", `Test ${testName}: ${success ? "PASSED" : "FAILED"}`);
   };
 
   // Error handlers
 
-  const handleLoginError = (error: OAuthError) => {
+  const handleLoginError = (error: OAuthError): void => {
     const scope =
       error.details && typeof error.details === "object" && "scope" in error.details
         ? (error.details["scope"] as GoogleOAuthScope)
@@ -80,19 +80,19 @@ export default function GoogleOAuthTestPage() {
     handleError(error);
   };
 
-  const handleSyncStart = (batchId: string) => {
+  const handleSyncStart = (batchId: string): void => {
     addLog("info", "Gmail sync started", "gmail", { batchId });
     markTestResult("gmail_sync", true);
   };
 
-  const handleSyncError = (error: OAuthError) => {
+  const handleSyncError = (error: OAuthError): void => {
     addLog("error", "Gmail sync failed", "gmail", { error });
     markTestResult("gmail_sync", false);
     handleError(error);
   };
 
   // Test functions
-  const runConnectivityTest = async () => {
+  const runConnectivityTest = async (): Promise<void> => {
     addLog("info", "Running connectivity test");
 
     try {
@@ -118,23 +118,23 @@ export default function GoogleOAuthTestPage() {
     }
   };
 
-  const testErrorBoundary = () => {
+  const testErrorBoundary = (): never => {
     addLog("info", "Testing error boundary");
     // Intentionally throw an error to test the boundary
     throw new Error("Test error for error boundary demonstration");
   };
 
-  const clearLogs = () => {
+  const clearLogs = (): void => {
     setLogs([]);
     addLog("info", "Logs cleared");
   };
 
-  const clearTests = () => {
+  const clearTests = (): void => {
     setTestResults({});
     addLog("info", "Test results cleared");
   };
 
-  const exportLogs = () => {
+  const exportLogs = (): void => {
     const logData = JSON.stringify(logs, null, 2);
     const blob = new Blob([logData], { type: "application/json" });
     const url = URL.createObjectURL(blob);

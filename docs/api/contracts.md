@@ -37,6 +37,10 @@ Unless stated, all endpoints require an authenticated Supabase session cookie an
   - 401 `{ ok: false, error: "unauthorized" }`
   - 402/429 `{ ok: false, error: "rate_limited_*" }`
 
+Notes:
+
+- In dev/test when `OPENROUTER_API_KEY` is not set, the service returns a safe fallback response (no provider call, `creditsLeft = -1`).
+
 ## Google OAuth Start
 
 - Method: GET

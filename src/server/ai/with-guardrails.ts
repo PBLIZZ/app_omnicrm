@@ -14,7 +14,13 @@ type LlmCall<T> = () => Promise<{
   costUsd?: number;
 }>;
 
-export async function withGuardrails<T>(userId: string, call: LlmCall<T>) {
+export async function withGuardrails<T>(
+  userId: string,
+  call: LlmCall<T>,
+): Promise<
+  | { data: T; creditsLeft: number }
+  | { error: "rate_limited_minute" | "rate_limited_daily_cost" | "rate_limited_monthly" }
+> {
   await ensureMonthlyQuota(userId);
 
   const allowedByRpm = await checkRateLimit(userId);

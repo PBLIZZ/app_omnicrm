@@ -1,12 +1,21 @@
 import crypto from "crypto";
+import { bytesToBase64Url, base64UrlToBytes, utf8ToBytes, bytesToUtf8 } from "@/lib/encoding";
 
 // Small, focused cryptography helpers for application-level secrets
 // - AES-256-GCM for confidentiality + integrity
 // - HMAC-SHA256 for lightweight state signing
+// See: SECURITY.md and docs/api/README.md for the versioned AES-GCM format.
 
 function getMasterKey(): Buffer {
   const raw = process.env["APP_ENCRYPTION_KEY"];
   if (!raw) throw new Error("Missing APP_ENCRYPTION_KEY");
+  // Accept base64url
+  if (/^[A-Za-z0-9_\-]+$/.test(raw)) {
+    try {
+      const bytes = base64UrlToBytes(raw);
+      if (bytes.length >= 32) return Buffer.from(bytes);
+    } catch {}
+  }
   // Accept base64, hex, or utf8 string
   if (/^[A-Za-z0-9+/=]+$/.test(raw) && raw.length % 4 === 0) {
     // likely base64
@@ -34,19 +43,28 @@ function deriveKey(label: string): Buffer {
 }
 
 function base64urlEncode(buf: Buffer): string {
-  return buf.toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  return bytesToBase64Url(buf);
 }
 
 function base64urlDecode(s: string): Buffer {
-  const pad = s.length % 4 === 2 ? "==" : s.length % 4 === 3 ? "=" : "";
-  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + pad;
-  return Buffer.from(b64, "base64");
+  return Buffer.from(base64UrlToBytes(s));
 }
 
 export function randomNonce(length = 16): string {
   return base64urlEncode(crypto.randomBytes(length));
 }
 
+/**
+ * Crypto format (Node ↔ Edge compatible)
+ *
+ * - Envelope: `v1:<iv>:<ciphertext>:<tag>`
+ * - Encoding: base64url (unpadded) for each component
+ * - IV: 12 bytes; Tag: 16 bytes (AES-GCM)
+ * - KDF: HMAC-SHA256(master, "enc") → 32 bytes used as AES-256 key
+ * - Master key (APP_ENCRYPTION_KEY): base64url (preferred), base64, hex, or strong UTF-8 (≥ 32 bytes); shorter keys are stretched via SHA-256
+ *
+ * Interop: compatible with `src/server/lib/crypto-edge.ts`.
+ */
 // AES-256-GCM string encryption
 export function encryptString(plain: string): string {
   const key = deriveKey("enc").subarray(0, 32);
@@ -95,9 +113,9 @@ export function isEncrypted(value: string | null | undefined): boolean {
 }
 
 export function toBase64Url(input: string): string {
-  return base64urlEncode(Buffer.from(input, "utf8"));
+  return bytesToBase64Url(utf8ToBytes(input));
 }
 
 export function fromBase64Url(input: string): string {
-  return base64urlDecode(input).toString("utf8");
+  return bytesToUtf8(base64UrlToBytes(input));
 }

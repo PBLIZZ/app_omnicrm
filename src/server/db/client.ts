@@ -9,12 +9,12 @@ interface TestOverrides {
     connect(): Promise<void>;
     [key: string]: unknown;
   };
-  drizzleFn?: (client: unknown) => NodePgDatabase;
+  drizzleFn?: (client: import("pg").Client | unknown) => NodePgDatabase;
 }
 
 let testOverrides: TestOverrides = {};
 
-export function __setDbDriversForTest(overrides: TestOverrides) {
+export function __setDbDriversForTest(overrides: TestOverrides): void {
   testOverrides = overrides;
   // reset so next call rebuilds with overrides
   dbInstance = null;
@@ -40,14 +40,10 @@ export async function getDb(): Promise<NodePgDatabase> {
       testOverrides.drizzleFn ?? (await import("drizzle-orm/node-postgres")).drizzle;
     const client = new ClientCtor({ connectionString: databaseUrl });
     await client.connect();
-    // Note: This type cast is required for test injection compatibility.
+    // Type assertion is necessary for test injection compatibility.
     // The drizzleFn accepts different client types in test vs production.
-    // This is safe because:
-    // 1. drizzleFn validates the client interface internally
-    // 2. The final cast to NodePgDatabase provides type safety for consumers
-    // 3. This code path only executes during database initialization
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const instance = drizzleFn(client as any) as NodePgDatabase;
+    // This is safe because drizzleFn validates the client interface internally.
+    const instance = drizzleFn(client as import("pg").Client) as NodePgDatabase;
     dbInstance = instance;
     return instance;
   })();
@@ -68,7 +64,9 @@ export const db: NodePgDatabase = new Proxy({} as NodePgDatabase, {
   get(_target, propertyKey: string | symbol) {
     return (...args: unknown[]) =>
       getDb().then((resolvedDb: NodePgDatabase) => {
-        const member = (resolvedDb as unknown as Record<string | symbol, unknown>)[propertyKey];
+        // Safe member access on resolved database instance
+        const memberRecord = resolvedDb as unknown as Record<string | symbol, unknown>;
+        const member = memberRecord[propertyKey];
         if (typeof member === "function") {
           return (member as (...args: unknown[]) => unknown).apply(resolvedDb, args);
         }

@@ -1,3 +1,4 @@
+// server/jobs/types.ts
 // Job kinds
 export type GenericJobKind = "normalize" | "embed" | "insight";
 export type GoogleJobKind =
@@ -13,18 +14,19 @@ export interface BatchJobPayload {
   batchId?: string;
 }
 
+type Empty = Record<string, never>;
 export type JobPayloadByKind = {
-  normalize: Record<string, never>;
-  embed: Record<string, never>;
-  insight: Record<string, never>;
+  normalize: Empty;
+  embed: Empty;
+  insight: Empty;
   google_gmail_sync: BatchJobPayload;
   google_calendar_sync: BatchJobPayload;
   normalize_google_email: BatchJobPayload;
   normalize_google_event: BatchJobPayload;
 };
 
-// Job database record structure (from schema)
-export interface JobRecord {
+// Database record shape (matches your schema, but we type payload by kind)
+export interface JobRecordBase {
   id: string;
   userId: string;
   kind: JobKind;
@@ -36,8 +38,18 @@ export interface JobRecord {
   updatedAt: Date;
 }
 
-// Job handler function type - flexible to accommodate different job processor signatures
-export type JobHandler = (job: unknown, userId: string, ...args: unknown[]) => Promise<void>;
+export type JobRecord<K extends JobKind = JobKind> = Omit<JobRecordBase, "kind" | "payload"> & {
+  kind: K;
+  payload: JobPayloadByKind[K];
+};
+
+// Prefer handlers that know their kind
+export type JobHandler<K extends JobKind = JobKind> = (job: JobRecord<K>) => Promise<void>;
+
+// Runtime type guard if you receive a generic row
+export function isJobKind<K extends JobKind>(row: JobRecordBase, kind: K): row is JobRecord<K> {
+  return row.kind === kind;
+}
 
 // Error types for better error handling
 export interface JobError extends Error {
@@ -48,11 +60,22 @@ export interface JobError extends Error {
 
 // API Error utility function
 export function toApiError(error: unknown): { status: number; message: string } {
-  if (error && typeof error === "object") {
-    const err = error as Record<string, unknown>;
-    const status = typeof err["status"] === "number" ? err["status"] : 401;
-    const message = typeof err["message"] === "string" ? err["message"] : "Unauthorized";
+  const fallback = { status: 401, message: "Unauthorized" };
+
+  if (error instanceof Error) {
+    const obj = error as unknown as Record<string, unknown>;
+    const status = typeof obj["status"] === "number" ? obj["status"] : fallback.status;
+    const message =
+      typeof obj["message"] === "string" ? obj["message"] : error.message || fallback.message;
     return { status, message };
   }
-  return { status: 401, message: "Unauthorized" };
+
+  if (error && typeof error === "object") {
+    const obj = error as unknown as Record<string, unknown>;
+    const status = typeof obj["status"] === "number" ? obj["status"] : fallback.status;
+    const message = typeof obj["message"] === "string" ? obj["message"] : fallback.message;
+    return { status, message };
+  }
+
+  return fallback;
 }

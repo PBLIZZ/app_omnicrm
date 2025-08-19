@@ -1,41 +1,32 @@
 // Edge-compatible crypto helpers using Web Crypto API
 // Only the functions needed by middleware are implemented here.
-
-const te = new TextEncoder();
+// See: SECURITY.md and docs/api/README.md for the versioned AES-GCM format.
+import {
+  utf8ToBytes,
+  bytesToUtf8,
+  hexToBytes,
+  bytesToBase64Url,
+  base64UrlToBytes,
+} from "@/lib/encoding";
 
 function toBytesUtf8(s: string): Uint8Array {
-  return te.encode(s);
+  return utf8ToBytes(s);
 }
 
 function fromHex(hex: string): Uint8Array {
-  const clean = hex.trim();
-  const len = clean.length;
-  if (len % 2 !== 0) throw new Error("Invalid hex length");
-  const out = new Uint8Array(len / 2);
-  for (let i = 0; i < len; i += 2) {
-    out[i / 2] = parseInt(clean.slice(i, i + 2), 16);
-  }
-  return out;
+  return hexToBytes(hex);
 }
 
 function base64urlEncodeBytes(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-  const b64 = btoa(binary);
-  return b64.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  return bytesToBase64Url(bytes);
 }
 
 function base64urlDecodeToBytes(s: string): Uint8Array {
-  const pad = s.length % 4 === 2 ? "==" : s.length % 4 === 3 ? "=" : "";
-  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + pad;
-  const binary = atob(b64);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)!;
-  return out;
+  return base64UrlToBytes(s);
 }
 
 function getMasterKeyBytes(): Uint8Array {
-  const raw = process.env["APP_ENCRYPTION_KEY"] || "edge-default-key"; // fail-soft in dev
+  const raw = process.env["APP_ENCRYPTION_KEY"] ?? "edge-default-key"; // fail-soft in dev
   // Try base64
   if (/^[A-Za-z0-9_\-]+$/.test(raw)) {
     try {
@@ -62,7 +53,7 @@ function getMasterKeyBytes(): Uint8Array {
 let cachedKeyPromise: Promise<CryptoKey> | null = null;
 async function getHmacKey(): Promise<CryptoKey> {
   if (cachedKeyPromise) return cachedKeyPromise;
-  cachedKeyPromise = (async () => {
+  cachedKeyPromise = (async (): Promise<CryptoKey> => {
     let keyBytes = getMasterKeyBytes();
     if (keyBytes.length < 32) {
       const digest = await crypto.subtle.digest("SHA-256", keyBytes as unknown as ArrayBuffer);
@@ -78,6 +69,13 @@ async function getHmacKey(): Promise<CryptoKey> {
     );
   })();
   return cachedKeyPromise;
+}
+
+// Deterministic key derivation: HMAC(master, label) -> 32 bytes
+async function deriveKeyBytes(label: string): Promise<Uint8Array> {
+  const key = await getHmacKey();
+  const mac = await crypto.subtle.sign("HMAC", key, toBytesUtf8(label) as unknown as ArrayBuffer);
+  return new Uint8Array(mac); // 32 bytes for SHA-256
 }
 
 export function randomNonce(length = 16): string {
@@ -101,4 +99,82 @@ export async function hmacVerify(data: string, signatureB64Url: string): Promise
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
   return diff === 0;
+}
+
+/**
+ * Crypto format (Node ↔ Edge compatible)
+ *
+ * - Envelope: `v1:<iv>:<ciphertext>:<tag>`
+ * - Encoding: base64url (unpadded) for each component
+ * - IV: 12 bytes; Tag: 16 bytes (AES-GCM)
+ * - KDF: HMAC-SHA256(master, "enc") → 32 bytes used as AES-256 key
+ * - Master key input (APP_ENCRYPTION_KEY): base64url (preferred), base64, hex, or strong UTF-8 (≥ 32 bytes); shorter keys are stretched via SHA-256
+ *
+ * Interop: compatible with `src/server/lib/crypto.ts`.
+ */
+export async function encryptString(plain: string): Promise<string> {
+  const keyBytes = (await deriveKeyBytes("enc")).slice(0, 32);
+  const aesKey = await crypto.subtle.importKey(
+    "raw",
+    keyBytes as unknown as BufferSource,
+    { name: "AES-GCM" },
+    false,
+    ["encrypt"],
+  );
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+  const enc = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv, tagLength: 128 },
+    aesKey,
+    toBytesUtf8(plain) as unknown as ArrayBuffer,
+  );
+  const encBytes = new Uint8Array(enc);
+  const tag = encBytes.slice(encBytes.length - 16);
+  const ct = encBytes.slice(0, encBytes.length - 16);
+  return ["v1", base64urlEncodeBytes(iv), base64urlEncodeBytes(ct), base64urlEncodeBytes(tag)].join(
+    ":",
+  );
+}
+
+export async function decryptString(value: string): Promise<string> {
+  if (!value) return value as unknown as string;
+  const parts = value.split(":");
+  if (parts.length !== 4 || parts[0] !== "v1") {
+    // treat as plaintext (back-compat)
+    return value;
+  }
+  const [, ivB64, ctB64, tagB64] = parts as [string, string, string, string];
+  const keyBytes = (await deriveKeyBytes("enc")).slice(0, 32);
+  const aesKey = await crypto.subtle.importKey(
+    "raw",
+    keyBytes as unknown as BufferSource,
+    { name: "AES-GCM" },
+    false,
+    ["decrypt"],
+  );
+  const iv = base64urlDecodeToBytes(ivB64!);
+  const ct = base64urlDecodeToBytes(ctB64!);
+  const tag = base64urlDecodeToBytes(tagB64!);
+  const combined = new Uint8Array(ct.length + tag.length);
+  combined.set(ct, 0);
+  combined.set(tag, ct.length);
+  const plainBuf = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv as Uint8Array, tagLength: 128 },
+    aesKey,
+    combined as Uint8Array,
+  );
+  return bytesToUtf8(new Uint8Array(plainBuf));
+}
+
+export function isEncrypted(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return typeof value === "string" && value.startsWith("v1:");
+}
+
+export function toBase64Url(input: string): string {
+  return bytesToBase64Url(utf8ToBytes(input));
+}
+
+export function fromBase64Url(input: string): string {
+  return bytesToUtf8(base64urlDecodeToBytes(input));
 }

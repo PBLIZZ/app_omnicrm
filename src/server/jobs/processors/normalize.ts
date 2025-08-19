@@ -4,12 +4,11 @@ import { and, eq } from "drizzle-orm";
 import { rawEvents } from "@/server/db/schema";
 // No verbose logging here to keep normalization fast and predictable
 
-export async function runNormalizeGoogleEmail(
-  job: { payload?: { batchId?: string } },
-  userId: string,
-) {
+export async function runNormalizeGoogleEmail(job: unknown, userId: string): Promise<void> {
+  // Type guard for job parameter
+  const typedJob = job as { payload?: { batchId?: string } };
   const dbo = await getDb();
-  const batchId = job.payload?.batchId as string | undefined;
+  const batchId = typedJob.payload?.batchId;
   const startedAt = Date.now();
   const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job to avoid runaways
   let itemsFetched = 0;
@@ -36,7 +35,7 @@ export async function runNormalizeGoogleEmail(
     };
     const headers: Array<{ name?: string | null; value?: string | null }> =
       payload?.payload?.headers ?? [];
-    const subject = headers.find((h) => (h.name || "").toLowerCase() === "subject")?.value ?? null;
+    const subject = headers.find((h) => (h.name ?? "").toLowerCase() === "subject")?.value ?? null;
     const snippet = payload?.snippet ?? null;
     const messageId = payload?.id ?? null;
     // service-role write: interactions (allowed). Upsert to skip duplicates via unique index.
@@ -80,12 +79,11 @@ export async function runNormalizeGoogleEmail(
   );
 }
 
-export async function runNormalizeGoogleEvent(
-  job: { payload?: { batchId?: string } },
-  userId: string,
-) {
+export async function runNormalizeGoogleEvent(job: unknown, userId: string): Promise<void> {
+  // Type guard for job parameter
+  const typedJob = job as { payload?: { batchId?: string } };
   const dbo = await getDb();
-  const batchId = job.payload?.batchId as string | undefined;
+  const batchId = typedJob.payload?.batchId;
   const startedAt = Date.now();
   const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job
   let itemsFetched = 0;

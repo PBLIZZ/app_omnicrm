@@ -1,10 +1,11 @@
 "use client";
 import { createBrowserClient } from "@supabase/ssr";
+import { SupabaseClient } from "@supabase/supabase-js";
 
-let _client: ReturnType<typeof createBrowserClient> | null = null;
+let client: SupabaseClient<unknown> | null = null;
 
-export function getSupabaseBrowser() {
-  if (_client) return _client;
+export function getSupabaseBrowser(): SupabaseClient<unknown> {
+  if (client) return client;
   const url = process.env["NEXT_PUBLIC_SUPABASE_URL"];
   const key = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
   if (!url || !key) {
@@ -15,8 +16,8 @@ export function getSupabaseBrowser() {
       );
     }
     // return a dummy no-op client during build (won't be used in SSR)
-    return (_client ??= createBrowserClient("http://localhost:54321", "public-key"));
+    return (client ??= createBrowserClient("http://localhost:54321", "public-key"));
   }
-  _client = createBrowserClient(url, key);
-  return _client;
+  client = createBrowserClient(url, key);
+  return client;
 }

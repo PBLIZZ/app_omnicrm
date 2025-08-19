@@ -8,25 +8,25 @@ The Auth Header is the **primary navigation interface** that appears on every pa
 
 ### **Desktop Header (1024px+)**
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ [Logo] Wellness Hub │ Dashboard │ Contacts │ Tasks │ Integrations │ Settings │ [🔍 Search────] │ [🤖] │ [🔔3] │ [👤▼] │
-└─────────────────────────────────────────────────────────────────────────┘
+```txt
+┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│[Logo] OmniCRM │      Dashboard │Contacts │Tasks               │[🔍 Search────]│[🤖]│ [🔔3] │[sun|moon|auto] │[👤▼]   │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### **Tablet Header (768px - 1024px)**
 
-```
+```txt
 ┌─────────────────────────────────────────────────────────────────┐
-│ [☰] [Logo] │ Dashboard │ Contacts │ Tasks │ [🔍] │ [🤖] │ [👤▼] │
+│ [☰] [logo] │       📊 │ 👤 │ ✅          │ [🔍] │ [🤖] │ [👤▼] │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### **Mobile Header (<768px)**
 
-```
+```txt
 ┌───────────────────────────────────────┐
-│ [☰] Wellness Hub     [🔍] [🤖] [👤▼] │
+│ [☰] [logo]                [🤖] [👤▼] │
 └───────────────────────────────────────┘
 ```
 
@@ -38,17 +38,14 @@ The Auth Header is the **primary navigation interface** that appears on every pa
 interface LogoBrand {
   desktop: {
     logoSize: "32px";
-    brandText: "Wellness Hub";
+    brandText: "OmniCRM";
     brandFont: "text-xl font-bold text-slate-900";
-    logoColors: {
-      background: "#047857"; // emerald-700
-      accent: "#f59e0b"; // amber-500
+    brandSubText: "by Omnipotency ai";
+    brandSubTextFont: "text-sm font-normal text-teal-400";
     };
   };
   mobile: {
     logoSize: "28px";
-    brandText: "Wellness Hub"; // Full text, not abbreviated
-    responsive: "hide-on-small-screens-only-if-needed";
   };
 }
 ```
@@ -117,7 +114,6 @@ interface GlobalSearch {
   features: {
     recentSearches: true;
     searchSuggestions: true;
-    quickActions: true; // "Add new client", "Create task"
   };
 }
 ```
@@ -127,7 +123,7 @@ interface GlobalSearch {
 ```typescript
 interface UtilityIcons {
   aiAssistant: {
-    icon: "🤖";
+    icon: "robot";
     tooltip: "AI Assistant";
     action: "toggle-chat-sidebar";
     badge?: "new-suggestions"; // When AI has new insights
@@ -151,7 +147,7 @@ interface UtilityIcons {
 
 ### **Search Modal (Cmd+K)**
 
-```
+```txt
 ┌─────────────────────────────────────────────────────┐
 │ Search wellness practice...               [Esc]    │
 ├─────────────────────────────────────────────────────┤
@@ -159,11 +155,6 @@ interface UtilityIcons {
 │ • Sarah Mitchell                                    │
 │ • Follow-up tasks                                   │
 │ • VIP clients                                       │
-├─────────────────────────────────────────────────────┤
-│ Quick actions:                                      │
-│ • Add new client                          [Ctrl+N]  │
-│ • Create task                            [Ctrl+T]  │
-│ • Schedule session                       [Ctrl+S]  │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -200,20 +191,20 @@ interface SearchResults {
 
 ### **Notification Dropdown**
 
-```
+```txt
 ┌─────────────────────────────────────┐
 │ Notifications                  [×]  │
 ├─────────────────────────────────────┤
 │ 🟢 Appointment confirmed            │
-│    Sarah M. - Tomorrow 3:00 PM     │
+│    Sarah M. - Tomorrow 3:00 PM      │
 │    2 minutes ago                    │
 ├─────────────────────────────────────┤
-│ 🤖 AI approval ready               │
-│    3 email drafts need review      │
+│ 🤖 AI approval ready                │
+│    3 email drafts need review       │
 │    15 minutes ago                   │
 ├─────────────────────────────────────┤
-│ 📧 New client message              │
-│    John D. asked about pricing     │
+│ 📧 New client message               │
+│    John D. asked about pricing      │
 │    1 hour ago                       │
 ├─────────────────────────────────────┤
 │ [Mark all as read] [View all]       │
@@ -227,17 +218,17 @@ interface NotificationTypes {
   appointments: {
     confirmed: { icon: "🟢"; priority: "medium"; sound: false };
     cancelled: { icon: "🔴"; priority: "high"; sound: true };
-    reminder: { icon: "⏰"; priority: "medium"; sound: true };
+    reminder: { icon: "clock"; priority: "medium"; sound: true };
   };
   ai: {
-    approvalsReady: { icon: "🤖"; priority: "medium"; sound: false };
-    insightsGenerated: { icon: "💡"; priority: "low"; sound: false };
-    errorOccurred: { icon: "⚠️"; priority: "high"; sound: true };
+    approvalsReady: { icon: "robot"; priority: "medium"; sound: false };
+    insightsGenerated: { icon: "lightbulb"; priority: "low"; sound: false };
+    errorOccurred: { icon: "alert"; priority: "high"; sound: true };
   };
   clients: {
-    newMessage: { icon: "📧"; priority: "medium"; sound: true };
-    feedbackReceived: { icon: "⭐"; priority: "low"; sound: false };
-    atRiskDetected: { icon: "🚨"; priority: "high"; sound: true };
+    newMessage: { icon: "email"; priority: "medium"; sound: true };
+    feedbackReceived: { icon: "star"; priority: "low"; sound: false };
+    atRiskDetected: { icon: "warning"; priority: "high"; sound: true };
   };
 }
 ```
@@ -246,24 +237,16 @@ interface NotificationTypes {
 
 ### **Menu Structure**
 
-```
+```txt
 ┌─────────────────────────────────────┐
-│ 👩‍💼 Joanne Smith                    │
-│     joanne@wellnesshub.com          │
+│ 👩 Joanne Smith                     │
+│    j@wellnesshub.com                │
 ├─────────────────────────────────────┤
-│ 👤 Profile & Settings              │
-│ 🎨 Appearance                      │
-│ 🔔 Notifications                   │
-│ 💳 Billing & Subscription          │
+│ ⚙️ Settings                         │
+│ 🚀 Upgrade plan                     │
 ├─────────────────────────────────────┤
-│ 📊 Usage & Analytics               │
-│ 🔗 Integrations                    │
-│ ❓ Help & Support                  │
-├─────────────────────────────────────┤
-│ 🌟 What's New                      │
-│ 📝 Send Feedback                   │
-├─────────────────────────────────────┤
-│ 🚪 Sign Out                        │
+│ 🛟 Get Help                         │
+│ 🚪 Sign Out                         │
 └─────────────────────────────────────┘
 ```
 
@@ -271,15 +254,9 @@ interface NotificationTypes {
 
 ```typescript
 interface UserMenuActions {
-  profile: { href: "/settings/profile"; icon: "User" };
-  appearance: { href: "/settings/appearance"; icon: "Palette" };
-  notifications: { href: "/settings/notifications"; icon: "Bell" };
-  billing: { href: "/settings/billing"; icon: "CreditCard" };
-  usage: { href: "/settings/usage"; icon: "BarChart" };
-  integrations: { href: "/integrations"; icon: "Zap" };
+  settings: { href: "/settings"; icon: "Settings" };
+  upgrade: { href: "/settings/billing"; icon: "rocket" };
   help: { action: "open-help-center"; icon: "HelpCircle" };
-  whatsNew: { action: "open-changelog"; icon: "Sparkles" };
-  feedback: { action: "open-feedback-form"; icon: "MessageSquare" };
   signOut: { action: "logout-with-confirmation"; icon: "LogOut" };
 }
 ```
@@ -290,7 +267,7 @@ interface UserMenuActions {
 
 ```
 ┌─────────────────────────────────────┐
-│ [×] Wellness Hub                    │
+│ [×] OmniCRM                         │
 ├─────────────────────────────────────┤
 │ 📊 Dashboard                        │
 │ 👥 Contacts                    [3]  │ ← Badge for new items
@@ -298,17 +275,10 @@ interface UserMenuActions {
 │ 🔗 Integrations                     │
 ├─────────────────────────────────────┤
 │ ⚙️ Settings                         │
-│ ❓ Help & Support                   │
-│ 🚪 Sign Out                         │
+│ 🛟 Help                             │
+│    Sign Out                         │
 └─────────────────────────────────────┘
 ```
-
-### **Mobile Interactions**
-
-- **Swipe from left** to open navigation drawer
-- **Tap outside** to close drawer
-- **Badge indicators** for urgent items
-- **Touch-friendly** 44px minimum touch targets
 
 ## 🎨 **Visual Design**
 
@@ -372,7 +342,7 @@ interface HeaderState {
     name: string;
     email: string;
     avatar?: string;
-    plan: "free" | "pro" | "enterprise";
+    plan: "free" | "plus" | "pro";
   };
   notifications: Notification[];
   badges: {
@@ -414,12 +384,12 @@ interface AuthorizationRules {
   navigation: {
     contacts: "authenticated";
     tasks: "authenticated";
-    integrations: "authenticated + plan.pro";
+    integrations: "authenticated";
     settings: "authenticated";
   };
   features: {
-    aiAssistant: "authenticated + plan.pro";
-    advancedAnalytics: "authenticated + plan.enterprise";
+    aiAssistant: "authenticated";
+    advancedAnalytics: "authenticated + plan.plus";
   };
 }
 ```
@@ -461,6 +431,5 @@ interface AuthorizationRules {
 - [ ] Glassmorphism effects are subtle and professional
 - [ ] Typography hierarchy is clear
 - [ ] Icons are recognizable and meaningful
-- [ ] Responsive design works on all screen sizes
 
-**The Auth Header becomes the reliable, always-accessible command center that connects every part of the wellness platform experience.** ⚡
+**The Auth Header becomes the reliable, always-accessible command center that connects every part of the OmniCRM platform experience.** ⚡

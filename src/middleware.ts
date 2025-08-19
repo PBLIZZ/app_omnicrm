@@ -33,9 +33,9 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   forwardHeaders.set("x-nextjs-nonce", cspNonce);
   const res = NextResponse.next({ request: { headers: forwardHeaders } });
   const requestId =
-    (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
+    (typeof globalThis.crypto?.randomUUID === "function"
       ? globalThis.crypto.randomUUID()
-      : Math.random().toString(36).slice(2)) || "unknown";
+      : Math.random().toString(36).slice(2)) ?? "unknown";
   res.headers.set("x-request-id", requestId);
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("X-Frame-Options", "DENY");
@@ -181,9 +181,9 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   // Rate limit by IP + user if available (via Supabase cookie presence is opaque; key by IP+cookie length)
   const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    (req as NextRequest & { ip?: string }).ip ||
-    req.headers.get("x-real-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    (req as NextRequest & { ip?: string }).ip ??
+    req.headers.get("x-real-ip") ??
     "unknown";
   const sessionLen = (req.cookies.get("sb:token")?.value ?? "").length;
   const key = `${ip}:${sessionLen}`;
@@ -195,9 +195,9 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   }
 
   // Body size cap for JSON
-  const ct = req.headers.get("content-type") || "";
+  const ct = req.headers.get("content-type") ?? "";
   if (/application\/json/i.test(ct)) {
-    const len = Number(req.headers.get("content-length") || 0);
+    const len = Number(req.headers.get("content-length") ?? 0);
     if (len > MAX_JSON_BYTES) {
       return new NextResponse(JSON.stringify({ error: "payload_too_large" }), {
         status: 413,
@@ -234,7 +234,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   if (isUnsafe && process.env.NODE_ENV !== "test") {
     const nonceCookie = req.cookies.get("csrf")?.value;
     const sigCookie = req.cookies.get("csrf_sig")?.value;
-    const csrfHeader = req.headers.get("x-csrf-token") || "";
+    const csrfHeader = req.headers.get("x-csrf-token") ?? "";
     if (!nonceCookie || !sigCookie) {
       // issue tokens to be used on next request (double-submit cookie)
       const nonce = randomNonce(18);

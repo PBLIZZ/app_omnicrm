@@ -1,4 +1,4 @@
-# Wellness Platform - Master PRD & Development Strategy
+# OmniCRM by Omnipotency ai - Master PRD & Development Strategy
 
 ## 🎯 **Development Architecture Overview**
 
@@ -11,8 +11,8 @@
 
 ### **Core Design System**
 
-```
-wellness-ui/
+```txt
+ui/
 ├── components/
 │   ├── layouts/
 │   │   ├── AuthHeader.tsx

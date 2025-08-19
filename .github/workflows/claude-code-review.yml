@@ -49,14 +49,18 @@ jobs:
             - Security concerns
             - Test coverage
 
-            Be constructive and helpful in your feedback. Focus on:
-            - For TypeScript files: Type safety and proper interface usage
-            - For API endpoints: Security, input validation, and error handling
-            - For React components: Performance, accessibility, and best practices
-            - For tests: Coverage, edge cases, and test quality
+            Be constructive and helpful in your feedback.
 
           # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
           # use_sticky_comment: true
+
+          # Optional: Customize review based on file types
+          # direct_prompt: |
+          #   Review this PR focusing on:
+          #   - For TypeScript files: Type safety and proper interface usage
+          #   - For API endpoints: Security, input validation, and error handling
+          #   - For React components: Performance, accessibility, and best practices
+          #   - For tests: Coverage, edge cases, and test quality
 
           # Optional: Different prompts for different authors
           # direct_prompt: |

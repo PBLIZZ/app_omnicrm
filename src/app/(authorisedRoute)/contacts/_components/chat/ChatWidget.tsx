@@ -101,78 +101,80 @@ export function ChatWidget(): JSX.Element {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      {!isOpen ? (
-        <Button
-          aria-label="Open chat assistant"
-          size="icon"
-          className="w-14 h-14 rounded-full shadow-lg"
-          onClick={() => setIsOpen(true)}
-        >
-          ✨
-        </Button>
-      ) : (
-        <Card className="w-96 h-[520px] p-0 overflow-hidden chat-interface-enter">
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <div className="font-medium">AI Assistant</div>
-            <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)}>
-              Close
-            </Button>
-          </div>
+    <React.Fragment>
+      <div className="fixed bottom-4 right-4 z-50">
+        {!isOpen ? (
+          <Button
+            aria-label="Open chat assistant"
+            size="icon"
+            className="w-14 h-14 rounded-full shadow-lg"
+            onClick={() => setIsOpen(true)}
+          >
+            ✨
+          </Button>
+        ) : (
+          <Card className="w-96 h-[520px] p-0 overflow-hidden chat-interface-enter">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="font-medium">AI Assistant</div>
+              <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)}>
+                Close
+              </Button>
+            </div>
 
-          <CardContent className="p-0 h-full">
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-auto p-3 space-y-3">
-                {messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}
-                  >
+            <CardContent className="p-0 h-full">
+              <div className="flex flex-col h-full">
+                <div className="flex-1 overflow-auto p-3 space-y-3">
+                  {messages.map((m) => (
                     <div
-                      className={cn(
-                        "max-w-[80%] rounded-lg px-3 py-2 text-sm",
-                        m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
-                      )}
+                      key={m.id}
+                      className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}
                     >
-                      <div>{m.content}</div>
+                      <div
+                        className={cn(
+                          "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+                          m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
+                        )}
+                      >
+                        <div>{m.content}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {isTyping && (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce" />
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce [animation-delay:0.15s]" />
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce [animation-delay:0.3s]" />
-                    <span className="ml-2">AI is typing…</span>
-                  </div>
-                )}
-                <div ref={endRef} />
-              </div>
+                  ))}
+                  {isTyping && (
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce" />
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce [animation-delay:0.15s]" />
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce [animation-delay:0.3s]" />
+                      <span className="ml-2">AI is typing…</span>
+                    </div>
+                  )}
+                  <div ref={endRef} />
+                </div>
 
-              <div className="border-t p-3">
-                <div className="flex gap-2">
-                  <input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void sendMessage();
-                      }
-                    }}
-                    aria-label="Type a message"
-                    placeholder="Type a message…"
-                    className="flex-1 border rounded-md px-3 py-2 text-sm"
-                  />
-                  <Button onClick={sendMessage} disabled={!input.trim() || isTyping}>
-                    Send
-                  </Button>
+                <div className="border-t p-3">
+                  <div className="flex gap-2">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void sendMessage();
+                        }
+                      }}
+                      aria-label="Type a message"
+                      placeholder="Type a message…"
+                      className="flex-1 border rounded-md px-3 py-2 text-sm"
+                    />
+                    <Button onClick={sendMessage} disabled={!input.trim() || isTyping}>
+                      Send
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </React.Fragment>
   );
 }

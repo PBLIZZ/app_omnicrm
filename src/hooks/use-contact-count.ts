@@ -1,0 +1,33 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { fetchContacts } from "@/components/contacts/api";
+
+export function useContactCount(): number {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCount = async (): Promise<void> => {
+      try {
+        // Just fetch the first page to get the total count
+        const data = await fetchContacts({ page: 1, pageSize: 1 });
+        if (isMounted) {
+          setCount(data.total);
+        }
+      } catch (error) {
+        // Silent error - just keep count at 0
+        console.error("Failed to fetch contact count:", error);
+      }
+    };
+
+    void loadCount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return count;
+}

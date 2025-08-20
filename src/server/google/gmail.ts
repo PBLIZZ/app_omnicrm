@@ -16,11 +16,18 @@ export interface GmailPreviewPrefs {
 export interface GmailPreviewResult {
   countByLabel: Record<string, number>;
   sampleSubjects: string[];
+  pages?: number;
+  durationMs?: number;
+  itemsFiltered?: number;
 }
 
-export async function listGmailMessageIds(gmail: GmailClient, q: string): Promise<string[]> {
+export async function listGmailMessageIds(
+  gmail: GmailClient,
+  q: string,
+): Promise<{ ids: string[]; pages: number }> {
   const ids: string[] = [];
   let pageToken: string | undefined = undefined;
+  let pages = 0;
   do {
     const params: gmail_v1.Params$Resource$Users$Messages$List = {
       userId: "me",
@@ -33,6 +40,7 @@ export async function listGmailMessageIds(gmail: GmailClient, q: string): Promis
       () => gmail.users.messages.list(params, { timeout: 10_000 }),
       "gmail.messages.list",
     );
+    pages += 1;
     (res.data.messages ?? []).forEach((m) => {
       if (m.id) {
         ids.push(m.id);
@@ -40,7 +48,7 @@ export async function listGmailMessageIds(gmail: GmailClient, q: string): Promis
     });
     pageToken = res.data.nextPageToken ?? undefined;
   } while (pageToken);
-  return ids;
+  return { ids, pages };
 }
 
 // label map and transformer imported from ./constants
@@ -51,13 +59,14 @@ export async function gmailPreview(
   injectedGmail?: GmailClient,
 ): Promise<GmailPreviewResult> {
   const gmail = injectedGmail ?? (await getGoogleClients(userId)).gmail;
-
+  const startedAt = Date.now();
   const q = prefs.gmailQuery;
   const includeIds = (prefs.gmailLabelIncludes ?? []).map(toLabelId).filter(Boolean);
   const excludeIds = (prefs.gmailLabelExcludes ?? []).map(toLabelId).filter(Boolean);
 
   const messages: Pick<gmail_v1.Schema$Message, "id">[] = [];
   let pageToken: string | undefined = undefined;
+  let pages = 0;
   do {
     const params: gmail_v1.Params$Resource$Users$Messages$List = {
       userId: "me",
@@ -65,12 +74,17 @@ export async function gmailPreview(
       maxResults: 100,
       ...(pageToken ? { pageToken } : {}),
     };
-    const listRes = await gmail.users.messages.list(params);
+    const listRes = await callWithRetry(
+      () => gmail.users.messages.list(params, { timeout: 10_000 }),
+      "gmail.messages.list",
+    );
+    pages += 1;
     messages.push(...(listRes.data.messages ?? []));
     pageToken = listRes.data.nextPageToken ?? undefined;
   } while (pageToken);
   const countByLabel: Record<string, number> = {};
   const sampleSubjects: string[] = [];
+  let itemsFiltered = 0;
 
   for (const m of messages.slice(0, 50)) {
     if (!m.id) continue;
@@ -93,10 +107,12 @@ export async function gmailPreview(
 
     // include filter
     if (includeIds.length > 0 && !labelIds.some((l) => includeIds.includes(l))) {
+      itemsFiltered += 1;
       continue;
     }
     // exclude filter
     if (excludeIds.length > 0 && labelIds.some((l) => excludeIds.includes(l))) {
+      itemsFiltered += 1;
       continue;
     }
 
@@ -117,7 +133,8 @@ export async function gmailPreview(
   const top: Record<string, number> = {};
   for (const [k, v] of topEntries) top[k] = v;
 
-  return { countByLabel: top, sampleSubjects };
+  const durationMs = Date.now() - startedAt;
+  return { countByLabel: top, sampleSubjects, pages, durationMs, itemsFiltered };
 }
 
 // callWithRetry shared in ./utils

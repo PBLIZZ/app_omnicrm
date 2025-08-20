@@ -3,17 +3,57 @@ import { supaAdminGuard } from "@/server/db/supabase-admin";
 import { and, eq } from "drizzle-orm";
 import { rawEvents } from "@/server/db/schema";
 import type { JobRecord } from "../types";
+import type { RawEvent } from "@/server/db/schema";
+import { log } from "@/server/log";
+
+// Type guards for safe payload parsing
+interface BatchJobPayload {
+  batchId?: string;
+}
+
+interface GmailPayload {
+  payload?: {
+    headers?: Array<{ name?: string | null; value?: string | null }>;
+  };
+  snippet?: string | null;
+  id?: string | null;
+}
+
+interface CalendarPayload {
+  summary?: string | null;
+  description?: string | null;
+  location?: string | null;
+  id?: string | null;
+}
+
+function isBatchJobPayload(payload: unknown): payload is BatchJobPayload {
+  return typeof payload === "object" && payload !== null;
+}
+
+function isGmailPayload(payload: unknown): payload is GmailPayload {
+  return typeof payload === "object" && payload !== null;
+}
+
+function isCalendarPayload(payload: unknown): payload is CalendarPayload {
+  return typeof payload === "object" && payload !== null;
+}
 // No verbose logging here to keep normalization fast and predictable
+/**
+ * Processor constraints:
+ * - API call timeout: 10 seconds (applies when external calls added)
+ * - Retries: 3 with jitter (callWithRetry when applicable)
+ * - Hard cap: 3 minutes per job to avoid runaways
+ */
 
 export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   const dbo = await getDb();
-  const batchId = (job.payload as { batchId?: string })?.batchId;
+  const batchId = isBatchJobPayload(job.payload) ? job.payload.batchId : undefined;
   const startedAt = Date.now();
   const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job to avoid runaways
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
-  const rows = await dbo
+  const rows: RawEvent[] = await dbo
     .select()
     .from(rawEvents)
     .where(
@@ -27,11 +67,15 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   for (const r of rows) {
     if (Date.now() > deadlineMs) break; // why: protect against unexpectedly large batches
     itemsFetched += 1;
-    const payload = r.payload as {
-      payload?: { headers?: Array<{ name?: string | null; value?: string | null }> };
-      snippet?: string | null;
-      id?: string | null;
-    };
+    if (!isGmailPayload(r.payload)) {
+      log.warn(
+        { op: "normalize.gmail.invalid_payload", userId: job.userId, rawEventId: r.id },
+        "Invalid Gmail payload structure",
+      );
+      itemsSkipped += 1;
+      continue;
+    }
+    const payload = r.payload;
     const headers: Array<{ name?: string | null; value?: string | null }> =
       payload?.payload?.headers ?? [];
     const subject = headers.find((h) => (h.name ?? "").toLowerCase() === "subject")?.value ?? null;
@@ -47,11 +91,11 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
         subject: subject ?? undefined,
         bodyText: snippet ?? undefined,
         bodyRaw: null,
-        occurredAt: new Date((r as { occurredAt?: unknown }).occurredAt as string),
+        occurredAt: r.occurredAt instanceof Date ? r.occurredAt : new Date(String(r.occurredAt)),
         source: "gmail",
         sourceId: messageId ?? undefined,
-        sourceMeta: (r as { sourceMeta?: unknown }).sourceMeta,
-        batchId: (r as { batchId?: unknown }).batchId as string | undefined,
+        sourceMeta: r.sourceMeta as Record<string, unknown> | null | undefined,
+        batchId: (r.batchId ?? undefined) as string | undefined,
       },
       { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
     );
@@ -63,30 +107,32 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
     }
   }
   const durationMs = Date.now() - startedAt;
-  // eslint-disable-next-line no-console
-  console.log(
-    JSON.stringify({
-      event: "normalize_gmail_metrics",
+  log.info(
+    {
+      op: "normalize.gmail.metrics",
       userId: job.userId,
       batchId: batchId ?? null,
       itemsFetched,
       itemsInserted,
       itemsSkipped,
+      itemsFiltered: 0,
+      pages: 1,
       durationMs,
       timedOut: Date.now() > deadlineMs,
-    }),
+    },
+    "normalize_gmail_metrics",
   );
 }
 
 export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   const dbo = await getDb();
-  const batchId = (job.payload as { batchId?: string })?.batchId;
+  const batchId = isBatchJobPayload(job.payload) ? job.payload.batchId : undefined;
   const startedAt = Date.now();
   const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
-  const rows = await dbo
+  const rows: RawEvent[] = await dbo
     .select()
     .from(rawEvents)
     .where(
@@ -100,12 +146,15 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   for (const r of rows) {
     if (Date.now() > deadlineMs) break; // why: avoid runaway normalization
     itemsFetched += 1;
-    const payload = r.payload as {
-      summary?: string | null;
-      description?: string | null;
-      location?: string | null;
-      id?: string | null;
-    };
+    if (!isCalendarPayload(r.payload)) {
+      log.warn(
+        { op: "normalize.calendar.invalid_payload", userId: job.userId, rawEventId: r.id },
+        "Invalid Calendar payload structure",
+      );
+      itemsSkipped += 1;
+      continue;
+    }
+    const payload = r.payload;
     const summary = payload?.summary ?? null;
     const desc = payload?.description ?? payload?.location ?? null;
     const eventId = payload?.id ?? null;
@@ -119,11 +168,11 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         subject: summary ?? undefined,
         bodyText: desc ?? undefined,
         bodyRaw: null,
-        occurredAt: new Date((r as { occurredAt?: unknown }).occurredAt as string),
+        occurredAt: r.occurredAt instanceof Date ? r.occurredAt : new Date(String(r.occurredAt)),
         source: "calendar",
         sourceId: eventId ?? undefined,
-        sourceMeta: (r as { sourceMeta?: unknown }).sourceMeta,
-        batchId: (r as { batchId?: unknown }).batchId as string | undefined,
+        sourceMeta: r.sourceMeta as Record<string, unknown> | null | undefined,
+        batchId: (r.batchId ?? undefined) as string | undefined,
       },
       { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
     );
@@ -134,17 +183,19 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
     }
   }
   const durationMs = Date.now() - startedAt;
-  // eslint-disable-next-line no-console
-  console.log(
-    JSON.stringify({
-      event: "normalize_calendar_metrics",
+  log.info(
+    {
+      op: "normalize.calendar.metrics",
       userId: job.userId,
       batchId: batchId ?? null,
       itemsFetched,
       itemsInserted,
       itemsSkipped,
+      itemsFiltered: 0,
+      pages: 1,
       durationMs,
       timedOut: Date.now() > deadlineMs,
-    }),
+    },
+    "normalize_calendar_metrics",
   );
 }

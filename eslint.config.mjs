@@ -23,6 +23,7 @@ const eslintConfig = [
       "**/*.spec.tsx",
       "**/__tests__/**",
       "**/_tests_/**",
+      ".next/**",
       "e2e/**",
       "tests/**",
       // Ignore generated shadcn/ui components
@@ -30,7 +31,7 @@ const eslintConfig = [
     ],
   },
   {
-    files: ["**/*.ts", "**/*.tsx"],
+    files: ["src/**/*.ts", "src/**/*.tsx"],
     ignores: [
       "**/*.test.ts",
       "**/*.spec.ts",

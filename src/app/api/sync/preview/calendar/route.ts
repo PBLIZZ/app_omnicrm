@@ -9,6 +9,7 @@ import { logSync } from "@/server/sync/audit";
 import { getServerUserId } from "@/server/auth/user";
 import { err, ok } from "@/server/http/responses";
 import { toApiError } from "@/server/jobs/types";
+import { log } from "@/server/log";
 
 export async function POST(req: NextRequest): Promise<Response> {
   let userId: string;
@@ -42,6 +43,23 @@ export async function POST(req: NextRequest): Promise<Response> {
       calendarIncludePrivate: Boolean(prefs.calendarIncludePrivate),
       calendarTimeWindowDays: prefs.calendarTimeWindowDays,
     });
+    // Light metrics log for observability with consistent type checking
+    type PreviewMetrics = { pages?: number; itemsFiltered?: number; durationMs?: number };
+    const meta: PreviewMetrics =
+      typeof preview === "object" && preview !== null ? (preview as unknown as PreviewMetrics) : {};
+    const pages = typeof meta.pages === "number" ? meta.pages : undefined;
+    const itemsFiltered = typeof meta.itemsFiltered === "number" ? meta.itemsFiltered : undefined;
+    const durationMs = typeof meta.durationMs === "number" ? meta.durationMs : undefined;
+    log.info(
+      {
+        op: "calendar.preview.metrics",
+        userId,
+        pages,
+        itemsFiltered,
+        durationMs,
+      },
+      "calendar_preview_metrics",
+    );
 
     await logSync(userId, "calendar", "preview", preview as unknown as Record<string, unknown>);
     return ok(preview);

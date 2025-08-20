@@ -4,6 +4,12 @@ import { and, eq } from "drizzle-orm";
 import { rawEvents } from "@/server/db/schema";
 import type { JobRecord } from "../types";
 // No verbose logging here to keep normalization fast and predictable
+/**
+ * Processor constraints:
+ * - API call timeout: 10 seconds (applies when external calls added)
+ * - Retries: 3 with jitter (callWithRetry when applicable)
+ * - Hard cap: 3 minutes per job to avoid runaways
+ */
 
 export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   const dbo = await getDb();
@@ -72,6 +78,8 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
       itemsFetched,
       itemsInserted,
       itemsSkipped,
+      itemsFiltered: 0,
+      pages: 1,
       durationMs,
       timedOut: Date.now() > deadlineMs,
     }),
@@ -143,6 +151,8 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
       itemsFetched,
       itemsInserted,
       itemsSkipped,
+      itemsFiltered: 0,
+      pages: 1,
       durationMs,
       timedOut: Date.now() > deadlineMs,
     }),

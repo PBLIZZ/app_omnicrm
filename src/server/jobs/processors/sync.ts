@@ -8,9 +8,16 @@ import { listGmailMessageIds } from "@/server/google/gmail";
 import { toLabelId } from "@/server/google/constants";
 import type { CalendarClient } from "@/server/google/calendar";
 import { listCalendarEvents } from "@/server/google/calendar";
-import type { calendar_v3 } from "googleapis";
 // Note: logging kept minimal to avoid noise during tight loops
 import { log } from "@/server/log";
+import { callWithRetry } from "@/server/google/utils";
+
+/**
+ * Processor constraints (documented for operators and future maintainers):
+ * - API call timeout: 10 seconds per external request
+ * - Retries: 3 attempts with exponential backoff + jitter (see callWithRetry)
+ * - Hard wall-clock cap: 3 minutes per job to prevent runaway executions
+ */
 
 export async function lastEventTimestamp(
   userId: string,
@@ -75,7 +82,7 @@ export async function runGmailSync(
   const excludeIds = (prefs?.gmailLabelExcludes ?? []).map(toLabelId);
 
   // Cap total processed per run to keep memory/time bounded
-  const ids = await listGmailMessageIds(gmail, q);
+  const { ids, pages } = await listGmailMessageIds(gmail, q);
   const MAX_PER_RUN = 2000;
   const total = Math.min(ids.length, MAX_PER_RUN);
   log.info(
@@ -85,6 +92,7 @@ export async function runGmailSync(
       candidates: ids.length,
       total,
       query: q,
+      pages,
     },
     "gmail_sync_start",
   );
@@ -95,19 +103,31 @@ export async function runGmailSync(
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
+  let itemsFiltered = 0;
 
   for (let i = 0; i < total; i += chunk) {
     if (Date.now() > deadlineMs) break; // why: protect against long-running loops when API is slow
     const slice = ids.slice(i, i + chunk);
     const results = await Promise.allSettled(
-      slice.map((id: string) => gmail.users.messages.get({ userId: "me", id, format: "full" })),
+      slice.map((id: string) =>
+        callWithRetry(
+          () => gmail.users.messages.get({ userId: "me", id, format: "full" }, { timeout: 10_000 }),
+          "gmail.messages.get",
+        ),
+      ),
     );
     for (const r of results) {
       if (r.status !== "fulfilled") continue;
       const msg = r.value.data as GmailMessagePayload;
       const labelIds = msg.labelIds ?? [];
-      if (includeIds.length > 0 && !labelIds.some((l: string) => includeIds.includes(l))) continue;
-      if (excludeIds.length > 0 && labelIds.some((l: string) => excludeIds.includes(l))) continue;
+      if (includeIds.length > 0 && !labelIds.some((l: string) => includeIds.includes(l))) {
+        itemsFiltered += 1;
+        continue;
+      }
+      if (excludeIds.length > 0 && labelIds.some((l: string) => excludeIds.includes(l))) {
+        itemsFiltered += 1;
+        continue;
+      }
 
       const internalMs = Number(msg.internalDate ?? 0);
       const occurredAt = internalMs ? new Date(internalMs) : new Date();
@@ -143,7 +163,10 @@ export async function runGmailSync(
       itemsFetched,
       itemsInserted,
       itemsSkipped,
+      itemsFiltered,
+      pages,
       durationMs,
+      timedOut: Date.now() > deadlineMs,
     },
     "gmail_sync_metrics",
   );
@@ -191,7 +214,8 @@ export async function runCalendarSync(
   let itemsFetched = 0;
   let itemsInserted = 0;
   const itemsSkipped = 0;
-  const items: calendar_v3.Schema$Event[] = await listCalendarEvents(calendar, timeMin, timeMax);
+  let itemsFiltered = 0;
+  const { items, pages } = await listCalendarEvents(calendar, timeMin, timeMax);
   const MAX_PER_RUN = 2000;
   const total = Math.min(items.length, MAX_PER_RUN);
   log.info(
@@ -201,6 +225,7 @@ export async function runCalendarSync(
       candidates: items.length,
       total,
       windowDays: days,
+      pages,
     },
     "calendar_sync_start",
   );
@@ -209,9 +234,11 @@ export async function runCalendarSync(
     const e = items[i];
     if (!e) continue;
     if (prefs?.calendarIncludeOrganizerSelf === true && e.organizer && e.organizer.self === false) {
+      itemsFiltered += 1;
       continue;
     }
     if (prefs?.calendarIncludePrivate === false && e.visibility === "private") {
+      itemsFiltered += 1;
       continue;
     }
     const startStr = e.start?.dateTime ?? e.start?.date;
@@ -243,7 +270,10 @@ export async function runCalendarSync(
       itemsFetched,
       itemsInserted,
       itemsSkipped,
+      itemsFiltered,
+      pages,
       durationMs,
+      timedOut: Date.now() > deadlineMs,
     },
     "calendar_sync_metrics",
   );

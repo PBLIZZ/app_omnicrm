@@ -80,6 +80,17 @@ export async function POST(req: NextRequest): Promise<Response> {
       gmailLabelIncludes: prefs.gmailLabelIncludes ?? [],
       gmailLabelExcludes: prefs.gmailLabelExcludes ?? [],
     });
+    // Light metrics log for observability (non-sensitive)
+    log.info(
+      {
+        op: "gmail.preview.metrics",
+        userId,
+        pages: (preview as { pages?: number }).pages ?? undefined,
+        itemsFiltered: (preview as { itemsFiltered?: number }).itemsFiltered ?? undefined,
+        durationMs: (preview as { durationMs?: number }).durationMs ?? undefined,
+      },
+      "gmail_preview_metrics",
+    );
     await logSync(userId, "gmail", "preview", preview as unknown as Record<string, unknown>);
     return ok(preview ?? {});
   } catch (e: unknown) {

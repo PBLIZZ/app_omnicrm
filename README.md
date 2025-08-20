@@ -2,6 +2,8 @@
 
 AI‑first CRM built with Next.js and Supabase. This README gives a quick overview and links to deeper docs.
 
+**Test edit for Claude PR review workflow verification.**
+
 ## Quick start
 
 ```bash

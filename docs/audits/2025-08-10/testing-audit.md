@@ -606,7 +606,7 @@ describe("AuthHeader", () => {
 ```yaml
 # tests/performance/api-load.yml
 config:
-  target: "http://localhost:3000"
+  target: "http://localhost:3001"
   phases:
     - duration: 60
       arrivalRate: 10

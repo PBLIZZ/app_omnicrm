@@ -272,7 +272,7 @@ This checklist consolidates all tasks from the planning documents into a single,
   - `https://www.googleapis.com/auth/calendar.readonly`
 - [x] [HUMAN] Add test user (your email address)
 - [x] [HUMAN] Create OAuth client (Web Application) with redirect URIs:
-  - `http://localhost:3000/api/google/oauth/callback`
+  - `http://localhost:3001/api/google/oauth/callback`
   - `https://<vercel-domain>/api/google/oauth/callback`
 - [x] [HUMAN] Add Google credentials to `.env.local` and `.env.example`:
   - `GOOGLE_CLIENT_ID`

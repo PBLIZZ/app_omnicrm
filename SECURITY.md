@@ -58,7 +58,7 @@ Environment: set `APP_ENCRYPTION_KEY` to a 32-byte key. Accepted formats: base64
 | Directive         | Purpose                                 | Production value                                                               | Development value                                                                                   | Example header fragment                      |
 | ----------------- | --------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | `script-src`      | Restrict where scripts can load from    | `'self'`                                                                       | `'self' 'unsafe-inline' 'unsafe-eval' blob:`                                                        | `script-src 'self'`                          |
-| `connect-src`     | Allow XHR/fetch/websocket endpoints     | `'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com` | `'self' http://localhost:3000 ws://localhost:3000 https://*.supabase.co https://www.googleapis.com` | `connect-src 'self' https://*.supabase.co …` |
+| `connect-src`     | Allow XHR/fetch/websocket endpoints     | `'self' https://*.supabase.co https://*.vercel.app https://www.googleapis.com` | `'self' http://localhost:3001 ws://localhost:3001 https://*.supabase.co https://www.googleapis.com` | `connect-src 'self' https://*.supabase.co …` |
 | `frame-ancestors` | Clickjacking defense (who can embed us) | `'none'`                                                                       | `'none'`                                                                                            | `frame-ancestors 'none'`                     |
 
 Notes:
@@ -77,7 +77,7 @@ Content-Security-Policy: script-src 'self'; connect-src 'self' https://*.supabas
 - Development:
 
 ```text
-Content-Security-Policy: script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' http://localhost:3000 ws://localhost:3000 https://*.supabase.co https://www.googleapis.com; frame-ancestors 'none';
+Content-Security-Policy: script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' http://localhost:3001 ws://localhost:3001 https://*.supabase.co https://www.googleapis.com; frame-ancestors 'none';
 ```
 
 ### Validation
@@ -85,7 +85,7 @@ Content-Security-Policy: script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; 
 - Curl (replace URL as needed):
 
 ```sh
-curl -sI http://localhost:3000 | grep -i "^content-security-policy" || true
+curl -sI http://localhost:3001 | grep -i "^content-security-policy" || true
 ```
 
 - Playwright (example assertion):

@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env["OPENROUTER_API_KEY"]}`, // Uses app's key
-      "HTTP-Referer": process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000",
+      "HTTP-Referer": process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3001",
       "X-Title": "Prompt Workbench",
     },
     body: JSON.stringify(body), // Direct proxy without validation
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env["OPENROUTER_API_KEY"]}`,
-        "HTTP-Referer": process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000",
+        "HTTP-Referer": process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3001",
         "X-Title": "OmniCRM AI",
       },
       body: JSON.stringify(parsed.data),
@@ -1402,6 +1402,7 @@ const securityConfig = {
    ```
 
 3. **Input Validation Completeness**
+
    ```typescript
    // Comprehensive validation for contact operations
    const postBodySchema = z
@@ -1504,6 +1505,7 @@ const securityConfig = {
    ```
 
 3. **Add AI-Specific Rate Limiting**
+
    ```typescript
    // Different limits for different AI operations
    const aiRateLimits = {

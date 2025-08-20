@@ -78,6 +78,7 @@ No significant regressions identified. All previous infrastructure concerns rema
    ```
 
 3. **Basic Uptime Monitoring**
+
    ```yaml
    # .github/workflows/uptime.yml
    - 10-minute interval health checks
@@ -191,6 +192,7 @@ CMD ["pnpm", "dev", "-p", "3000"]
    - Running as root user (security risk)
 
 3. **Docker Compose Limitations:**
+
    ```yaml
    # docker-compose.yml - Development only
    volumes:
@@ -246,7 +248,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+  CMD curl -f http://localhost:3001/api/health || exit 1
 CMD ["node", "server.js"]
 ```
 
@@ -294,6 +296,7 @@ coverage/
    ```
 
 3. **Uptime Monitoring**
+
    ```yaml
    # Basic external health checking
    - 10-minute intervals

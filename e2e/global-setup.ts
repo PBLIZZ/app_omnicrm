@@ -2,7 +2,7 @@ import { request } from "@playwright/test";
 
 export default async function globalSetup() {
   // Give the dev server a moment to boot, then poll /api/health
-  const baseURL = process.env["PLAYWRIGHT_TEST_BASE_URL"] ?? "http://localhost:3000";
+  const baseURL = process.env["PLAYWRIGHT_TEST_BASE_URL"] ?? "http://localhost:3001";
   const healthUrl = `${baseURL}/api/health`;
   const ctx = await request.newContext();
   const deadline = Date.now() + 60_000;

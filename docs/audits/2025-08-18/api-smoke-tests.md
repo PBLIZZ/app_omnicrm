@@ -31,7 +31,7 @@ Time: 2025-08-18
 - CSRF: POSTing from curl requires sending the `csrf` token header and cookies. Browser-based requests already include these. For curl testing, copy `csrf` and `csrf_sig` cookies from DevTools and send:
 
   ```bash
-  curl -s http://localhost:3000/api/contacts \
+  curl -s http://localhost:3001/api/contacts \
     -H "Content-Type: application/json" \
     -H "x-csrf-token: <csrf-cookie-value>" \
     -H "Cookie: csrf=<csrf-cookie-value>; csrf_sig=<csrf-sig-cookie-value>" \

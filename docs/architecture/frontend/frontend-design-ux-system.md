@@ -2017,9 +2017,9 @@ jobs:
     "collect": {
       "numberOfRuns": 3,
       "url": [
-        "http://localhost:3000",
-        "http://localhost:3000/contacts",
-        "http://localhost:3000/settings"
+        "http://localhost:3001",
+        "http://localhost:3001/contacts",
+        "http://localhost:3001/settings"
       ]
     },
     "assert": {

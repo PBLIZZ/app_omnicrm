@@ -5,7 +5,7 @@ Cost: near zero. No migrations in CI; manual SQL is source of truth.
 
 ## 1) Environment Variables
 
-Create `.env.local` for local dev and set Vercel Project Environment Variables. You can start by copying the root `.env.example` and filling values.
+Create `.env.local` for local dev and set Vercel Project Environment Variables. You can start by copying `docs/ops/env.example` and filling values.
 
 Server-only (never exposed to client):
 
@@ -31,6 +31,9 @@ Either (server/client as needed):
 Minimal example (copy into `.env.local` for dev):
 
 ```ini
+# Local PostgreSQL Database (for development)
+DATABASE_URL=postgresql://omnicrm_user:password@localhost:5432/omnicrm_dev
+
 # Supabase (public)
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=publishable-key
@@ -45,10 +48,10 @@ APP_ENCRYPTION_KEY=
 # Google OAuth
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/google/oauth/callback
+GOOGLE_REDIRECT_URI=http://localhost:3001/api/google/oauth/callback
 
 # CORS / Security
-APP_ORIGINS=http://localhost:3000
+APP_ORIGINS=http://localhost:3001
 API_RATE_LIMIT_PER_MIN=60
 API_MAX_JSON_BYTES=1000000
 

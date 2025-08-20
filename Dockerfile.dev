@@ -10,8 +10,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-EXPOSE 3001
+EXPOSE 3000
 ENV NODE_ENV=development
-CMD ["pnpm", "dev", "-p", "3001"]
+CMD ["pnpm", "dev", "-p", "3000"]
 
 

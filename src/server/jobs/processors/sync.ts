@@ -101,7 +101,8 @@ export async function runGmailSync(
     log.warn({ op: "gmail.sync.invalid_job", job }, "sync_job_invalid_shape");
     return;
   }
-  const typedJob: MinimalJob = job;
+  // Safe cast after type guard validation
+  const typedJob = job as MinimalJob;
   const dbo = await getDb();
   const gmail = injected?.gmail ?? (await getGoogleClients(userId)).gmail;
   const prefsRow = await dbo
@@ -165,6 +166,22 @@ export async function runGmailSync(
         ),
       ),
     );
+
+    // Aggregate error reporting for failed Promise.allSettled results
+    const failedResults = results.filter((r) => r.status === "rejected");
+    if (failedResults.length > 0) {
+      log.error(
+        {
+          ...debugContext,
+          op: "gmail.sync.batch_errors",
+          failedCount: failedResults.length,
+          totalCount: results.length,
+          errors: failedResults.map((r) => String((r as PromiseRejectedResult).reason)),
+        },
+        "gmail_batch_processing_errors",
+      );
+    }
+
     for (const r of results) {
       if (r.status !== "fulfilled") {
         log.warn(

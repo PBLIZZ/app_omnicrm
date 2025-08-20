@@ -5,6 +5,38 @@ import { rawEvents } from "@/server/db/schema";
 import type { JobRecord } from "../types";
 import type { RawEvent } from "@/server/db/schema";
 import { log } from "@/server/log";
+
+// Type guards for safe payload parsing
+interface BatchJobPayload {
+  batchId?: string;
+}
+
+interface GmailPayload {
+  payload?: {
+    headers?: Array<{ name?: string | null; value?: string | null }>;
+  };
+  snippet?: string | null;
+  id?: string | null;
+}
+
+interface CalendarPayload {
+  summary?: string | null;
+  description?: string | null;
+  location?: string | null;
+  id?: string | null;
+}
+
+function isBatchJobPayload(payload: unknown): payload is BatchJobPayload {
+  return typeof payload === "object" && payload !== null;
+}
+
+function isGmailPayload(payload: unknown): payload is GmailPayload {
+  return typeof payload === "object" && payload !== null;
+}
+
+function isCalendarPayload(payload: unknown): payload is CalendarPayload {
+  return typeof payload === "object" && payload !== null;
+}
 // No verbose logging here to keep normalization fast and predictable
 /**
  * Processor constraints:
@@ -15,7 +47,7 @@ import { log } from "@/server/log";
 
 export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   const dbo = await getDb();
-  const batchId = (job.payload as { batchId?: string })?.batchId;
+  const batchId = isBatchJobPayload(job.payload) ? job.payload.batchId : undefined;
   const startedAt = Date.now();
   const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job to avoid runaways
   let itemsFetched = 0;
@@ -35,11 +67,15 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   for (const r of rows) {
     if (Date.now() > deadlineMs) break; // why: protect against unexpectedly large batches
     itemsFetched += 1;
-    const payload = r.payload as unknown as {
-      payload?: { headers?: Array<{ name?: string | null; value?: string | null }> };
-      snippet?: string | null;
-      id?: string | null;
-    };
+    if (!isGmailPayload(r.payload)) {
+      log.warn(
+        { op: "normalize.gmail.invalid_payload", userId: job.userId, rawEventId: r.id },
+        "Invalid Gmail payload structure",
+      );
+      itemsSkipped += 1;
+      continue;
+    }
+    const payload = r.payload;
     const headers: Array<{ name?: string | null; value?: string | null }> =
       payload?.payload?.headers ?? [];
     const subject = headers.find((h) => (h.name ?? "").toLowerCase() === "subject")?.value ?? null;
@@ -90,7 +126,7 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
 
 export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   const dbo = await getDb();
-  const batchId = (job.payload as { batchId?: string })?.batchId;
+  const batchId = isBatchJobPayload(job.payload) ? job.payload.batchId : undefined;
   const startedAt = Date.now();
   const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job
   let itemsFetched = 0;
@@ -110,12 +146,15 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   for (const r of rows) {
     if (Date.now() > deadlineMs) break; // why: avoid runaway normalization
     itemsFetched += 1;
-    const payload = r.payload as unknown as {
-      summary?: string | null;
-      description?: string | null;
-      location?: string | null;
-      id?: string | null;
-    };
+    if (!isCalendarPayload(r.payload)) {
+      log.warn(
+        { op: "normalize.calendar.invalid_payload", userId: job.userId, rawEventId: r.id },
+        "Invalid Calendar payload structure",
+      );
+      itemsSkipped += 1;
+      continue;
+    }
+    const payload = r.payload;
     const summary = payload?.summary ?? null;
     const desc = payload?.description ?? payload?.location ?? null;
     const eventId = payload?.id ?? null;

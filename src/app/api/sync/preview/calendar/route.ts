@@ -43,14 +43,20 @@ export async function POST(req: NextRequest): Promise<Response> {
       calendarIncludePrivate: Boolean(prefs.calendarIncludePrivate),
       calendarTimeWindowDays: prefs.calendarTimeWindowDays,
     });
-    // Light metrics log for observability
+    // Light metrics log for observability with consistent type checking
+    type PreviewMetrics = { pages?: number; itemsFiltered?: number; durationMs?: number };
+    const meta: PreviewMetrics =
+      typeof preview === "object" && preview !== null ? (preview as unknown as PreviewMetrics) : {};
+    const pages = typeof meta.pages === "number" ? meta.pages : undefined;
+    const itemsFiltered = typeof meta.itemsFiltered === "number" ? meta.itemsFiltered : undefined;
+    const durationMs = typeof meta.durationMs === "number" ? meta.durationMs : undefined;
     log.info(
       {
         op: "calendar.preview.metrics",
         userId,
-        pages: (preview as { pages?: number }).pages ?? undefined,
-        itemsFiltered: (preview as { itemsFiltered?: number }).itemsFiltered ?? undefined,
-        durationMs: (preview as { durationMs?: number }).durationMs ?? undefined,
+        pages,
+        itemsFiltered,
+        durationMs,
       },
       "calendar_preview_metrics",
     );

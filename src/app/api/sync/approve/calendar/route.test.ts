@@ -22,12 +22,6 @@ describe("calendar approve route", () => {
     expect(await res.json()).toEqual({ ok: false, error: "unauthorized", details: null });
   });
 
-  it("returns 405 for GET method", async () => {
-    // This tests that only POST is allowed - GET should not be defined
-    // We'll test this in the E2E layer since route handlers are method-specific
-    expect(true).toBe(true); // Placeholder - method validation happens at framework level
-  });
-
   it("returns 400 for invalid Zod body", async () => {
     process.env.FEATURE_GOOGLE_CALENDAR_RO = "1";
     const userMod = await import("@/server/auth/user");

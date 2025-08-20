@@ -27,7 +27,11 @@ describe("GET /api/health", () => {
   it("returns health status with database check when DATABASE_URL is set", async () => {
     process.env.DATABASE_URL = "postgresql://test@localhost/test";
 
-    const mockDb = {
+    interface MockDbClient {
+      execute: vi.MockedFunction<() => Promise<Array<{ "?column?": number }>>>;
+    }
+
+    const mockDb: MockDbClient = {
       execute: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
     };
 
@@ -82,7 +86,11 @@ describe("GET /api/health", () => {
   it("handles database timeout correctly", async () => {
     process.env.DATABASE_URL = "postgresql://test@localhost/test";
 
-    const mockDb = {
+    interface MockDbClientTimeout {
+      execute: vi.MockedFunction<() => Promise<never>>;
+    }
+
+    const mockDb: MockDbClientTimeout = {
       execute: vi
         .fn()
         .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 1000))),

@@ -128,7 +128,8 @@ Production additionally requires:
 - All secrets encrypted at rest
 - Row Level Security on all data access
 - The database schema is defined in the @src/server/db/schema.ts file. Reference it any time you need to understand the structure of data stored in the database.
-- Never make edits to the @src/server/db/schema.ts file. Instead ask the user to run a sql query in the supabase dashboard and once it has ran sucessfully the user will update the @src/server/db/schema.ts file and let you know. THis is for if you need to edit the database. You should treat the @src/server/db/schema.ts as read only.- we use pnpm
+- Never make edits to the @src/server/db/schema.ts file. Instead ask the user to run a sql query in the supabase dashboard and once it has ran sucessfully the user will update the @src/server/db/schema.ts file and let you know. This is for if you need to edit the database. You should treat the @src/server/db/schema.ts as read only.
+- We use pnpm for package management.
 
 ## Pull Request Workflow
 
@@ -139,9 +140,16 @@ When adding commits from a feature branch to main, follow this process:
 3. **Push feature branch**: `git push -u origin feature-name`
 4. **Create PR**: Use `gh pr create` against main branch
 5. **Wait for CI tests**: Let GitHub Actions run typecheck, lint, tests, and build
-6. **Review and merge**: Only merge after all CI checks pass
+6. **Claude review**: Claude will automatically review new PRs, or you can trigger a review by commenting `/claude` on any PR
+7. **Review and merge**: Only merge after all CI checks pass and Claude review is complete
 
 **NEVER commit directly to main branch.** Always use the PR process to ensure CI validation.
+
+### Claude Code Review
+
+- **Automatic**: Claude reviews all new PRs and PR updates automatically
+- **Manual trigger**: Comment `/claude` on any PR to request a review
+- **Review scope**: Claude analyzes code quality, security, performance, and test coverage
 
 ## Testing Environment
 
@@ -171,11 +179,12 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 - Run `pnpm dev`, sign in at `/login`, complete OAuth at `/settings/sync`
 - Test user: `test-e2e@example.com` / `test-e2e-password-123`
 
-- Never use `any`
+### Coding Standards
 
-- it might take you some effort and time to fix the lint errors properly but when we come sacross issues we need to resolve the underlying cause. It is not acceptable to put a comment, change the config file, add to ignore list, use underscore, or any other short term fix. Do Not Accrue Technical Debt.
-
-- using as avoids typescript rules and is not permitted
-- COnsole logs should be replaced with toast if the message is for the user and logged to log.txt Rule Number One is not to create technical debt. Do not leave comments in the code fo routstanding work instead raise an issuie and post it to the project board on github.
-- ensure separation of concerns and prefer composable components to monolithic ones and incorporate error boundaries throughout the codebase
-- use pnpm to dev build test etc
+- **Never use `any`** - Always provide proper TypeScript types
+- **Fix root causes** - When encountering lint errors, resolve the underlying issue. Do not use comments, config changes, ignore lists, underscores, or other short-term fixes. Do not accrue technical debt.
+- **Avoid type assertions** - Using `as` avoids TypeScript rules and is not permitted
+- **Proper logging** - Console logs should be replaced with toast notifications for user messages and proper logging to log.txt for debugging
+- **No TODO comments** - Do not leave comments for outstanding work. Instead raise GitHub issues and add them to the project board.
+- **Component architecture** - Ensure separation of concerns, prefer composable components over monolithic ones, and incorporate error boundaries throughout the codebase
+- **Package management** - Use pnpm for all development, build, and test commands

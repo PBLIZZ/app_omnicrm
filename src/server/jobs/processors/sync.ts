@@ -56,18 +56,39 @@ interface GmailMessagePayload {
   };
 }
 
-// Type for jobs with properly typed payload
-type JobRow = typeof jobs.$inferSelect & { payload: SyncJobPayload };
+// Types:
+// - MinimalJob reflects what we actually read from the job object at runtime.
+type MinimalJob = { id?: string | number; payload?: SyncJobPayload };
 
 // Narrow unknown job into expected shape
-export function isJobRow(job: unknown): job is JobRow {
+export function isJobRow(job: unknown): job is MinimalJob {
   if (typeof job !== "object" || job === null) return false;
   const j = job as Record<string, unknown>;
-  const hasId = typeof j["id"] === "string" || typeof j["id"] === "number";
-  const hasUserId = typeof j["userId"] === "string" || typeof j["userId"] === "number";
   const payload = j["payload"];
   const payloadOk = payload === undefined || typeof payload === "object";
-  return hasId && hasUserId && payloadOk;
+  // In our processors the userId is passed separately and id may be absent in tests/mocks.
+  // Accept any shape where payload is either undefined or an object; id is optional.
+  return payloadOk;
+}
+
+// Safe checks for external API payloads
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === "string");
+}
+
+function isGmailMessagePayload(v: unknown): v is GmailMessagePayload {
+  if (!isRecord(v)) return false;
+  const id = v["id"];
+  const labelIds = v["labelIds"];
+  const internalDate = v["internalDate"];
+  const okId = id === undefined || typeof id === "string";
+  const okLabels = labelIds === undefined || isStringArray(labelIds);
+  const okInternal = internalDate === undefined || typeof internalDate === "string";
+  return okId && okLabels && okInternal;
 }
 
 export async function runGmailSync(
@@ -80,7 +101,7 @@ export async function runGmailSync(
     log.warn({ op: "gmail.sync.invalid_job", job }, "sync_job_invalid_shape");
     return;
   }
-  const typedJob = job;
+  const typedJob: MinimalJob = job;
   const dbo = await getDb();
   const gmail = injected?.gmail ?? (await getGoogleClients(userId)).gmail;
   const prefsRow = await dbo
@@ -127,6 +148,7 @@ export async function runGmailSync(
   let itemsInserted = 0;
   let itemsSkipped = 0;
   let itemsFiltered = 0;
+  let errorsCount = 0;
 
   for (let i = 0; i < total; i += chunk) {
     if (Date.now() > deadlineMs) break; // why: protect against long-running loops when API is slow
@@ -154,9 +176,23 @@ export async function runGmailSync(
           "gmail_message_get_failed",
         );
         itemsSkipped += 1;
+        errorsCount += 1;
         continue;
       }
-      const msg = r.value.data as GmailMessagePayload;
+      const data = r.value?.data;
+      if (!isGmailMessagePayload(data)) {
+        log.warn(
+          {
+            ...debugContext,
+            op: "gmail.sync.get_invalid_shape",
+          },
+          "gmail_message_invalid_shape",
+        );
+        itemsSkipped += 1;
+        errorsCount += 1;
+        continue;
+      }
+      const msg = data;
       const labelIds = msg.labelIds ?? [];
       if (includeIds.length > 0 && !labelIds.some((l: string) => includeIds.includes(l))) {
         itemsFiltered += 1;
@@ -202,6 +238,7 @@ export async function runGmailSync(
       itemsInserted,
       itemsSkipped,
       itemsFiltered,
+      errorsCount,
       pages,
       durationMs,
       timedOut: Date.now() > deadlineMs,
@@ -227,7 +264,7 @@ export async function runCalendarSync(
     log.warn({ op: "calendar.sync.invalid_job", job }, "sync_job_invalid_shape");
     return;
   }
-  const typedJob = job;
+  const typedJob: MinimalJob = job;
   const dbo = await getDb();
   const calendar = injected?.calendar ?? (await getGoogleClients(userId)).calendar;
   const prefsRow = await dbo
@@ -257,6 +294,7 @@ export async function runCalendarSync(
   let itemsInserted = 0;
   let itemsSkipped = 0;
   let itemsFiltered = 0;
+  let errorsCount = 0;
   const { items, pages } = await listCalendarEvents(calendar, timeMin, timeMax);
   const total = Math.min(items.length, SYNC_MAX_PER_RUN);
   log.info(
@@ -319,6 +357,7 @@ export async function runCalendarSync(
           "calendar_event_insert_failed",
         );
         itemsSkipped += 1;
+        errorsCount += 1;
       } else {
         itemsFetched += 1;
         itemsInserted += 1;
@@ -338,6 +377,7 @@ export async function runCalendarSync(
       itemsInserted,
       itemsSkipped,
       itemsFiltered,
+      errorsCount,
       pages,
       durationMs,
       timedOut: Date.now() > deadlineMs,

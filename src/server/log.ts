@@ -21,15 +21,16 @@ const base = {
   env: nodeEnv,
 };
 
-const isDev = nodeEnv !== "production";
+const isLocalDev = nodeEnv === "development";
 
-const stream = isDev
+// Use pretty stream only in local development. In tests, avoid pretty to prevent open handles.
+const stream = isLocalDev
   ? pretty({ colorize: true, translateTime: "SYS:standard", singleLine: false })
   : undefined;
 
 const logger = pino(
   {
-    level: isDev ? "debug" : "info",
+    level: isLocalDev ? "debug" : "info",
     redact: { paths: redactPaths, censor: "[redacted]" },
     base,
     timestamp: pino.stdTimeFunctions.isoTime,

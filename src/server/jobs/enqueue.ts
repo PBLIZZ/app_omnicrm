@@ -7,7 +7,7 @@ export async function enqueue<K extends JobKind>(
   payload: JobPayloadByKind[K],
   userId: string,
   batchId?: string,
-) {
+): Promise<void> {
   const insertSql = batchId
     ? sql`
       insert into jobs (kind, payload, user_id, status, batch_id)

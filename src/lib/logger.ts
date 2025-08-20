@@ -66,7 +66,7 @@ export const logger = {
 
     if (process.env.NODE_ENV === "development") {
       // eslint-disable-next-line no-console
-      console.log(`[${component || "App"}] ${message}`, data || "");
+      console.log(`[${component ?? "App"}] ${message}`, data ?? "");
     }
 
     toastClient("success", message, { duration: 2000, position: "top-center" });
@@ -87,7 +87,7 @@ export const logger = {
     };
 
     if (process.env.NODE_ENV === "development") {
-      console.warn(`[${component || "App"}] ${message}`, data || "");
+      console.warn(`[${component ?? "App"}] ${message}`, data ?? "");
     }
 
     toastClient("info", message, { duration: 3000, position: "top-center" });
@@ -107,7 +107,7 @@ export const logger = {
       ...(component ? { component } : {}),
     };
 
-    console.error(`[${component || "App"}] ${message}`, error);
+    console.error(`[${component ?? "App"}] ${message}`, error);
 
     toastClient("error", message, {
       duration: Infinity,
@@ -134,7 +134,7 @@ export const logger = {
     };
 
     // eslint-disable-next-line no-console
-    console.log(`[DEBUG][${component || "App"}] ${message}`, data || "");
+    console.log(`[DEBUG][${component ?? "App"}] ${message}`, data ?? "");
     writeToLogFile(entry);
   },
 };

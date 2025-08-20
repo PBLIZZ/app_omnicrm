@@ -25,11 +25,11 @@ export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
+}>): Promise<JSX.Element> {
   const hdrs = await headers();
   const nonce = hdrs.get("x-csp-nonce") ?? hdrs.get("x-nextjs-nonce") ?? undefined;
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {nonce ? <meta property="csp-nonce" content={nonce} /> : null}
         {nonce ? (
@@ -47,6 +47,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         data-csp-nonce={nonce}
+        suppressHydrationWarning
       >
         <a
           href="#main-content"
@@ -54,8 +55,8 @@ export default async function RootLayout({
         >
           Skip to main content
         </a>
-        <AuthHeader />
         <Providers>
+          <AuthHeader />
           <main id="main-content">{children}</main>
         </Providers>
       </body>

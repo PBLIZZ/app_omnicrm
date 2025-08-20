@@ -41,7 +41,7 @@ export async function fetchJson<T>(url: string, options: FetchOptions = {}): Pro
   // Merge headers
   const headers = {
     ...defaultHeaders,
-    ...(fetchOptions.headers || {}),
+    ...(fetchOptions.headers ?? {}),
   };
 
   // Add content-type for POST/PUT/PATCH requests with body

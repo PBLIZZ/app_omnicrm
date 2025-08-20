@@ -1,12 +1,17 @@
 // src/app/api/contacts/[id]/route.ts
+import { NextRequest } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { UpdateContactBodySchema } from "@/server/schemas";
 import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { contacts } from "@/server/db/schema";
 import { err, ok, safeJson } from "@/server/http/responses";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
   const { id } = await params;
   let userId: string;
   try {
@@ -16,16 +21,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return err(error?.status ?? 401, error?.message ?? "unauthorized");
   }
   if (!id) return err(400, "invalid_id");
+  const parsedId = z.string().uuid().safeParse(id);
+  if (!parsedId.success) return err(400, "invalid_id");
 
   const dbo = await getDb();
   const [row] = await dbo
     .select({
       id: contacts.id,
+      userId: contacts.userId,
       displayName: contacts.displayName,
       primaryEmail: contacts.primaryEmail,
       primaryPhone: contacts.primaryPhone,
       source: contacts.source,
       createdAt: contacts.createdAt,
+      updatedAt: contacts.updatedAt,
     })
     .from(contacts)
     .where(and(eq(contacts.userId, userId), eq(contacts.id, id)))
@@ -35,25 +44,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   return ok({
     id: row.id,
+    userId: row.userId,
     displayName: row.displayName,
     primaryEmail: row.primaryEmail ?? null,
     primaryPhone: row.primaryPhone ?? null,
     source: row.source ?? null,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   });
 }
 
-const putSchema = z
-  .object({
-    displayName: z.string().trim().min(1).max(200).optional(),
-    primaryEmail: z.string().email().max(320).nullable().optional(),
-    primaryPhone: z.string().min(3).max(50).nullable().optional(),
-    tags: z.array(z.string()).max(100).optional(),
-    notes: z.string().max(5000).nullable().optional(),
-  })
-  .strict();
-
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
   const { id } = await params;
   let userId: string;
   try {
@@ -63,9 +67,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return err(error?.status ?? 401, error?.message ?? "unauthorized");
   }
   if (!id) return err(400, "invalid_id");
+  const parsedId = z.string().uuid().safeParse(id);
+  if (!parsedId.success) return err(400, "invalid_id");
 
   const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = putSchema.safeParse(body);
+  const parsed = UpdateContactBodySchema.safeParse(body);
   if (!parsed.success) return err(400, "invalid_body", parsed.error.flatten());
 
   const dbo = await getDb();
@@ -93,26 +99,33 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     .where(and(eq(contacts.userId, userId), eq(contacts.id, id)))
     .returning({
       id: contacts.id,
+      userId: contacts.userId,
       displayName: contacts.displayName,
       primaryEmail: contacts.primaryEmail,
       primaryPhone: contacts.primaryPhone,
       source: contacts.source,
       createdAt: contacts.createdAt,
+      updatedAt: contacts.updatedAt,
     });
 
   if (!row) return err(404, "not_found");
 
   return ok({
     id: row.id,
+    userId: row.userId,
     displayName: row.displayName,
     primaryEmail: row.primaryEmail ?? null,
     primaryPhone: row.primaryPhone ?? null,
     source: row.source ?? null,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: (row.updatedAt ?? row.createdAt).toISOString(),
   });
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
   const { id } = await params;
   let userId: string;
   try {
@@ -122,6 +135,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     return err(error?.status ?? 401, error?.message ?? "unauthorized");
   }
   if (!id) return err(400, "invalid_id");
+  const parsedId = z.string().uuid().safeParse(id);
+  if (!parsedId.success) return err(400, "invalid_id");
 
   const dbo = await getDb();
   await dbo.delete(contacts).where(and(eq(contacts.userId, userId), eq(contacts.id, id)));

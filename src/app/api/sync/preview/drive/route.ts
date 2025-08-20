@@ -1,5 +1,6 @@
-/** POST /api/sync/preview/drive — compute Drive preview (auth required). Errors: 404 drive_disabled, 401 Unauthorized */
-// NextResponse not used; using helpers
+/** POST /api/sync/preview/drive — compute Drive preview (auth required). Errors: 404 not_found, 401 Unauthorized, 500 preview_failed */
+// no NextResponse usage; responses via helpers
+import { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { err, ok } from "@/server/http/responses";
 import { z } from "zod";
@@ -11,7 +12,7 @@ const previewBodySchema = z
   })
   .strict();
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest): Promise<Response> {
   // If the feature is disabled, treat the route as not found regardless of auth
   if (process.env["FEATURE_GOOGLE_DRIVE"] !== "1") return err(404, "drive_disabled");
   try {
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
     return err(status, message);
   }
   try {
-    const raw = await req.json().catch(() => ({}));
+    const raw: unknown = await req.json().catch(() => ({}));
     previewBodySchema.parse(raw ?? {});
   } catch {
     return err(400, "invalid_body");

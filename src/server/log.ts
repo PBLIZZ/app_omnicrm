@@ -39,16 +39,16 @@ const logger = pino(
 );
 
 export const log = {
-  info(bindings?: LogBindings, message?: string) {
+  info(bindings?: LogBindings, message?: string): void {
     logger.info(bindings ?? {}, message);
   },
-  warn(bindings?: LogBindings, message?: string) {
+  warn(bindings?: LogBindings, message?: string): void {
     logger.warn(bindings ?? {}, message);
   },
-  error(bindings?: LogBindings, message?: string) {
+  error(bindings?: LogBindings, message?: string): void {
     logger.error(bindings ?? {}, message);
   },
-  debug(bindings?: LogBindings, message?: string) {
+  debug(bindings?: LogBindings, message?: string): void {
     logger.debug(bindings ?? {}, message);
   },
 };

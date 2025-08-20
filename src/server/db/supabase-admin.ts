@@ -1,6 +1,16 @@
 // Service-role client for RLS-bypassing writes (raw_events, embeddings, ai_insights).
 import { createClient } from "@supabase/supabase-js";
 import { log } from "@/server/log";
+import type {
+  AiInsight,
+  NewAiInsight,
+  Embedding,
+  NewEmbedding,
+  Interaction,
+  NewInteraction,
+  RawEvent,
+  NewRawEvent,
+} from "@/server/db/schema";
 
 const isTest = process.env.NODE_ENV === "test";
 
@@ -21,23 +31,44 @@ const supaAdmin =
     : null;
 
 // Allow-list of tables that the service role may write to.
-const ALLOWED_TABLES = new Set(["raw_events", "interactions", "ai_insights", "embeddings"]);
+export const ALLOWED_TABLES = ["raw_events", "interactions", "ai_insights", "embeddings"] as const;
+export type AllowedTable = (typeof ALLOWED_TABLES)[number];
 
-type TableName = string;
+type InsertRow<T extends AllowedTable> = T extends "raw_events"
+  ? NewRawEvent
+  : T extends "interactions"
+    ? NewInteraction
+    : T extends "ai_insights"
+      ? NewAiInsight
+      : T extends "embeddings"
+        ? NewEmbedding
+        : never;
+
+type SelectRow<T extends AllowedTable> = T extends "raw_events"
+  ? RawEvent
+  : T extends "interactions"
+    ? Interaction
+    : T extends "ai_insights"
+      ? AiInsight
+      : T extends "embeddings"
+        ? Embedding
+        : never;
 
 export const supaAdminGuard = {
-  // Minimal helpers for guarded writes; extend as needed.
-  async insert(table: TableName, values: unknown) {
-    if (!ALLOWED_TABLES.has(table)) throw new Error("admin_write_forbidden");
-    if (isTest) {
-      // In tests, we do not perform real writes; return empty result.
-      return [] as unknown[];
-    }
+  async insert<T extends AllowedTable>(
+    table: T,
+    values: InsertRow<T> | InsertRow<T>[],
+  ): Promise<Array<SelectRow<T>>> {
+    if (!ALLOWED_TABLES.includes(table)) throw new Error("admin_write_forbidden");
+    if (isTest) return [] as Array<SelectRow<T>>;
     if (!supaAdmin) {
       log.warn({ op: "supa_admin_use", table }, "admin_client_unavailable");
       throw new Error("admin_client_unavailable");
     }
-    const { data, error } = await supaAdmin!.from(table).insert(values).select();
+    const { data, error } = await supaAdmin
+      .from(table)
+      .insert(values as never)
+      .select();
     if (error) {
       log.warn(
         {
@@ -52,18 +83,16 @@ export const supaAdminGuard = {
       );
       throw new Error("admin_insert_failed");
     }
-    return data;
+    return (data ?? []) as Array<SelectRow<T>>;
   },
-  async upsert(
-    table: TableName,
-    values: Record<string, unknown> | Array<Record<string, unknown>>,
+
+  async upsert<T extends AllowedTable>(
+    table: T,
+    values: InsertRow<T> | Array<InsertRow<T>>,
     options?: { onConflict?: string; ignoreDuplicates?: boolean },
-  ) {
-    if (!ALLOWED_TABLES.has(table)) throw new Error("admin_write_forbidden");
-    if (isTest) {
-      // In tests, no-op and return empty result
-      return [] as unknown[];
-    }
+  ): Promise<Array<SelectRow<T>>> {
+    if (!ALLOWED_TABLES.includes(table)) throw new Error("admin_write_forbidden");
+    if (isTest) return [] as Array<SelectRow<T>>;
     if (!supaAdmin) {
       log.warn({ op: "supa_admin_use", table }, "admin_client_unavailable");
       throw new Error("admin_client_unavailable");
@@ -73,9 +102,9 @@ export const supaAdminGuard = {
     if (options?.ignoreDuplicates !== undefined)
       upsertOptions.ignoreDuplicates = options.ignoreDuplicates;
 
-    const { data, error } = await supaAdmin!
+    const { data, error } = await supaAdmin
       .from(table)
-      .upsert(values as Record<string, unknown> | Array<Record<string, unknown>>, upsertOptions)
+      .upsert(values as never, upsertOptions)
       .select();
     if (error) {
       log.warn(
@@ -91,19 +120,25 @@ export const supaAdminGuard = {
       );
       throw new Error("admin_upsert_failed");
     }
-    return data;
+    return (data ?? []) as Array<SelectRow<T>>;
   },
-  async update(table: TableName, match: Record<string, unknown>, values: unknown) {
-    if (!ALLOWED_TABLES.has(table)) throw new Error("admin_write_forbidden");
-    if (isTest) {
-      // In tests, no-op and return empty result
-      return [] as unknown[];
-    }
+
+  async update<T extends AllowedTable>(
+    table: T,
+    match: Partial<SelectRow<T>>,
+    values: Partial<SelectRow<T>>,
+  ): Promise<Array<SelectRow<T>>> {
+    if (!ALLOWED_TABLES.includes(table)) throw new Error("admin_write_forbidden");
+    if (isTest) return [] as Array<SelectRow<T>>;
     if (!supaAdmin) {
       log.warn({ op: "supa_admin_use", table }, "admin_client_unavailable");
       throw new Error("admin_client_unavailable");
     }
-    const { data, error } = await supaAdmin!.from(table).update(values).match(match).select();
+    const { data, error } = await supaAdmin
+      .from(table)
+      .update(values as never)
+      .match(match as never)
+      .select();
     if (error) {
       log.warn(
         {
@@ -118,6 +153,6 @@ export const supaAdminGuard = {
       );
       throw new Error("admin_update_failed");
     }
-    return data;
+    return (data ?? []) as Array<SelectRow<T>>;
   },
 };

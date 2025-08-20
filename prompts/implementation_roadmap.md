@@ -1,4 +1,4 @@
-# Wellness Platform - Implementation Roadmap
+# OmniCRM by Omnipotency ai - Implementation Roadmap
 
 ## 🎯 **What You Now Have**
 

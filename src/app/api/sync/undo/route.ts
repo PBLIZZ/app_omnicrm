@@ -6,7 +6,7 @@ import { interactions, jobs, rawEvents } from "@/server/db/schema";
 import { err, ok, safeJson } from "@/server/http/responses";
 import { toApiError } from "@/server/jobs/types";
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();

@@ -22,7 +22,7 @@ describe("contacts id route", () => {
       }),
     });
     const req = {} as unknown as NextRequest;
-    const res = await mod.GET(req, { params: { id: "c1" } });
+    const res = await mod.GET(req, { params: { id: "f47ac10b-58cc-4372-a567-0e02b2c3d479" } });
     expect(res.status).toBe(404);
   });
 
@@ -39,7 +39,7 @@ describe("contacts id route", () => {
         where: vi.fn().mockReturnThis(),
         returning: vi.fn().mockResolvedValueOnce([
           {
-            id: "c1",
+            id: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
             displayName: "Alice B",
             primaryEmail: null,
             primaryPhone: null,
@@ -54,7 +54,7 @@ describe("contacts id route", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ displayName: "Alice B" }),
     }) as unknown as NextRequest;
-    const res = await mod.PUT(req, { params: { id: "c1" } });
+    const res = await mod.PUT(req, { params: { id: "f47ac10b-58cc-4372-a567-0e02b2c3d479" } });
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
@@ -72,7 +72,7 @@ describe("contacts id route", () => {
       delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValueOnce(undefined) }),
     });
     const req = {} as unknown as NextRequest;
-    const res = await mod.DELETE(req, { params: { id: "c1" } });
+    const res = await mod.DELETE(req, { params: { id: "f47ac10b-58cc-4372-a567-0e02b2c3d479" } });
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.data.deleted).toBeGreaterThanOrEqual(0);

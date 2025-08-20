@@ -18,7 +18,7 @@ export interface GmailPreviewResult {
   sampleSubjects: string[];
 }
 
-export async function listGmailMessageIds(gmail: GmailClient, q: string) {
+export async function listGmailMessageIds(gmail: GmailClient, q: string): Promise<string[]> {
   const ids: string[] = [];
   let pageToken: string | undefined = undefined;
   do {
@@ -33,7 +33,11 @@ export async function listGmailMessageIds(gmail: GmailClient, q: string) {
       () => gmail.users.messages.list(params, { timeout: 10_000 }),
       "gmail.messages.list",
     );
-    (res.data.messages ?? []).forEach((m) => m.id && ids.push(m.id));
+    (res.data.messages ?? []).forEach((m) => {
+      if (m.id) {
+        ids.push(m.id);
+      }
+    });
     pageToken = res.data.nextPageToken ?? undefined;
   } while (pageToken);
   return ids;
@@ -70,7 +74,7 @@ export async function gmailPreview(
 
   for (const m of messages.slice(0, 50)) {
     if (!m.id) continue;
-    const idVal = m.id as string; // guarded above
+    const idVal = m.id; // guarded above by continue check
     const msg = await callWithRetry(
       () =>
         gmail.users.messages.get(
@@ -100,7 +104,7 @@ export async function gmailPreview(
       countByLabel[l] = (countByLabel[l] ?? 0) + 1;
     }
 
-    const subject = (payload.payload?.headers || []).find(
+    const subject = (payload.payload?.headers ?? []).find(
       (h) => h.name?.toLowerCase() === "subject",
     )?.value;
     if (subject && sampleSubjects.length < 5) sampleSubjects.push(subject);

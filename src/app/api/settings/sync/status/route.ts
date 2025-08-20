@@ -7,7 +7,7 @@ import { jobs, rawEvents, syncAudit, userIntegrations } from "@/server/db/schema
 import { err, ok } from "@/server/http/responses";
 import { toApiError } from "@/server/jobs/types";
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();

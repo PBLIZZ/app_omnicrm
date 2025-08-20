@@ -1,0 +1,134 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: "Force deployment (bypass additional checks)"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  # Security and quality gates
+  pre-deployment-checks:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy-approved: ${{ steps.gate-check.outputs.approved }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Security audit (BLOCKING)
+        run: pnpm audit --audit-level high
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build verification
+        run: pnpm build
+
+      - name: Gate check
+        id: gate-check
+        run: echo "approved=true" >> $GITHUB_OUTPUT
+
+  # Production deployment
+  deploy:
+    needs: pre-deployment-checks
+    if: needs.pre-deployment-checks.outputs.deploy-approved == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build for production
+        run: pnpm build
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment information
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel Production
+        id: deploy
+        run: |
+          vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} > deployment-url.txt
+          echo "url=$(cat deployment-url.txt)" >> $GITHUB_OUTPUT
+
+      - name: Post-deployment health check
+        run: |
+          DEPLOYMENT_URL=$(cat deployment-url.txt)
+          echo "Verifying deployment at: $DEPLOYMENT_URL"
+
+          # Wait for deployment to be ready
+          sleep 30
+
+          # Health check with retries
+          for i in {1..5}; do
+            if curl -fsSL --max-time 10 "$DEPLOYMENT_URL/api/health" | grep -q '"ts"'; then
+              echo "✅ Health check passed"
+              break
+            else
+              echo "❌ Health check failed (attempt $i/5)"
+              if [ $i -eq 5 ]; then
+                echo "🚨 Deployment health check failed after 5 attempts"
+                exit 1
+              fi
+              sleep 10
+            fi
+          done
+
+      - name: Deployment success notification
+        if: success()
+        run: |
+          echo "🚀 Production deployment successful!"
+          echo "URL: $(cat deployment-url.txt)"
+          echo "Health check: ✅ PASSED"
+
+      - name: Deployment failure notification
+        if: failure()
+        run: |
+          echo "🚨 Production deployment failed!"
+          echo "Check logs and consider rollback if needed"

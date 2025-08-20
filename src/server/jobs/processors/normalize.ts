@@ -2,14 +2,12 @@ import { getDb } from "@/server/db/client";
 import { supaAdminGuard } from "@/server/db/supabase-admin";
 import { and, eq } from "drizzle-orm";
 import { rawEvents } from "@/server/db/schema";
+import type { JobRecord } from "../types";
 // No verbose logging here to keep normalization fast and predictable
 
-export async function runNormalizeGoogleEmail(
-  job: { payload?: { batchId?: string } },
-  userId: string,
-) {
+export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   const dbo = await getDb();
-  const batchId = job.payload?.batchId as string | undefined;
+  const batchId = (job.payload as { batchId?: string })?.batchId;
   const startedAt = Date.now();
   const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job to avoid runaways
   let itemsFetched = 0;
@@ -20,7 +18,7 @@ export async function runNormalizeGoogleEmail(
     .from(rawEvents)
     .where(
       and(
-        eq(rawEvents.userId, userId),
+        eq(rawEvents.userId, job.userId),
         eq(rawEvents.provider, "gmail"),
         batchId ? eq(rawEvents.batchId, batchId) : eq(rawEvents.batchId, rawEvents.batchId),
       ),
@@ -36,24 +34,24 @@ export async function runNormalizeGoogleEmail(
     };
     const headers: Array<{ name?: string | null; value?: string | null }> =
       payload?.payload?.headers ?? [];
-    const subject = headers.find((h) => (h.name || "").toLowerCase() === "subject")?.value ?? null;
+    const subject = headers.find((h) => (h.name ?? "").toLowerCase() === "subject")?.value ?? null;
     const snippet = payload?.snippet ?? null;
     const messageId = payload?.id ?? null;
     // service-role write: interactions (allowed). Upsert to skip duplicates via unique index.
     const upsertRes = await supaAdminGuard.upsert(
       "interactions",
       {
-        user_id: userId,
-        contact_id: null,
+        userId: job.userId,
+        contactId: null,
         type: "email",
         subject: subject ?? undefined,
-        body_text: snippet ?? undefined,
-        body_raw: null,
-        occurred_at: (r as { occurredAt?: unknown }).occurredAt as string,
+        bodyText: snippet ?? undefined,
+        bodyRaw: null,
+        occurredAt: new Date((r as { occurredAt?: unknown }).occurredAt as string),
         source: "gmail",
-        source_id: messageId ?? undefined,
-        source_meta: (r as { sourceMeta?: unknown }).sourceMeta,
-        batch_id: (r as { batchId?: unknown }).batchId as string | undefined,
+        sourceId: messageId ?? undefined,
+        sourceMeta: (r as { sourceMeta?: unknown }).sourceMeta,
+        batchId: (r as { batchId?: unknown }).batchId as string | undefined,
       },
       { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
     );
@@ -69,7 +67,7 @@ export async function runNormalizeGoogleEmail(
   console.log(
     JSON.stringify({
       event: "normalize_gmail_metrics",
-      userId,
+      userId: job.userId,
       batchId: batchId ?? null,
       itemsFetched,
       itemsInserted,
@@ -80,12 +78,9 @@ export async function runNormalizeGoogleEmail(
   );
 }
 
-export async function runNormalizeGoogleEvent(
-  job: { payload?: { batchId?: string } },
-  userId: string,
-) {
+export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   const dbo = await getDb();
-  const batchId = job.payload?.batchId as string | undefined;
+  const batchId = (job.payload as { batchId?: string })?.batchId;
   const startedAt = Date.now();
   const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job
   let itemsFetched = 0;
@@ -96,7 +91,7 @@ export async function runNormalizeGoogleEvent(
     .from(rawEvents)
     .where(
       and(
-        eq(rawEvents.userId, userId),
+        eq(rawEvents.userId, job.userId),
         eq(rawEvents.provider, "calendar"),
         batchId ? eq(rawEvents.batchId, batchId) : eq(rawEvents.batchId, rawEvents.batchId),
       ),
@@ -118,17 +113,17 @@ export async function runNormalizeGoogleEvent(
     const upsertRes = await supaAdminGuard.upsert(
       "interactions",
       {
-        user_id: userId,
-        contact_id: null,
+        userId: job.userId,
+        contactId: null,
         type: "meeting",
         subject: summary ?? undefined,
-        body_text: desc ?? undefined,
-        body_raw: null,
-        occurred_at: (r as { occurredAt?: unknown }).occurredAt as string,
+        bodyText: desc ?? undefined,
+        bodyRaw: null,
+        occurredAt: new Date((r as { occurredAt?: unknown }).occurredAt as string),
         source: "calendar",
-        source_id: eventId ?? undefined,
-        source_meta: (r as { sourceMeta?: unknown }).sourceMeta,
-        batch_id: (r as { batchId?: unknown }).batchId as string | undefined,
+        sourceId: eventId ?? undefined,
+        sourceMeta: (r as { sourceMeta?: unknown }).sourceMeta,
+        batchId: (r as { batchId?: unknown }).batchId as string | undefined,
       },
       { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
     );
@@ -143,7 +138,7 @@ export async function runNormalizeGoogleEvent(
   console.log(
     JSON.stringify({
       event: "normalize_calendar_metrics",
-      userId,
+      userId: job.userId,
       batchId: batchId ?? null,
       itemsFetched,
       itemsInserted,

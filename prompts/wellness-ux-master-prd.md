@@ -1,4 +1,4 @@
-# Wellness Platform - UX Master PRD
+# OmniCRM by Omnipotency ai - UX Master PRD
 
 ## User Experience Architecture & Design Principles
 
@@ -23,7 +23,7 @@ This platform exists to **strengthen the bond** between wellness practitioners a
 
 ### **Morning Ritual: The Sacred Start**
 
-```
+```txt
 Login → Initial Load → Dashboard = "Good morning, here's your day"
 ```
 
@@ -36,7 +36,7 @@ Login → Initial Load → Dashboard = "Good morning, here's your day"
 
 ### **Daily Workflow: The Client-Centric Hub**
 
-```
+```txt
 Dashboard → Contacts Hub → Individual Client Insights → Action (Task/Communication)
 ```
 
@@ -51,31 +51,28 @@ Dashboard → Contacts Hub → Individual Client Insights → Action (Task/Commu
 
 ## 📱 **Information Architecture**
 
-### **The Five Core Spaces**
+### **The Core Spaces**
 
 | Space                 | Purpose                        | User Mindset                             | Key Interactions                |
 | --------------------- | ------------------------------ | ---------------------------------------- | ------------------------------- |
 | **Dashboard**         | Morning briefing & approvals   | "What needs my attention?"               | Scan, approve, prioritize       |
 | **Contacts Hub**      | Client relationship management | "How can I serve my clients better?"     | Search, explore, note, connect  |
 | **Tasks & Approvals** | Workflow management            | "What actions will move things forward?" | Review, approve, assign, track  |
-| **Communications**    | Unified inbox                  | "How are my messages performing?"        | Read, compose, analyze, respond |
-| **Calendar**          | Schedule coordination          | "What's happening and when?"             | View, book, reschedule, prepare |
+| **Integrations**      | Email Analysis and summary     | "How are my messages performing?"        | Read, compose, analyze          |
+|                       | Schedule coordination          | "What's happening and when?"             | View, book, reschedule, prepare |
 
 ### **Navigation Hierarchy**
 
-```
+```txt
 Primary Navigation (Always Visible)
 ├── Dashboard (Home base)
 ├── Contacts (The sacred hub)
 ├── Tasks & Approvals (Action center)
-├── Communications (Message hub)
-└── Calendar (Time management)
+└── Integrations (Message and scheduling hub)
 
 Context Sidebar (Page-Specific)
 ├── Filters & Quick Actions
-├── Page-Specific Widgets
-├── AI Insights Panel
-└── Help & Tips
+└── Page-Specific Widgets
 
 AI Chat Sidebar (Always Available)
 ├── Contextual Assistance
@@ -238,16 +235,15 @@ Component Spacing:
 
 #### **Contact Table Row (Base State)**
 
-```
-[📸] [Name] [Stage Badge] [AI Insight] [Notes Preview] [Last Session] [👁️ Actions]
-     [Email]
+```txt
+[📸] [Name] [Stage Badge] [Notes Preview] [Tags] [Last Session] [Actions]
 ```
 
-#### **Contact Table Row (Hover State)**
+#### **Contact Table Row on Notes (Hover State)**
 
-```
-[📸] [Name] [Stage Badge] [AI Insight] [Notes Preview ↗️] [Last Session] [📞 ✉️ 📝 Actions]
-     [Email]                           [Hover Popup Shows]
+```txt
+[📸] [Name] [Stage Badge] [Notes Preview ↗️] [Tags] [Last Session] [Actions]
+                          [Hover Popup Shows]
 ```
 
 #### **Notes Hover Popup (The Sacred Interface)**
@@ -345,7 +341,7 @@ Component Spacing:
 </div>
 ```
 
-### **AI Insights Panel (Right Sidebar)**
+### **AI Insights on contact card (Full Contact View)**
 
 #### **Context-Aware Insights**
 
@@ -430,37 +426,7 @@ Component Spacing:
 
 ---
 
-## 📱 **Responsive Design Principles**
-
-### **Mobile-First Approach**
-
-```css
-/* Base (Mobile) */
-.contact-table {
-  /* Stack cards vertically */
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Tablet */
-@media (min-width: 768px) {
-  .contact-table {
-    /* Show simplified table */
-    display: table;
-  }
-
-  .sidebar {
-    /* Slide-out drawer */
-    transform: translateX(-100%);
-    transition: transform 300ms ease-out;
-  }
-
-  .sidebar.open {
-    transform: translateX(0);
-  }
-}
-
+```typescript
 /* Desktop */
 @media (min-width: 1024px) {
   .app-layout {
@@ -475,53 +441,6 @@ Component Spacing:
   }
 }
 ```
-
-### **Touch-Friendly Interactions**
-
-```css
-/* Minimum touch targets */
-.touch-target {
-  min-height: 44px;
-  min-width: 44px;
-  padding: 8px;
-}
-
-/* Swipe gestures for mobile */
-.contact-card {
-  /* Swipe left for actions */
-  transform: translateX(var(--swipe-distance, 0));
-  transition: transform 200ms ease-out;
-}
-
-.contact-card.swiped-left {
-  --swipe-distance: -80px;
-}
-
-.contact-card .swipe-actions {
-  /* Revealed actions */
-  position: absolute;
-  right: 0;
-  width: 80px;
-  height: 100%;
-}
-```
-
----
-
-## 🎯 **Success Metrics & Validation**
-
-### **User Experience KPIs**
-
-- **Time to Daily Review**: < 3 minutes to scan all pending items
-- **Approval Velocity**: < 30 seconds per AI approval decision
-- **Contact Insights Discovery**: 90% of practitioners discover new client insights weekly
-- **Privacy Confidence**: 100% of practitioners feel confident about client data handling
-
-### **Interaction Success Criteria**
-
-- **Hover Responsiveness**: Notes popup appears within 100ms
-- **Voice Note Recording**: One-tap to start, auto-transcription accuracy >95%
-- **Context Switching**: Move between sections without losing workflow state
 
 ---
 

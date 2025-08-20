@@ -14,6 +14,11 @@ const baseSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
   GOOGLE_REDIRECT_URI: z.string().url({ message: "Invalid GOOGLE_REDIRECT_URI" }),
+  // AI / Providers
+  OPENROUTER_API_KEY: z.string().optional(),
+  AI_MODEL_CHAT: z.string().default("openrouter/auto"),
+  AI_MODEL_EMBED: z.string().default("openai/text-embedding-3-large"),
+  AI_MODEL_SUMMARY: z.string().default("openrouter/auto"),
   // Optional tunables with sane defaults
   API_RATE_LIMIT_PER_MIN: z.string().optional(),
   API_MAX_JSON_BYTES: z.string().optional(),
@@ -100,6 +105,9 @@ export const env: Env = (() => {
         },
         "env",
       );
+    }
+    if (!parsed.OPENROUTER_API_KEY) {
+      logger.warn("OPENROUTER_API_KEY not set; AI provider calls will be disabled", {}, "env");
     }
   }
 

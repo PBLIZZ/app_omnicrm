@@ -1,4 +1,5 @@
-/** POST /api/sync/approve/gmail — enqueue Gmail sync (auth required). Errors: 404 not_found, 401 Unauthorized */
+/** POST /api/sync/approve/gmail — approve Gmail sync (auth required). Errors: 404 not_found, 401 Unauthorized, 500 approve_failed */
+// no NextResponse usage; responses via helpers
 import { logSync } from "@/server/sync/audit";
 import { randomUUID } from "node:crypto";
 import { getServerUserId } from "@/server/auth/user";
@@ -6,6 +7,7 @@ import { enqueue } from "@/server/jobs/enqueue";
 import { err, ok, safeJson } from "@/server/http/responses";
 import { z } from "zod";
 import { toApiError } from "@/server/jobs/types";
+import { NextRequest } from "next/server";
 
 const approveBodySchema = z
   .object({
@@ -14,7 +16,7 @@ const approveBodySchema = z
   })
   .strict();
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();

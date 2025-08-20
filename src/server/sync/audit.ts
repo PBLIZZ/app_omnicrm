@@ -7,7 +7,7 @@ export async function logSync(
   provider: "gmail" | "calendar" | "drive",
   action: "preview" | "approve" | "undo",
   payload: unknown,
-) {
+): Promise<void> {
   // If a database is not configured (e.g., local dev without DATABASE_URL),
   // skip audit logging rather than failing the primary request flow.
   if (!process.env["DATABASE_URL"]) return;

@@ -1,15 +1,13 @@
 // src/app/api/contacts/bulk-delete/route.ts
 import { NextRequest } from "next/server";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { z } from "zod";
+import { BulkDeleteBodySchema } from "@/server/schemas";
 import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { contacts } from "@/server/db/schema";
 import { err, ok, safeJson } from "@/server/http/responses";
 
-const bodySchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(500) }).strict();
-
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -19,7 +17,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = bodySchema.safeParse(body);
+  const parsed = BulkDeleteBodySchema.safeParse(body);
   if (!parsed.success) return err(400, "invalid_body", parsed.error.flatten());
 
   const dbo = await getDb();

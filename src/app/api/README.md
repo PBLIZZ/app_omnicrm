@@ -5,6 +5,12 @@
 - Responses: Use `ok()` / `err()` from `src/server/http/responses.ts`.
 - CSRF: Mutating routes require `x-csrf-token` (issued by middleware).
 
+Notes:
+
+- CSRF with curl: see `docs/audits/2025-08-18/api-smoke-tests.md` for a working local example using cookies + `x-csrf-token`.
+- Debug routes are dev-only: handlers under `src/app/api/debug/*` must return 404 in production (guard on `process.env.NODE_ENV !== 'production'`).
+- Validate path params early: for UUIDs, use `z.string().uuid()` before any DB calls and return `err(400, "invalid_id")` on failure.
+
 Add a new endpoint:
 
 - Create `src/app/api/<segment>/route.ts`

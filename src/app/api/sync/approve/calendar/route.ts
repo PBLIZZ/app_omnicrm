@@ -1,5 +1,6 @@
-/** POST /api/sync/approve/calendar — enqueue Calendar sync (auth required). Errors: 404 not_found, 400 invalid_body, 401 Unauthorized */
-// no NextResponse used; use helpers
+/** POST /api/sync/approve/calendar — approve Calendar sync (auth required). Errors: 404 not_found, 401 Unauthorized, 500 approve_failed */
+// no NextResponse usage; responses via helpers
+import { NextRequest } from "next/server";
 import { logSync } from "@/server/sync/audit";
 import { randomUUID } from "node:crypto";
 import { getServerUserId } from "@/server/auth/user";
@@ -14,7 +15,7 @@ const approveBodySchema = z
   })
   .strict();
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();

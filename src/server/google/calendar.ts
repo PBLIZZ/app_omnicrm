@@ -59,7 +59,11 @@ export async function calendarPreview(
   return { count, sampleTitles };
 }
 
-export async function listCalendarEvents(cal: CalendarClient, timeMin: string, timeMax: string) {
+export async function listCalendarEvents(
+  cal: CalendarClient,
+  timeMin: string,
+  timeMax: string,
+): Promise<calendar_v3.Schema$Event[]> {
   const items: calendar_v3.Schema$Event[] = [];
   let pageToken: string | undefined = undefined;
   do {

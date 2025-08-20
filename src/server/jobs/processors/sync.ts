@@ -11,6 +11,15 @@ import { listCalendarEvents } from "@/server/google/calendar";
 // Note: logging kept minimal to avoid noise during tight loops
 import { log } from "@/server/log";
 import { callWithRetry } from "@/server/google/utils";
+import {
+  API_TIMEOUT_MS,
+  CALENDAR_CHUNK,
+  GMAIL_CHUNK,
+  JOB_HARD_CAP_MS,
+  SYNC_MAX_PER_RUN,
+  SYNC_SLEEP_MS,
+} from "@/server/jobs/config";
+import type { calendar_v3 } from "googleapis";
 
 /**
  * Processor constraints (documented for operators and future maintainers):
@@ -50,13 +59,28 @@ interface GmailMessagePayload {
 // Type for jobs with properly typed payload
 type JobRow = typeof jobs.$inferSelect & { payload: SyncJobPayload };
 
+// Narrow unknown job into expected shape
+export function isJobRow(job: unknown): job is JobRow {
+  if (typeof job !== "object" || job === null) return false;
+  const j = job as Record<string, unknown>;
+  const hasId = typeof j["id"] === "string" || typeof j["id"] === "number";
+  const hasUserId = typeof j["userId"] === "string" || typeof j["userId"] === "number";
+  const payload = j["payload"];
+  const payloadOk = payload === undefined || typeof payload === "object";
+  return hasId && hasUserId && payloadOk;
+}
+
 export async function runGmailSync(
   job: unknown,
   userId: string,
   injected?: { gmail?: GmailClient },
 ): Promise<void> {
   // Type guard to ensure job has the expected structure
-  const typedJob = job as JobRow;
+  if (!isJobRow(job)) {
+    log.warn({ op: "gmail.sync.invalid_job", job }, "sync_job_invalid_shape");
+    return;
+  }
+  const typedJob = job;
   const dbo = await getDb();
   const gmail = injected?.gmail ?? (await getGoogleClients(userId)).gmail;
   const prefsRow = await dbo
@@ -83,8 +107,7 @@ export async function runGmailSync(
 
   // Cap total processed per run to keep memory/time bounded
   const { ids, pages } = await listGmailMessageIds(gmail, q);
-  const MAX_PER_RUN = 2000;
-  const total = Math.min(ids.length, MAX_PER_RUN);
+  const total = Math.min(ids.length, SYNC_MAX_PER_RUN);
   log.info(
     {
       ...debugContext,
@@ -97,9 +120,9 @@ export async function runGmailSync(
     "gmail_sync_start",
   );
   // fetch in small chunks to avoid 429s
-  const chunk = 25;
+  const chunk = GMAIL_CHUNK;
   const startedAt = Date.now();
-  const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job to avoid runaways
+  const deadlineMs = startedAt + JOB_HARD_CAP_MS; // hard cap
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
@@ -111,13 +134,28 @@ export async function runGmailSync(
     const results = await Promise.allSettled(
       slice.map((id: string) =>
         callWithRetry(
-          () => gmail.users.messages.get({ userId: "me", id, format: "full" }, { timeout: 10_000 }),
+          () =>
+            gmail.users.messages.get(
+              { userId: "me", id, format: "full" },
+              { timeout: API_TIMEOUT_MS },
+            ),
           "gmail.messages.get",
         ),
       ),
     );
     for (const r of results) {
-      if (r.status !== "fulfilled") continue;
+      if (r.status !== "fulfilled") {
+        log.warn(
+          {
+            ...debugContext,
+            op: "gmail.sync.get_failed",
+            reason: (r as PromiseRejectedResult).reason,
+          },
+          "gmail_message_get_failed",
+        );
+        itemsSkipped += 1;
+        continue;
+      }
       const msg = r.value.data as GmailMessagePayload;
       const labelIds = msg.labelIds ?? [];
       if (includeIds.length > 0 && !labelIds.some((l: string) => includeIds.includes(l))) {
@@ -151,7 +189,7 @@ export async function runGmailSync(
       itemsFetched += 1;
     }
     // brief sleep between batches for backpressure
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, SYNC_SLEEP_MS));
   }
 
   const durationMs = Date.now() - startedAt;
@@ -185,7 +223,11 @@ export async function runCalendarSync(
   injected?: { calendar?: CalendarClient },
 ): Promise<void> {
   // Type guard to ensure job has the expected structure
-  const typedJob = job as JobRow;
+  if (!isJobRow(job)) {
+    log.warn({ op: "calendar.sync.invalid_job", job }, "sync_job_invalid_shape");
+    return;
+  }
+  const typedJob = job;
   const dbo = await getDb();
   const calendar = injected?.calendar ?? (await getGoogleClients(userId)).calendar;
   const prefsRow = await dbo
@@ -210,14 +252,13 @@ export async function runCalendarSync(
 
   // Calendar: process paginated items with caps & light filtering
   const startedAt = Date.now();
-  const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job
+  const deadlineMs = startedAt + JOB_HARD_CAP_MS; // hard cap
   let itemsFetched = 0;
   let itemsInserted = 0;
-  const itemsSkipped = 0;
+  let itemsSkipped = 0;
   let itemsFiltered = 0;
   const { items, pages } = await listCalendarEvents(calendar, timeMin, timeMax);
-  const MAX_PER_RUN = 2000;
-  const total = Math.min(items.length, MAX_PER_RUN);
+  const total = Math.min(items.length, SYNC_MAX_PER_RUN);
   log.info(
     {
       ...debugContext,
@@ -229,36 +270,62 @@ export async function runCalendarSync(
     },
     "calendar_sync_start",
   );
-  for (let i = 0; i < total; i++) {
+  for (let i = 0; i < total; i += CALENDAR_CHUNK) {
     if (Date.now() > deadlineMs) break; // why: avoid runaway jobs on large calendars
-    const e = items[i];
-    if (!e) continue;
-    if (prefs?.calendarIncludeOrganizerSelf === true && e.organizer && e.organizer.self === false) {
-      itemsFiltered += 1;
-      continue;
+    const slice = items.slice(i, i + CALENDAR_CHUNK);
+    // Apply filters prior to inserts
+    const toInsert: Array<{ ev: calendar_v3.Schema$Event; occurredAt: Date }> = [];
+    for (const e of slice) {
+      if (!e) continue;
+      if (
+        prefs?.calendarIncludeOrganizerSelf === true &&
+        e.organizer &&
+        e.organizer.self === false
+      ) {
+        itemsFiltered += 1;
+        continue;
+      }
+      if (prefs?.calendarIncludePrivate === false && e.visibility === "private") {
+        itemsFiltered += 1;
+        continue;
+      }
+      const startStr = e.start?.dateTime ?? e.start?.date;
+      if (!startStr) continue;
+      const occurredAt = new Date(startStr);
+      toInsert.push({ ev: e, occurredAt });
     }
-    if (prefs?.calendarIncludePrivate === false && e.visibility === "private") {
-      itemsFiltered += 1;
-      continue;
+    const results = await Promise.allSettled(
+      toInsert.map(({ ev: e, occurredAt }) =>
+        supaAdminGuard.insert("raw_events", {
+          userId,
+          provider: "calendar",
+          payload: e,
+          occurredAt,
+          contactId: null,
+          batchId: batchId ?? null,
+          sourceMeta: { fetchedAt: new Date().toISOString() },
+          sourceId: e.id ?? null,
+        }),
+      ),
+    );
+    for (const r of results) {
+      if (r.status !== "fulfilled") {
+        log.warn(
+          {
+            ...debugContext,
+            op: "calendar.sync.insert_failed",
+            reason: (r as PromiseRejectedResult).reason,
+          },
+          "calendar_event_insert_failed",
+        );
+        itemsSkipped += 1;
+      } else {
+        itemsFetched += 1;
+        itemsInserted += 1;
+      }
     }
-    const startStr = e.start?.dateTime ?? e.start?.date;
-    if (!startStr) continue;
-    const occurredAt = new Date(startStr);
-    // service-role write: raw_events (allowed)
-    await supaAdminGuard.insert("raw_events", {
-      userId,
-      provider: "calendar",
-      payload: e,
-      occurredAt, // Date object
-      contactId: null,
-      batchId: batchId ?? null,
-      sourceMeta: { fetchedAt: new Date().toISOString() },
-      sourceId: e.id ?? null,
-    });
-    itemsFetched += 1;
-    itemsInserted += 1;
-    // light pacing
-    if (i % 100 === 0) await new Promise((r) => setTimeout(r, 100));
+    // pacing between batches
+    await new Promise((r) => setTimeout(r, SYNC_SLEEP_MS));
   }
 
   const durationMs = Date.now() - startedAt;

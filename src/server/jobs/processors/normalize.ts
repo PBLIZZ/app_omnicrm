@@ -3,6 +3,8 @@ import { supaAdminGuard } from "@/server/db/supabase-admin";
 import { and, eq } from "drizzle-orm";
 import { rawEvents } from "@/server/db/schema";
 import type { JobRecord } from "../types";
+import type { RawEvent } from "@/server/db/schema";
+import { log } from "@/server/log";
 // No verbose logging here to keep normalization fast and predictable
 /**
  * Processor constraints:
@@ -19,7 +21,7 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
-  const rows = await dbo
+  const rows: RawEvent[] = await dbo
     .select()
     .from(rawEvents)
     .where(
@@ -33,7 +35,7 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   for (const r of rows) {
     if (Date.now() > deadlineMs) break; // why: protect against unexpectedly large batches
     itemsFetched += 1;
-    const payload = r.payload as {
+    const payload = r.payload as unknown as {
       payload?: { headers?: Array<{ name?: string | null; value?: string | null }> };
       snippet?: string | null;
       id?: string | null;
@@ -53,11 +55,11 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
         subject: subject ?? undefined,
         bodyText: snippet ?? undefined,
         bodyRaw: null,
-        occurredAt: new Date((r as { occurredAt?: unknown }).occurredAt as string),
+        occurredAt: r.occurredAt instanceof Date ? r.occurredAt : new Date(String(r.occurredAt)),
         source: "gmail",
         sourceId: messageId ?? undefined,
-        sourceMeta: (r as { sourceMeta?: unknown }).sourceMeta,
-        batchId: (r as { batchId?: unknown }).batchId as string | undefined,
+        sourceMeta: r.sourceMeta as Record<string, unknown> | null | undefined,
+        batchId: (r.batchId ?? undefined) as string | undefined,
       },
       { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
     );
@@ -69,10 +71,9 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
     }
   }
   const durationMs = Date.now() - startedAt;
-  // eslint-disable-next-line no-console
-  console.log(
-    JSON.stringify({
-      event: "normalize_gmail_metrics",
+  log.info(
+    {
+      op: "normalize.gmail.metrics",
       userId: job.userId,
       batchId: batchId ?? null,
       itemsFetched,
@@ -82,7 +83,8 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
       pages: 1,
       durationMs,
       timedOut: Date.now() > deadlineMs,
-    }),
+    },
+    "normalize_gmail_metrics",
   );
 }
 
@@ -94,7 +96,7 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
-  const rows = await dbo
+  const rows: RawEvent[] = await dbo
     .select()
     .from(rawEvents)
     .where(
@@ -108,7 +110,7 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   for (const r of rows) {
     if (Date.now() > deadlineMs) break; // why: avoid runaway normalization
     itemsFetched += 1;
-    const payload = r.payload as {
+    const payload = r.payload as unknown as {
       summary?: string | null;
       description?: string | null;
       location?: string | null;
@@ -127,11 +129,11 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         subject: summary ?? undefined,
         bodyText: desc ?? undefined,
         bodyRaw: null,
-        occurredAt: new Date((r as { occurredAt?: unknown }).occurredAt as string),
+        occurredAt: r.occurredAt instanceof Date ? r.occurredAt : new Date(String(r.occurredAt)),
         source: "calendar",
         sourceId: eventId ?? undefined,
-        sourceMeta: (r as { sourceMeta?: unknown }).sourceMeta,
-        batchId: (r as { batchId?: unknown }).batchId as string | undefined,
+        sourceMeta: r.sourceMeta as Record<string, unknown> | null | undefined,
+        batchId: (r.batchId ?? undefined) as string | undefined,
       },
       { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
     );
@@ -142,10 +144,9 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
     }
   }
   const durationMs = Date.now() - startedAt;
-  // eslint-disable-next-line no-console
-  console.log(
-    JSON.stringify({
-      event: "normalize_calendar_metrics",
+  log.info(
+    {
+      op: "normalize.calendar.metrics",
       userId: job.userId,
       batchId: batchId ?? null,
       itemsFetched,
@@ -155,6 +156,7 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
       pages: 1,
       durationMs,
       timedOut: Date.now() > deadlineMs,
-    }),
+    },
+    "normalize_calendar_metrics",
   );
 }

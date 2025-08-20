@@ -80,15 +80,15 @@ export async function POST(req: NextRequest): Promise<Response> {
       gmailLabelIncludes: prefs.gmailLabelIncludes ?? [],
       gmailLabelExcludes: prefs.gmailLabelExcludes ?? [],
     });
-    // Light metrics log for observability (non-sensitive)
+    // Light metrics log for observability (non-sensitive) with safe narrowing
+    type PreviewMetrics = { pages?: number; itemsFiltered?: number; durationMs?: number };
+    const meta: PreviewMetrics =
+      typeof preview === "object" && preview !== null ? (preview as unknown as PreviewMetrics) : {};
+    const pages = typeof meta.pages === "number" ? meta.pages : undefined;
+    const itemsFiltered = typeof meta.itemsFiltered === "number" ? meta.itemsFiltered : undefined;
+    const durationMs = typeof meta.durationMs === "number" ? meta.durationMs : undefined;
     log.info(
-      {
-        op: "gmail.preview.metrics",
-        userId,
-        pages: (preview as { pages?: number }).pages ?? undefined,
-        itemsFiltered: (preview as { itemsFiltered?: number }).itemsFiltered ?? undefined,
-        durationMs: (preview as { durationMs?: number }).durationMs ?? undefined,
-      },
+      { op: "gmail.preview.metrics", userId, pages, itemsFiltered, durationMs },
       "gmail_preview_metrics",
     );
     await logSync(userId, "gmail", "preview", preview as unknown as Record<string, unknown>);

@@ -31,7 +31,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env["OPENROUTER_API_KEY"]}`,
-        "HTTP-Referer": process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000",
+        "HTTP-Referer": process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3001",
         "X-Title": "Prompt Workbench",
       },
       body: JSON.stringify(parsed.data),

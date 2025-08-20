@@ -89,7 +89,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     // Connections (APIs, websockets)
     const baseConnect = ["'self'", "https://*.supabase.co", "https://www.googleapis.com"];
     if (!prod) {
-      baseConnect.push("http://localhost:3000", "ws://localhost:3000");
+      baseConnect.push("http://localhost:3001", "ws://localhost:3001");
     }
     // If deployed on Vercel edge/functions that call back to *.vercel.app, retain allowlist
     baseConnect.push("https://*.vercel.app");

@@ -32,8 +32,8 @@ jobs:
 
       - name: Project Setup
         run: |
+          pnpm install --frozen-lockfile
           pnpm build
-          pnpm dev
 
       - name: Run Claude Code
         id: claude

@@ -18,6 +18,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pnpm test` - Run Vitest unit tests
 - `pnpm test:watch` - Run tests in watch mode
 - `pnpm e2e` - Run Playwright end-to-end tests
+- `pnpm e2e:debug` - Run E2E tests in debug mode
+- `pnpm e2e:setup` - Set up E2E authentication
+- `pnpm e2e:full` - Run setup + E2E tests
+- `pnpm lint:strict` - Run strict ESLint with zero warnings
 
 ### Recommended Development Flow
 
@@ -52,12 +56,13 @@ pnpm typecheck && pnpm lint && pnpm test
 ```bash
 src/
 ├── app/                    # Next.js App Router
+│   ├── (authorisedRoute)/ # Protected routes (dashboard, contacts, calendar, messages)
 │   ├── api/               # API routes (thin handlers)
-│   ├── contacts/          # Contact management pages
 │   └── layout.tsx         # Root layout with auth
 ├── components/            # React components
 │   ├── contacts/          # Contact-specific components
 │   ├── google/           # Google integration components
+│   ├── layout/           # Layout components (sidebar, nav)
 │   └── ui/               # shadcn/ui components
 ├── server/               # Business logic & services
 │   ├── ai/               # AI/LLM functionality
@@ -66,6 +71,7 @@ src/
 │   ├── google/           # Google APIs integration
 │   ├── jobs/             # Background job processing
 │   └── sync/             # Data synchronization
+├── hooks/                # Shared React hooks
 └── lib/                  # Shared utilities
 ```
 
@@ -85,6 +91,10 @@ src/
 - `jobs` - Background job queue system
 - `user_integrations` - OAuth tokens (encrypted)
 - `embeddings` - Vector embeddings for AI features
+- `threads` & `messages` - Chat/conversation system
+- `raw_events` - Event ingestion from external sources
+- `sync_audit` - Audit trail for sync operations
+- `ai_quotas` & `ai_usage` - AI usage tracking and limits
 
 ### Google Integration
 
@@ -130,6 +140,46 @@ Production additionally requires:
 - The database schema is defined in the @src/server/db/schema.ts file. Reference it any time you need to understand the structure of data stored in the database.
 - Never make edits to the @src/server/db/schema.ts file. Instead ask the user to run a sql query in the supabase dashboard and once it has ran sucessfully the user will update the @src/server/db/schema.ts file and let you know. This is for if you need to edit the database. You should treat the @src/server/db/schema.ts as read only.
 - We use pnpm for package management.
+
+### Layout & UI Architecture
+
+#### Sidebar Layout System
+
+The application uses a **floating sidebar** layout built with shadcn/ui sidebar components. Key architectural details:
+
+**Main Layout Structure:**
+
+- `MainLayout.tsx` - Root layout wrapper with `SidebarProvider`
+- `Sidebar` component with `variant="floating"` and `collapsible="icon"`
+- Full viewport height with proper header offset handling
+
+**Critical Height Fix Applied:**
+The sidebar was updated to be properly full-height by modifying the sidebar container CSS:
+
+```typescript
+// Fixed in /src/components/ui/sidebar.tsx line 224
+"fixed top-16 bottom-0 z-10 hidden h-[calc(100vh-4rem)] w-(--sidebar-width)";
+```
+
+**Key Layout Properties:**
+
+- `top-16` - Positions sidebar below the 4rem (64px) header
+- `bottom-0` - Extends sidebar to viewport bottom
+- `h-[calc(100vh-4rem)]` - Height calculation accounts for header offset
+- Ensures sidebar fills full available height regardless of zoom level
+
+**Responsive Behavior:**
+
+- Desktop: Fixed floating sidebar with icon collapse
+- Mobile: Sheet-based overlay sidebar
+- Proper handling of header space and footer positioning
+
+**Components Structure:**
+
+- `SidebarHeader` - Brand and navigation toggle
+- `SidebarContent` - Route-based navigation (AppSidebarController)
+- `SidebarFooter` - User navigation and controls
+- `SidebarInset` - Main content area with header and breadcrumbs
 
 ## Pull Request Workflow
 
@@ -184,7 +234,17 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 - **Never use `any`** - Always provide proper TypeScript types
 - **Fix root causes** - When encountering lint errors, resolve the underlying issue. Do not use comments, config changes, ignore lists, underscores, or other short-term fixes. Do not accrue technical debt.
 - **Avoid type assertions** - Using `as` avoids TypeScript rules and is not permitted
+- **Strict TypeScript** - Configuration enforces strict typing with `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noPropertyAccessFromIndexSignature`
 - **Proper logging** - Console logs should be replaced with toast notifications for user messages and proper logging to log.txt for debugging
 - **No TODO comments** - Do not leave comments for outstanding work. Instead raise GitHub issues and add them to the project board.
 - **Component architecture** - Ensure separation of concerns, prefer composable components over monolithic ones, and incorporate error boundaries throughout the codebase
 - **Package management** - Use pnpm for all development, build, and test commands
+
+### UI/UX Patterns
+
+- **Responsive design**: Mobile-first approach with proper breakpoints
+- **Loading states**: Implement skeleton components and loading indicators
+- **Error boundaries**: Comprehensive error handling with fallback UI
+- **Toast notifications**: Use Sonner for user feedback (success, error, info)
+- **Mock data**: Use realistic mock data during development for better UX testing
+- **Accessibility**: Ensure proper ARIA labels and keyboard navigation

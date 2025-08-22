@@ -58,7 +58,7 @@ graph TD
 
 ### Authentication Files
 
-```typescript
+```
 src/
 ├── app/
 │   ├── api/auth/

@@ -3,6 +3,7 @@
 - High‑level controls: SECURITY.md (root)
 - Recent changes: docs/security/changelogs/
 - Middleware and headers: see `src/middleware.ts`
+- **Google OAuth Authentication**: [GOOGLE_OAUTH_GUIDE.md](./GOOGLE_OAUTH_GUIDE.md) - Complete OAuth implementation guide
 
 ## CSRF Protection
 

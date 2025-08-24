@@ -89,30 +89,46 @@ export default function ContactsPage(): JSX.Element {
     }
   }, [selectedIds]);
 
-  const handleImportCsv = useCallback(async (file: File) => {
-    // Placeholder import logic
+  // Export only the selected contacts as CSV
+  const handleBulkActionExport = useCallback(() => {
     try {
-      void file;
-      // Simulate file processing
-      await new Promise((r) => setTimeout(r, 2000));
-      // Would parse CSV and create contacts here
-      // no-op in placeholder
-    } catch {
-      // placeholder swallow
-    }
-  }, []);
+      const selected = contacts.filter((c) => selectedIds.includes(c.id));
+      if (selected.length === 0) return;
 
-  const handleExportCsv = useCallback(() => {
-    // Placeholder export logic
-    const csvContent = "data:text/csv;charset=utf-8,Name,Email,Phone\n";
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "contacts.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, []);
+      const headers = ["Name", "Email", "Phone", "Created At"];
+      const rows = selected.map((c) => [
+        c.displayName ?? "",
+        c.primaryEmail ?? "",
+        c.primaryPhone ?? "",
+        c.createdAt ?? "",
+      ]);
+
+      const escapeCsv = (val: string): string => {
+        const needsQuotes = /[",\n]/.test(val);
+        const escaped = val.replace(/"/g, '""');
+        return needsQuotes ? `"${escaped}"` : escaped;
+      };
+
+      const csv = [headers, ...rows]
+        .map((r) => r.map((v) => escapeCsv(String(v ?? ""))).join(","))
+        .join("\n");
+
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        selected.length === 1
+          ? `contact-${selected[0]!.id}.csv`
+          : `contacts-${selected.length}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      logger.error("Failed to export contacts CSV", err, "ContactsPage");
+    }
+  }, [contacts, selectedIds]);
 
   const handleContactCreated = useCallback((c: ContactItem) => {
     setContacts((prev) => [c, ...prev]);
@@ -123,10 +139,6 @@ export default function ContactsPage(): JSX.Element {
   }, []);
 
   const handleBulkActionTag = useCallback(() => {
-    // placeholder
-  }, []);
-
-  const handleBulkActionExport = useCallback(() => {
     // placeholder
   }, []);
 
@@ -156,8 +168,6 @@ export default function ContactsPage(): JSX.Element {
         onBulkActionTag={handleBulkActionTag}
         onBulkActionExport={handleBulkActionExport}
         onBulkActionDelete={handleBulkActionDelete}
-        onImportCsv={handleImportCsv}
-        onExportCsv={handleExportCsv}
       />
       <div className="m-6">
         <Card className="w-full">
@@ -169,7 +179,8 @@ export default function ContactsPage(): JSX.Element {
                 <div className="rounded-full bg-muted p-4">📇</div>
                 <h3 className="text-lg font-semibold">No contacts yet</h3>
                 <p className="text-muted-foreground text-center max-w-sm">
-                  Import your existing contacts or connect Google to sync automatically.
+                  Import your existing contacts, or open Sync Preferences in Settings to configure
+                  Gmail/Calendar sync.
                 </p>
               </div>
             ) : (

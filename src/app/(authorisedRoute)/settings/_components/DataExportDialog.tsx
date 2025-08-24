@@ -13,7 +13,6 @@ import {
   Alert,
   AlertDescription,
 } from "@/components/ui";
-import { buildUrl, fetchGet } from "@/lib/api";
 
 interface DataExportDialogProps {
   open: boolean;
@@ -31,25 +30,35 @@ export function DataExportDialog({ open, onOpenChange }: DataExportDialogProps):
     setExportComplete(false);
     void (async (): Promise<void> => {
       try {
-        // Fetch contacts (adjust page/pageSize as needed or implement full pagination)
-        const contacts = await fetchGet<{ items: unknown[]; total: number }>(
-          buildUrl("/api/contacts", { page: 1, pageSize: 1000 }),
-        );
-
-        const payload = {
-          exportedAt: new Date().toISOString(),
-          version: 1,
-          contacts: contacts.items,
-          totals: { contacts: contacts.total },
-        };
-
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {
-          type: "application/json",
+        // Use the comprehensive data export API endpoint
+        const response = await fetch("/api/user/export", {
+          method: "GET",
+          credentials: "same-origin",
+          headers: {
+            "x-csrf-token":
+              document.cookie
+                .split("; ")
+                .find((row) => row.startsWith("csrf="))
+                ?.split("=")[1] ?? "",
+          },
         });
+
+        if (!response.ok) {
+          throw new Error(`Export failed: ${response.statusText}`);
+        }
+
+        // Get the filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get("Content-Disposition");
+        const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/);
+        const filename =
+          filenameMatch?.[1] ??
+          `omnicrm-data-export-${new Date().toISOString().split("T")[0]}.json`;
+
+        const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `codexcrm-data-export-${new Date().toISOString().split("T")[0]}.json`;
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

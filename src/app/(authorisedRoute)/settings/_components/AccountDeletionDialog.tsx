@@ -80,10 +80,40 @@ export function AccountDeletionDialog({
       setStep("deleting");
       setDeleteError(null);
       setIsDeleting(true);
-      // No REST endpoint yet: simulate and redirect
-      setTimeout(() => {
-        router.push("/auth/goodbye");
-      }, 1200);
+
+      try {
+        const response = await fetch("/api/user/delete", {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "x-csrf-token":
+              document.cookie
+                .split("; ")
+                .find((row) => row.startsWith("csrf="))
+                ?.split("=")[1] ?? "",
+          },
+          body: JSON.stringify({
+            confirmation: "DELETE MY DATA",
+            acknowledgeIrreversible: true,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Deletion failed: ${errorText}`);
+        }
+
+        // Deletion successful - redirect after short delay
+        setTimeout(() => {
+          router.push("/auth/goodbye");
+        }, 1200);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        setDeleteError(msg);
+        setStep("confirm");
+        setIsDeleting(false);
+      }
     }
   };
 

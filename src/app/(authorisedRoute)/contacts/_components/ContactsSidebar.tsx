@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, UserPlus, Upload } from "lucide-react";
+import { Users, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -53,16 +53,6 @@ export function ContactsSidebar(): JSX.Element {
               <Link href="/contacts/new" className="flex items-center w-full">
                 <UserPlus className="w-4 h-4 mr-2" />
                 <span className="font-medium">Add Contact</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          {/* Connect Data Sources */}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/contacts/connect" className="flex items-center w-full">
-                <Upload className="w-4 h-4 mr-2" />
-                <span className="font-medium">Connect Data</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

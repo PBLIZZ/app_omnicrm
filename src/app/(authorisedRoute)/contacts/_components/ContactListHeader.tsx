@@ -3,17 +3,9 @@
 import { Button } from "@/components/ui";
 import { Input } from "@/components/ui";
 import { CardDescription } from "@/components/ui";
-import Link from "next/link";
 import { NewContactDialog } from "./NewContactDialog";
 import { useState } from "react";
 import type { CreatedContact } from "./NewContactDialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui";
-import { toast } from "sonner";
 import { useEffect, useRef } from "react";
 
 interface Props {
@@ -28,9 +20,6 @@ interface Props {
   onBulkActionTag?: (() => void) | undefined;
   onBulkActionExport?: (() => void) | undefined;
   onBulkActionDelete?: (() => void) | undefined;
-  onImportCsv?: ((file: File) => void) | undefined;
-  onExportCsv?: (() => void) | undefined;
-  onSyncNow?: (() => void) | undefined;
 }
 
 export function ContactListHeader(props: Props): JSX.Element {
@@ -46,13 +35,9 @@ export function ContactListHeader(props: Props): JSX.Element {
     onBulkActionTag,
     onBulkActionExport,
     onBulkActionDelete,
-    onImportCsv,
-    onExportCsv,
-    onSyncNow,
   } = props;
   const [openNew, setOpenNew] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     function onKeydown(e: KeyboardEvent): void {
@@ -99,66 +84,7 @@ export function ContactListHeader(props: Props): JSX.Element {
             >
               New Contact
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="More actions" aria-haspopup="menu">
-                  More
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                  Import CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (onExportCsv) {
-                      onExportCsv();
-                    } else {
-                      toast.info("Export feature", {
-                        description: "Contact export functionality will be available soon.",
-                      });
-                    }
-                  }}
-                >
-                  Export Contacts
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (onSyncNow) {
-                      onSyncNow();
-                    } else {
-                      toast.info("Sync feature", {
-                        description: "Google Contacts sync will be available soon.",
-                      });
-                    }
-                  }}
-                >
-                  Sync Now
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) {
-                  if (onImportCsv) {
-                    onImportCsv(f);
-                  } else {
-                    toast.info("Import feature", {
-                      description: `Ready to import ${f.name}. This feature will be available soon.`,
-                    });
-                  }
-                  e.currentTarget.value = "";
-                }
-              }}
-            />
-            <Button asChild variant="outline" size="sm">
-              <Link href="/settings/sync">Connect Google</Link>
-            </Button>
+            {/* Import, Sync moved to sidebar. Connection actions live in Settings > Integrations. */}
           </div>
         </div>
       </div>

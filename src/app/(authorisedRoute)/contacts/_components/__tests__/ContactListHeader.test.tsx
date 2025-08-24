@@ -1,4 +1,5 @@
 import React from "react";
+import type { JSX } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -31,7 +32,6 @@ const MockContactListHeader = ({
       />
       <button>New Contact</button>
       <button>More</button>
-      <a href="/settings/sync">Connect Google</a>
       {selectedCount > 0 && (
         <div>
           <div>{selectedCount} selected</div>
@@ -73,7 +73,6 @@ describe("ContactListHeader (Simplified)", () => {
 
     expect(screen.getByText("New Contact")).toBeDefined();
     expect(screen.getByText("More")).toBeDefined();
-    expect(screen.getByText("Connect Google")).toBeDefined();
   });
 
   it("does not show bulk actions when no items selected", () => {

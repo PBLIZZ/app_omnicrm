@@ -33,7 +33,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${origin}/auth/callback`,
+      redirectTo: `${origin}/api/auth/callback`,
     },
   });
 

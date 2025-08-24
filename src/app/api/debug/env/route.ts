@@ -9,14 +9,16 @@ export async function GET(): Promise<Response> {
   }
   const url = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "<undefined>";
   const key = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"] ?? "<undefined>";
-  const googleRedirect = process.env["GOOGLE_REDIRECT_URI"] ?? "<undefined>";
+  const gmailRedirect = process.env["GOOGLE_GMAIL_REDIRECT_URI"] ?? "<undefined>";
+  const calendarRedirect = process.env["GOOGLE_CALENDAR_REDIRECT_URI"] ?? "<undefined>";
   return ok({
     env: {
       NEXT_PUBLIC_SUPABASE_URL: url,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: key
         ? `${key.slice(0, 6)}…${key.slice(-4)}`
         : key,
-      GOOGLE_REDIRECT_URI: googleRedirect,
+      GOOGLE_GMAIL_REDIRECT_URI: gmailRedirect,
+      GOOGLE_CALENDAR_REDIRECT_URI: calendarRedirect,
       NODE_ENV: env.NODE_ENV,
     },
   });

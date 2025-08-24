@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/supabase";
+import { ok, err } from "@/server/lib/http";
 
 // GET /api/storage/file-url?filePath=<bucket/path/to/file>
 // Returns: { signedUrl: string | null }
@@ -9,12 +10,12 @@ export async function GET(req: NextRequest): Promise<Response> {
     const filePath = searchParams.get("filePath")?.trim();
 
     if (!filePath) {
-      return Response.json({ error: "filePath query param is required" }, { status: 400 });
+      return err(400, "filePath query param is required");
     }
 
     // If already an absolute URL (e.g., public or already signed), just echo it back
     if (/^https?:\/\//i.test(filePath)) {
-      return Response.json({ signedUrl: filePath }, { status: 200 });
+      return ok({ signedUrl: filePath });
     }
 
     // Expected format: bucket/path/to/file.ext
@@ -23,29 +24,21 @@ export async function GET(req: NextRequest): Promise<Response> {
     const pathInBucket = rest.join("/");
 
     if (!bucket || !pathInBucket) {
-      return Response.json(
-        { error: "filePath must be of the form 'bucket/path/to/file'" },
-        { status: 400 },
-      );
+      return err(400, "filePath must be of the form 'bucket/path/to/file'");
     }
 
     const client = supabaseServerAdmin ?? supabaseServerPublishable;
     if (!client) {
-      return Response.json({ error: "Supabase client unavailable on server" }, { status: 500 });
+      return err(500, "Supabase client unavailable on server");
     }
 
     const { data, error } = await client.storage.from(bucket).createSignedUrl(pathInBucket, 3600);
     if (error) {
-      return Response.json(
-        { error: "failed_to_create_signed_url", details: error.message },
-        { status: 500 },
-      );
+      return err(500, "failed_to_create_signed_url", { details: error.message });
     }
-    return Response.json({ signedUrl: data?.signedUrl ?? null });
-  } catch (err) {
-    return Response.json(
-      { error: "unexpected_error", details: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    return ok({ signedUrl: data?.signedUrl ?? null });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return err(500, "unexpected_error", { details: message });
   }
 }

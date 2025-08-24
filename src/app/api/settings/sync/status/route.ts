@@ -17,13 +17,60 @@ export async function GET(): Promise<Response> {
   }
 
   const dbo = await getDb();
-  // Connection status
-  const integrations = await dbo
+  // Connection status - check for both auth and service-specific tokens
+  const authIntegration = await dbo
     .select()
     .from(userIntegrations)
-    .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")))
+    .where(
+      and(
+        eq(userIntegrations.userId, userId),
+        eq(userIntegrations.provider, "google"),
+        eq(userIntegrations.service, "auth"),
+      ),
+    )
     .limit(1);
-  const googleConnected = !!integrations[0];
+  const googleConnected = !!authIntegration[0];
+
+  // Check for unified Google integration (new) and legacy service-specific tokens
+  const unifiedIntegration = await dbo
+    .select()
+    .from(userIntegrations)
+    .where(
+      and(
+        eq(userIntegrations.userId, userId),
+        eq(userIntegrations.provider, "google"),
+        eq(userIntegrations.service, "unified"),
+      ),
+    )
+    .limit(1);
+
+  const gmailIntegration = await dbo
+    .select()
+    .from(userIntegrations)
+    .where(
+      and(
+        eq(userIntegrations.userId, userId),
+        eq(userIntegrations.provider, "google"),
+        eq(userIntegrations.service, "gmail"),
+      ),
+    )
+    .limit(1);
+
+  const calendarIntegration = await dbo
+    .select()
+    .from(userIntegrations)
+    .where(
+      and(
+        eq(userIntegrations.userId, userId),
+        eq(userIntegrations.provider, "google"),
+        eq(userIntegrations.service, "calendar"),
+      ),
+    )
+    .limit(1);
+
+  // Unified integration provides Gmail access, legacy gmail integration also works
+  const hasGmailToken = !!unifiedIntegration[0] || !!gmailIntegration[0];
+  const hasCalendarToken = !!calendarIntegration[0];
 
   // Last sync per provider (based on latest created_at of raw_events)
   const [gmailLast] = await dbo
@@ -94,6 +141,23 @@ export async function GET(): Promise<Response> {
     )
     .limit(1);
 
+  // Embedding job metrics
+  const [embedQueued] = await dbo
+    .select({ n: sql<number>`count(*)` })
+    .from(jobs)
+    .where(and(eq(jobs.userId, userId), eq(jobs.status, "queued"), eq(jobs.kind, "embed")))
+    .limit(1);
+  const [embedDone] = await dbo
+    .select({ n: sql<number>`count(*)` })
+    .from(jobs)
+    .where(and(eq(jobs.userId, userId), eq(jobs.status, "done"), eq(jobs.kind, "embed")))
+    .limit(1);
+  const [embedError] = await dbo
+    .select({ n: sql<number>`count(*)` })
+    .from(jobs)
+    .where(and(eq(jobs.userId, userId), eq(jobs.status, "error"), eq(jobs.kind, "embed")))
+    .limit(1);
+
   // Discover last batchId (most recent approved gmail/calendar approve audit won't always carry batchId; read from latest job)
   const [lastBatch] = await dbo
     .select({ batchId: jobs.batchId })
@@ -104,6 +168,12 @@ export async function GET(): Promise<Response> {
 
   return ok({
     googleConnected,
+    serviceTokens: {
+      google: googleConnected, // For backward compatibility
+      gmail: hasGmailToken, // This is what frontend components check for
+      calendar: hasCalendarToken,
+      unified: !!unifiedIntegration[0], // New unified token status
+    },
     flags: {
       gmail: process.env["FEATURE_GOOGLE_GMAIL_RO"] === "1",
       calendar: process.env["FEATURE_GOOGLE_CALENDAR_RO"] === "1",
@@ -121,6 +191,11 @@ export async function GET(): Promise<Response> {
       queued: queued?.n ?? 0,
       done: done?.n ?? 0,
       error: error?.n ?? 0,
+    },
+    embedJobs: {
+      queued: embedQueued?.n ?? 0,
+      done: embedDone?.n ?? 0,
+      error: embedError?.n ?? 0,
     },
   });
 }

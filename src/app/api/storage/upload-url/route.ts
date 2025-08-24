@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/supabase";
+import { ok, err } from "@/server/lib/http";
 
 // POST /api/storage/upload-url
 // Body: { fileName: string; contentType: string; folderPath?: string; bucket?: string }
@@ -28,36 +29,25 @@ export async function POST(req: NextRequest): Promise<Response> {
     const bucket = typeof validBody.bucket === "string" ? validBody.bucket.trim() : "contacts";
 
     if (!fileName || !contentType) {
-      return Response.json(
-        { error: "invalid_request", details: "fileName and contentType are required" },
-        { status: 400 },
-      );
+      return err(400, "invalid_request", { details: "fileName and contentType are required" });
     }
 
     const path = folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName;
 
     const client = supabaseServerAdmin ?? supabaseServerPublishable;
     if (!client) {
-      return Response.json(
-        { error: "supabase_unavailable", details: "Supabase server client not available" },
-        { status: 500 },
-      );
+      return err(500, "supabase_unavailable", { details: "Supabase server client not available" });
     }
 
     const { data, error } = await client.storage.from(bucket).createSignedUploadUrl(path);
 
     if (error) {
-      return Response.json(
-        { error: "failed_to_create_signed_upload_url", details: error.message },
-        { status: 500 },
-      );
+      return err(500, "failed_to_create_signed_upload_url", { details: error.message });
     }
 
-    return Response.json({ signedUrl: data?.signedUrl ?? null, path });
-  } catch (err) {
-    return Response.json(
-      { error: "unexpected_error", details: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    return ok({ signedUrl: data?.signedUrl ?? null, path });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return err(500, "unexpected_error", { details: message });
   }
 }

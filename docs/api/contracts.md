@@ -4,6 +4,9 @@ Short, copy-pasteable reference for current endpoints. Responses use a consisten
 
 - Success: `{ ok: true, data: <T> }`
 - Error: `{ ok: false, error: string, details?: object | null }`
+- Related guides:
+- - Gmail ingestion flow: `docs/api/gmail-sync.md`
+
 
 Unless stated, all endpoints require an authenticated Supabase session cookie and CSRF header for mutating requests.
 
@@ -83,7 +86,7 @@ Notes:
 - Method: GET
 - Path: `/api/settings/sync/status`
 - Auth: required
-- Response: `{ ok: true, data: { googleConnected: boolean, flags: { gmail: boolean, calendar: boolean }, lastSync: { gmail: string|null, calendar: string|null }, lastBatchId: string|null, grantedScopes: { gmail: string[]|null, calendar: string[]|null }, jobs: { queued: number, done: number, error: number } } }`
+- Response: `{ ok: true, data: { googleConnected: boolean, serviceTokens: { google: boolean, gmail: boolean, calendar: boolean, unified: boolean }, flags: { gmail: boolean, calendar: boolean }, lastSync: { gmail: string|null, calendar: string|null }, lastBatchId: string|null, grantedScopes: { gmail: string[]|null, calendar: string[]|null }, jobs: { queued: number, done: number, error: number }, embedJobs: { queued: number, done: number, error: number } } }`
 - Errors: 401 `{ ok: false, error: "Unauthorized" }`
 
 ## Sync: Preview Gmail
@@ -147,8 +150,8 @@ Notes:
 - Method: POST
 - Path: `/api/jobs/runner`
 - Auth: required, CSRF required
-- Response: `{ ok: true, data: { processed: number } }`
-- Errors: 401 Unauthorized
+- Response: `{ ok: true, data: { message: string, runner: "simple" } }`
+- Errors: 401 Unauthorized, 429 Rate Limited (includes `Retry-After` header)
 
 ## Error catalog
 

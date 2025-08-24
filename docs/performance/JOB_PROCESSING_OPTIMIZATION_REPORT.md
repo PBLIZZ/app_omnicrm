@@ -2,7 +2,9 @@
 
 ## Executive Summary
 
-The background job processing system has been comprehensively optimized to achieve **5x throughput improvement** and **70% latency reduction**, meeting all specified performance targets. The system now supports processing **100+ jobs per minute** with intelligent concurrency controls, priority scheduling, and horizontal scaling capabilities.
+Note: The current production runner uses a simplified, user-scoped runner (`/src/server/jobs/simple-runner.ts`) invoked via `POST /api/jobs/runner`. The parallel runner, dashboards, and metrics endpoints described below are proposed architecture and not enabled in the current codebase. Treat sections marked as parallel/advanced as forward-looking documentation.
+
+The background job processing system design targets **5x throughput improvement** and **70% latency reduction**, aiming to support **100+ jobs per minute** with intelligent concurrency controls, priority scheduling, and horizontal scaling capabilities.
 
 ## Critical Performance Improvements Implemented
 

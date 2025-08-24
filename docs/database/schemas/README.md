@@ -93,17 +93,17 @@ import { DrivePreviewSchema, DrivePreviewResponseSchema } from "@/server/schemas
 
 ### Sync Operations
 
-- **GET** `/api/sync/preview/gmail` - Preview Gmail sync
-- **GET** `/api/sync/preview/calendar` - Preview Calendar sync
-- **GET** `/api/sync/preview/drive` - Preview Drive sync
+- **POST** `/api/sync/preview/gmail` - Preview Gmail sync
+- **POST** `/api/sync/preview/calendar` - Preview Calendar sync
+- **POST** `/api/sync/preview/drive` - Preview Drive sync
 - **POST** `/api/sync/approve/gmail` - Approve Gmail sync
 - **POST** `/api/sync/approve/calendar` - Approve Calendar sync
 - **POST** `/api/sync/undo` - Undo sync operations
 
 ### Settings & Configuration
 
-- **GET/PATCH** `/api/settings/sync/prefs` - User sync preferences
-- **GET/POST** `/api/settings/sync/status` - Sync status by provider
+- **GET/PUT** `/api/settings/sync/prefs` - User sync preferences
+- **GET** `/api/settings/sync/status` - Sync status by provider
 - **GET/POST** `/api/settings/consent` - GDPR consent management
 
 ### Storage & Files

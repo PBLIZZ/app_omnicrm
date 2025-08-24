@@ -1,4 +1,0 @@
-[2025-08-17T06:37:31.474Z] E2E Setup: Starting E2E authentication setup
-[2025-08-17T06:37:31.741Z] E2E Setup: Test user ready: test-e2e@example.com
-[2025-08-17T06:37:32.434Z] E2E Setup: OAuth tokens configured
-[2025-08-17T06:37:32.434Z] E2E Setup: E2E authentication setup completed successfully

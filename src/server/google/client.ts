@@ -26,75 +26,96 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
   const rows = await dbo
     .select()
     .from(userIntegrations)
-    .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")))
-    .limit(1);
+    .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")));
 
-  const row = rows[0];
-  if (!row) {
+  if (!rows || rows.length === 0) {
     throw Object.assign(new Error("google_not_connected"), { status: 401 });
   }
 
-  const oauth2Client = new google.auth.OAuth2(
-    process.env["GOOGLE_CLIENT_ID"]!,
-    process.env["GOOGLE_CLIENT_SECRET"]!,
-    process.env["GOOGLE_REDIRECT_URI"]!,
-  );
+  function buildOAuthFromRow(r: typeof userIntegrations.$inferSelect): InstanceType<typeof google.auth.OAuth2> {
+    const auth = new google.auth.OAuth2(
+      process.env["GOOGLE_CLIENT_ID"]!,
+      process.env["GOOGLE_CLIENT_SECRET"]!,
+    );
 
-  // Decrypt and backfill if previously stored in plaintext
-  const decryptedAccess = isEncrypted(row.accessToken)
-    ? decryptString(row.accessToken)
-    : row.accessToken;
-  const decryptedRefresh = row.refreshToken
-    ? isEncrypted(row.refreshToken)
-      ? decryptString(row.refreshToken)
-      : row.refreshToken
-    : null;
+    // Decrypt and backfill if previously stored in plaintext
+    const decryptedAccess = isEncrypted(r.accessToken) ? decryptString(r.accessToken) : r.accessToken;
+    const decryptedRefresh = r.refreshToken
+      ? isEncrypted(r.refreshToken)
+        ? decryptString(r.refreshToken)
+        : r.refreshToken
+      : null;
 
-  // Backfill encryption once read
-  if (!isEncrypted(row.accessToken) || (row.refreshToken && !isEncrypted(row.refreshToken))) {
-    await dbo
-      .update(userIntegrations)
-      .set({
-        accessToken: isEncrypted(row.accessToken)
-          ? row.accessToken
-          : encryptString(decryptedAccess),
-        refreshToken:
-          row.refreshToken == null
-            ? null
-            : isEncrypted(row.refreshToken)
-              ? row.refreshToken
-              : encryptString(decryptedRefresh as string),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")));
+    // Backfill encryption once read (row-scoped)
+    if (!isEncrypted(r.accessToken) || (r.refreshToken && !isEncrypted(r.refreshToken))) {
+      void dbo
+        .update(userIntegrations)
+        .set({
+          accessToken: isEncrypted(r.accessToken) ? r.accessToken : encryptString(decryptedAccess),
+          refreshToken:
+            r.refreshToken == null
+              ? null
+              : isEncrypted(r.refreshToken)
+                ? r.refreshToken
+                : encryptString(decryptedRefresh as string),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(userIntegrations.userId, userId),
+            eq(userIntegrations.provider, "google"),
+            eq(userIntegrations.service, r.service),
+          ),
+        );
+    }
+
+    auth.setCredentials({
+      access_token: decryptedAccess,
+      refresh_token: decryptedRefresh,
+      expiry_date: r.expiryDate ? r.expiryDate.getTime() : null,
+    });
+
+    auth.on("tokens", async (tokens) => {
+      if (!(tokens.access_token || tokens.refresh_token)) return;
+      const dboInner = await getDb();
+      await dboInner
+        .update(userIntegrations)
+        .set({
+          accessToken: tokens.access_token != null ? encryptString(tokens.access_token) : r.accessToken,
+          refreshToken:
+            tokens.refresh_token != null ? encryptString(tokens.refresh_token) : r.refreshToken,
+          expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : r.expiryDate,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(userIntegrations.userId, userId),
+            eq(userIntegrations.provider, "google"),
+            eq(userIntegrations.service, r.service),
+          ),
+        );
+    });
+
+    return auth;
   }
 
-  oauth2Client.setCredentials({
-    access_token: decryptedAccess,
-    refresh_token: decryptedRefresh,
-    expiry_date: row.expiryDate ? row.expiryDate.getTime() : null,
-  });
+  function selectServiceRowOrFallback(service: "gmail" | "calendar"): typeof userIntegrations.$inferSelect {
+    // Priority order: 1) unified (new), 2) specific service, 3) auth fallback, 4) any row
+    const unified = rows.find((r) => r.service === "unified");
+    const match = unified ?? rows.find((r) => r.service === service) ?? rows.find((r) => r.service === "auth") ?? rows[0]!;
+    return match;
+  }
 
-  oauth2Client.on("tokens", async (tokens) => {
-    if (!(tokens.access_token || tokens.refresh_token)) return;
-    const dbo = await getDb();
-    await dbo
-      .update(userIntegrations)
-      .set({
-        accessToken:
-          tokens.access_token != null ? encryptString(tokens.access_token) : row.accessToken,
-        refreshToken:
-          tokens.refresh_token != null ? encryptString(tokens.refresh_token) : row.refreshToken,
-        expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : row.expiryDate,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")));
-  });
+  const gmailRow = selectServiceRowOrFallback("gmail");
+  const calendarRow = selectServiceRowOrFallback("calendar");
+
+  const gmailAuth = buildOAuthFromRow(gmailRow);
+  const calendarAuth = buildOAuthFromRow(calendarRow);
 
   return {
-    oauth2: oauth2Client,
-    gmail: makeGmailClient(oauth2Client),
-    calendar: makeCalendarClient(oauth2Client),
+    oauth2: gmailAuth, // primary oauth instance (gmail-preferred for back-compat)
+    gmail: makeGmailClient(gmailAuth),
+    calendar: makeCalendarClient(calendarAuth),
   };
 }
 

@@ -1,7 +1,7 @@
 import { getDb } from "@/server/db/client";
 import { supaAdminGuard } from "@/server/db/supabase-admin";
 import { and, eq } from "drizzle-orm";
-import { rawEvents } from "@/server/db/schema";
+import { rawEvents, jobs } from "@/server/db/schema";
 import type { JobRecord } from "../types";
 import type { RawEvent } from "@/server/db/schema";
 import { log } from "@/server/log";
@@ -122,6 +122,27 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
     },
     "normalize_gmail_metrics",
   );
+
+  // Enqueue contact extraction job after successful email normalization
+  if (itemsInserted > 0) {
+    await dbo.insert(jobs).values({
+      userId: job.userId,
+      kind: "extract_contacts",
+      payload: { 
+        mode: "batch" as const, 
+        maxItems: itemsInserted,
+        batchId: batchId ?? undefined 
+      },
+      batchId: batchId ?? null,
+    });
+    
+    log.info({
+      op: "normalize.gmail.enqueue_contact_extraction",
+      userId: job.userId,
+      itemsToProcess: itemsInserted,
+      batchId: batchId ?? null
+    }, "Enqueued contact extraction job");
+  }
 }
 
 export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {

@@ -1,6 +1,6 @@
 // server/jobs/types.ts
 // Job kinds
-export type GenericJobKind = "normalize" | "embed" | "insight";
+export type GenericJobKind = "normalize" | "embed" | "insight" | "extract_contacts";
 export type GoogleJobKind =
   | "google_gmail_sync"
   | "google_calendar_sync"
@@ -14,11 +14,19 @@ export interface BatchJobPayload {
   batchId?: string;
 }
 
+export interface ContactExtractionPayload {
+  mode?: "single" | "batch";
+  interactionId?: string;
+  maxItems?: number;
+  batchId?: string;
+}
+
 type Empty = Record<string, never>;
 export type JobPayloadByKind = {
   normalize: Empty;
   embed: Empty;
   insight: Empty;
+  extract_contacts: ContactExtractionPayload;
   google_gmail_sync: BatchJobPayload;
   google_calendar_sync: BatchJobPayload;
   normalize_google_email: BatchJobPayload;

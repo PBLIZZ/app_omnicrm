@@ -8,13 +8,10 @@ import { listGmailMessageIds } from "@/server/google/gmail";
 import { toLabelId } from "@/server/google/constants";
 import type { CalendarClient } from "@/server/google/calendar";
 import { listCalendarEvents } from "@/server/google/calendar";
-// Note: logging kept minimal to avoid noise during tight loops
 import { log } from "@/server/log";
-import { callWithRetry } from "@/server/google/utils";
 import {
-  API_TIMEOUT_MS,
   CALENDAR_CHUNK,
-  GMAIL_CHUNK,
+  GMAIL_CHUNK_DEFAULT,
   JOB_HARD_CAP_MS,
   SYNC_MAX_PER_RUN,
   SYNC_SLEEP_MS,
@@ -101,6 +98,7 @@ export async function runGmailSync(
     log.warn({ op: "gmail.sync.invalid_job", job }, "sync_job_invalid_shape");
     return;
   }
+  
   // Safe cast after type guard validation
   const typedJob = job as MinimalJob;
   const dbo = await getDb();
@@ -113,12 +111,10 @@ export async function runGmailSync(
   const prefs = prefsRow[0];
   const since = await lastEventTimestamp(userId, "gmail");
 
-  // label constants and transformer centralized
-
   const q = `${prefs?.gmailQuery ?? "newer_than:30d"}`;
   const batchId = typedJob.payload?.batchId;
   const debugContext = {
-    requestId: undefined as string | undefined, // request-scoped id not available inside job processor
+    requestId: undefined as string | undefined,
     userId,
     batchId: batchId ?? null,
     jobId: typedJob.id,
@@ -130,6 +126,7 @@ export async function runGmailSync(
   // Cap total processed per run to keep memory/time bounded
   const { ids, pages } = await listGmailMessageIds(gmail, q);
   const total = Math.min(ids.length, SYNC_MAX_PER_RUN);
+  
   log.info(
     {
       ...debugContext,
@@ -141,112 +138,111 @@ export async function runGmailSync(
     },
     "gmail_sync_start",
   );
-  // fetch in small chunks to avoid 429s
-  const chunk = GMAIL_CHUNK;
+  
   const startedAt = Date.now();
-  const deadlineMs = startedAt + JOB_HARD_CAP_MS; // hard cap
+  const deadlineMs = startedAt + JOB_HARD_CAP_MS;
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
   let itemsFiltered = 0;
   let errorsCount = 0;
 
-  for (let i = 0; i < total; i += chunk) {
-    if (Date.now() > deadlineMs) break; // why: protect against long-running loops when API is slow
-    const slice = ids.slice(i, i + chunk);
-    const results = await Promise.allSettled(
-      slice.map((id: string) =>
-        callWithRetry(
-          () =>
-            gmail.users.messages.get(
-              { userId: "me", id, format: "full" },
-              { timeout: API_TIMEOUT_MS },
-            ),
-          "gmail.messages.get",
-        ),
-      ),
-    );
+  // Simple batch processing - no streaming, no adaptive sizing
+  const processedIds = ids.slice(0, total);
+  
+  for (let i = 0; i < processedIds.length; i += GMAIL_CHUNK_DEFAULT) {
+    if (Date.now() > deadlineMs) {
+      log.warn({ ...debugContext, op: "gmail.sync.timeout" }, "sync_timeout");
+      break;
+    }
+    
+    const batchIds = processedIds.slice(i, i + GMAIL_CHUNK_DEFAULT);
+    
+    // Process batch messages sequentially
+    for (const messageId of batchIds) {
+      try {
+        const response = await gmail.users.messages.get({
+          userId: "me",
+          id: messageId,
+          format: "full",
+        });
+        
+        const msg = response.data;
+        
+        if (!msg || !isGmailMessagePayload(msg)) {
+          if (!msg) {
+            itemsSkipped += 1;
+            errorsCount += 1;
+          }
+          continue;
+        }
+        
+        const labelIds = msg.labelIds ?? [];
+        
+        // Apply label filters
+        if (includeIds.length > 0 && !labelIds.some((l: string) => includeIds.includes(l))) {
+          itemsFiltered += 1;
+          continue;
+        }
+        if (excludeIds.length > 0 && labelIds.some((l: string) => excludeIds.includes(l))) {
+          itemsFiltered += 1;
+          continue;
+        }
 
-    // Aggregate error reporting for failed Promise.allSettled results
-    const failedResults = results.filter((r) => r.status === "rejected");
-    if (failedResults.length > 0) {
-      log.error(
-        {
+        // Apply time filter
+        const internalMs = Number(msg.internalDate ?? 0);
+        const occurredAt = internalMs ? new Date(internalMs) : new Date();
+        if (occurredAt < since) {
+          itemsSkipped += 1;
+          continue;
+        }
+
+        try {
+          // Insert with simple retry logic
+          await supaAdminGuard.insert("raw_events", {
+            userId,
+            provider: "gmail",
+            payload: msg,
+            occurredAt,
+            contactId: null,
+            batchId: batchId ?? null,
+            sourceMeta: { 
+              labelIds, 
+              fetchedAt: new Date().toISOString(), 
+              matchedQuery: q,
+            },
+            sourceId: msg.id ?? null,
+          });
+          
+          itemsInserted += 1;
+          itemsFetched += 1;
+        } catch (dbError) {
+          log.warn({
+            ...debugContext,
+            op: "gmail.sync.db_insert_failed",
+            messageId: msg.id,
+            error: String(dbError),
+          }, "db_insert_failed");
+          errorsCount += 1;
+        }
+      } catch (apiError) {
+        log.warn({
           ...debugContext,
-          op: "gmail.sync.batch_errors",
-          failedCount: failedResults.length,
-          totalCount: results.length,
-          errors: failedResults.map((r) => String((r as PromiseRejectedResult).reason)),
-        },
-        "gmail_batch_processing_errors",
-      );
-    }
-
-    for (const r of results) {
-      if (r.status !== "fulfilled") {
-        log.warn(
-          {
-            ...debugContext,
-            op: "gmail.sync.get_failed",
-            reason: (r as PromiseRejectedResult).reason,
-          },
-          "gmail_message_get_failed",
-        );
-        itemsSkipped += 1;
+          op: "gmail.sync.api_error",
+          messageId,
+          error: String(apiError),
+        }, "api_error");
         errorsCount += 1;
-        continue;
       }
-      const data = r.value?.data;
-      if (!isGmailMessagePayload(data)) {
-        log.warn(
-          {
-            ...debugContext,
-            op: "gmail.sync.get_invalid_shape",
-          },
-          "gmail_message_invalid_shape",
-        );
-        itemsSkipped += 1;
-        errorsCount += 1;
-        continue;
-      }
-      const msg = data;
-      const labelIds = msg.labelIds ?? [];
-      if (includeIds.length > 0 && !labelIds.some((l: string) => includeIds.includes(l))) {
-        itemsFiltered += 1;
-        continue;
-      }
-      if (excludeIds.length > 0 && labelIds.some((l: string) => excludeIds.includes(l))) {
-        itemsFiltered += 1;
-        continue;
-      }
-
-      const internalMs = Number(msg.internalDate ?? 0);
-      const occurredAt = internalMs ? new Date(internalMs) : new Date();
-      if (occurredAt < since) {
-        itemsSkipped += 1;
-        continue;
-      }
-
-      // service-role write: raw_events (allowed)
-      await supaAdminGuard.insert("raw_events", {
-        userId,
-        provider: "gmail",
-        payload: msg,
-        occurredAt, // Date object
-        contactId: null,
-        batchId: batchId ?? null,
-        sourceMeta: { labelIds, fetchedAt: new Date().toISOString(), matchedQuery: q },
-        sourceId: msg.id ?? null,
-      });
-      itemsInserted += 1;
-      itemsFetched += 1;
     }
-    // brief sleep between batches for backpressure
+    
+    // Simple sleep between batches
     await new Promise((r) => setTimeout(r, SYNC_SLEEP_MS));
   }
 
   const durationMs = Date.now() - startedAt;
-  // Minimal structured metrics for Gmail sync run
+  
+  // Simple metrics logging
   log.info(
     {
       ...debugContext,
@@ -258,15 +254,24 @@ export async function runGmailSync(
       errorsCount,
       pages,
       durationMs,
+      messagesPerSecond: itemsFetched / (durationMs / 1000),
       timedOut: Date.now() > deadlineMs,
     },
     "gmail_sync_metrics",
   );
 
+  // Queue normalization job
   await dbo.insert(jobs).values({
     userId,
     kind: "normalize_google_email",
-    payload: { batchId },
+    payload: { 
+      batchId,
+      syncMetrics: {
+        itemsFetched,
+        itemsInserted,
+        durationMs,
+      }
+    },
     batchId: batchId ?? null,
   });
 }

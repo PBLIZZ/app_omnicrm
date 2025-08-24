@@ -194,13 +194,14 @@ export const userIntegrations = pgTable(
   {
     userId: uuid("user_id").notNull(),
     provider: text("provider").notNull(), // 'google'
+    service: text("service").notNull().default("auth"), // 'auth' | 'gmail' | 'calendar' | 'drive'
     accessToken: text("access_token").notNull(), // store app-encrypted
     refreshToken: text("refresh_token"),
     expiryDate: timestamp("expiry_date", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.provider] })],
+  (t) => [primaryKey({ columns: [t.userId, t.provider, t.service] })],
 );
 
 export const userSyncPrefs = pgTable("user_sync_prefs", {

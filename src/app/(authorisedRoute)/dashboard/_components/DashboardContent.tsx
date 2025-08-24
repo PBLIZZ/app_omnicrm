@@ -9,12 +9,14 @@ import {
   Users,
   Activity,
   CheckSquare,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchContacts, type ContactDTO } from "@/components/contacts/api";
+import MonthlySessionsKpi from "./MonthlySessionsKpi";
+import { getSyncStatus } from "@/lib/api/sync";
 
 import {
   Alert,
@@ -48,8 +50,6 @@ const formatDate = (dateString: string | null | undefined): string => {
 };
 
 export default function DashboardContent(): JSX.Element {
-  const router = useRouter();
-
   const [activeTab, setActiveTab] = useState("overview");
 
   // Fetch contacts data (recent first)
@@ -59,6 +59,12 @@ export default function DashboardContent(): JSX.Element {
     staleTime: 30_000,
   });
   const contacts: ContactDTO[] = data?.items ?? [];
+
+  const { data: sync, isLoading: syncLoading } = useQuery({
+    queryKey: ["sync", "status"],
+    queryFn: getSyncStatus,
+    staleTime: 15_000,
+  });
 
   // Loading state
   if (isLoading) {
@@ -99,7 +105,7 @@ export default function DashboardContent(): JSX.Element {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
@@ -126,16 +132,61 @@ export default function DashboardContent(): JSX.Element {
             <CardHeader>
               <CardTitle>Welcome to OmniCRM</CardTitle>
               <CardDescription>
-                Get started by connecting Google and previewing a sync, or open the AI assistant.
+                Your contact management system is ready. Add contacts, sync with Google services,
+                and track your interactions.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3">
-                <Button onClick={() => router.push("/settings/sync")}>Open Sync Settings</Button>
-                <Button asChild variant="outline">
-                  <Link href="/test/google-oauth">Test Google OAuth</Link>
+                <Button asChild>
+                  <Link href="/contacts/new">Add First Contact</Link>
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Sync Status */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Sync Status</CardTitle>
+              <RefreshCw className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {syncLoading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium">Gmail</div>
+                      <div
+                        className={`text-xs ${sync?.serviceTokens?.gmail ? "text-green-600" : "text-amber-600"}`}
+                      >
+                        {sync?.serviceTokens?.gmail ? "Connected" : "Not connected"}
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Last sync: {formatDate(sync?.lastSync?.gmail)}{" "}
+                      {sync?.lastSync?.gmail && new Date(sync.lastSync.gmail).toLocaleTimeString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium">Calendar</div>
+                      <div
+                        className={`text-xs ${sync?.serviceTokens?.calendar ? "text-green-600" : "text-amber-600"}`}
+                      >
+                        {sync?.serviceTokens?.calendar ? "Connected" : "Not connected"}
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Last sync: {formatDate(sync?.lastSync?.calendar)}{" "}
+                      {sync?.lastSync?.calendar &&
+                        new Date(sync.lastSync.calendar).toLocaleTimeString()}
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -175,6 +226,8 @@ export default function DashboardContent(): JSX.Element {
               </Link>
             </CardFooter>
           </Card>
+
+          <MonthlySessionsKpi />
         </div>
 
         {/* Tabs for different dashboard sections */}

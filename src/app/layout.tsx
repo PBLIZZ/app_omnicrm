@@ -1,7 +1,6 @@
 import "@/lib/zod-error-map";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import AuthHeader from "@/components/AuthHeader";
 import { Geist, Geist_Mono } from "next/font/google";
 import Providers from "@/components/Providers";
 import "./globals.css";
@@ -56,7 +55,6 @@ export default async function RootLayout({
           Skip to main content
         </a>
         <Providers>
-          <AuthHeader />
           <main id="main-content">{children}</main>
         </Providers>
       </body>

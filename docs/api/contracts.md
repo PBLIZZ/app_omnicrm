@@ -83,7 +83,7 @@ Notes:
 - Method: GET
 - Path: `/api/settings/sync/status`
 - Auth: required
-- Response: `{ ok: true, data: { googleConnected: boolean, flags: { gmail: boolean, calendar: boolean }, lastSync: { gmail: string|null, calendar: string|null }, lastBatchId: string|null, grantedScopes: { gmail: string[]|null, calendar: string[]|null }, jobs: { queued: number, done: number, error: number } } }`
+- Response: `{ ok: true, data: { googleConnected: boolean, serviceTokens: { google: boolean, gmail: boolean, calendar: boolean, unified: boolean }, flags: { gmail: boolean, calendar: boolean }, lastSync: { gmail: string|null, calendar: string|null }, lastBatchId: string|null, grantedScopes: { gmail: string[]|null, calendar: string[]|null }, jobs: { queued: number, done: number, error: number }, embedJobs: { queued: number, done: number, error: number } } }`
 - Errors: 401 `{ ok: false, error: "Unauthorized" }`
 
 ## Sync: Preview Gmail
@@ -147,8 +147,8 @@ Notes:
 - Method: POST
 - Path: `/api/jobs/runner`
 - Auth: required, CSRF required
-- Response: `{ ok: true, data: { processed: number } }`
-- Errors: 401 Unauthorized
+- Response: `{ ok: true, data: { message: string, runner: "simple" } }`
+- Errors: 401 Unauthorized, 429 Rate Limited (includes `Retry-After` header)
 
 ## Error catalog
 

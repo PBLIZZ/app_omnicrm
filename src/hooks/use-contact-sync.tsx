@@ -197,7 +197,7 @@ export function ContactSyncProvider({ children }: { children: React.ReactNode })
               break;
 
             default:
-              console.log("Unknown SSE event:", (data as SSEMessageBase).type);
+              console.warn("Unknown SSE event:", (data as SSEMessageBase).type);
           }
         } catch (error) {
           console.error("Error parsing SSE message:", error);

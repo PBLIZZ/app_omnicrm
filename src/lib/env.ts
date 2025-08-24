@@ -6,14 +6,16 @@ import { logger } from "@/lib/logger";
 
 const baseSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url({ message: "Invalid NEXT_PUBLIC_SUPABASE_URL" }),
+  NEXT_PUBLIC_SUPABASE_URL: z.url({ message: "Invalid NEXT_PUBLIC_SUPABASE_URL" }),
   // Required publishable key for browser/server RLS client
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: z.string(),
   SUPABASE_SECRET_KEY: z.string().optional(),
   APP_ENCRYPTION_KEY: z.string().min(1, "APP_ENCRYPTION_KEY is required"),
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
-  GOOGLE_REDIRECT_URI: z.string().url({ message: "Invalid GOOGLE_REDIRECT_URI" }),
+  // Service-specific Google OAuth redirect URIs
+  GOOGLE_GMAIL_REDIRECT_URI: z.url({ message: "Invalid GOOGLE_GMAIL_REDIRECT_URI" }),
+  GOOGLE_CALENDAR_REDIRECT_URI: z.url({ message: "Invalid GOOGLE_CALENDAR_REDIRECT_URI" }),
   // AI / Providers
   OPENROUTER_API_KEY: z.string().optional(),
   AI_MODEL_CHAT: z.string().default("openrouter/auto"),

@@ -81,7 +81,7 @@ export function useAuthActions(): {
     setIsGoogle(true);
     try {
       // Use server-initiated flow so PKCE verifier and session cookies are handled server-side
-      window.location.assign(`/auth/signin/google`);
+      window.location.assign(`/api/auth/signin/google`);
     } finally {
       // no-op; navigation will replace page
     }

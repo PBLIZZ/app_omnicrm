@@ -64,6 +64,18 @@ export const routeConfig: Record<string, RouteConfig> = {
     label: "Messages",
     parent: "/",
   },
+  "/settings": {
+    label: "Settings",
+    parent: "/",
+  },
+  "/settings/sync-preferences": {
+    label: "Sync Preferences",
+    parent: "/settings",
+  },
+  "/dashboard/manual-sync": {
+    label: "Manual Sync",
+    parent: "/dashboard",
+  },
 };
 
 export function generateBreadcrumbs(pathname: string): BreadcrumbItem[] {

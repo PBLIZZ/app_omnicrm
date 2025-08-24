@@ -6,6 +6,12 @@ import { fetchGet, fetchPost } from "@/lib/api";
 
 export interface SyncStatus {
   googleConnected: boolean;
+  serviceTokens?: {
+    google?: boolean;
+    gmail: boolean;
+    calendar: boolean;
+    unified?: boolean;
+  };
   flags?: {
     gmail: boolean;
     calendar: boolean;
@@ -19,7 +25,16 @@ export interface SyncStatus {
     done: number;
     error: number;
   };
+  embedJobs?: {
+    queued: number;
+    done: number;
+    error: number;
+  };
   lastBatchId?: string;
+  grantedScopes?: {
+    gmail: string[] | null;
+    calendar: string[] | null;
+  };
 }
 
 export interface SyncPreferences {
@@ -51,6 +66,21 @@ export interface JobsRunResponse {
 
 export interface UndoResponse {
   success: boolean;
+}
+
+export interface GmailLabel {
+  id: string;
+  name: string;
+  type: 'user' | 'system';
+  messagesTotal?: number;
+  messagesUnread?: number;
+  threadsTotal?: number;
+  threadsUnread?: number;
+}
+
+export interface GmailLabelsResponse {
+  labels: GmailLabel[];
+  totalLabels: number;
 }
 
 /**
@@ -152,4 +182,11 @@ export async function undoSync(batchId: string): Promise<UndoResponse> {
       errorToastTitle: "Undo failed",
     },
   );
+}
+
+/**
+ * Fetch Gmail labels for the authenticated user
+ */
+export async function fetchGmailLabels(): Promise<GmailLabelsResponse> {
+  return fetchGet<GmailLabelsResponse>("/api/google/gmail/labels");
 }

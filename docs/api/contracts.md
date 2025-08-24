@@ -4,6 +4,9 @@ Short, copy-pasteable reference for current endpoints. Responses use a consisten
 
 - Success: `{ ok: true, data: <T> }`
 - Error: `{ ok: false, error: string, details?: object | null }`
+- Related guides:
+- - Gmail ingestion flow: `docs/api/gmail-sync.md`
+
 
 Unless stated, all endpoints require an authenticated Supabase session cookie and CSRF header for mutating requests.
 

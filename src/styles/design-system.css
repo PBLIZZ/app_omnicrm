@@ -432,6 +432,24 @@
   }
 }
 
+/* Subtle Jiggle (short burst near the end of the cycle) */
+@keyframes jiggle-subtle-interval {
+  0%,
+  96%,
+  100% {
+    transform: none;
+  }
+  97% {
+    transform: rotate(-3deg) scale(1.02);
+  }
+  98% {
+    transform: rotate(3deg) scale(1.02);
+  }
+  99% {
+    transform: rotate(-2deg) scale(1.01);
+  }
+}
+
 /* Voice Recording Pulse */
 @keyframes voice-pulse {
   0%,
@@ -493,6 +511,12 @@
 
 .badge-bounce {
   animation: badge-bounce var(--duration-slower) var(--ease-bounce) infinite;
+}
+
+/* Trigger a tiny jiggle once per 60 seconds */
+.jiggle-60s {
+  animation: jiggle-subtle-interval 6s var(--ease-wellness) infinite;
+  transform-origin: center;
 }
 
 .voice-recording {
@@ -680,6 +704,28 @@
 
 .dark .logo-glow:hover {
   filter: drop-shadow(0 0 24px rgba(251, 146, 60, 1));
+}
+
+/* Active Sidebar Menu Underline (Main nav only) */
+[data-sidebar="menu-button"][data-nav="main"][data-active="true"]::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 2px;
+  height: 1px; /* very thin line */
+  border-radius: 9999px; /* curved ends */
+  background: var(--teal-400);
+}
+
+/* Hide underline when sidebar is icon-collapsed */
+[data-collapsible="icon"] [data-sidebar="menu-button"][data-nav="main"][data-active="true"]::after {
+  content: none;
+}
+
+/* Also hide underline for any collapsed state */
+[data-state="collapsed"] [data-sidebar="menu-button"][data-nav="main"][data-active="true"]::after {
+  content: none;
 }
 
 /* Performance Optimizations */

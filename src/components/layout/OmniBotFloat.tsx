@@ -3,6 +3,7 @@
 import { OmniBot } from "@/components/omni-bot/OmniBot";
 import { Button } from "@/components/ui";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
 import { Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,20 +16,25 @@ export function OmniBotFloat(): JSX.Element {
     // The Sheet component manages the open/closed state of the panel.
     <Sheet>
       {/* 1. The Floating Action Button (FAB) */}
-      <SheetTrigger asChild>
-        <Button
-          size="icon"
-          className={cn(
-            "fixed bottom-6 right-6 z-50", // Positioning and z-index
-            "h-14 w-14 rounded-full shadow-lg", // Sizing and appearance
-            "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground", // Styling
-            "hover:scale-105 transition-transform", // Hover effect
-          )}
-        >
-          <Bot className="h-7 w-7" />
-          <span className="sr-only">Open OmniBot Assistant</span>
-        </Button>
-      </SheetTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <SheetTrigger asChild>
+            <Button
+              size="icon"
+              aria-label="OmniBot Assistant"
+              title="OmniBot Assistant"
+              className={cn(
+                "size-12 fixed bottom-30 right-10 z-50 jiggle-60s", // Positioning and timed jiggle
+                "bg-secondary text-secondary-foreground hover:bg-accent/80", // Styling
+              )}
+            >
+              <Bot className="size-6" />
+              <span className="sr-only">OmniBot Assistant</span>
+            </Button>
+          </SheetTrigger>
+        </TooltipTrigger>
+        <TooltipContent sideOffset={8}>OmniBot Assistant</TooltipContent>
+      </Tooltip>
 
       {/* 2. The Floating Sidebar Panel */}
       <SheetContent
@@ -40,7 +46,7 @@ export function OmniBotFloat(): JSX.Element {
           // Positioning and Sizing
           "fixed inset-y-6 right-6 flex",
           // Set a max-height to prevent overflow and a width for the panel
-          "max-h-[calc(100vh-3rem)] w-[400px]",
+          "max-h-[calc(100vh-3rem)] w-[600px]",
         )}
       >
         {/* The visible container for the panel content */}

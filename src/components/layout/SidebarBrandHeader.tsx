@@ -7,7 +7,13 @@ export function SidebarBrandHeader(): JSX.Element {
     <SidebarHeader>
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Image src="/logo.png" alt="OmniCRM Logo" className="h-7" width={28} height={28} />
+          <Image
+            src="/logo.png"
+            alt="OmniCRM Logo"
+            className="h-7 logo-glow"
+            width={28}
+            height={28}
+          />
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span>OmniCRM</span>
             <span className="text-xs">

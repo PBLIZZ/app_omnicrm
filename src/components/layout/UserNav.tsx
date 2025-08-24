@@ -4,7 +4,7 @@ import { useAuth } from "@/app/providers";
 import { useRouter } from "next/navigation";
 
 // UI and Icon Imports
-import { BadgeCheck, Bell, ChevronsUpDown, CreditCard, Sparkles, ShieldCheck } from "lucide-react";
+import { ChevronsUpDown, Sparkles, Settings, HelpCircle, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
 import {
   DropdownMenu,
@@ -22,6 +22,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui";
+import { signOut } from "@/lib/auth/auth-actions";
 
 // Type for user metadata
 interface UserMetadata {
@@ -82,59 +83,60 @@ export function UserNav(): JSX.Element | null {
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{userDetails.name}</span>
-                <span className="truncate text-xs">{userDetails.email}</span>
+                <span className="truncate text-xs text-muted-foreground">{userDetails.email}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg z-50 bg-background border shadow-md"
+            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg z-50 bg-background border shadow-md text-[0.95rem]"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={userDetails.avatar} alt={userDetails.name} />
-                  <AvatarFallback className="rounded-lg">{userInitial}</AvatarFallback>
-                </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{userDetails.name}</span>
-                  <span className="truncate text-xs">{userDetails.email}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {userDetails.email}
+                  </span>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => router.push("/account")}>
-                <Sparkles />
-                Upgrade to Pro
+              <DropdownMenuItem onClick={() => router.push("/settings")}>
+                <Settings />
+                Settings
               </DropdownMenuItem>
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => router.push("/settings/account")}>
-                <BadgeCheck />
-                Account
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/settings/billing")}>
-                <CreditCard />
-                Billing
+                <Sparkles />
+                Upgrade Plan
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => router.push("/settings/notifications")}>
-                <Bell />
-                Notifications
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/settings/security")}>
-                <ShieldCheck />
-                Security
+              <DropdownMenuItem onClick={() => router.push("/help")}>
+                <HelpCircle />
+                Get Help
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onClick={async () => {
+                  const { error } = await signOut();
+                  if (!error) router.push("/login");
+                }}
+                className="text-red-400"
+              >
+                <LogOut />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

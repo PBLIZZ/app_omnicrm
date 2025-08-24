@@ -6,8 +6,8 @@ import { ContactsSidebar } from "@/app/(authorisedRoute)/contacts/_components/Co
 import { DashboardSidebar } from "@/app/(authorisedRoute)/dashboard/_components/DashboardSidebar";
 import { TasksSidebar } from "@/app/(authorisedRoute)/tasks/TasksSidebar";
 import { MarketingSidebar } from "@/app/(authorisedRoute)/marketing/_components/MarketingSidebar";
-import { MessagesSidebar } from "@/app/(authorisedRoute)/messages/MessagesSidebar";
-import { CalendarSidebar } from "@/app/(authorisedRoute)/calendar/CalendarSidebar";
+import { MessagesSidebar } from "@/app/(authorisedRoute)/messages/_components/MessagesSidebar";
+import { CalendarSidebar } from "@/app/(authorisedRoute)/calendar/_components/CalendarSidebar";
 import { SettingsSidebar } from "@/app/(authorisedRoute)/settings/_components/SettingsSidebar";
 import { AnalyticsSidebar } from "@/app/(authorisedRoute)/analytics/AnalyticsSidebar";
 

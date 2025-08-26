@@ -97,7 +97,6 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
         sourceMeta: r.sourceMeta as Record<string, unknown> | null | undefined,
         batchId: (r.batchId ?? undefined) as string | undefined,
       },
-      { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
     );
     // If conflict ignored, many PostgREST setups return empty array; treat that as skipped
     if (Array.isArray(upsertRes) && upsertRes.length > 0) {
@@ -195,7 +194,6 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         sourceMeta: r.sourceMeta as Record<string, unknown> | null | undefined,
         batchId: (r.batchId ?? undefined) as string | undefined,
       },
-      { onConflict: "user_id,source,source_id", ignoreDuplicates: true },
     );
     if (Array.isArray(upsertRes) && upsertRes.length > 0) {
       itemsInserted += 1;

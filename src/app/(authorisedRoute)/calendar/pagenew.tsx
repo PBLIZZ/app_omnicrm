@@ -1,37 +1,13 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Views, View } from "react-big-calendar";
-import moment from "moment";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Calendar,
-  Clock,
-  MapPin,
-  Users,
-  RefreshCw,
-  Link,
-  CheckCircle,
-  AlertCircle,
-  Brain,
-  Search,
-  Zap,
-} from "lucide-react";
-import { format } from "date-fns";
-import {
-  CalendarStatsCards,
-  CalendarViewToggle,
-  CalendarControls,
-  BigCalendarWrapper,
-  generateMockEvents,
-  CalendarEvent,
-  EventFilter,
-} from "./_components";
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock, MapPin, Users, RefreshCw, Link, CheckCircle, AlertCircle, Brain, Search, Zap } from 'lucide-react';
+import { format } from 'date-fns';
 
-interface CalendarEventData {
+interface CalendarEvent {
   id: string;
   title: string;
   startTime: string;
@@ -44,27 +20,20 @@ interface CalendarEventData {
 
 interface CalendarStats {
   upcomingEventsCount: number;
-  upcomingEvents: CalendarEventData[];
+  upcomingEvents: CalendarEvent[];
   lastSync: string | null;
 }
 
 export default function CalendarPage() {
-  // Google Calendar Integration State
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isEmbedding, setIsEmbedding] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [insights, setInsights] = useState<any>(null);
   const [stats, setStats] = useState<CalendarStats | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Existing Calendar UI State
-  const [view, setView] = useState<View>(Views.MONTH);
-  const [date, setDate] = useState(new Date());
-  const [searchValue, setSearchValue] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState<EventFilter>("all");
 
   useEffect(() => {
     checkCalendarStatus();
@@ -72,7 +41,7 @@ export default function CalendarPage() {
 
   const checkCalendarStatus = async () => {
     try {
-      const response = await fetch("/api/calendar/sync");
+      const response = await fetch('/api/calendar/sync');
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -82,26 +51,132 @@ export default function CalendarPage() {
         setIsConnected(false);
       }
     } catch (error) {
-      console.error("Error checking calendar status:", error);
+      console.error('Error checking calendar status:', error);
     }
   };
 
   const connectCalendar = async () => {
     setIsConnecting(true);
     setError(null);
+    
     try {
-      // Simplest, secure flow: full-page redirect to server OAuth start
-      window.location.href = "/api/calendar/oauth";
-    } catch {
-      setIsConnecting(false);
-      setError("Failed to start Google OAuth");
-    }
-  };
+      console.log('Fetching OAuth URL...');
+      const response = await fetch('/api/calendar/oauth');
+      console.log('OAuth response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('OAuth data:', data);
+        
+        if (data.authUrl) {
+          console.log('Opening auth window with URL:', data.authUrl);
+          // Open OAuth window
+          const authWindow = window.open(
+            data.authUrl,
+            'googleCalendarAuth',
+            'width=500,height=600,scrollbars=yes,resizable=yes'
+          );
+          
+          if (!authWindow) {
+            setError('Popup blocked! Please allow popups for this site and try again.');
+            setIsConnecting(false);
+            return;
+          }
+          
+          console.log('Auth window opened:', authWindow);
+        } else {
+          setError('No authorization URL received');
+          setIsConnecting(false);
+          return;
+        }
 
-  const getCsrfToken = () => {
-    const cookies = document.cookie.split(';');
-    const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('csrf='));
-    return csrfCookie ? csrfCookie.split('=')[1] : null;
+        // Listen for OAuth completion via postMessage
+        const handleMessage = async (event: MessageEvent) => {
+          console.log('Received message:', event.data);
+          if (event.data.type === 'GOOGLE_CALENDAR_CODE') {
+            console.log('Processing authorization code:', event.data.code);
+            // Process the authorization code
+            try {
+              const response = await fetch('/api/calendar/oauth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: event.data.code })
+              });
+              
+              if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                  setIsConnecting(false);
+                  checkCalendarStatus();
+                } else {
+                  setError(data.message || 'Authorization failed');
+                  setIsConnecting(false);
+                }
+              } else {
+                setError('Failed to complete authorization');
+                setIsConnecting(false);
+              }
+            } catch (error) {
+              setError('Network error during authorization');
+              setIsConnecting(false);
+            }
+            window.removeEventListener('message', handleMessage);
+          } else if (event.data.type === 'GOOGLE_CALENDAR_ERROR') {
+            setError(event.data.error || 'Authorization failed');
+            setIsConnecting(false);
+            window.removeEventListener('message', handleMessage);
+          }
+        };
+        
+        window.addEventListener('message', handleMessage);
+        
+        // Poll localStorage for OAuth result (primary method for Replit)
+        const pollAuth = setInterval(() => {
+          const result = localStorage.getItem('google_oauth_result');
+          if (result) {
+            try {
+              const data = JSON.parse(result);
+              console.log('Main window: Found OAuth result in localStorage:', data);
+              localStorage.removeItem('google_oauth_result');
+              clearInterval(pollAuth);
+              
+              if (data.type === 'GOOGLE_CALENDAR_CODE') {
+                console.log('Main window: Processing authorization code from localStorage');
+                handleMessage({ data });
+              }
+            } catch (e) {
+              console.error('Main window: Error parsing OAuth result:', e);
+            }
+          } else {
+            console.log('Main window: Polling localStorage... no result yet');
+          }
+        }, 500);
+        
+        // Fallback: check if window is closed
+        const checkClosed = setInterval(() => {
+          try {
+            if (authWindow?.closed) {
+              clearInterval(checkClosed);
+              clearInterval(pollAuth);
+              setIsConnecting(false);
+              window.removeEventListener('message', handleMessage);
+            }
+          } catch (e) {
+            clearInterval(checkClosed);
+            clearInterval(pollAuth);
+            setIsConnecting(false);
+            window.removeEventListener('message', handleMessage);
+          }
+        }, 1000);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.message || 'Failed to start OAuth flow');
+        setIsConnecting(false);
+      }
+    } catch (error) {
+      setError('Network error connecting to calendar');
+      setIsConnecting(false);
+    }
   };
 
   const syncCalendar = async () => {
@@ -109,27 +184,16 @@ export default function CalendarPage() {
     setError(null);
 
     try {
-      const csrfToken = getCsrfToken();
-      const response = await fetch("/api/calendar/sync", { 
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          ...(csrfToken && { 'x-csrf-token': csrfToken })
-        }
-      });
-      
+      const response = await fetch('/api/calendar/sync', { method: 'POST' });
       if (response.ok) {
         const data = await response.json();
-        console.log("Sync successful:", data);
         await checkCalendarStatus(); // Refresh stats
       } else {
         const errorData = await response.json();
-        console.error("Sync failed:", errorData);
-        setError(errorData.message || errorData.error || "Sync failed");
+        setError(errorData.message || 'Sync failed');
       }
     } catch (error) {
-      console.error("Network error during sync:", error);
-      setError("Network error during sync");
+      setError('Network error during sync');
     } finally {
       setIsSyncing(false);
     }
@@ -140,27 +204,16 @@ export default function CalendarPage() {
     setError(null);
 
     try {
-      const csrfToken = getCsrfToken();
-      const response = await fetch("/api/calendar/embed", { 
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          ...(csrfToken && { 'x-csrf-token': csrfToken })
-        }
-      });
-      
+      const response = await fetch('/api/calendar/embed', { method: 'POST' });
       if (response.ok) {
         const data = await response.json();
-        console.log("Embeddings generation successful:", data);
         alert(`Successfully generated embeddings for ${data.processedEvents} events!`);
       } else {
         const errorData = await response.json();
-        console.error("Embeddings generation failed:", errorData);
-        setError(errorData.error || errorData.message || "Failed to generate embeddings");
+        setError(errorData.error || 'Failed to generate embeddings');
       }
     } catch (error) {
-      console.error("Network error during embedding generation:", error);
-      setError("Network error during embedding generation");
+      setError('Network error during embedding generation');
     } finally {
       setIsEmbedding(false);
     }
@@ -168,127 +221,47 @@ export default function CalendarPage() {
 
   const searchEvents = async () => {
     if (!searchQuery.trim()) return;
-
+    
     try {
-      const response = await fetch("/api/calendar/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery, limit: 5 }),
+      const response = await fetch('/api/calendar/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery, limit: 5 })
       });
-
+      
       if (response.ok) {
         const data = await response.json();
         setSearchResults(data.results || []);
       }
     } catch (error) {
-      console.error("Search error:", error);
+      console.error('Search error:', error);
     }
   };
 
   const loadInsights = async () => {
     try {
-      const response = await fetch("/api/calendar/insights");
+      const response = await fetch('/api/calendar/insights');
       if (response.ok) {
         const data = await response.json();
         setInsights(data.insights);
       }
     } catch (error) {
-      console.error("Insights error:", error);
+      console.error('Insights error:', error);
     }
   };
 
   const getEventTypeColor = (eventType?: string) => {
     switch (eventType) {
-      case "class":
-        return "bg-blue-100 text-blue-800";
-      case "workshop":
-        return "bg-purple-100 text-purple-800";
-      case "consultation":
-        return "bg-green-100 text-green-800";
-      case "appointment":
-        return "bg-orange-100 text-orange-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      case 'class': return 'bg-blue-100 text-blue-800';
+      case 'workshop': return 'bg-purple-100 text-purple-800';
+      case 'consultation': return 'bg-green-100 text-green-800';
+      case 'appointment': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  // Existing Calendar UI Logic
-  const allEvents = useMemo(() => generateMockEvents(), []);
-
-  const filteredEvents = useMemo(() => {
-    let events = allEvents;
-
-    // Apply filter
-    if (selectedFilter !== "all") {
-      events = events.filter((event) => event.resource?.type === selectedFilter);
-    }
-
-    // Apply search
-    if (searchValue.trim()) {
-      const searchTerm = searchValue.toLowerCase();
-      events = events.filter(
-        (event) =>
-          event.title.toLowerCase().includes(searchTerm) ||
-          event.resource?.description?.toLowerCase().includes(searchTerm),
-      );
-    }
-
-    return events;
-  }, [allEvents, selectedFilter, searchValue]);
-
-  const mockStats = useMemo(
-    () => ({
-      totalEvents: allEvents.length,
-      todayEvents: allEvents.filter((event) => moment(event.start).isSame(moment(), "day")).length,
-      weekEvents: allEvents.filter((event) => moment(event.start).isSame(moment(), "week")).length,
-    }),
-    [allEvents],
-  );
-
-  // Event handlers for existing UI
-  const handleNavigate = useCallback((newDate: Date) => {
-    setDate(newDate);
-  }, []);
-
-  const handleViewChange = useCallback((newView: View) => {
-    setView(newView);
-  }, []);
-
-  const handleEventSelect = useCallback((event: CalendarEvent) => {
-    toast.info(`Selected: ${event.title}`, {
-      description: event.resource?.description ?? `${moment(event.start).format("LLL")}`,
-    });
-  }, []);
-
-  const handleSlotSelect = useCallback((slotInfo: { start: Date; end: Date }) => {
-    toast.success("New event slot selected", {
-      description: `${moment(slotInfo.start).format("LLL")} - ${moment(slotInfo.end).format("LT")}`,
-    });
-  }, []);
-
-  const handleNewEvent = useCallback(() => {
-    toast.info("Create New Event", {
-      description: "This would open the new event dialog",
-    });
-  }, []);
-
-  const handleSettings = useCallback(() => {
-    toast.info("Calendar Settings", {
-      description: "This would open calendar settings",
-    });
-  }, []);
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchValue(value);
-  }, []);
-
-  const handleFilterChange = useCallback((filter: string) => {
-    setSelectedFilter(filter as EventFilter);
-  }, []);
-
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* INTEGRATED GOOGLE CALENDAR SYSTEM */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Calendar Integration</h1>
@@ -299,12 +272,12 @@ export default function CalendarPage() {
         {isConnected && (
           <div className="flex gap-2">
             <Button onClick={syncCalendar} disabled={isSyncing} variant="outline">
-              <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
-              {isSyncing ? "Syncing..." : "Sync Now"}
+              <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
             </Button>
             <Button onClick={generateEmbeddings} disabled={isEmbedding} variant="outline">
-              <Brain className={`h-4 w-4 mr-2 ${isEmbedding ? "animate-spin" : ""}`} />
-              {isEmbedding ? "Embedding..." : "Generate AI Embeddings"}
+              <Brain className={`h-4 w-4 mr-2 ${isEmbedding ? 'animate-spin' : ''}`} />
+              {isEmbedding ? 'Embedding...' : 'Generate AI Embeddings'}
             </Button>
             <Button onClick={loadInsights} variant="outline">
               <Zap className="h-4 w-4 mr-2" />
@@ -329,8 +302,7 @@ export default function CalendarPage() {
             </div>
             <CardTitle>Connect Your Google Calendar</CardTitle>
             <CardDescription>
-              Sync your calendar to automatically track client attendance, build timelines, and gain
-              insights into your wellness practice.
+              Sync your calendar to automatically track client attendance, build timelines, and gain insights into your wellness practice.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
@@ -339,28 +311,22 @@ export default function CalendarPage() {
                 <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
                   <Users className="h-8 w-8 text-blue-600 mb-2" />
                   <h3 className="font-medium">Track Attendance</h3>
-                  <p className="text-muted-foreground text-center">
-                    Match calendar events with attendance data
-                  </p>
+                  <p className="text-muted-foreground text-center">Match calendar events with attendance data</p>
                 </div>
                 <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
                   <Clock className="h-8 w-8 text-green-600 mb-2" />
                   <h3 className="font-medium">Build Timelines</h3>
-                  <p className="text-muted-foreground text-center">
-                    Automatically update client history
-                  </p>
+                  <p className="text-muted-foreground text-center">Automatically update client history</p>
                 </div>
                 <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
                   <Calendar className="h-8 w-8 text-purple-600 mb-2" />
                   <h3 className="font-medium">AI Insights</h3>
-                  <p className="text-muted-foreground text-center">
-                    Get smart recommendations for your practice
-                  </p>
+                  <p className="text-muted-foreground text-center">Get smart recommendations for your practice</p>
                 </div>
               </div>
               <Button onClick={connectCalendar} disabled={isConnecting} size="lg">
                 <Link className="h-4 w-4 mr-2" />
-                {isConnecting ? "Connecting..." : "Connect Google Calendar"}
+                {isConnecting ? 'Connecting...' : 'Connect Google Calendar'}
               </Button>
             </div>
           </CardContent>
@@ -385,9 +351,7 @@ export default function CalendarPage() {
                 {stats?.lastSync && (
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Last Sync</span>
-                    <span className="text-sm">
-                      {format(new Date(stats.lastSync), "MMM d, HH:mm")}
-                    </span>
+                    <span className="text-sm">{format(new Date(stats.lastSync), 'MMM d, HH:mm')}</span>
                   </div>
                 )}
               </div>
@@ -398,9 +362,7 @@ export default function CalendarPage() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Upcoming Events</CardTitle>
-              <CardDescription>
-                Your next calendar events with business intelligence
-              </CardDescription>
+              <CardDescription>Your next calendar events with business intelligence</CardDescription>
             </CardHeader>
             <CardContent>
               {stats?.upcomingEvents?.length ? (
@@ -420,12 +382,12 @@ export default function CalendarPage() {
                           )}
                         </div>
                       </div>
-
+                      
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          {format(new Date(event.startTime), "MMM d, HH:mm")} -
-                          {format(new Date(event.endTime), "HH:mm")}
+                          {format(new Date(event.startTime), 'MMM d, HH:mm')} - 
+                          {format(new Date(event.endTime), 'HH:mm')}
                         </div>
                         {event.location && (
                           <div className="flex items-center gap-1">
@@ -464,8 +426,7 @@ export default function CalendarPage() {
                     Semantic Calendar Search
                   </CardTitle>
                   <CardDescription>
-                    Search your calendar events using natural language (e.g., "yoga classes with
-                    Sarah", "meetings last month")
+                    Search your calendar events using natural language (e.g., "yoga classes with Sarah", "meetings last month")
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -475,7 +436,7 @@ export default function CalendarPage() {
                       placeholder="Search your calendar..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && searchEvents()}
+                      onKeyPress={(e) => e.key === 'Enter' && searchEvents()}
                       className="flex-1 px-3 py-2 border rounded-md"
                     />
                     <Button onClick={searchEvents} disabled={!searchQuery.trim()}>
@@ -483,7 +444,7 @@ export default function CalendarPage() {
                       Search
                     </Button>
                   </div>
-
+                  
                   {searchResults.length > 0 && (
                     <div className="space-y-3">
                       <h4 className="font-medium">Search Results:</h4>
@@ -491,15 +452,15 @@ export default function CalendarPage() {
                         <div key={index} className="border rounded-lg p-3 space-y-2">
                           <div className="flex items-start justify-between">
                             <h5 className="font-medium">{result.event.title}</h5>
-                            <Badge variant="secondary">
-                              {Math.round(result.similarity * 100)}% match
-                            </Badge>
+                            <Badge variant="secondary">{Math.round(result.similarity * 100)}% match</Badge>
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {format(new Date(result.event.startTime), "MMM d, yyyy HH:mm")}
+                            {format(new Date(result.event.startTime), 'MMM d, yyyy HH:mm')}
                             {result.event.location && ` • ${result.event.location}`}
                           </div>
-                          <div className="text-sm bg-gray-50 p-2 rounded">{result.preview}</div>
+                          <div className="text-sm bg-gray-50 p-2 rounded">
+                            {result.preview}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -526,48 +487,40 @@ export default function CalendarPage() {
                           <h4 className="font-medium mb-2">📊 Patterns</h4>
                           <ul className="space-y-1 text-sm">
                             {insights.patterns.map((pattern: string, index: number) => (
-                              <li key={index} className="text-muted-foreground">
-                                • {pattern}
-                              </li>
+                              <li key={index} className="text-muted-foreground">• {pattern}</li>
                             ))}
                           </ul>
                         </div>
                       )}
-
+                      
                       {insights.busyTimes?.length > 0 && (
                         <div>
                           <h4 className="font-medium mb-2">⏰ Busy Times</h4>
                           <ul className="space-y-1 text-sm">
                             {insights.busyTimes.map((time: string, index: number) => (
-                              <li key={index} className="text-muted-foreground">
-                                • {time}
-                              </li>
+                              <li key={index} className="text-muted-foreground">• {time}</li>
                             ))}
                           </ul>
                         </div>
                       )}
-
+                      
                       {insights.recommendations?.length > 0 && (
                         <div>
                           <h4 className="font-medium mb-2">💡 Recommendations</h4>
                           <ul className="space-y-1 text-sm">
                             {insights.recommendations.map((rec: string, index: number) => (
-                              <li key={index} className="text-muted-foreground">
-                                • {rec}
-                              </li>
+                              <li key={index} className="text-muted-foreground">• {rec}</li>
                             ))}
                           </ul>
                         </div>
                       )}
-
+                      
                       {insights.clientEngagement?.length > 0 && (
                         <div>
                           <h4 className="font-medium mb-2">🤝 Client Engagement</h4>
                           <ul className="space-y-1 text-sm">
                             {insights.clientEngagement.map((engagement: string, index: number) => (
-                              <li key={index} className="text-muted-foreground">
-                                • {engagement}
-                              </li>
+                              <li key={index} className="text-muted-foreground">• {engagement}</li>
                             ))}
                           </ul>
                         </div>
@@ -591,84 +544,23 @@ export default function CalendarPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium mb-2">Attendance Matching</h4>
-              <p className="text-sm text-muted-foreground">
-                Upload class attendance lists to automatically update client timelines
-              </p>
+              <p className="text-sm text-muted-foreground">Upload class attendance lists to automatically update client timelines</p>
             </div>
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium mb-2">AI Insights</h4>
-              <p className="text-sm text-muted-foreground">
-                Get recommendations on client engagement and class optimization
-              </p>
+              <p className="text-sm text-muted-foreground">Get recommendations on client engagement and class optimization</p>
             </div>
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium mb-2">Drive Integration</h4>
-              <p className="text-sm text-muted-foreground">
-                Sync attendance sheets from Google Drive automatically
-              </p>
+              <p className="text-sm text-muted-foreground">Sync attendance sheets from Google Drive automatically</p>
             </div>
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium mb-2">Email Correlation</h4>
-              <p className="text-sm text-muted-foreground">
-                Track email communications and link to calendar events
-              </p>
+              <p className="text-sm text-muted-foreground">Track email communications and link to calendar events</p>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* EXISTING CALENDAR UI COMPONENTS */}
-      <div className="mt-12 pt-8 border-t border-gray-200">
-        <div className="flex flex-col gap-6">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold tracking-tight text-gray-500">
-              Existing Calendar View
-            </h2>
-            <p className="text-muted-foreground">
-              Legacy calendar interface (to be integrated with live data later)
-            </p>
-          </div>
-
-          {/* Header with Stats Cards */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="md:w-1/3">
-              <h3 className="text-xl font-bold tracking-tight">Calendar</h3>
-              <p className="text-muted-foreground">Manage your schedule and appointments</p>
-            </div>
-
-            <CalendarStatsCards
-              todayEvents={mockStats.todayEvents}
-              weekEvents={mockStats.weekEvents}
-              onNewEvent={handleNewEvent}
-              onSettings={handleSettings}
-            />
-          </div>
-
-          {/* Calendar Controls */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <CalendarViewToggle currentView={view} onViewChange={handleViewChange} />
-
-            <CalendarControls
-              searchValue={searchValue}
-              onSearchChange={handleSearchChange}
-              onFilterChange={handleFilterChange}
-              selectedFilter={selectedFilter}
-            />
-          </div>
-
-          {/* Main Calendar */}
-          <BigCalendarWrapper
-            events={filteredEvents}
-            view={view}
-            date={date}
-            onNavigate={handleNavigate}
-            onViewChange={handleViewChange}
-            onSelectEvent={handleEventSelect}
-            onSelectSlot={handleSlotSelect}
-            height={600}
-          />
-        </div>
-      </div>
     </div>
   );
 }

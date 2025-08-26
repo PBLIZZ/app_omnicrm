@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 import { ContactsSidebar } from "@/app/(authorisedRoute)/contacts/_components/ContactsSidebar";
 import { DashboardSidebar } from "@/app/(authorisedRoute)/dashboard/_components/DashboardSidebar";
-import { TasksSidebar } from "@/app/(authorisedRoute)/tasks/TasksSidebar";
+import { TasksSidebar } from "@/app/(authorisedRoute)/tasks/_components/TasksSidebar";
 import { MarketingSidebar } from "@/app/(authorisedRoute)/marketing/_components/MarketingSidebar";
 import { MessagesSidebar } from "@/app/(authorisedRoute)/messages/_components/MessagesSidebar";
 import { CalendarSidebar } from "@/app/(authorisedRoute)/calendar/_components/CalendarSidebar";

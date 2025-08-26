@@ -111,7 +111,17 @@ export async function runGmailSync(
   const prefs = prefsRow[0];
   const since = await lastEventTimestamp(userId, "gmail");
 
-  const q = `${prefs?.gmailQuery ?? "newer_than:30d"}`;
+  // Build incremental Gmail query using after:timestamp for efficiency  
+  const baseQuery = prefs?.gmailQuery ?? "newer_than:30d";
+  const daysSinceLastSync = Math.ceil((Date.now() - since.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Gmail uses YYYY/MM/DD format for after: queries, not unix timestamp
+  const gmailDateFormat = since.toISOString().split('T')[0]?.replace(/-/g, '/') ?? '';
+  
+  // Only use incremental sync if last sync was recent (< 30 days), otherwise do full sync
+  const q = daysSinceLastSync <= 30 
+    ? `${baseQuery} after:${gmailDateFormat}`
+    : baseQuery;
   const batchId = typedJob.payload?.batchId;
   const debugContext = {
     requestId: undefined as string | undefined,
@@ -124,9 +134,44 @@ export async function runGmailSync(
   const excludeIds = (prefs?.gmailLabelExcludes ?? []).map(toLabelId);
 
   // Cap total processed per run to keep memory/time bounded
-  const { ids, pages } = await listGmailMessageIds(gmail, q);
-  const total = Math.min(ids.length, SYNC_MAX_PER_RUN);
+  let ids: string[], pages: number, total: number;
+  try {
+    const result = await listGmailMessageIds(gmail, q);
+    ids = result.ids;
+    pages = result.pages;
+    total = Math.min(ids.length, SYNC_MAX_PER_RUN);
+  } catch (queryError) {
+    log.error({
+      ...debugContext,
+      op: "gmail.sync.query_failed",
+      query: q,
+      error: queryError instanceof Error ? queryError.message : String(queryError),
+    }, "gmail_query_failed");
+    throw queryError;
+  }
   
+  // Persist initial progress snapshot on the job payload so the UI can compute progress
+  if (typedJob.id) {
+    try {
+      await dbo
+        .update(jobs)
+        .set({
+          payload: {
+            batchId: batchId ?? null,
+            totalEmails: total,
+            processedEmails: 0,
+            newEmails: 0,
+            chunkSize: GMAIL_CHUNK_DEFAULT,
+            chunksTotal: Math.ceil(total / GMAIL_CHUNK_DEFAULT),
+            chunksProcessed: 0,
+          },
+        })
+        .where(eq(jobs.id, String(typedJob.id)));
+    } catch (updateErr) {
+      log.warn({ ...debugContext, op: "gmail.sync.init_progress_update_failed", error: String(updateErr) });
+    }
+  }
+
   log.info(
     {
       ...debugContext,
@@ -135,6 +180,10 @@ export async function runGmailSync(
       total,
       query: q,
       pages,
+      since: since.toISOString(),
+      daysSinceLastSync,
+      gmailDateFormat,
+      isIncrementalSync: daysSinceLastSync <= 30,
     },
     "gmail_sync_start",
   );
@@ -142,7 +191,7 @@ export async function runGmailSync(
   const startedAt = Date.now();
   const deadlineMs = startedAt + JOB_HARD_CAP_MS;
   let itemsFetched = 0;
-  let itemsInserted = 0;
+  let itemsInserted = 0; // Still track for logging, but progress uses itemsFetched
   let itemsSkipped = 0;
   let itemsFiltered = 0;
   let errorsCount = 0;
@@ -189,17 +238,13 @@ export async function runGmailSync(
           continue;
         }
 
-        // Apply time filter
+        // Parse email timestamp (Gmail API filtering should handle this, but keep as backup)
         const internalMs = Number(msg.internalDate ?? 0);
         const occurredAt = internalMs ? new Date(internalMs) : new Date();
-        if (occurredAt < since) {
-          itemsSkipped += 1;
-          continue;
-        }
 
         try {
-          // Insert with simple retry logic
-          await supaAdminGuard.insert("raw_events", {
+          // Use upsert - constraint handling is now done internally
+          await supaAdminGuard.upsert("raw_events", {
             userId,
             provider: "gmail",
             payload: msg,
@@ -226,18 +271,51 @@ export async function runGmailSync(
           errorsCount += 1;
         }
       } catch (apiError) {
+        const errorDetails = apiError instanceof Error ? {
+          name: apiError.name,
+          message: apiError.message,
+          stack: apiError.stack?.split('\n')[0], // Just first line
+        } : { message: String(apiError) };
+        
         log.warn({
           ...debugContext,
           op: "gmail.sync.api_error",
           messageId,
-          error: String(apiError),
-        }, "api_error");
+          errorDetails,
+          batchIndex: Math.floor(itemsFetched / GMAIL_CHUNK_DEFAULT),
+        }, "gmail_message_fetch_failed");
         errorsCount += 1;
       }
     }
     
     // Simple sleep between batches
     await new Promise((r) => setTimeout(r, SYNC_SLEEP_MS));
+
+    // Update progress snapshot after each batch
+    if (typedJob.id) {
+      const chunksProcessed = Math.min(
+        Math.ceil(itemsFetched / GMAIL_CHUNK_DEFAULT),
+        Math.max(1, Math.ceil(total / GMAIL_CHUNK_DEFAULT)),
+      );
+      try {
+        await dbo
+          .update(jobs)
+          .set({
+            payload: {
+              batchId: batchId ?? null,
+              totalEmails: total,
+              processedEmails: itemsFetched, // Use fetched (processed) count, not insertion count
+              newEmails: itemsInserted, // Track actual new emails separately
+              chunkSize: GMAIL_CHUNK_DEFAULT,
+              chunksTotal: Math.ceil(total / GMAIL_CHUNK_DEFAULT),
+              chunksProcessed,
+            },
+          })
+          .where(eq(jobs.id, String(typedJob.id)));
+      } catch (updateErr) {
+        log.warn({ ...debugContext, op: "gmail.sync.progress_update_failed", error: String(updateErr) });
+      }
+    }
   }
 
   const durationMs = Date.now() - startedAt;
@@ -356,7 +434,7 @@ export async function runCalendarSync(
     }
     const results = await Promise.allSettled(
       toInsert.map(({ ev: e, occurredAt }) =>
-        supaAdminGuard.insert("raw_events", {
+        supaAdminGuard.upsert("raw_events", {
           userId,
           provider: "calendar",
           payload: e,
@@ -370,16 +448,24 @@ export async function runCalendarSync(
     );
     for (const r of results) {
       if (r.status !== "fulfilled") {
-        log.warn(
-          {
-            ...debugContext,
-            op: "calendar.sync.insert_failed",
-            reason: (r as PromiseRejectedResult).reason,
-          },
-          "calendar_event_insert_failed",
-        );
-        itemsSkipped += 1;
-        errorsCount += 1;
+        const error = String((r as PromiseRejectedResult).reason);
+        // Check if it's a duplicate constraint error (expected)
+        if (error.includes('23505') || error.includes('duplicate')) {
+          // Duplicate is expected, just count as processed but not new
+          itemsFetched += 1;
+        } else {
+          // Actual error
+          log.warn(
+            {
+              ...debugContext,
+              op: "calendar.sync.insert_failed",
+              reason: (r as PromiseRejectedResult).reason,
+            },
+            "calendar_event_insert_failed",
+          );
+          itemsSkipped += 1;
+          errorsCount += 1;
+        }
       } else {
         itemsFetched += 1;
         itemsInserted += 1;

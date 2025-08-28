@@ -13,6 +13,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pnpm lint` - Run ESLint
 - `pnpm format` - Format code with Prettier
 
+### Database Management
+
+- `npx drizzle-kit pull` - Pull current database schema to schema.ts (RECOMMENDED)
+- `npx drizzle-kit generate` - Generate migration files when schema.ts matches database
+- `npx drizzle-kit migrate` - Apply pending migrations to database  
+- `npx drizzle-kit studio` - Launch Drizzle Studio for database inspection
+- `npx drizzle-kit introspect` - Legacy command, use `pull` instead
+
 ### Testing
 
 - `pnpm test` - Run Vitest unit tests
@@ -46,10 +54,39 @@ pnpm typecheck && pnpm lint && pnpm test
 
 ### Database Philosophy
 
-- **SQL-first**: All schema changes are made directly in Supabase SQL editor
-- **Manual migrations**: Save all SQL queries in `/supabase/sql/*.sql` files
-- **Drizzle for types only**: Schema is defined in `src/server/db/schema.ts` but NEVER use `drizzle-kit push`
-- **RLS everywhere**: All tables have user-based Row Level Security policies
+#### Hybrid Migration Strategy (Updated)
+
+- **Drizzle Kit configured**: Uses `drizzle.config.ts` with strict mode and supabase prefix
+- **Schema introspection**: Run `npx drizzle-kit introspect` to capture current database state
+- **Selective migrations**: Use `npx drizzle-kit generate` for simple column/table additions
+- **Manual SQL for complex changes**: RLS policies, extensions, complex indexes, and structural changes
+- **NEVER use `drizzle-kit push`**: Always use the migration workflow to prevent data loss
+- **Comprehensive backups**: Use MCP Supabase server for full schema/data backup before changes
+- **Schema sync**: Keep `src/server/db/schema.ts` as the source of truth for application types
+
+#### Migration Workflow (CORRECTED)
+
+1. **Database-first approach**: Make all schema changes in Supabase SQL editor first
+2. **Introspect after changes**: Run `npx drizzle-kit pull` to update schema.ts
+3. **Generate safe migrations**: `npx drizzle-kit generate` works safely when schema matches DB
+4. **Review migration SQL**: Always inspect generated SQL before applying  
+5. **Apply incremental changes**: Use `npx drizzle-kit migrate` for approved changes
+6. **Keep schema.ts synchronized**: Re-run `pull` after any manual SQL changes
+
+#### What Goes Where (UPDATED)
+
+- **Drizzle Kit safe for**: Simple column additions, table creation, basic constraints when schema is synchronized
+- **Manual SQL for**: Complex indexes, RLS policies, extensions, structural changes 
+- **Schema.ts**: Must exactly match database via `drizzle-kit pull` - is source of truth for TypeScript types
+- **Key insight**: `drizzle-kit generate` only becomes destructive when schema.ts is out of sync with database
+
+#### Root Cause Analysis
+
+**The Issue**: Drizzle generated destructive migrations because our `schema.ts` file was aspirational (contained future fields) rather than reflecting current database state.
+
+**The Solution**: Use `npx drizzle-kit pull` to introspect database and generate accurate schema.ts file that matches reality.
+
+**Result**: `npx drizzle-kit generate` now correctly reports "No schema changes, nothing to migrate" instead of creating destructive operations.
 
 ### Project Structure
 

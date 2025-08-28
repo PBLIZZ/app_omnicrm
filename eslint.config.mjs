@@ -78,7 +78,7 @@ const eslintConfig = [
       // Info-level consistency hint for API routes returning plain NextResponse.json
       // Keep light: this is a heuristic, not a blocker
       "no-restricted-syntax": [
-        "warn",
+        "error",
         {
           selector:
             "CallExpression[callee.object.name='NextResponse'][callee.property.name='json']",

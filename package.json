@@ -16,7 +16,9 @@
     "e2e": "dotenv -e .env.local -- playwright test",
     "e2e:debug": "dotenv -e .env.local -- playwright test --debug",
     "e2e:setup": "tsx scripts/setup-e2e-auth.ts",
-    "e2e:full": "pnpm e2e:setup && pnpm e2e"
+    "e2e:full": "pnpm e2e:setup && pnpm e2e",
+    "migrate:backup": "tsx scripts/migrate-backup.ts",
+    "migrate:validate": "tsx scripts/migrate-validate.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.60.0",
@@ -97,6 +99,7 @@
     "@vitest/coverage-v8": "^3.2.4",
     "autoprefixer": "^10.4.21",
     "dotenv-cli": "^10.0.0",
+    "drizzle-kit": "^0.31.4",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
     "eslint-config-prettier": "^10.1.8",

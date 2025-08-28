@@ -3,14 +3,17 @@ import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/server/http/responses";
 import { tasksStorage } from "@/server/storage/tasks.storage";
+import { getDb } from "@/server/db/client";
+import { workspaces } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const CreateTaskSchema = z.object({
-  workspaceId: z.string().uuid("Invalid workspace ID"),
-  projectId: z.string().uuid().optional(),
-  parentTaskId: z.string().uuid().optional(),
   title: z.string().min(1, "Task title is required"),
   description: z.string().optional(),
+  projectId: z.string().uuid().optional(), // Optional - tasks can exist in inbox without project
+  workspaceId: z.string().uuid().optional(), // Optional - for zone filtering only
+  parentTaskId: z.string().uuid().optional(),
   status: z.enum(["todo", "in_progress", "waiting", "done", "cancelled"]).default("todo"),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   assignee: z.enum(["user", "ai"]).default("user"),
@@ -75,8 +78,38 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   try {
+    // Get workspaceId or create default workspace
+    let workspaceId = parsed.data.workspaceId;
+    
+    if (!workspaceId) {
+      const db = await getDb();
+      let defaultWorkspace = await db.query.workspaces.findFirst({
+        where: and(eq(workspaces.userId, userId), eq(workspaces.isDefault, true))
+      });
+
+      if (!defaultWorkspace) {
+        // Create default workspace
+        const newWorkspace = await db.insert(workspaces).values({
+          userId,
+          name: 'Default Workspace',
+          description: 'Auto-created workspace for tasks',
+          isDefault: true
+        }).returning();
+        defaultWorkspace = newWorkspace[0];
+      }
+      
+      workspaceId = defaultWorkspace.id;
+    }
+
+    console.log("Creating task with data:", {
+      workspaceId,
+      projectId: parsed.data.projectId || null,
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+    });
+
     const task = await tasksStorage.createTask(userId, {
-      workspaceId: parsed.data.workspaceId,
+      workspaceId,
       projectId: parsed.data.projectId || null,
       parentTaskId: parsed.data.parentTaskId || null,
       title: parsed.data.title,

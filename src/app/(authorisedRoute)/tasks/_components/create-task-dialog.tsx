@@ -27,7 +27,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { fetchPost } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import type { Workspace, Project, Contact } from "@/server/db/schema";
 
@@ -74,6 +74,11 @@ export function CreateTaskDialog({
 
   const { data: contactsData } = useQuery({
     queryKey: ["/api/contacts"],
+    queryFn: async () => {
+      const response = await fetch("/api/contacts");
+      if (!response.ok) throw new Error("Failed to fetch contacts");
+      return response.json();
+    },
   });
 
   const contacts = contactsData?.contacts || [];
@@ -85,13 +90,12 @@ export function CreateTaskDialog({
 
   const createTaskMutation = useMutation({
     mutationFn: async (data: CreateTaskFormData) => {
-      return apiRequest("/api/tasks", {
-        method: "POST",
-        body: {
-          ...data,
-          taggedContacts: selectedContacts.map(c => c.id),
-          estimatedMinutes: data.estimatedMinutes || undefined,
-        },
+      return fetchPost("/api/tasks", {
+        ...data,
+        workspaceId: data.workspaceId || undefined,
+        projectId: data.projectId || undefined,
+        taggedContacts: selectedContacts.map(c => c.id),
+        estimatedMinutes: data.estimatedMinutes || undefined,
       });
     },
     onSuccess: () => {

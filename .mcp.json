@@ -9,6 +9,17 @@
     "context7": {
       "type": "http",
       "url": "https://mcp.context7.com/mcp"
+    },
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "sbp_ca26d1f4c512091ffed166357e2680dd7a73ea13"
+      ],
+      "disabledTools": [],
+      "disabled": false
     }
   }
 }

@@ -212,7 +212,7 @@ export default function AccountPage(): JSX.Element {
     <div className="container mx-auto max-w-4xl py-8">
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-sky-500">Account Settings</h1>
           <p className="text-muted-foreground mt-2">
             Manage your account details, security settings, and privacy controls.
           </p>
@@ -220,25 +220,25 @@ export default function AccountPage(): JSX.Element {
 
         <div className="grid gap-8 md:grid-cols-2">
           {/* Account Information & Security */}
-          <Card className="shadow-lg">
+          <Card className="bg-sky-500/10 border-sky-500/20 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl font-bold text-blue-600">Account & Security</CardTitle>
+              <CardTitle className="text-xl font-bold text-sky-500">Account & Security</CardTitle>
               <CardDescription>Manage your account details and password.</CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold">Account Information</h3>
+                <h3 className="text-lg font-semibold text-sky-500">Account Information</h3>
                 <p>
-                  <span className="font-medium">Email:</span> {user.email}
+                  <span className="font-medium text-violet-400">Email:</span> {user.email}
                 </p>
                 <p>
-                  <span className="font-medium">Account Created:</span>{" "}
+                  <span className="font-medium text-violet-400">Account Created:</span>{" "}
                   {user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
                 </p>
                 {user.last_sign_in_at && (
                   <p>
-                    <span className="font-medium">Last Sign In:</span>{" "}
+                    <span className="font-medium text-violet-400">Last Sign In:</span>{" "}
                     {new Date(user.last_sign_in_at).toLocaleString()}
                   </p>
                 )}
@@ -247,10 +247,12 @@ export default function AccountPage(): JSX.Element {
               <Separator />
 
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Change Password</h3>
+                <h3 className="text-lg font-semibold text-sky-500">Change Password</h3>
                 <form onSubmit={handlePasswordUpdate} className="space-y-4">
                   <div>
-                    <Label htmlFor="new_password">New Password</Label>
+                    <Label htmlFor="new_password" className="text-violet-400">
+                      New Password
+                    </Label>
                     <Input
                       id="new_password"
                       type="password"
@@ -261,7 +263,9 @@ export default function AccountPage(): JSX.Element {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="confirm_new_password">Confirm New Password</Label>
+                    <Label htmlFor="confirm_new_password" className="text-violet-400">
+                      Confirm New Password
+                    </Label>
                     <Input
                       id="confirm_new_password"
                       type="password"
@@ -309,7 +313,7 @@ export default function AccountPage(): JSX.Element {
         <div className="text-center">
           <Link
             href={ROUTES.dashboard}
-            className="text-sm font-medium text-blue-600 hover:underline"
+            className="text-sm font-medium text-sky-500 hover:underline"
           >
             Back to Dashboard
           </Link>

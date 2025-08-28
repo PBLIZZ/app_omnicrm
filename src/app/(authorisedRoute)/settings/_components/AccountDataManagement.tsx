@@ -24,7 +24,7 @@ export function AccountDataManagement(): JSX.Element {
   return (
     <div className="space-y-6">
       {/* Privacy Notice */}
-      <Alert>
+      <Alert className="bg-sky-500/10 border-sky-500/20">
         <Shield className="h-4 w-4" />
         <AlertDescription>
           Your privacy is important to us. You have full control over your data and can export or
@@ -33,9 +33,9 @@ export function AccountDataManagement(): JSX.Element {
       </Alert>
 
       {/* Data Export Section */}
-      <Card>
+      <Card className="bg-sky-500/10 border-sky-500/20">
         <CardHeader>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-sky-500">
             <Download className="h-5 w-5" />
             <CardTitle>Export Your Data</CardTitle>
           </div>
@@ -44,7 +44,7 @@ export function AccountDataManagement(): JSX.Element {
             interactions, AI states, and manual overrides.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="text-sky-500 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Complete Data Export</p>
@@ -60,21 +60,21 @@ export function AccountDataManagement(): JSX.Element {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
             <div className="text-center">
-              <Badge variant="secondary" className="mb-2">
+              <Badge variant="outline" className="mb-2 text-violet-400">
                 <FileText className="h-3 w-3 mr-1" />
                 Contacts
               </Badge>
               <p className="text-sm text-muted-foreground">All contact information and profiles</p>
             </div>
             <div className="text-center">
-              <Badge variant="secondary" className="mb-2">
+              <Badge variant="outline" className="mb-2 text-violet-400">
                 <FileText className="h-3 w-3 mr-1" />
                 Interactions
               </Badge>
               <p className="text-sm text-muted-foreground">Communication history and logs</p>
             </div>
             <div className="text-center">
-              <Badge variant="secondary" className="mb-2">
+              <Badge variant="outline" className="mb-2 text-violet-400">
                 <FileText className="h-3 w-3 mr-1" />
                 AI Analysis
               </Badge>
@@ -85,7 +85,7 @@ export function AccountDataManagement(): JSX.Element {
       </Card>
 
       {/* Data Deletion Section */}
-      <Card className="border-destructive/20">
+      <Card className="bg-red-500/10 border-red-500/20">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Trash2 className="h-5 w-5 text-destructive" />
@@ -96,7 +96,7 @@ export function AccountDataManagement(): JSX.Element {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
+          <Alert className="bg-red-500/20 border-red-500/30">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               <strong>Warning:</strong> Account deletion is permanent and irreversible. All your
@@ -140,9 +140,9 @@ export function AccountDataManagement(): JSX.Element {
       </Card>
 
       {/* Privacy Information */}
-      <Card>
+      <Card className="bg-sky-500/10 border-sky-500/20">
         <CardHeader>
-          <CardTitle className="text-sm">Privacy & Data Retention</CardTitle>
+          <CardTitle className="text-sm text-sky-500">Privacy & Data Retention</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>

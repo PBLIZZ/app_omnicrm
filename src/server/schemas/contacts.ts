@@ -32,18 +32,43 @@ export const CreatedAtFilterSchema = z.object({
 
 export const GetContactsQuerySchema = z
   .object({
-    search: z.string().trim().min(1).max(200).optional(),
-    sort: z.enum(["displayName", "createdAt"]).optional(),
-    order: z.enum(["asc", "desc"]).optional(),
-    page: z.coerce.number().int().min(1).max(100000).optional(),
-    pageSize: z.coerce.number().int().min(1).max(200).optional(),
+    // Treat empty strings as undefined for tolerant parsing
+    search: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().trim().min(1).max(200).optional(),
+    ),
+    sort: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.enum(["displayName", "createdAt"]).optional(),
+    ),
+    order: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.enum(["asc", "desc"]).optional(),
+    ),
+    page: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.coerce.number().int().min(1).max(100000).optional(),
+    ),
+    pageSize: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.coerce.number().int().min(1).max(200).optional(),
+    ),
     createdAtFilter: z
       .string()
       .transform((v) => {
+        const input = v.trim();
+        if (input.length === 0) return undefined;
+        if (input === "null" || input === "undefined") return undefined;
+        // Support simple shorthands without JSON, e.g. "today", "week", etc.
+        const shorthand = ["any", "today", "week", "month", "quarter", "year"].includes(input)
+          ? ({ mode: input } as const)
+          : undefined;
+        if (shorthand) return shorthand;
         try {
-          return CreatedAtFilterSchema.parse(JSON.parse(v));
+          return CreatedAtFilterSchema.parse(JSON.parse(input));
         } catch {
-          throw new Error("invalid_createdAtFilter");
+          // Fallback to undefined instead of throwing to prevent 400s for benign inputs
+          return undefined;
         }
       })
       .optional(),

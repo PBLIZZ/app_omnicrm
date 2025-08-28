@@ -75,6 +75,11 @@ vi.mock("@/server/db/supabase-admin", () => {
         return [] as unknown[];
       },
       upsert: async (table: string, values: Record<string, unknown>) => {
+        if (table === "raw_events") {
+          // For raw_events, always insert (simulate upsert behavior)
+          shared.rawEvents.push(toCamelCaseKeys(values));
+          return [] as unknown[];
+        }
         if (table === "interactions") {
           const key = `${values.user_id as string}|${values.source as string}|${(values.source_id as string) ?? ""}`;
           if (shared.interactions.has(key)) {

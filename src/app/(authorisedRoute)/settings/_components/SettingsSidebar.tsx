@@ -81,7 +81,7 @@ export function SettingsSidebar(): JSX.Element {
                 {syncStatus?.serviceTokens?.calendar ? (
                   <span className="text-green-600">Connected</span>
                 ) : (
-                  <a href="/api/google/calendar/oauth" className="text-blue-600 hover:underline">
+                  <a href="/api/calendar/oauth" className="text-blue-600 hover:underline">
                     Connect
                   </a>
                 )}

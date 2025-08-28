@@ -1,7 +1,7 @@
 // src/server/repositories/contacts.repo.ts
 import { and, asc, desc, eq, gte, ilike, lte, or, sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
-import { contacts } from "@/server/db/schema";
+import { contacts, notes } from "@/server/db/schema";
 
 export type ContactListParams = {
   search?: string;
@@ -21,6 +21,8 @@ export type ContactListItem = {
   source: string | null;
   createdAt: Date;
   updatedAt: Date;
+  notesCount: number;
+  lastNote: string | null;
 };
 
 export async function listContacts(
@@ -77,6 +79,20 @@ export async function listContacts(
         source: contacts.source,
         createdAt: contacts.createdAt,
         updatedAt: contacts.updatedAt,
+        notesCount: sql<number>`COALESCE((
+          SELECT COUNT(*) 
+          FROM ${notes} 
+          WHERE ${notes.contactId} = ${contacts.id} 
+          AND ${notes.userId} = ${contacts.userId}
+        ), 0)`,
+        lastNote: sql<string | null>`(
+          SELECT ${notes.content}
+          FROM ${notes}
+          WHERE ${notes.contactId} = ${contacts.id}
+          AND ${notes.userId} = ${contacts.userId}
+          ORDER BY ${notes.createdAt} DESC
+          LIMIT 1
+        )`,
       })
       .from(contacts)
       .where(whereExpr)
@@ -100,6 +116,8 @@ export async function listContacts(
       source: r.source ?? null,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
+      notesCount: r.notesCount,
+      lastNote: r.lastNote,
     })),
     total: Number(totalRow[0]?.n) || 0,
   };
@@ -136,5 +154,16 @@ export async function createContact(
       createdAt: contacts.createdAt,
       updatedAt: contacts.updatedAt,
     });
-  return row ?? null;
+  
+  if (!row) return null;
+  
+  // New contacts have 0 notes and no last note
+  return {
+    ...row,
+    primaryEmail: row.primaryEmail ?? null,
+    primaryPhone: row.primaryPhone ?? null,
+    source: row.source ?? null,
+    notesCount: 0,
+    lastNote: null,
+  };
 }

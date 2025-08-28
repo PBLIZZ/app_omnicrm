@@ -14,6 +14,7 @@ import {
   numeric,
   primaryKey,
   pgEnum,
+  real,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -72,7 +73,11 @@ export const contacts = pgTable("contacts", {
   displayName: text("display_name").notNull(),
   primaryEmail: text("primary_email"),
   primaryPhone: text("primary_phone"),
-  source: text("source"), // gmail_import | manual | upload
+  source: text("source"), // gmail_import | manual | upload | calendar_import
+  notes: text("notes"), // AI-generated insights about the contact
+  stage: text("stage"), // Prospect | New Client | Core Client | Referring Client | VIP Client | Lost Client | At Risk Client
+  tags: jsonb("tags"), // Wellness segmentation tags array
+  confidenceScore: numeric("confidence_score", { precision: 3, scale: 2 }), // AI insight confidence (0.00-1.00)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -95,7 +100,7 @@ export const embeddings = pgTable("embeddings", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull(),
-  ownerType: text("owner_type").notNull(), // interaction | document | contact
+  ownerType: text("owner_type").notNull(), // interaction | document | contact | calendar_event
   ownerId: uuid("owner_id").notNull(),
   meta: jsonb("meta"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -238,6 +243,146 @@ export const syncAudit = pgTable("sync_audit", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const notes = pgTable('notes', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  contactId: uuid('contact_id').notNull(), // FK to contacts(id) in SQL
+  userId: uuid('user_id').notNull(),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Calendar Events for business intelligence and timeline building
+export const calendarEvents = pgTable('calendar_events', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull(),
+  googleEventId: text('google_event_id').unique().notNull(), // Google Calendar event ID
+  calendarId: text('calendar_id').notNull(), // Google Calendar ID
+  title: text('title').notNull(),
+  description: text('description'),
+  location: text('location'),
+  startTime: timestamp('start_time', { withTimezone: true }).notNull(),
+  endTime: timestamp('end_time', { withTimezone: true }).notNull(),
+  timeZone: text('time_zone').notNull(),
+  isAllDay: boolean('is_all_day').default(false).notNull(),
+  recurring: boolean('recurring').default(false).notNull(),
+  recurrenceRule: text('recurrence_rule'), // RRULE if recurring
+  status: text('status').notNull().default('confirmed'), // confirmed, cancelled, tentative
+  visibility: text('visibility').notNull().default('public'), // public, private
+  attendees: jsonb('attendees'), // Store attendee emails/info
+  eventType: text('event_type'), // class, workshop, appointment, consultation
+  capacity: integer('capacity'), // max attendees for classes
+  actualAttendance: integer('actual_attendance'), // matched from attendance data
+  // AI and embeddings fields
+  embeddings: jsonb('embeddings'), // Semantic embeddings for matching
+  keywords: text('keywords').array(), // Extracted keywords for search
+  businessCategory: text('business_category'), // yoga, massage, workshop, etc
+  // Sync metadata
+  lastSynced: timestamp('last_synced', { withTimezone: true }).defaultNow().notNull(),
+  googleUpdated: timestamp('google_updated', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Contact timeline events (auto-generated from calendar data)
+export const contactTimeline = pgTable('contact_timeline', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  contactId: uuid('contact_id')
+    .references(() => contacts.id)
+    .notNull(),
+  eventId: uuid('event_id').references(() => calendarEvents.id),
+  eventType: text('event_type').notNull(), // class_attended, workshop_booked, appointment_scheduled
+  eventDate: timestamp('event_date', { withTimezone: true }).notNull(),
+  eventTitle: text('event_title').notNull(),
+  location: text('location'),
+  duration: integer('duration'), // minutes
+  attendanceStatus: text('attendance_status'), // attended, no_show, cancelled
+  metadata: jsonb('metadata'), // Additional event-specific data
+  confidence: real('confidence'), // AI confidence in the match (0-1)
+  source: text('source').notNull(), // calendar, drive_attendance, manual
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ---------- Task Management ----------
+
+export const workspaces = pgTable('workspaces', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  color: text('color').default('#6366f1'), // Hex color for UI
+  isDefault: boolean('is_default').default(false).notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const projects = pgTable('projects', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull(),
+  workspaceId: uuid('workspace_id')
+    .references(() => workspaces.id)
+    .notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  color: text('color').default('#10b981'), // Hex color for UI
+  status: text('status').default('active').notNull(), // active, completed, on_hold, cancelled
+  dueDate: timestamp('due_date'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const tasks = pgTable('tasks', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull(),
+  workspaceId: uuid('workspace_id')
+    .references(() => workspaces.id)
+    .notNull(),
+  projectId: uuid('project_id').references(() => projects.id), // nullable - tasks can exist without projects
+  parentTaskId: uuid('parent_task_id').references(() => tasks.id), // for subtasks
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').default('todo').notNull(), // todo, in_progress, waiting, done, cancelled
+  priority: text('priority').default('medium').notNull(), // low, medium, high, urgent
+  assignee: text('assignee').default('user').notNull(), // user, ai
+  source: text('source').default('user').notNull(), // user, ai_generated
+  approvalStatus: text('approval_status').default('approved').notNull(), // pending_approval, approved, rejected
+  taggedContacts: jsonb('tagged_contacts'), // array of contact IDs
+  dueDate: timestamp('due_date'),
+  completedAt: timestamp('completed_at'),
+  estimatedMinutes: integer('estimated_minutes'),
+  actualMinutes: integer('actual_minutes'),
+  aiContext: jsonb('ai_context'), // AI reasoning/context when generated
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const taskActions = pgTable('task_actions', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull(),
+  taskId: uuid('task_id')
+    .references(() => tasks.id)
+    .notNull(),
+  action: text('action').notNull(), // approved, rejected, edited, completed, deleted
+  previousData: jsonb('previous_data'), // task state before action
+  newData: jsonb('new_data'), // task state after action
+  notes: text('notes'), // user notes about the action
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 // ---------- Types ----------
 
 export type AiInsight = typeof aiInsights.$inferSelect;
@@ -284,3 +429,24 @@ export type NewAiQuota = typeof aiQuotas.$inferInsert;
 
 export type AiUsage = typeof aiUsage.$inferSelect;
 export type NewAiUsage = typeof aiUsage.$inferInsert;
+
+export type Note = typeof notes.$inferSelect;
+export type NewNote = typeof notes.$inferInsert;
+
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type NewCalendarEvent = typeof calendarEvents.$inferInsert;
+
+export type ContactTimeline = typeof contactTimeline.$inferSelect;
+export type NewContactTimeline = typeof contactTimeline.$inferInsert;
+
+export type Workspace = typeof workspaces.$inferSelect;
+export type NewWorkspace = typeof workspaces.$inferInsert;
+
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
+
+export type TaskAction = typeof taskActions.$inferSelect;
+export type NewTaskAction = typeof taskActions.$inferInsert;

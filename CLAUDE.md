@@ -181,6 +181,160 @@ The sidebar was updated to be properly full-height by modifying the sidebar cont
 - `SidebarFooter` - User navigation and controls
 - `SidebarInset` - Main content area with header and breadcrumbs
 
+## Enhanced Contacts System
+
+### Overview
+
+The Enhanced Contacts Intelligence System represents a complete replacement of the legacy contacts functionality with AI-powered features, smart suggestions, and rich interactive components tailored for wellness businesses.
+
+**Key Documentation**: See `/docs/enhanced-contacts-system.md` for comprehensive technical implementation details.
+
+### Core Features
+
+#### AI-Powered Contact Intelligence
+
+- **OpenAI GPT-5 Integration**: Latest AI model for contact insights generation
+- **36 Wellness Tags**: Comprehensive categorization system for yoga, massage, meditation, and wellness services
+- **7 Client Lifecycle Stages**: Smart progression tracking from Prospect to VIP Client
+- **Confidence Scoring**: AI-generated confidence scores (0.0-1.0) for insight reliability
+
+#### Smart Contact Suggestions
+
+- **Calendar Analysis**: Automatically extracts potential contacts from Google Calendar event attendees
+- **Duplicate Prevention**: Intelligent filtering to exclude existing contacts and system emails
+- **Bulk Creation**: Create multiple contacts with pre-generated AI insights in one operation
+- **Engagement Classification**: Analyzes event patterns to determine contact engagement levels
+
+#### Interactive UI Components
+
+- **Enhanced Data Table**: TanStack Table with shadcn/ui components for high-performance contact management
+- **Avatar Column**: Beautiful contact photos with gradient initials fallback
+- **AI Action Buttons**: 4 inline action buttons per contact (Ask AI, Send Email, Take Note, Add to Task)
+- **Hover Cards**: In-line notes management without leaving the contacts table
+- **Real-time Updates**: Optimistic UI with React Query integration
+
+### Technical Architecture
+
+#### Database Connection Pattern
+
+**Critical**: Always use the async `getDb()` pattern for database connections:
+
+```typescript
+// ✅ Correct Pattern
+import { getDb } from "@/server/db/client";
+
+export async function someStorageMethod() {
+  const db = await getDb();
+  return await db.select().from(table).where(condition);
+}
+
+// ❌ Broken Pattern (causes runtime errors)
+import { db } from "@/server/db";
+const contacts = await db.select().from(contactsTable); // Error: .from is not a function
+```
+
+#### Notes System Architecture
+
+- **Unified Notes Table**: All notes (user-created and AI-generated) stored in dedicated `notes` table
+- **Deprecated contacts.notes Field**: No longer used; all note operations use the `notes` table exclusively
+- **AI Note Format**: AI-generated insights stored with `[AI Generated]` prefix for clear attribution
+- **Full CRUD Operations**: Complete create, read, update, delete functionality through hover cards
+
+#### API Layer Structure
+
+```text
+/api/contacts-new/
+├── GET/POST /              # List/create contacts
+├── GET/POST /suggestions   # Calendar-based suggestions
+├── POST /enrich           # AI-enrich existing contacts
+└── [contactId]/notes/     # Notes management
+    ├── GET/POST           # List/create notes
+    └── [noteId]/          # Individual note operations
+        ├── PUT/DELETE     # Update/delete notes
+```
+
+### Event Classification Intelligence
+
+The system intelligently extracts structured data from unstructured calendar events:
+
+```typescript
+// Pattern extraction from event titles and descriptions
+private static extractEventType(title: string, description?: string): string {
+  const text = `${title} ${description || ''}`.toLowerCase();
+  
+  if (/\b(class|lesson|session)\b/.test(text)) return 'class';
+  if (/\b(workshop|seminar|training)\b/.test(text)) return 'workshop';
+  if (/\b(appointment|consultation|private)\b/.test(text)) return 'appointment';
+  
+  return 'event'; // default
+}
+```
+
+### CSRF Protection Integration
+
+All API calls use centralized utilities that handle CSRF tokens automatically:
+
+```typescript
+// ✅ Proper API calls with automatic CSRF handling
+import { fetchPost } from "@/lib/api";
+const data = await fetchPost<ResponseType>("/api/contacts-new/suggestions", payload);
+
+// ❌ Raw fetch (missing CSRF tokens, will fail with 403)
+const response = await fetch("/api/contacts-new/suggestions", {
+  method: "POST",
+  body: JSON.stringify(payload)
+});
+```
+
+### React Query Integration
+
+Optimistic updates with proper error handling and rollback:
+
+```typescript
+const createNoteMutation = useMutation({
+  mutationFn: (data) => fetchPost("/api/notes", data),
+  onMutate: async (newNote) => {
+    // Optimistic update
+    const previous = queryClient.getQueryData(["notes", contactId]);
+    queryClient.setQueryData(["notes", contactId], old => [tempNote, ...old]);
+    return { previous };
+  },
+  onError: (error, variables, context) => {
+    // Rollback on error
+    if (context?.previous) {
+      queryClient.setQueryData(["notes", contactId], context.previous);
+    }
+  }
+});
+```
+
+### Wellness Business Taxonomy
+
+#### 36 Wellness Tags (4 Categories)
+
+- **Services (14)**: Yoga, Massage, Meditation, Pilates, Reiki, Acupuncture, Personal Training, Nutrition Coaching, Life Coaching, Therapy, Workshops, Retreats, Group Classes, Private Sessions
+- **Demographics (11)**: Senior, Young Adult, Professional, Parent, Student, Beginner, Intermediate, Advanced, VIP, Local, Traveler  
+- **Goals & Health (11)**: Stress Relief, Weight Loss, Flexibility, Strength Building, Pain Management, Mental Health, Spiritual Growth, Mindfulness, Athletic Performance, Injury Recovery, Prenatal, Postnatal
+- **Engagement Patterns (10)**: Regular Attendee, Weekend Warrior, Early Bird, Evening Preferred, Seasonal Client, Frequent Visitor, Occasional Visitor, High Spender, Referral Source, Social Media Active
+
+#### 7 Client Lifecycle Stages
+
+- **Prospect**: 1-2 events, recent inquiries
+- **New Client**: 2-5 events, getting started  
+- **Core Client**: 6+ events, regular attendance
+- **Referring Client**: Evidence of bringing others
+- **VIP Client**: High frequency (10+ events) + premium services
+- **Lost Client**: No recent activity (60+ days)
+- **At Risk Client**: Declining attendance pattern
+
+### Critical Implementation Notes
+
+1. **Database Connections**: Always use `getDb()` pattern, never the proxy-based `db` import
+2. **CSRF Protection**: Use `fetchPost()`/`fetchGet()` utilities, never raw `fetch()` calls
+3. **Notes Architecture**: Use `notes` table exclusively, ignore `contacts.notes` field
+4. **AI Integration**: GPT-5 model with structured JSON responses and proper error handling
+5. **Event Classification**: Pattern-based extraction, no database schema changes required
+
 ## Pull Request Workflow
 
 When adding commits from a feature branch to main, follow this process:
@@ -216,7 +370,7 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 
 1. Add real Google OAuth tokens to `.env.local`:
 
-   ```
+   ```typescript
    E2E_GOOGLE_ACCESS_TOKEN=your_actual_access_token
    E2E_GOOGLE_REFRESH_TOKEN=your_actual_refresh_token
    ```

@@ -76,11 +76,24 @@ export async function fetchContacts(
   if (params.createdAtFilter)
     url.searchParams.set("createdAtFilter", JSON.stringify(params.createdAtFilter));
 
-  const res = await fetch(url.toString(), {
-    credentials: "same-origin",
-    headers: { "x-csrf-token": getCsrf() },
-  });
-  return await parseJson<ContactListResponse>(res);
+  try {
+    const res = await fetch(url.toString(), {
+      credentials: "same-origin",
+      headers: { "x-csrf-token": getCsrf() },
+    });
+
+    if (res.status === 429) {
+      throw new Error('{"error":"rate_limited"}');
+    }
+
+    return await parseJson<ContactListResponse>(res);
+  } catch (error: any) {
+    // Re-throw with more specific error information
+    if (error.message?.includes("rate_limited")) {
+      throw new Error('{"error":"rate_limited"}');
+    }
+    throw error;
+  }
 }
 
 export async function createContact(input: CreateContactInput): Promise<ContactDTO> {

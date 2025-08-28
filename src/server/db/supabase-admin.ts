@@ -89,7 +89,6 @@ export const supaAdminGuard = {
   async upsert<T extends AllowedTable>(
     table: T,
     values: InsertRow<T> | Array<InsertRow<T>>,
-    options?: { onConflict?: string; ignoreDuplicates?: boolean },
   ): Promise<Array<SelectRow<T>>> {
     if (!ALLOWED_TABLES.includes(table)) throw new Error("admin_write_forbidden");
     if (isTest) return [] as Array<SelectRow<T>>;
@@ -97,30 +96,34 @@ export const supaAdminGuard = {
       log.warn({ op: "supa_admin_use", table }, "admin_client_unavailable");
       throw new Error("admin_client_unavailable");
     }
-    const upsertOptions: { onConflict?: string; ignoreDuplicates?: boolean } = {};
-    if (options?.onConflict) upsertOptions.onConflict = options.onConflict;
-    if (options?.ignoreDuplicates !== undefined)
-      upsertOptions.ignoreDuplicates = options.ignoreDuplicates;
 
-    const { data, error } = await supaAdmin
-      .from(table)
-      .upsert(values as never, upsertOptions)
-      .select();
-    if (error) {
+    // Try upsert with ignoreDuplicates first, fall back to insert on PGRST204
+    try {
+      const { data, error } = await supaAdmin
+        .from(table)
+        .upsert(values as never, { ignoreDuplicates: true })
+        .select();
+      
+      if (error) {
+        // If this is a PGRST204 error (No Content), fall back to insert
+        if (error.code === "PGRST204") {
+          log.info({ op: "supa_admin_upsert_fallback", table }, "falling_back_to_insert");
+          return await this.insert(table, values);
+        }
+        throw error;
+      }
+      return (data ?? []) as Array<SelectRow<T>>;
+    } catch (error) {
       log.warn(
         {
           op: "supa_admin_upsert",
           table,
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
+          error: error instanceof Error ? error.message : String(error),
         },
         "admin_upsert_failed",
       );
       throw new Error("admin_upsert_failed");
     }
-    return (data ?? []) as Array<SelectRow<T>>;
   },
 
   async update<T extends AllowedTable>(

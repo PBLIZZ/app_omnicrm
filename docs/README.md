@@ -10,5 +10,8 @@ Navigate by topic:
 - Operations (deploy/secrets/env): docs/ops/README.md
 - Roadmap & plans: docs/roadmap/README.md
 
+**Feature Documentation:**
+- Enhanced Contacts System: docs/enhanced-contacts-system.md
+
 Getting started: docs/getting-started/README.md
 Contributing: docs/contributing/README.md

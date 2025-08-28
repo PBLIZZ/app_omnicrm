@@ -7,7 +7,7 @@ import {
   CreateContactBodySchema,
   toDateRange,
   type GetContactsQuery,
-} from "@/server/schemas";
+} from "@/server/schemas/contacts";
 import { createContactService, listContactsService } from "@/server/services/contacts.service";
 
 export async function GET(req: NextRequest): Promise<Response> {
@@ -64,6 +64,8 @@ export async function GET(req: NextRequest): Promise<Response> {
       source: r.source ?? null,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
+      notesCount: r.notesCount,
+      lastNote: r.lastNote,
     })),
     total,
   });
@@ -103,6 +105,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       source: row.source ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: (row.updatedAt ?? row.createdAt).toISOString(),
+      notesCount: row.notesCount,
+      lastNote: row.lastNote,
     },
     { status: 201 },
   );

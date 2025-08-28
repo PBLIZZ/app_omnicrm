@@ -11,8 +11,8 @@ export function useContactCount(): number {
 
     const loadCount = async (): Promise<void> => {
       try {
-        // Just fetch the first page to get the total count
-        const data = await fetchContacts({ page: 1, pageSize: 1 });
+        // Fetch without query params; server defaults provide total count
+        const data = await fetchContacts();
         if (isMounted) {
           setCount(data.total);
         }

@@ -426,6 +426,45 @@ export default function DashboardContent(): JSX.Element {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Enhanced Dashboard Section - New Features */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Enhanced Dashboard Features</CardTitle>
+            <CardDescription>Additional analytics and KPIs for improved insight</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* New Analytics Cards */}
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="h-4 w-4 text-blue-500" />
+                  <h4 className="font-medium">Engagement Score</h4>
+                </div>
+                <div className="text-2xl font-bold">85%</div>
+                <p className="text-sm text-muted-foreground">Average contact engagement</p>
+              </div>
+              
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="h-4 w-4 text-green-500" />
+                  <h4 className="font-medium">This Week</h4>
+                </div>
+                <div className="text-2xl font-bold">{upcomingTasks}</div>
+                <p className="text-sm text-muted-foreground">Scheduled activities</p>
+              </div>
+              
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckSquare className="h-4 w-4 text-purple-500" />
+                  <h4 className="font-medium">Completed</h4>
+                </div>
+                <div className="text-2xl font-bold">12</div>
+                <p className="text-sm text-muted-foreground">Tasks this month</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

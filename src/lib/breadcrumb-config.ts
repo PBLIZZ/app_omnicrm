@@ -1,4 +1,4 @@
-import { Home } from "lucide-react";
+import { Home, Zap } from "lucide-react";
 
 export interface BreadcrumbItem {
   label: string;
@@ -46,6 +46,11 @@ export const routeConfig: Record<string, RouteConfig> = {
   },
   "/tasks": {
     label: "Tasks",
+    parent: "/",
+  },
+  "/omni-momentum": {
+    label: "Omni-Momentum",
+    icon: Zap,
     parent: "/",
   },
   "/marketing": {

@@ -83,12 +83,19 @@ export function useNotes({ contactId }: UseNotesOptions) {
       // Replace temp note with real note from server
       queryClient.setQueryData<Note[]>(["contacts", contactId, "notes"], (old) => {
         if (!old) return [newNote];
-        return old.map((note) => 
-          note.id.startsWith("temp-") ? newNote : note
-        );
+        return old.map((note) => (note.id.startsWith("temp-") ? newNote : note));
       });
-      // Invalidate all contacts queries to update notes count
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts-new"], exact: false });
+      // Invalidate only the specific contact's notes count in the contacts list
+      queryClient.invalidateQueries({
+        queryKey: ["/api/contacts-new"],
+        exact: false,
+        refetchType: "active", // Only refetch active queries
+      });
+      // Also invalidate the specific contact's data to update lastNote
+      queryClient.invalidateQueries({
+        queryKey: ["/api/contacts-new", contactId],
+        exact: false,
+      });
       toast({
         title: "Success",
         description: "Note created successfully",
@@ -99,11 +106,13 @@ export function useNotes({ contactId }: UseNotesOptions) {
   // Update existing note
   const updateNoteMutation = useMutation({
     mutationFn: async (data: UpdateNoteData): Promise<void> => {
-      await fetchPut(`/api/contacts-new/${contactId}/notes/${data.noteId}`, { content: data.content });
+      await fetchPut(`/api/contacts-new/${contactId}/notes/${data.noteId}`, {
+        content: data.content,
+      });
     },
     onMutate: async (updatedNote) => {
       await queryClient.cancelQueries({ queryKey: ["contacts", contactId, "notes"] });
-      
+
       const previousNotes = queryClient.getQueryData<Note[]>(["contacts", contactId, "notes"]);
 
       // Optimistically update
@@ -112,7 +121,7 @@ export function useNotes({ contactId }: UseNotesOptions) {
         return old.map((note) =>
           note.id === updatedNote.noteId
             ? { ...note, content: updatedNote.content, updatedAt: new Date() }
-            : note
+            : note,
         );
       });
 
@@ -144,7 +153,7 @@ export function useNotes({ contactId }: UseNotesOptions) {
     },
     onMutate: async (deletedNote) => {
       await queryClient.cancelQueries({ queryKey: ["contacts", contactId, "notes"] });
-      
+
       const previousNotes = queryClient.getQueryData<Note[]>(["contacts", contactId, "notes"]);
 
       // Optimistically remove note
@@ -166,8 +175,12 @@ export function useNotes({ contactId }: UseNotesOptions) {
       });
     },
     onSuccess: () => {
-      // Invalidate all contacts queries to update notes count
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts-new"], exact: false });
+      // Invalidate only the specific contact's notes count in the contacts list
+      queryClient.invalidateQueries({
+        queryKey: ["/api/contacts-new"],
+        exact: false,
+        refetchType: "active",
+      });
       toast({
         title: "Success",
         description: "Note deleted successfully",

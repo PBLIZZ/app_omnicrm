@@ -2,9 +2,9 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { SupabaseClient } from "@supabase/supabase-js";
 
-let client: SupabaseClient<unknown> | null = null;
+let client: SupabaseClient | null = null;
 
-export function getSupabaseBrowser(): SupabaseClient<unknown> {
+export function getSupabaseBrowser(): SupabaseClient {
   if (client) return client;
   const url = process.env["NEXT_PUBLIC_SUPABASE_URL"];
   const key = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
@@ -15,9 +15,10 @@ export function getSupabaseBrowser(): SupabaseClient<unknown> {
         "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY",
       );
     }
-    // return a dummy no-op client during build (won't be used in SSR)
-    return (client ??= createBrowserClient("http://localhost:54321", "public-key"));
+    // Return a placeholder for build-time
+    return {} as SupabaseClient;
   }
+  
   client = createBrowserClient(url, key);
   return client;
 }

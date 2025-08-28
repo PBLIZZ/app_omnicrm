@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 import { ContactsSidebar } from "@/app/(authorisedRoute)/contacts/_components/ContactsSidebar";
 import { DashboardSidebar } from "@/app/(authorisedRoute)/dashboard/_components/DashboardSidebar";
+import { OmniMomentumSidebar } from "@/app/(authorisedRoute)/omni-momentum/_components/OmniMomentumSidebar";
 import { TasksSidebar } from "@/app/(authorisedRoute)/tasks/_components/TasksSidebar";
 import { MarketingSidebar } from "@/app/(authorisedRoute)/marketing/_components/MarketingSidebar";
 import { MessagesSidebar } from "@/app/(authorisedRoute)/messages/_components/MessagesSidebar";
@@ -21,6 +22,10 @@ export function AppSidebarController(): JSX.Element {
 
     if (pathname.startsWith("/contacts")) {
       return <ContactsSidebar />;
+    }
+
+    if (pathname.startsWith("/omni-momentum")) {
+      return <OmniMomentumSidebar />;
     }
 
     if (pathname.startsWith("/tasks")) {

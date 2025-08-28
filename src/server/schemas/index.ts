@@ -9,3 +9,6 @@ export * from "./sync";
 export * from "./calendar";
 export * from "./drive";
 export * from "./raw-events";
+
+// Re-export specific schemas that might be imported directly
+export { BulkDeleteBodySchema, UpdateContactBodySchema } from "./contacts";

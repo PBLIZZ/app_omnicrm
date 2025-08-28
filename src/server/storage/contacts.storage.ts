@@ -1,7 +1,7 @@
 // Contacts storage layer
 import { getDb } from "@/server/db/client";
-import { contacts, notes } from "@/server/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { contacts, notes, interactions, calendarEvents } from "@/server/db/schema";
+import { eq, desc, and, count, sql } from "drizzle-orm";
 import type { Contact, NewContact, Note } from "@/server/db/schema";
 
 export class ContactsStorage {
@@ -15,12 +15,14 @@ export class ContactsStorage {
         userId,
       })
       .returning();
-    return contact;
+    return contact!
   }
 
-  async getContacts(userId: string): Promise<Contact[]> {
+  async getContacts(userId: string): Promise<any[]> {
     const db = await getDb();
-    return await db
+    
+    // First get all contacts
+    const contactsData = await db
       .select({
         id: contacts.id,
         userId: contacts.userId,
@@ -38,6 +40,85 @@ export class ContactsStorage {
       .from(contacts)
       .where(eq(contacts.userId, userId))
       .orderBy(desc(contacts.updatedAt));
+
+    // Get interactions count for each contact
+    const contactIds = contactsData.map(c => c.id);
+    const interactionsCountQuery = contactIds.length > 0 
+      ? await db
+          .select({
+            contactId: interactions.contactId,
+            interactionCount: count(interactions.id).as('interactionCount')
+          })
+          .from(interactions)
+          .where(and(
+            eq(interactions.userId, userId),
+            sql`${interactions.contactId} IN (${sql.join(contactIds.map(id => sql`${id}`), sql`, `)})`
+          ))
+          .groupBy(interactions.contactId)
+      : [];
+
+    // Get calendar events count for each contact (matching by email)
+    const contactEmails = contactsData.filter(c => c.primaryEmail).map(c => c.primaryEmail);
+    const calendarEventsCountQuery = contactEmails.length > 0
+      ? await db
+          .select({
+            email: sql<string>`LOWER(jsonb_extract_path_text(${calendarEvents.attendees}, 'email'))`,
+            eventCount: count(calendarEvents.id).as('eventCount')
+          })
+          .from(calendarEvents)
+          .where(and(
+            eq(calendarEvents.userId, userId),
+            sql`EXISTS (
+              SELECT 1 FROM jsonb_array_elements(${calendarEvents.attendees}) as attendee
+              WHERE LOWER(attendee->>'email') IN (${sql.join(contactEmails.map(email => sql`${email?.toLowerCase()}`), sql`, `)})
+            )`
+          ))
+          .groupBy(sql`LOWER(jsonb_extract_path_text(${calendarEvents.attendees}, 'email'))`)
+      : [];
+
+    // Get notes count for each contact
+    const notesCountQuery = contactIds.length > 0
+      ? await db
+          .select({
+            contactId: notes.contactId,
+            notesCount: count(notes.id).as('notesCount'),
+            lastNote: sql<string>`(
+              SELECT content 
+              FROM ${notes} n2 
+              WHERE n2.contact_id = ${notes.contactId} 
+              ORDER BY n2.created_at DESC 
+              LIMIT 1
+            )`.as('lastNote')
+          })
+          .from(notes)
+          .where(and(
+            eq(notes.userId, userId),
+            sql`${notes.contactId} IN (${sql.join(contactIds.map(id => sql`${id}`), sql`, `)})`
+          ))
+          .groupBy(notes.contactId)
+      : [];
+
+    // Create lookup maps
+    const interactionsMap = new Map(interactionsCountQuery.map(row => [row.contactId, Number(row.interactionCount)]));
+    const eventsMap = new Map(calendarEventsCountQuery.map(row => [row.email, Number(row.eventCount)]));
+    const notesMap = new Map(notesCountQuery.map(row => [row.contactId, { 
+      count: Number(row.notesCount), 
+      lastNote: row.lastNote 
+    }]));
+
+    // Combine data
+    return contactsData.map(contact => {
+      const interactionCount = interactionsMap.get(contact.id) || 0;
+      const eventCount = contact.primaryEmail ? (eventsMap.get(contact.primaryEmail.toLowerCase()) || 0) : 0;
+      const notesData = notesMap.get(contact.id) || { count: 0, lastNote: null };
+      
+      return {
+        ...contact,
+        interactions: interactionCount + eventCount, // Total interactions include both direct interactions and calendar events
+        notesCount: notesData.count,
+        lastNote: notesData.lastNote,
+      };
+    });
   }
 
   async getContact(contactId: string, userId: string): Promise<Contact | null> {
@@ -75,7 +156,7 @@ export class ContactsStorage {
         content,
       })
       .returning();
-    return note;
+    return note!;
   }
 
   async getNotes(contactId: string, userId: string): Promise<Note[]> {

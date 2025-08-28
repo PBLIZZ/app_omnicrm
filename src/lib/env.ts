@@ -18,6 +18,7 @@ const baseSchema = z.object({
   GOOGLE_CALENDAR_REDIRECT_URI: z.url({ message: "Invalid GOOGLE_CALENDAR_REDIRECT_URI" }),
   // AI / Providers
   OPENROUTER_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
   AI_MODEL_CHAT: z.string().default("openrouter/auto"),
   AI_MODEL_EMBED: z.string().default("openai/text-embedding-3-large"),
   AI_MODEL_SUMMARY: z.string().default("openrouter/auto"),

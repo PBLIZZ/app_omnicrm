@@ -490,3 +490,121 @@ export async function generateEmbedding(userId: string, text: string): Promise<n
 
   return finalEmbedding;
 }
+
+/**
+ * Lightweight OpenAI-compat chat helper used by `src/server/ai/openai.ts`.
+ * Returns a minimal shape: { content, usage }
+ */
+export interface OpenRouterChatParams {
+  messages: ChatMessage[];
+  model?: string;
+  temperature?: number;
+  maxTokens?: number | undefined;
+  /**
+   * Optional user id for guardrails/quotas. Falls back to a system identifier
+   * when not provided (OpenAI compat layer doesn't carry user identity).
+   */
+  userId?: string;
+}
+
+export interface OpenRouterChatResult {
+  content: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+export async function openRouterChat(params: OpenRouterChatParams): Promise<OpenRouterChatResult> {
+  assertOpenRouterConfigured();
+  const config = getOpenRouterConfig();
+
+  const {
+    messages,
+    model = config.summaryModel,
+    temperature = 0.7,
+    maxTokens,
+    userId = "system-openai-compat",
+  } = params;
+
+  let rawData: OpenRouterChatResponse | null = null;
+  let content: string | null = null;
+
+  const result = await withGuardrails(userId, async () => {
+    const headers = openRouterHeaders();
+    const body = {
+      model,
+      messages,
+      temperature,
+      ...(typeof maxTokens === "number" ? { max_tokens: maxTokens } : {}),
+    };
+
+    log.info(
+      { op: "llm.openai_compat.request", userId, model, messageCount: messages.length },
+      "OpenAI-compat chat request started",
+    );
+
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} ${error}`);
+    }
+
+    rawData = (await response.json()) as unknown as OpenRouterChatResponse;
+    if (!isOpenRouterChatResponse(rawData)) {
+      throw new Error("Invalid OpenRouter response format");
+    }
+
+    content = rawData.choices[0]?.message?.content ?? "";
+
+    return {
+      data: content,
+      model: rawData.model,
+      inputTokens: rawData.usage?.prompt_tokens ?? 0,
+      outputTokens: rawData.usage?.completion_tokens ?? 0,
+      costUsd: 0,
+    } satisfies LLMResponse<string>;
+  });
+
+  if ("error" in result) {
+    throw new Error(`LLM request failed: ${result.error}`);
+  }
+
+  if (!rawData || content === null) {
+    throw new Error("Failed to process OpenRouter response");
+  }
+
+  const safeRawData = rawData as OpenRouterChatResponse;
+  const safeContent = content as string;
+
+  log.info(
+    {
+      op: "llm.openai_compat.success",
+      userId,
+      model: safeRawData.model,
+      creditsLeft: result.creditsLeft,
+    },
+    "OpenAI-compat chat request completed",
+  );
+
+  const usage = safeRawData.usage;
+  const usageObj =
+    usage && (usage.prompt_tokens != null || usage.completion_tokens != null || usage.total_tokens != null)
+      ? {
+          ...(usage.prompt_tokens != null ? { prompt_tokens: usage.prompt_tokens } : {}),
+          ...(usage.completion_tokens != null ? { completion_tokens: usage.completion_tokens } : {}),
+          ...(usage.total_tokens != null ? { total_tokens: usage.total_tokens } : {}),
+        }
+      : undefined;
+
+  return {
+    content: safeContent,
+    ...(usageObj ? { usage: usageObj } : {}),
+  };
+}

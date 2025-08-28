@@ -1,5 +1,5 @@
 // Tasks storage layer
-import { db } from "@/server/db";
+import { getDb } from "@/server/db/client";
 import { workspaces, projects, tasks, taskActions, contacts } from "@/server/db/schema";
 import { eq, desc, and, isNull, inArray } from "drizzle-orm";
 import type { 
@@ -14,6 +14,7 @@ export class TasksStorage {
   // ============ WORKSPACES ============
   
   async createWorkspace(userId: string, data: Omit<NewWorkspace, 'userId'>): Promise<Workspace> {
+    const db = await getDb();
     const [workspace] = await db
       .insert(workspaces)
       .values({
@@ -25,6 +26,7 @@ export class TasksStorage {
   }
 
   async getWorkspaces(userId: string): Promise<Workspace[]> {
+    const db = await getDb();
     return await db
       .select()
       .from(workspaces)
@@ -33,6 +35,7 @@ export class TasksStorage {
   }
 
   async getWorkspace(workspaceId: string, userId: string): Promise<Workspace | null> {
+    const db = await getDb();
     const [workspace] = await db
       .select()
       .from(workspaces)
@@ -41,6 +44,7 @@ export class TasksStorage {
   }
 
   async updateWorkspace(workspaceId: string, userId: string, data: Partial<Omit<NewWorkspace, 'userId'>>): Promise<void> {
+    const db = await getDb();
     await db
       .update(workspaces)
       .set({ ...data, updatedAt: new Date() })
@@ -49,6 +53,7 @@ export class TasksStorage {
 
   async deleteWorkspace(workspaceId: string, userId: string): Promise<void> {
     // Note: This will cascade delete projects and tasks via DB constraints
+    const db = await getDb();
     await db
       .delete(workspaces)
       .where(and(eq(workspaces.id, workspaceId), eq(workspaces.userId, userId)));
@@ -57,6 +62,7 @@ export class TasksStorage {
   // ============ PROJECTS ============
   
   async createProject(userId: string, data: Omit<NewProject, 'userId'>): Promise<Project> {
+    const db = await getDb();
     const [project] = await db
       .insert(projects)
       .values({
@@ -68,19 +74,22 @@ export class TasksStorage {
   }
 
   async getProjects(userId: string, workspaceId?: string): Promise<Project[]> {
-    const query = db
-      .select()
-      .from(projects)
-      .where(eq(projects.userId, userId));
+    const db = await getDb();
     
+    let whereCondition = eq(projects.userId, userId);
     if (workspaceId) {
-      query.where(and(eq(projects.userId, userId), eq(projects.workspaceId, workspaceId)));
+      whereCondition = and(eq(projects.userId, userId), eq(projects.workspaceId, workspaceId));
     }
     
-    return await query.orderBy(desc(projects.updatedAt));
+    return await db
+      .select()
+      .from(projects)
+      .where(whereCondition)
+      .orderBy(desc(projects.updatedAt));
   }
 
   async getProject(projectId: string, userId: string): Promise<Project | null> {
+    const db = await getDb();
     const [project] = await db
       .select()
       .from(projects)
@@ -89,6 +98,7 @@ export class TasksStorage {
   }
 
   async updateProject(projectId: string, userId: string, data: Partial<Omit<NewProject, 'userId'>>): Promise<void> {
+    const db = await getDb();
     await db
       .update(projects)
       .set({ ...data, updatedAt: new Date() })
@@ -97,6 +107,7 @@ export class TasksStorage {
 
   async deleteProject(projectId: string, userId: string): Promise<void> {
     // Note: This will cascade delete tasks via DB constraints or set projectId to null
+    const db = await getDb();
     await db
       .delete(projects)
       .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
@@ -105,6 +116,7 @@ export class TasksStorage {
   // ============ TASKS ============
   
   async createTask(userId: string, data: Omit<NewTask, 'userId'>): Promise<Task> {
+    const db = await getDb();
     const [task] = await db
       .insert(tasks)
       .values({
@@ -123,38 +135,42 @@ export class TasksStorage {
     approvalStatus?: string;
     parentTaskId?: string | null;
   }): Promise<Task[]> {
-    let query = db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.userId, userId));
+    const db = await getDb();
+    
+    let conditions = [eq(tasks.userId, userId)];
 
     if (filters?.workspaceId) {
-      query = query.where(and(eq(tasks.userId, userId), eq(tasks.workspaceId, filters.workspaceId)));
+      conditions.push(eq(tasks.workspaceId, filters.workspaceId));
     }
     if (filters?.projectId) {
-      query = query.where(and(eq(tasks.userId, userId), eq(tasks.projectId, filters.projectId)));
+      conditions.push(eq(tasks.projectId, filters.projectId));
     }
     if (filters?.status) {
-      query = query.where(and(eq(tasks.userId, userId), eq(tasks.status, filters.status)));
+      conditions.push(eq(tasks.status, filters.status));
     }
     if (filters?.assignee) {
-      query = query.where(and(eq(tasks.userId, userId), eq(tasks.assignee, filters.assignee)));
+      conditions.push(eq(tasks.assignee, filters.assignee));
     }
     if (filters?.approvalStatus) {
-      query = query.where(and(eq(tasks.userId, userId), eq(tasks.approvalStatus, filters.approvalStatus)));
+      conditions.push(eq(tasks.approvalStatus, filters.approvalStatus));
     }
     if (filters?.parentTaskId !== undefined) {
       if (filters.parentTaskId === null) {
-        query = query.where(and(eq(tasks.userId, userId), isNull(tasks.parentTaskId)));
+        conditions.push(isNull(tasks.parentTaskId));
       } else {
-        query = query.where(and(eq(tasks.userId, userId), eq(tasks.parentTaskId, filters.parentTaskId)));
+        conditions.push(eq(tasks.parentTaskId, filters.parentTaskId));
       }
     }
 
-    return await query.orderBy(desc(tasks.updatedAt));
+    return await db
+      .select()
+      .from(tasks)
+      .where(and(...conditions))
+      .orderBy(desc(tasks.updatedAt));
   }
 
   async getTask(taskId: string, userId: string): Promise<Task | null> {
+    const db = await getDb();
     const [task] = await db
       .select()
       .from(tasks)
@@ -163,6 +179,7 @@ export class TasksStorage {
   }
 
   async updateTask(taskId: string, userId: string, data: Partial<Omit<NewTask, 'userId'>>): Promise<void> {
+    const db = await getDb();
     await db
       .update(tasks)
       .set({ ...data, updatedAt: new Date() })
@@ -170,6 +187,7 @@ export class TasksStorage {
   }
 
   async deleteTask(taskId: string, userId: string): Promise<void> {
+    const db = await getDb();
     await db
       .delete(tasks)
       .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)));
@@ -177,6 +195,7 @@ export class TasksStorage {
 
   // Get subtasks for a parent task
   async getSubtasks(parentTaskId: string, userId: string): Promise<Task[]> {
+    const db = await getDb();
     return await db
       .select()
       .from(tasks)
@@ -186,6 +205,7 @@ export class TasksStorage {
 
   // Get tasks pending approval (AI-generated)
   async getPendingApprovalTasks(userId: string): Promise<Task[]> {
+    const db = await getDb();
     return await db
       .select()
       .from(tasks)
@@ -198,27 +218,29 @@ export class TasksStorage {
 
   // Get tasks with tagged contacts populated
   async getTasksWithContacts(userId: string, taskIds?: string[]): Promise<Array<Task & { taggedContactsData?: Contact[] }>> {
-    let query = db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.userId, userId));
-
+    const db = await getDb();
+    
+    let conditions = [eq(tasks.userId, userId)];
     if (taskIds && taskIds.length > 0) {
-      query = query.where(and(eq(tasks.userId, userId), inArray(tasks.id, taskIds)));
+      conditions.push(inArray(tasks.id, taskIds));
     }
 
-    const tasksList = await query.orderBy(desc(tasks.updatedAt));
+    const tasksList = await db
+      .select()
+      .from(tasks)
+      .where(and(...conditions))
+      .orderBy(desc(tasks.updatedAt));
     
     // For each task, fetch the tagged contacts if they exist
     const tasksWithContacts = await Promise.all(
       tasksList.map(async (task) => {
-        if (task.taggedContacts && Array.isArray(task.taggedContacts) && task.taggedContacts.length > 0) {
+        if (task['taggedContacts'] && Array.isArray(task['taggedContacts']) && task['taggedContacts'].length > 0) {
           const taggedContactsData = await db
             .select()
             .from(contacts)
             .where(and(
               eq(contacts.userId, userId),
-              inArray(contacts.id, task.taggedContacts as string[])
+              inArray(contacts.id, task['taggedContacts'] as string[])
             ));
           
           return { ...task, taggedContactsData };
@@ -233,6 +255,7 @@ export class TasksStorage {
   // ============ TASK ACTIONS (for AI training) ============
   
   async createTaskAction(userId: string, data: Omit<NewTaskAction, 'userId'>): Promise<TaskAction> {
+    const db = await getDb();
     const [action] = await db
       .insert(taskActions)
       .values({
@@ -244,6 +267,7 @@ export class TasksStorage {
   }
 
   async getTaskActions(taskId: string, userId: string): Promise<TaskAction[]> {
+    const db = await getDb();
     return await db
       .select()
       .from(taskActions)
@@ -252,6 +276,7 @@ export class TasksStorage {
   }
 
   async getUserTaskActions(userId: string, limit?: number): Promise<TaskAction[]> {
+    const db = await getDb();
     let query = db
       .select()
       .from(taskActions)

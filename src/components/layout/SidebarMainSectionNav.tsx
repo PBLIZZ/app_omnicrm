@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Home, Users, CheckSquare, Calendar, MessageSquare, Megaphone, Bot } from "lucide-react";
+import { Home, Users, CheckSquare, Calendar, MessageSquare, Megaphone, Bot, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useContactCount } from "@/hooks/use-contact-count";
 import { useTaskCount } from "@/hooks/use-task-count";
@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const mainNavItems = [
   { title: "Dashboard", href: "/dashboard" as const, icon: Home },
   { title: "Contacts", href: "/contacts" as const, icon: Users },
+  { title: "Omni-Momentum", href: "/omni-momentum" as const, icon: Zap },
   { title: "Tasks", href: "/tasks" as const, icon: CheckSquare },
   { title: "Calendar", href: "/calendar" as const, icon: Calendar },
   { title: "Messages", href: "/messages" as const, icon: MessageSquare },

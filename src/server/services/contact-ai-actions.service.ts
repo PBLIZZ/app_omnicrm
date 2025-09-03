@@ -1,11 +1,11 @@
-import { db } from '@/server/db';
-import { sql } from 'drizzle-orm';
-import OpenAI from 'openai';
-import { contacts, calendarEvents, interactions, notes, contactTimeline } from '@/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { getDb } from "@/server/db/client";
+import { sql } from "drizzle-orm";
+import OpenAI from "openai";
+import { contacts } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env["OPENAI_API_KEY"] });
 
 export interface ContactAIInsightResponse {
   insights: string;
@@ -18,22 +18,22 @@ export interface ContactAIInsightResponse {
 export interface ContactEmailSuggestion {
   subject: string;
   content: string;
-  tone: 'professional' | 'friendly' | 'casual' | 'formal';
+  tone: "professional" | "friendly" | "casual" | "formal";
   purpose: string;
 }
 
 export interface ContactNoteSuggestion {
   content: string;
-  category: 'interaction' | 'observation' | 'follow-up' | 'preference';
-  priority: 'high' | 'medium' | 'low';
+  category: "interaction" | "observation" | "follow-up" | "preference";
+  priority: "high" | "medium" | "low";
 }
 
 export interface ContactTaskSuggestion {
   title: string;
   description: string;
-  priority: 'urgent' | 'high' | 'medium' | 'low';
+  priority: "urgent" | "high" | "medium" | "low";
   estimatedMinutes: number;
-  category: 'follow-up' | 'outreach' | 'service' | 'admin';
+  category: "follow-up" | "outreach" | "service" | "admin";
 }
 
 export class ContactAIActionsService {
@@ -42,25 +42,24 @@ export class ContactAIActionsService {
    */
   static async askAIAboutContact(
     userId: string,
-    contactId: string
+    contactId: string,
   ): Promise<ContactAIInsightResponse> {
     try {
-      console.log(`🧠 Generating AI insights for contact: ${contactId}`);
+      // console.log(`🧠 Generating AI insights for contact: ${contactId}`);
 
       // Get comprehensive contact data
       const contactData = await this.getContactWithContext(userId, contactId);
-      
+
       if (!contactData.contact) {
-        throw new Error('Contact not found');
+        throw new Error("Contact not found");
       }
 
       // Generate AI analysis
       const aiResponse = await this.generateContactAnalysis(contactData);
-      
-      console.log(`✅ Generated AI insights for contact: ${contactData.contact.displayName}`);
-      
-      return aiResponse;
 
+      // console.log(`✅ Generated AI insights for contact: ${contactData.contact.displayName}`);
+
+      return aiResponse;
     } catch (error) {
       console.error(`❌ Error generating AI insights for contact ${contactId}:`, error);
       throw error;
@@ -73,23 +72,22 @@ export class ContactAIActionsService {
   static async generateEmailSuggestion(
     userId: string,
     contactId: string,
-    purpose?: string
+    purpose?: string,
   ): Promise<ContactEmailSuggestion> {
     try {
-      console.log(`📧 Generating email suggestion for contact: ${contactId}`);
+      // console.log(`📧 Generating email suggestion for contact: ${contactId}`);
 
       const contactData = await this.getContactWithContext(userId, contactId);
-      
-      if (!contactData.contact || !contactData.contact.primaryEmail) {
-        throw new Error('Contact not found or has no email address');
+
+      if (!contactData.contact?.primaryEmail) {
+        throw new Error("Contact not found or has no email address");
       }
 
       const emailSuggestion = await this.generateEmailContent(contactData, purpose);
-      
-      console.log(`✅ Generated email suggestion for: ${contactData.contact.displayName}`);
-      
-      return emailSuggestion;
 
+      // console.log(`✅ Generated email suggestion for: ${contactData.contact.displayName}`);
+
+      return emailSuggestion;
     } catch (error) {
       console.error(`❌ Error generating email suggestion for contact ${contactId}:`, error);
       throw error;
@@ -101,23 +99,22 @@ export class ContactAIActionsService {
    */
   static async generateNoteSuggestions(
     userId: string,
-    contactId: string
+    contactId: string,
   ): Promise<ContactNoteSuggestion[]> {
     try {
-      console.log(`📝 Generating note suggestions for contact: ${contactId}`);
+      // console.log(`📝 Generating note suggestions for contact: ${contactId}`);
 
       const contactData = await this.getContactWithContext(userId, contactId);
-      
+
       if (!contactData.contact) {
-        throw new Error('Contact not found');
+        throw new Error("Contact not found");
       }
 
       const noteSuggestions = await this.generateNoteContent(contactData);
-      
-      console.log(`✅ Generated ${noteSuggestions.length} note suggestions for: ${contactData.contact.displayName}`);
-      
-      return noteSuggestions;
 
+      // console.log(`✅ Generated ${noteSuggestions.length} note suggestions for: ${contactData.contact.displayName}`);
+
+      return noteSuggestions;
     } catch (error) {
       console.error(`❌ Error generating note suggestions for contact ${contactId}:`, error);
       throw error;
@@ -129,23 +126,22 @@ export class ContactAIActionsService {
    */
   static async generateTaskSuggestions(
     userId: string,
-    contactId: string
+    contactId: string,
   ): Promise<ContactTaskSuggestion[]> {
     try {
-      console.log(`📋 Generating task suggestions for contact: ${contactId}`);
+      // console.log(`📋 Generating task suggestions for contact: ${contactId}`);
 
       const contactData = await this.getContactWithContext(userId, contactId);
-      
+
       if (!contactData.contact) {
-        throw new Error('Contact not found');
+        throw new Error("Contact not found");
       }
 
       const taskSuggestions = await this.generateTaskContent(contactData);
-      
-      console.log(`✅ Generated ${taskSuggestions.length} task suggestions for: ${contactData.contact.displayName}`);
-      
-      return taskSuggestions;
 
+      // console.log(`✅ Generated ${taskSuggestions.length} task suggestions for: ${contactData.contact.displayName}`);
+
+      return taskSuggestions;
     } catch (error) {
       console.error(`❌ Error generating task suggestions for contact ${contactId}:`, error);
       throw error;
@@ -156,9 +152,11 @@ export class ContactAIActionsService {
    * Get contact with all related context data
    */
   private static async getContactWithContext(userId: string, contactId: string) {
+    const db = await getDb();
+
     // Get contact details
     const contact = await db.query.contacts.findFirst({
-      where: eq(contacts.id, contactId)
+      where: eq(contacts.id, contactId),
     });
 
     if (!contact || contact.userId !== userId) {
@@ -166,7 +164,7 @@ export class ContactAIActionsService {
     }
 
     // Get calendar events where this contact was involved
-    const events = await db.execute(sql`
+    const eventsResult = await db.execute(sql`
       SELECT 
         ce.title,
         ce.description,
@@ -180,7 +178,7 @@ export class ContactAIActionsService {
       FROM calendar_events ce
       WHERE ce.user_id = ${userId}
         AND ce.attendees IS NOT NULL
-        AND ce.attendees::text LIKE ${`%${contact.primaryEmail || ''}%`}
+        AND ce.attendees::text LIKE ${`%${contact.primaryEmail || ""}%`}
       ORDER BY ce.start_time DESC
       LIMIT 20
     `);
@@ -189,65 +187,78 @@ export class ContactAIActionsService {
     const contactInteractions = await db.query.interactions.findMany({
       where: sql`user_id = ${userId} AND contact_id = ${contactId}`,
       orderBy: sql`occurred_at DESC`,
-      limit: 20
+      limit: 20,
     });
 
     // Get notes
     const contactNotes = await db.query.notes.findMany({
       where: sql`user_id = ${userId} AND contact_id = ${contactId}`,
       orderBy: sql`created_at DESC`,
-      limit: 10
+      limit: 10,
     });
 
     // Get timeline events
     const timeline = await db.query.contactTimeline.findMany({
       where: sql`contact_id = ${contactId}`,
-      orderBy: sql`event_date DESC`,
-      limit: 15
+      orderBy: sql`occurred_at DESC`,
+      limit: 15,
     });
 
     return {
       contact,
-      calendarEvents: events.rows,
+      calendarEvents: eventsResult || [],
       interactions: contactInteractions,
       notes: contactNotes,
-      timeline
+      timeline,
     };
   }
 
   /**
    * Generate comprehensive AI analysis of contact
    */
-  private static async generateContactAnalysis(contactData: any): Promise<ContactAIInsightResponse> {
+  private static async generateContactAnalysis(
+    contactData: any,
+  ): Promise<ContactAIInsightResponse> {
     const { contact, calendarEvents, interactions, notes, timeline } = contactData;
 
-    const eventsText = calendarEvents.slice(0, 5).map((e: any) => 
-      `${e.title} (${e.event_type || 'Unknown'}) - ${new Date(e.start_time).toLocaleDateString()}`
-    ).join('\n');
+    const eventsText = calendarEvents
+      .slice(0, 5)
+      .map(
+        (e: any) =>
+          `${e.title} (${e.event_type || "Unknown"}) - ${new Date(e.start_time).toLocaleDateString()}`,
+      )
+      .join("\n");
 
-    const notesText = notes.slice(0, 3).map((n: any) => n.content).join('\n');
-    const recentInteractions = interactions.slice(0, 3).map((i: any) => 
-      `${i.type}: ${i.subject || 'No subject'} - ${new Date(i.occurredAt).toLocaleDateString()}`
-    ).join('\n');
+    const notesText = notes
+      .slice(0, 3)
+      .map((n: any) => n.content)
+      .join("\n");
+    const recentInteractions = interactions
+      .slice(0, 3)
+      .map(
+        (i: any) =>
+          `${i.type}: ${i.subject || "No subject"} - ${new Date(i.occurredAt).toLocaleDateString()}`,
+      )
+      .join("\n");
 
     const prompt = `
 As an AI assistant for a wellness/yoga business, analyze this contact and provide conversational insights:
 
 Contact: ${contact.displayName}
-Email: ${contact.primaryEmail || 'No email'}
-Phone: ${contact.primaryPhone || 'No phone'}
-Stage: ${contact.stage || 'Unknown'}
-Tags: ${Array.isArray(contact.tags) ? contact.tags.join(', ') : 'None'}
-Current Notes: ${contact.notes || 'No notes'}
+Email: ${contact.primaryEmail || "No email"}
+Phone: ${contact.primaryPhone || "No phone"}
+Stage: ${contact.stage || "Unknown"}
+Tags: ${Array.isArray(contact.tags) ? contact.tags.join(", ") : "None"}
+Current Notes: ${contact.notes || "No notes"}
 
 Recent Calendar Events (${calendarEvents.length} total):
-${eventsText || 'No recent events'}
+${eventsText || "No recent events"}
 
 Recent Interactions (${interactions.length} total):
-${recentInteractions || 'No recent interactions'}
+${recentInteractions || "No recent interactions"}
 
 Contact Notes:
-${notesText || 'No notes recorded'}
+${notesText || "No notes recorded"}
 
 Timeline Events: ${timeline.length} events recorded
 
@@ -272,40 +283,44 @@ Focus on:
       const response = await openai.chat.completions.create({
         model: "gpt-5",
         messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       });
 
-      const result = JSON.parse(response.choices[0].message.content || '{}');
-      
-      return {
-        insights: result.insights || `${contact.displayName} has ${calendarEvents.length} calendar interactions and ${interactions.length} recorded interactions.`,
-        suggestions: result.suggestions || [`Follow up with ${contact.displayName}`, 'Review their service preferences'],
-        nextSteps: result.nextSteps || ['Schedule follow-up call', 'Send service recommendation'],
-        keyFindings: result.keyFindings || [`${calendarEvents.length} calendar events`, `${interactions.length} interactions recorded`],
-        confidence: Math.min(1.0, Math.max(0.0, result.confidence || 0.7))
-      };
+      const result = JSON.parse(response.choices[0]?.message?.content || "{}");
 
+      return {
+        insights:
+          result.insights ||
+          `${contact.displayName} has ${calendarEvents.length} calendar interactions and ${interactions.length} recorded interactions.`,
+        suggestions: result.suggestions || [
+          `Follow up with ${contact.displayName}`,
+          "Review their service preferences",
+        ],
+        nextSteps: result.nextSteps || ["Schedule follow-up call", "Send service recommendation"],
+        keyFindings: result.keyFindings || [
+          `${calendarEvents.length} calendar events`,
+          `${interactions.length} interactions recorded`,
+        ],
+        confidence: Math.min(1.0, Math.max(0.0, result.confidence || 0.7)),
+      };
     } catch (error) {
-      console.error('❌ OpenAI analysis error:', error);
-      
+      console.error("❌ OpenAI analysis error:", error);
+
       // Fallback response
       return {
-        insights: `${contact.displayName} is a ${contact.stage || 'prospect'} with ${calendarEvents.length} calendar events and ${interactions.length} interactions. ${calendarEvents.length > 5 ? 'Highly engaged with services.' : 'Limited recent engagement.'}`,
+        insights: `${contact.displayName} is a ${contact.stage || "prospect"} with ${calendarEvents.length} calendar events and ${interactions.length} interactions. ${calendarEvents.length > 5 ? "Highly engaged with services." : "Limited recent engagement."}`,
         suggestions: [
-          'Review recent interaction patterns',
-          'Consider personalized service recommendations',
-          'Schedule follow-up based on their preferences'
+          "Review recent interaction patterns",
+          "Consider personalized service recommendations",
+          "Schedule follow-up based on their preferences",
         ],
-        nextSteps: [
-          'Review their service history',
-          'Plan appropriate follow-up'
-        ],
+        nextSteps: ["Review their service history", "Plan appropriate follow-up"],
         keyFindings: [
           `${calendarEvents.length} calendar events recorded`,
           `${interactions.length} total interactions`,
-          `Current stage: ${contact.stage || 'Unknown'}`
+          `Current stage: ${contact.stage || "Unknown"}`,
         ],
-        confidence: 0.6
+        confidence: 0.6,
       };
     }
   }
@@ -313,7 +328,10 @@ Focus on:
   /**
    * Generate AI-assisted email content
    */
-  private static async generateEmailContent(contactData: any, purpose?: string): Promise<ContactEmailSuggestion> {
+  private static async generateEmailContent(
+    contactData: any,
+    purpose?: string,
+  ): Promise<ContactEmailSuggestion> {
     const { contact, calendarEvents, interactions } = contactData;
 
     const lastEvent = calendarEvents[0];
@@ -324,12 +342,19 @@ Generate an email for this wellness/yoga business contact:
 
 Contact: ${contact.displayName}
 Email: ${contact.primaryEmail}
-Stage: ${contact.stage || 'Unknown'}
-Last Event: ${lastEvent ? `${lastEvent.title} on ${new Date(lastEvent.start_time).toLocaleDateString()}` : 'None'}
-Last Interaction: ${lastInteraction ? `${lastInteraction.type} on ${new Date(lastInteraction.occurredAt).toLocaleDateString()}` : 'None'}
-Purpose: ${purpose || 'General follow-up'}
+Stage: ${contact.stage || "Unknown"}
+Last Event: ${lastEvent ? `${lastEvent.title} on ${new Date(lastEvent.start_time).toLocaleDateString()}` : "None"}
+Last Interaction: ${lastInteraction ? `${lastInteraction.type} on ${new Date(lastInteraction.occurredAt).toLocaleDateString()}` : "None"}
+Purpose: ${purpose || "General follow-up"}
 
-${calendarEvents.length > 0 ? `Recent Services: ${calendarEvents.slice(0, 3).map((e: any) => e.title).join(', ')}` : ''}
+${
+  calendarEvents.length > 0
+    ? `Recent Services: ${calendarEvents
+        .slice(0, 3)
+        .map((e: any) => e.title)
+        .join(", ")}`
+    : ""
+}
 
 Please generate an email in JSON format:
 {
@@ -351,26 +376,27 @@ Guidelines:
       const response = await openai.chat.completions.create({
         model: "gpt-5",
         messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       });
 
-      const result = JSON.parse(response.choices[0].message.content || '{}');
-      
+      const result = JSON.parse(response.choices[0]?.message?.content || "{}");
+
       return {
         subject: result.subject || `Following up with you, ${contact.displayName}`,
-        content: result.content || `Hi ${contact.displayName},\n\nI hope you're doing well! I wanted to reach out and see how you've been enjoying our services.\n\nBest regards,\nYour Wellness Team`,
-        tone: result.tone || 'friendly',
-        purpose: result.purpose || purpose || 'General follow-up'
+        content:
+          result.content ||
+          `Hi ${contact.displayName},\n\nI hope you're doing well! I wanted to reach out and see how you've been enjoying our services.\n\nBest regards,\nYour Wellness Team`,
+        tone: result.tone || "friendly",
+        purpose: result.purpose || purpose || "General follow-up",
       };
-
     } catch (error) {
-      console.error('❌ Email generation error:', error);
-      
+      console.error("❌ Email generation error:", error);
+
       return {
         subject: `Following up with you, ${contact.displayName}`,
-        content: `Hi ${contact.displayName},\n\nI hope you're doing well! I wanted to reach out and see how you've been enjoying our services.\n\n${lastEvent ? `I saw you attended ${lastEvent.title} recently - I'd love to hear how it went!` : 'I\'d love to hear how you\'re finding our services.'}\n\nPlease let me know if there's anything I can help with or if you have any questions about our upcoming classes and services.\n\nBest regards,\nYour Wellness Team`,
-        tone: 'friendly',
-        purpose: purpose || 'General follow-up'
+        content: `Hi ${contact.displayName},\n\nI hope you're doing well! I wanted to reach out and see how you've been enjoying our services.\n\n${lastEvent ? `I saw you attended ${lastEvent.title} recently - I'd love to hear how it went!` : "I'd love to hear how you're finding our services."}\n\nPlease let me know if there's anything I can help with or if you have any questions about our upcoming classes and services.\n\nBest regards,\nYour Wellness Team`,
+        tone: "friendly",
+        purpose: purpose || "General follow-up",
       };
     }
   }
@@ -384,10 +410,15 @@ Guidelines:
     const prompt = `
 Based on this contact's data, suggest relevant notes to add:
 
-Contact: ${contact.displayName} (${contact.stage || 'Unknown stage'})
-Recent Events: ${calendarEvents.slice(0, 3).map((e: any) => e.title).join(', ') || 'None'}
-Last Interaction: ${interactions[0] ? interactions[0].type : 'None'}
-Current Tags: ${Array.isArray(contact.tags) ? contact.tags.join(', ') : 'None'}
+Contact: ${contact.displayName} (${contact.stage || "Unknown stage"})
+Recent Events: ${
+      calendarEvents
+        .slice(0, 3)
+        .map((e: any) => e.title)
+        .join(", ") || "None"
+    }
+Last Interaction: ${interactions[0] ? interactions[0].type : "None"}
+Current Tags: ${Array.isArray(contact.tags) ? contact.tags.join(", ") : "None"}
 
 Generate note suggestions in JSON format:
 {
@@ -412,38 +443,39 @@ Categories:
       const response = await openai.chat.completions.create({
         model: "gpt-5",
         messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       });
 
-      const result = JSON.parse(response.choices[0].message.content || '{}');
-      
-      return result.notes || [
-        {
-          content: `Follow up on ${contact.displayName}'s service preferences`,
-          category: 'follow-up',
-          priority: 'medium'
-        },
-        {
-          content: `Review engagement pattern - ${calendarEvents.length} calendar events`,
-          category: 'observation',
-          priority: 'low'
-        }
-      ];
+      const result = JSON.parse(response.choices[0]?.message?.content || "{}");
 
+      return (
+        result.notes || [
+          {
+            content: `Follow up on ${contact.displayName}'s service preferences`,
+            category: "follow-up",
+            priority: "medium",
+          },
+          {
+            content: `Review engagement pattern - ${calendarEvents.length} calendar events`,
+            category: "observation",
+            priority: "low",
+          },
+        ]
+      );
     } catch (error) {
-      console.error('❌ Note generation error:', error);
-      
+      console.error("❌ Note generation error:", error);
+
       return [
         {
           content: `Follow up with ${contact.displayName} on their wellness goals`,
-          category: 'follow-up',
-          priority: 'medium'
+          category: "follow-up",
+          priority: "medium",
         },
         {
-          content: `${calendarEvents.length > 3 ? 'Regular attendee' : 'Infrequent attendee'} - adjust communication accordingly`,
-          category: 'observation',
-          priority: 'low'
-        }
+          content: `${calendarEvents.length > 3 ? "Regular attendee" : "Infrequent attendee"} - adjust communication accordingly`,
+          category: "observation",
+          priority: "low",
+        },
       ];
     }
   }
@@ -452,20 +484,27 @@ Categories:
    * Generate AI task suggestions
    */
   private static async generateTaskContent(contactData: any): Promise<ContactTaskSuggestion[]> {
-    const { contact, calendarEvents, interactions } = contactData;
+    const { contact, calendarEvents } = contactData;
 
-    const daysSinceLastEvent = calendarEvents[0] 
-      ? Math.floor((Date.now() - new Date(calendarEvents[0].start_time).getTime()) / (1000 * 60 * 60 * 24))
+    const daysSinceLastEvent = calendarEvents[0]
+      ? Math.floor(
+          (Date.now() - new Date(calendarEvents[0].start_time).getTime()) / (1000 * 60 * 60 * 24),
+        )
       : 999;
 
     const prompt = `
 Based on this contact's data, suggest tasks to improve their experience:
 
 Contact: ${contact.displayName}
-Stage: ${contact.stage || 'Unknown'}
+Stage: ${contact.stage || "Unknown"}
 Days since last event: ${daysSinceLastEvent}
 Total events: ${calendarEvents.length}
-Recent services: ${calendarEvents.slice(0, 3).map((e: any) => e.title).join(', ') || 'None'}
+Recent services: ${
+      calendarEvents
+        .slice(0, 3)
+        .map((e: any) => e.title)
+        .join(", ") || "None"
+    }
 
 Generate task suggestions in JSON format:
 {
@@ -497,41 +536,43 @@ Categories:
       const response = await openai.chat.completions.create({
         model: "gpt-5",
         messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       });
 
-      const result = JSON.parse(response.choices[0].message.content || '{}');
-      
-      return result.tasks || [
-        {
-          title: `Follow up with ${contact.displayName}`,
-          description: `Check in on their wellness journey and see if they need any support`,
-          priority: daysSinceLastEvent > 30 ? 'high' : 'medium',
-          estimatedMinutes: 20,
-          category: 'follow-up'
-        }
-      ];
+      const result = JSON.parse(response.choices[0]?.message?.content || "{}");
 
+      return (
+        result.tasks || [
+          {
+            title: `Follow up with ${contact.displayName}`,
+            description: `Check in on their wellness journey and see if they need any support`,
+            priority: daysSinceLastEvent > 30 ? "high" : "medium",
+            estimatedMinutes: 20,
+            category: "follow-up",
+          },
+        ]
+      );
     } catch (error) {
-      console.error('❌ Task generation error:', error);
-      
-      const priority = daysSinceLastEvent > 60 ? 'urgent' : daysSinceLastEvent > 30 ? 'high' : 'medium';
-      
+      console.error("❌ Task generation error:", error);
+
+      const priority =
+        daysSinceLastEvent > 60 ? "urgent" : daysSinceLastEvent > 30 ? "high" : "medium";
+
       return [
         {
           title: `Follow up with ${contact.displayName}`,
           description: `Contact hasn't engaged in ${daysSinceLastEvent} days. Check in and see how they're doing.`,
           priority,
           estimatedMinutes: 20,
-          category: 'follow-up'
+          category: "follow-up",
         },
         {
           title: `Review service recommendations for ${contact.displayName}`,
           description: `Based on their ${calendarEvents.length} previous sessions, suggest relevant upcoming classes or services.`,
-          priority: 'medium',
+          priority: "medium",
           estimatedMinutes: 15,
-          category: 'service'
-        }
+          category: "service",
+        },
       ];
     }
   }

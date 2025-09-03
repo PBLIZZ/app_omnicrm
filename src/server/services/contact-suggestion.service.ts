@@ -1,7 +1,7 @@
 import { getDb } from '@/server/db/client';
-import { contacts } from '@/server/db/schema';
+import { contacts, notes } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { calendarStorage } from '@/server/storage/calendar.storage';
 import { ContactIntelligenceService } from './contact-intelligence.service';
 
 export interface ContactSuggestion {
@@ -34,45 +34,16 @@ export class ContactSuggestionService {
         .map(c => c.email)
         .filter(Boolean) as string[];
 
-      // Analyze calendar attendees using CTE to handle JSON array expansion
-      const attendeeAnalysis = await db.execute(sql`
-        WITH expanded_attendees AS (
-          SELECT 
-            ce.user_id,
-            ce.title,
-            ce.start_time,
-            attendee_data->>'email' as email,
-            attendee_data->>'displayName' as display_name
-          FROM calendar_events ce,
-               jsonb_array_elements(ce.attendees) as attendee_data
-          WHERE ce.user_id = ${userId}
-            AND ce.attendees IS NOT NULL 
-            AND jsonb_array_length(ce.attendees) > 0
-        )
-        SELECT 
-          email,
-          display_name,
-          COUNT(*) as event_count,
-          MAX(start_time) as last_event_date,
-          array_agg(DISTINCT title ORDER BY title) as event_titles
-        FROM expanded_attendees
-        WHERE email IS NOT NULL 
-          AND email != ''
-          AND display_name IS NOT NULL
-          AND display_name != ''
-        GROUP BY email, display_name
-        HAVING COUNT(*) >= 1
-        ORDER BY event_count DESC, last_event_date DESC
-      `);
-
+      // Analyze calendar attendees using the calendar storage layer
+      const attendeeAnalysis = await calendarStorage.getAttendeeAnalysis(userId);
       const suggestions: ContactSuggestion[] = [];
 
-      for (const row of attendeeAnalysis.rows) {
-        const email = row['email'] as string;
-        const displayName = row['display_name'] as string;
-        const eventCount = row['event_count'] as number;
-        const lastEventDate = row['last_event_date'] as string;
-        const eventTitles = row['event_titles'] as string[];
+      for (const row of attendeeAnalysis) {
+        const email = row.email;
+        const displayName = row.display_name;
+        const eventCount = row.event_count;
+        const lastEventDate = row.last_event_date;
+        const eventTitles = row.event_titles;
 
         // Skip if email already exists in contacts
         if (existingEmails.includes(email)) {
@@ -141,16 +112,25 @@ export class ContactSuggestionService {
         try {
           const insights = contactInsights.get(suggestion.email);
           
-          await db.insert(contacts).values({
+          // Create the contact first
+          const [newContact] = await db.insert(contacts).values({
             userId,
             displayName: suggestion.displayName,
             primaryEmail: suggestion.email,
             source: 'calendar_import',
-            notes: insights?.noteContent,
             stage: insights?.stage,
             tags: insights?.tags ? JSON.stringify(insights.tags) : null,
             confidenceScore: insights?.confidenceScore?.toString(),
-          });
+          }).returning({ id: contacts.id });
+
+          // Create a note separately if we have AI-generated content
+          if (insights?.noteContent && newContact?.id) {
+            await db.insert(notes).values({
+              contactId: newContact.id,
+              userId,
+              content: `[AI Generated] ${insights.noteContent}`,
+            });
+          }
 
           createdCount++;
 

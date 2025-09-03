@@ -89,3 +89,84 @@ async function safeJson<T>(res: Response): Promise<T | null> {
     return null;
   }
 }
+
+/**
+ * Streaming version of chatService that returns a ReadableStream
+ */
+export async function streamingChatService(userId: string, prompt: string, threadId?: string): Promise<ReadableStream> {
+  // Feature gating: if provider not configured (e.g., in dev), short-circuit with a safe fallback
+  if (!isOpenRouterConfigured()) {
+    const encoder = new TextEncoder();
+    const fallbackMessage = "AI is disabled. Echo: " + prompt;
+    
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: fallbackMessage })}\n\n`));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      }
+    });
+  }
+
+  const cfg = getOpenRouterConfig();
+  const system = buildChatSystemPrompt({ appName: "OmniCRM" });
+
+  const url = `${cfg.baseUrl}/chat/completions`;
+  const headers = openRouterHeaders();
+  const body = {
+    model: cfg.chatModel,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    stream: true,
+  } satisfies Record<string, unknown>;
+
+  const encoder = new TextEncoder();
+  
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const errJson = await safeJson<{ error?: unknown }>(res);
+          const message = typeof errJson?.error === "string" ? errJson.error : "provider_error";
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "Error: " + message })}\n\n`));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+          return;
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "No response body" })}\n\n`));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+          return;
+        }
+
+        // Process the stream
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = new TextDecoder().decode(value);
+          controller.enqueue(encoder.encode(chunk));
+        }
+
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      } catch (error) {
+        console.error("Streaming chat error:", error);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "Internal server error" })}\n\n`));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      }
+    }
+  });
+}

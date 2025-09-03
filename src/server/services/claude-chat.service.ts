@@ -55,7 +55,7 @@ Current conversation context: You have full access to the conversation history a
           const isDatabaseQuery = ClaudeChatService.isDatabaseRelatedQuery(message) ||
                                   (recentMessages.includes('contacts') && message.toLowerCase().includes('names'));
           
-          console.log('Database query check:', { message, isDatabaseQuery, recentMessages });
+          // console.log('Database query check:', { message, isDatabaseQuery, recentMessages });
           
           if (isDatabaseQuery) {
             // Handle database queries with context
@@ -211,7 +211,8 @@ Guidelines:
       ],
     });
 
-    const emailContent = response.content[0].type === 'text' ? response.content[0].text : '';
+    const firstContent = response.content?.[0];
+    const emailContent = firstContent && firstContent.type === 'text' && 'text' in firstContent ? firstContent.text : '';
     return emailContent;
   }
 }

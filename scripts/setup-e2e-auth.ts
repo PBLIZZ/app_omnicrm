@@ -5,13 +5,13 @@
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { setupTestOAuthTokens } from "../src/server/test/setup-oauth";
-import { logSync } from "../src/server/sync/audit";
+import { logSync } from "../src/lib/api/sync-audit";
 import { appendFileSync } from "fs";
 
 // Load environment variables from .env.local
 config({ path: ".env.local" });
 
-function logToFile(message: string) {
+function logToFile(message: string): void {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] E2E Setup: ${message}\n`;
   appendFileSync("log.txt", logMessage);
@@ -21,7 +21,7 @@ const E2E_USER_ID = "3550f627-dbd7-4c5f-a13f-e59295c14676";
 const E2E_USER_EMAIL = "test-e2e@example.com";
 const E2E_USER_PASSWORD = "test-e2e-password-123";
 
-async function setupE2EAuth() {
+async function setupE2EAuth(): Promise<void> {
   logToFile("Starting E2E authentication setup");
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

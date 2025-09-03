@@ -119,7 +119,7 @@ export class TitleGenerationService {
 
       const messages = await chatStorage.getMessages(threadId, userId);
       
-      if (this.shouldGenerateTitle(messages, thread.title || "New Chat")) {
+      if (this.shouldGenerateTitle(messages, thread.title ?? "New Chat")) {
         const newTitle = await this.generateTitle(messages);
         
         // Update thread title in database

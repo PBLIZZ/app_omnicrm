@@ -1,49 +1,234 @@
-import { google, calendar_v3 } from 'googleapis';
-import { getDb } from '@/server/db/client';
-import { calendarEvents, userIntegrations } from '@/server/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
-import { decryptString } from '@/server/lib/crypto';
+import { google, calendar_v3 } from "googleapis";
+import { getDb } from "@/server/db/client";
+import { eq, and, gte, lte, asc } from "drizzle-orm";
+import { rawEvents, userIntegrations, calendarEvents } from "@/server/db/schema";
+import { decryptString, encryptString } from "@/lib/crypto";
+import { log } from "@/lib/log";
+
+// CalendarEvent type for return values
+export interface CalendarEvent {
+  id: string;
+  userId: string;
+  googleEventId: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startTime: Date;
+  endTime: Date;
+  status: string | null;
+  attendees: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+  calendarId: string;
+  timeZone: string | null;
+  isAllDay: boolean | null;
+  visibility: string | null;
+  eventType: string | null;
+  businessCategory: string | null;
+  lastSynced: Date;
+  googleUpdated: Date;
+}
+
+// Custom error types for better error handling
+export class GoogleAuthError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly shouldRetry: boolean = false
+  ) {
+    super(message);
+    this.name = 'GoogleAuthError';
+  }
+}
 
 export class GoogleCalendarService {
   /**
-   * Get OAuth2 client for a user
+   * Get OAuth2 client for a user with automatic token refresh
    */
   private static async getAuth(userId: string) {
     const db = await getDb();
-    
-    // Use raw SQL to avoid Drizzle ORM composite key issues
-    const result = await db.execute(sql`
-      SELECT access_token, refresh_token, expiry_date 
-      FROM user_integrations 
-      WHERE user_id = ${userId} 
-      AND provider = 'google' 
-      AND service = 'calendar' 
-      LIMIT 1
-    `);
 
-    if (!result.rows[0]) {
-      throw new Error('Google Calendar not connected for user');
+    // Get user integration using Drizzle ORM
+    const result = await db
+      .select({
+        accessToken: userIntegrations.accessToken,
+        refreshToken: userIntegrations.refreshToken,
+        expiryDate: userIntegrations.expiryDate,
+      })
+      .from(userIntegrations)
+      .where(
+        and(
+          eq(userIntegrations.userId, userId),
+          eq(userIntegrations.provider, "google"),
+          eq(userIntegrations.service, "calendar"),
+        ),
+      )
+      .limit(1);
+
+    if (!result[0]) {
+      throw new GoogleAuthError(
+        "Google Calendar not connected for user", 
+        "not_connected", 
+        false
+      );
     }
 
-    const integration = result.rows[0];
-    
+    const integration = result[0];
+
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_CALENDAR_REDIRECT_URI
+      process.env["GOOGLE_CLIENT_ID"],
+      process.env["GOOGLE_CLIENT_SECRET"],
+      process.env["GOOGLE_CALENDAR_REDIRECT_URI"],
     );
 
+    // Type guard to ensure we have the required fields
+    if (!integration.accessToken) {
+      throw new GoogleAuthError(
+        "Invalid access token in database", 
+        "invalid_token", 
+        false
+      );
+    }
+
+    const refreshToken = integration.refreshToken ? decryptString(integration.refreshToken) : null;
+
+    const expiryDate: number | null = integration.expiryDate
+      ? new Date(integration.expiryDate).getTime()
+      : null;
+
     oauth2Client.setCredentials({
-      access_token: decryptString(integration.access_token as string),
-      refresh_token: integration.refresh_token ? decryptString(integration.refresh_token as string) : null,
-      expiry_date: integration.expiry_date ? new Date(integration.expiry_date as string).getTime() : undefined,
+      access_token: decryptString(integration.accessToken),
+      refresh_token: refreshToken,
+      expiry_date: expiryDate,
     });
+
+    // Check if token is near expiry and refresh if needed
+    const now = Date.now();
+    const tokenExpiresIn = expiryDate ? expiryDate - now : 0;
+    
+    // Refresh if token expires within 5 minutes (300000ms)
+    if (tokenExpiresIn < 300000 && refreshToken) {
+      try {
+        log.info({
+          op: "google_calendar.token_refresh",
+          userId,
+          expiresIn: tokenExpiresIn,
+        }, "Refreshing Google Calendar token");
+
+        const { credentials } = await oauth2Client.refreshAccessToken();
+        
+        if (credentials.access_token) {
+          // Update database with new tokens
+          await db
+            .update(userIntegrations)
+            .set({
+              accessToken: encryptString(credentials.access_token),
+              expiryDate: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(userIntegrations.userId, userId),
+                eq(userIntegrations.provider, "google"),
+                eq(userIntegrations.service, "calendar"),
+              ),
+            );
+
+          oauth2Client.setCredentials(credentials);
+          
+          log.info({
+            op: "google_calendar.token_refreshed",
+            userId,
+          }, "Successfully refreshed Google Calendar token");
+        }
+      } catch (refreshError: any) {
+        log.error({
+          op: "google_calendar.token_refresh_failed",
+          userId,
+          error: refreshError.message,
+        }, "Failed to refresh Google Calendar token");
+
+        // Check for specific auth errors
+        if (refreshError.message?.includes('invalid_grant') || 
+            refreshError.message?.includes('refresh_token_expired')) {
+          // Clear invalid tokens
+          await this.clearInvalidTokens(userId);
+          throw new GoogleAuthError(
+            "Google Calendar authentication expired. Please reconnect your calendar.",
+            "invalid_grant",
+            false
+          );
+        }
+        
+        throw new GoogleAuthError(
+          "Failed to refresh Google Calendar token",
+          "token_refresh_failed",
+          true
+        );
+      }
+    }
 
     return oauth2Client;
   }
 
   /**
-   * Sync all calendar events for a user
+   * Check if an error is an authentication/authorization error
+   */
+  private static isAuthError(error: any): boolean {
+    if (!error) return false;
+    
+    const message = error.message?.toLowerCase() || '';
+    const code = error.code || '';
+    
+    // Check for common auth error patterns
+    const authErrorPatterns = [
+      'invalid_grant',
+      'invalid_credentials', 
+      'token_expired',
+      'unauthorized',
+      'authentication',
+      'access_denied',
+      'refresh_token_expired'
+    ];
+    
+    const hasAuthMessage = authErrorPatterns.some(pattern => message.includes(pattern));
+    const hasAuthCode = [401, 403].includes(Number(code));
+    
+    return hasAuthMessage || hasAuthCode;
+  }
+
+  /**
+   * Clear invalid tokens for a user
+   */
+  private static async clearInvalidTokens(userId: string): Promise<void> {
+    const db = await getDb();
+    
+    try {
+      await db
+        .delete(userIntegrations)
+        .where(
+          and(
+            eq(userIntegrations.userId, userId),
+            eq(userIntegrations.provider, "google"),
+            eq(userIntegrations.service, "calendar"),
+          ),
+        );
+        
+      log.info({
+        op: "google_calendar.tokens_cleared",
+        userId,
+      }, "Cleared invalid Google Calendar tokens");
+    } catch (error) {
+      log.error({
+        op: "google_calendar.clear_tokens_failed",
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      }, "Failed to clear invalid tokens");
+    }
+  }
+
+  /**
+   * Sync all calendar events for a user with enhanced error handling
    */
   static async syncUserCalendars(
     userId: string,
@@ -51,7 +236,8 @@ export class GoogleCalendarService {
       daysPast?: number;
       daysFuture?: number;
       maxResults?: number;
-    } = {}
+      batchId?: string;
+    } = {},
   ): Promise<{
     success: boolean;
     syncedEvents: number;
@@ -59,7 +245,7 @@ export class GoogleCalendarService {
   }> {
     try {
       const auth = await this.getAuth(userId);
-      const calendar = google.calendar({ version: 'v3', auth });
+      const calendar = google.calendar({ version: "v3", auth });
 
       // Get list of calendars
       const calendarsResponse = await calendar.calendarList.list();
@@ -74,9 +260,19 @@ export class GoogleCalendarService {
         try {
           const events = await this.syncCalendarEvents(userId, cal.id, calendar, options);
           totalSyncedEvents += events;
-        } catch (error) {
-          console.error(`Error syncing calendar ${cal.id}:`, error);
-          // Continue with other calendars
+        } catch (error: any) {
+          log.error({
+            op: "google_calendar.calendar_sync_error",
+            userId,
+            calendarId: cal.id,
+            error: error.message,
+          }, `Error syncing calendar ${cal.id}`);
+          
+          // Check for auth errors in individual calendar sync
+          if (this.isAuthError(error)) {
+            throw error; // Re-throw auth errors to be handled at the top level
+          }
+          // Continue with other calendars for non-auth errors
         }
       }
 
@@ -84,12 +280,38 @@ export class GoogleCalendarService {
         success: true,
         syncedEvents: totalSyncedEvents,
       };
-    } catch (error) {
-      console.error('Calendar sync error:', error);
+    } catch (error: any) {
+      log.error({
+        op: "google_calendar.sync_failed",
+        userId,
+        error: error.message,
+        errorCode: error instanceof GoogleAuthError ? error.code : 'unknown',
+      }, "Calendar sync failed");
+
+      // Handle specific auth errors
+      if (error instanceof GoogleAuthError) {
+        return {
+          success: false,
+          syncedEvents: 0,
+          error: error.message,
+        };
+      }
+
+      // Handle Google API errors
+      if (this.isAuthError(error)) {
+        // Clear tokens and return auth error
+        await this.clearInvalidTokens(userId);
+        return {
+          success: false,
+          syncedEvents: 0,
+          error: "Google Calendar authentication expired. Please reconnect your calendar.",
+        };
+      }
+
       return {
         success: false,
         syncedEvents: 0,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -105,27 +327,28 @@ export class GoogleCalendarService {
       daysPast?: number;
       daysFuture?: number;
       maxResults?: number;
-    } = {}
+      batchId?: string;
+    } = {},
   ): Promise<number> {
     // Configurable sync range - defaults to larger window for comprehensive data
     const daysPast = options.daysPast || 180; // 6 months back
     const daysFuture = options.daysFuture || 365; // 1 year ahead
     const maxResults = options.maxResults || 2500; // Google's max
-    
+
     const timeMin = new Date();
     timeMin.setDate(timeMin.getDate() - daysPast);
-    
+
     const timeMax = new Date();
     timeMax.setDate(timeMax.getDate() + daysFuture);
 
-    console.log(`Syncing calendar ${calendarId}: ${daysPast} days past → ${daysFuture} days future (max ${maxResults} events)`);
+    // console.log(`Syncing calendar ${calendarId}: ${daysPast} days past → ${daysFuture} days future (max ${maxResults} events)`);
 
     const eventsResponse = await calendar.events.list({
       calendarId,
       timeMin: timeMin.toISOString(),
       timeMax: timeMax.toISOString(),
       singleEvents: true,
-      orderBy: 'startTime',
+      orderBy: "startTime",
       maxResults,
     });
 
@@ -134,10 +357,10 @@ export class GoogleCalendarService {
 
     for (const event of events) {
       try {
-        await this.upsertCalendarEvent(userId, calendarId, event);
+        await this.writeToRawEvents(userId, calendarId, event, options.batchId);
         syncedCount++;
       } catch (error) {
-        console.error(`Error upserting event ${event.id}:`, error);
+        console.error(`Error writing event ${event.id} to raw_events:`, error);
       }
     }
 
@@ -145,144 +368,76 @@ export class GoogleCalendarService {
   }
 
   /**
-   * Create or update a calendar event in the database
+   * Write calendar event to raw_events for proper ingestion pipeline
    */
-  private static async upsertCalendarEvent(
+  private static async writeToRawEvents(
     userId: string,
     calendarId: string,
-    event: calendar_v3.Schema$Event
+    event: calendar_v3.Schema$Event,
+    batchId?: string,
   ) {
     if (!event.id || !event.start || !event.end) {
       return; // Skip events without required data
     }
 
     // Determine start and end times
-    const startTime = event.start.dateTime 
+    const startTime = event.start.dateTime
       ? new Date(event.start.dateTime)
       : new Date(event.start.date!);
-    
-    const endTime = event.end.dateTime
-      ? new Date(event.end.dateTime)
-      : new Date(event.end.date!);
 
-    const isAllDay = !event.start.dateTime;
-    const timeZone = event.start.timeZone || 'UTC';
-
-    // Extract event type and business category using AI
-    const { eventType, businessCategory, keywords } = this.classifyEvent(event);
-
-    // Extract attendees information
-    const attendees = event.attendees?.map((attendee: any) => ({
-      email: attendee.email,
-      displayName: attendee.displayName,
-      responseStatus: attendee.responseStatus,
-      optional: attendee.optional,
-    })) || [];
-
-    const eventData = {
-      userId,
-      googleEventId: event.id,
-      calendarId,
-      title: event.summary || 'Untitled Event',
-      description: event.description || null,
-      location: event.location || null,
-      startTime,
-      endTime,
-      timeZone,
-      isAllDay,
-      recurring: !!event.recurrence,
-      recurrenceRule: event.recurrence?.[0] || null,
-      status: event.status || 'confirmed',
-      visibility: event.visibility || 'public',
-      attendees,
-      eventType,
-      businessCategory,
-      keywords,
-      googleUpdated: new Date(event.updated!),
-      lastSynced: new Date(),
-    };
+    const endTime = event.end.dateTime ? new Date(event.end.dateTime) : new Date(event.end.date!);
 
     const db = await getDb();
-    
-    // Check if event exists using raw SQL
-    const existingEvent = await db.execute(sql`
-      SELECT id FROM calendar_events 
-      WHERE google_event_id = ${event.id} 
-      LIMIT 1
-    `);
 
-    if (existingEvent.rows.length > 0) {
-      // Update existing event using raw SQL - only columns that exist
-      await db.execute(sql`
-        UPDATE calendar_events 
-        SET title = ${eventData.title},
-            description = ${eventData.description},
-            location = ${eventData.location},
-            start_time = ${eventData.startTime},
-            end_time = ${eventData.endTime},
-            status = ${eventData.status},
-            attendees = ${JSON.stringify(eventData.attendees)},
-            updated_at = ${new Date()}
-        WHERE google_event_id = ${event.id}
-      `);
-    } else {
-      // Insert new event using raw SQL - only columns that exist in the actual table
-      await db.execute(sql`
-        INSERT INTO calendar_events (
-          user_id, google_event_id, title, description, location,
-          start_time, end_time, status, attendees, created_at, updated_at
-        ) VALUES (
-          ${eventData.userId}, ${eventData.googleEventId}, ${eventData.title}, 
-          ${eventData.description}, ${eventData.location}, ${eventData.startTime}, 
-          ${eventData.endTime}, ${eventData.status}, ${JSON.stringify(eventData.attendees)},
-          ${new Date()}, ${new Date()}
-        )
-      `);
+    // Use direct event payload for consistency with background job processor
+    const eventPayload = event;
+
+    const sourceMeta = {
+      calendarId: calendarId,
+      eventId: event.id,
+      status: event.status,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      isAllDay: !event.start?.dateTime,
+      recurring: !!event.recurrence,
+      lastSynced: new Date().toISOString(),
+    };
+
+    // Use Drizzle ORM for safe database operations
+    try {
+      // First try to insert
+      await db.insert(rawEvents).values({
+        userId: userId,
+        provider: "google_calendar",
+        payload: eventPayload,
+        sourceId: event.id,
+        occurredAt: startTime,
+        sourceMeta: sourceMeta,
+        batchId: batchId || null,
+      });
+    } catch (error: any) {
+      // If unique constraint violation, update existing record
+      if (error?.code === "23505") {
+        // PostgreSQL unique violation error code
+        await db
+          .update(rawEvents)
+          .set({
+            payload: eventPayload,
+            sourceMeta: sourceMeta,
+            batchId: batchId || null,
+            createdAt: new Date(),
+          })
+          .where(
+            and(
+              eq(rawEvents.userId, userId),
+              eq(rawEvents.provider, "google_calendar"),
+              eq(rawEvents.sourceId, event.id),
+            ),
+          );
+      } else {
+        throw error; // Re-throw if it's not a unique constraint violation
+      }
     }
-  }
-
-  /**
-   * Use AI to classify event type and extract business insights
-   */
-  private static classifyEvent(event: calendar_v3.Schema$Event): {
-    eventType: string;
-    businessCategory: string;
-    keywords: string[];
-  } {
-    const title = (event.summary || '').toLowerCase();
-    const description = (event.description || '').toLowerCase();
-    const location = (event.location || '').toLowerCase();
-    const allText = `${title} ${description} ${location}`;
-
-    // Extract keywords
-    const keywords = allText
-      .split(/\s+/)
-      .filter(word => word.length > 3)
-      .slice(0, 10);
-
-    // Classify event type based on patterns
-    let eventType = 'appointment';
-    let businessCategory = 'general';
-
-    // Wellness/fitness patterns
-    if (/(yoga|meditation|mindfulness|flow|vinyasa|yin|restorative)/i.test(allText)) {
-      eventType = 'class';
-      businessCategory = 'yoga';
-    } else if (/(massage|therapy|treatment|healing|bodywork)/i.test(allText)) {
-      eventType = 'appointment';
-      businessCategory = 'massage';
-    } else if (/(workshop|retreat|training|certification)/i.test(allText)) {
-      eventType = 'workshop';
-      businessCategory = 'education';
-    } else if (/(consultation|session|meeting|1:1|one.on.one)/i.test(allText)) {
-      eventType = 'consultation';
-      businessCategory = 'personal';
-    } else if (/(class|group|series)/i.test(allText)) {
-      eventType = 'class';
-      businessCategory = 'fitness';
-    }
-
-    return { eventType, businessCategory, keywords };
   }
 
   /**
@@ -291,47 +446,43 @@ export class GoogleCalendarService {
   static async getUpcomingEvents(userId: string, limit = 10): Promise<CalendarEvent[]> {
     const db = await getDb();
     const now = new Date();
-    
-    const result = await db.execute(sql`
-      SELECT id, user_id, google_event_id, title, description, location, 
-             start_time, end_time, status, attendees, created_at, updated_at
-      FROM calendar_events 
-      WHERE user_id = ${userId} 
-      AND status = 'confirmed' 
-      AND start_time > ${now.toISOString()}
-      ORDER BY start_time ASC
-      LIMIT ${limit}
-    `);
-    
+
+    const events = await db
+      .select()
+      .from(calendarEvents)
+      .where(
+        and(
+          eq(calendarEvents.userId, userId),
+          eq(calendarEvents.status, "confirmed"),
+          gte(calendarEvents.startTime, now),
+        ),
+      )
+      .orderBy(asc(calendarEvents.startTime))
+      .limit(limit);
+
     // Return simplified calendar event structure matching actual database
-    return result.rows.map(row => ({
-      id: row.id as string,
-      userId: row.user_id as string,
-      googleEventId: row.google_event_id as string,
-      title: row.title as string,
-      description: row.description as string | null,
-      location: row.location as string | null,
-      startTime: new Date(row.start_time as string),
-      endTime: new Date(row.end_time as string),
-      status: row.status as string,
-      attendees: row.attendees as any,
-      createdAt: new Date(row.created_at as string),
-      updatedAt: new Date(row.updated_at as string),
-      // Set defaults for missing columns to maintain type compatibility
-      calendarId: 'unknown',
-      timeZone: 'UTC',
-      isAllDay: false,
-      recurring: false,
-      recurrenceRule: null,
-      visibility: 'public',
-      eventType: null,
-      capacity: null,
-      actualAttendance: null,
-      embeddings: null,
-      keywords: null,
-      businessCategory: null,
-      lastSynced: new Date(row.updated_at as string),
-      googleUpdated: new Date(row.updated_at as string),
+    return events.map((event) => ({
+      id: event.id,
+      userId: event.userId,
+      googleEventId: event.googleEventId,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      status: event.status,
+      attendees: event.attendees,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+      // Use actual database fields
+      calendarId: "unknown", // Not stored in DB
+      timeZone: event.timeZone,
+      isAllDay: event.isAllDay,
+      visibility: event.visibility,
+      eventType: event.eventType,
+      businessCategory: event.businessCategory,
+      lastSynced: event.lastSynced || event.updatedAt,
+      googleUpdated: event.googleUpdated || event.updatedAt,
     })) as CalendarEvent[];
   }
 
@@ -341,52 +492,47 @@ export class GoogleCalendarService {
   static async getEventsByDateRange(
     userId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Promise<CalendarEvent[]> {
     const db = await getDb();
-    
-    const result = await db.execute(sql`
-      SELECT id, user_id, google_event_id, title, description, location, 
-             start_time, end_time, status, attendees, created_at, updated_at
-      FROM calendar_events 
-      WHERE user_id = ${userId} 
-      AND start_time >= ${startDate.toISOString()}
-      AND start_time <= ${endDate.toISOString()}
-      ORDER BY start_time ASC
-    `);
-    
+
+    const events = await db
+      .select()
+      .from(calendarEvents)
+      .where(
+        and(
+          eq(calendarEvents.userId, userId),
+          gte(calendarEvents.startTime, startDate),
+          lte(calendarEvents.startTime, endDate),
+        ),
+      )
+      .orderBy(asc(calendarEvents.startTime));
+
     // Return simplified calendar event structure matching actual database
-    return result.rows.map(row => ({
-      id: row.id as string,
-      userId: row.user_id as string,
-      googleEventId: row.google_event_id as string,
-      title: row.title as string,
-      description: row.description as string | null,
-      location: row.location as string | null,
-      startTime: new Date(row.start_time as string),
-      endTime: new Date(row.end_time as string),
-      status: row.status as string,
-      attendees: row.attendees as any,
-      createdAt: new Date(row.created_at as string),
-      updatedAt: new Date(row.updated_at as string),
-      // Set defaults for missing columns to maintain type compatibility
-      calendarId: 'unknown',
-      timeZone: 'UTC',
-      isAllDay: false,
-      recurring: false,
-      recurrenceRule: null,
-      visibility: 'public',
-      eventType: null,
-      capacity: null,
-      actualAttendance: null,
-      embeddings: null,
-      keywords: null,
-      businessCategory: null,
-      lastSynced: new Date(row.updated_at as string),
-      googleUpdated: new Date(row.updated_at as string),
+    return events.map((event) => ({
+      id: event.id,
+      userId: event.userId,
+      googleEventId: event.googleEventId,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      status: event.status,
+      attendees: event.attendees,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+      // Use actual database fields
+      calendarId: "unknown", // Not stored in DB
+      timeZone: event.timeZone,
+      isAllDay: event.isAllDay,
+      visibility: event.visibility,
+      eventType: event.eventType,
+      businessCategory: event.businessCategory,
+      lastSynced: event.lastSynced || event.updatedAt,
+      googleUpdated: event.googleUpdated || event.updatedAt,
     })) as CalendarEvent[];
   }
 }
 
 // Import types properly
-import type { CalendarEvent } from '@/server/db/schema';

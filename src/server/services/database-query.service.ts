@@ -18,13 +18,13 @@ export class DatabaseQueryService {
         success: true,
         data: {
           count: contacts.length,
-          message: `You have ${contacts.length} contact${contacts.length === 1 ? '' : 's'} in your CRM.`
-        }
+          message: `You have ${contacts.length} contact${contacts.length === 1 ? "" : "s"} in your CRM.`,
+        },
       };
     } catch (error) {
       return {
         success: false,
-        error: "Failed to fetch contacts count"
+        error: "Failed to fetch contacts count",
       };
     }
   }
@@ -35,29 +35,31 @@ export class DatabaseQueryService {
   static async getContactsSummary(userId: string): Promise<DatabaseQueryResult> {
     try {
       const contacts = await contactsStorage.getContacts(userId);
-      
+
       const summary = {
         totalContacts: contacts.length,
-        contactsWithEmail: contacts.filter(c => c.primaryEmail && c.primaryEmail.trim() !== '').length,
-        contactsWithPhone: contacts.filter(c => c.primaryPhone && c.primaryPhone.trim() !== '').length,
+        contactsWithEmail: contacts.filter((c) => c.primaryEmail && c.primaryEmail.trim() !== "")
+          .length,
+        contactsWithPhone: contacts.filter((c) => c.primaryPhone && c.primaryPhone.trim() !== "")
+          .length,
         recentContacts: contacts
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 5)
-          .map(c => ({
+          .map((c) => ({
             name: c.displayName,
             email: c.primaryEmail,
-            createdAt: c.createdAt
-          }))
+            createdAt: c.createdAt,
+          })),
       };
 
       return {
         success: true,
-        data: summary
+        data: summary,
       };
     } catch (error) {
       return {
         success: false,
-        error: "Failed to fetch contacts summary"
+        error: "Failed to fetch contacts summary",
       };
     }
   }
@@ -69,28 +71,29 @@ export class DatabaseQueryService {
     try {
       const contacts = await contactsStorage.getContacts(userId);
       const searchTerm = query.toLowerCase();
-      
-      const matchingContacts = contacts.filter(contact => 
-        contact.displayName.toLowerCase().includes(searchTerm) ||
-        (contact.primaryEmail && contact.primaryEmail.toLowerCase().includes(searchTerm)) ||
-        (contact.primaryPhone && contact.primaryPhone.includes(searchTerm))
+
+      const matchingContacts = contacts.filter(
+        (contact) =>
+          contact.displayName.toLowerCase().includes(searchTerm) ||
+          (contact.primaryEmail && contact.primaryEmail.toLowerCase().includes(searchTerm)) ||
+          (contact.primaryPhone && contact.primaryPhone.includes(searchTerm)),
       );
 
       return {
         success: true,
         data: {
           matches: matchingContacts.length,
-          contacts: matchingContacts.map(c => ({
+          contacts: matchingContacts.map((c) => ({
             name: c.displayName,
             email: c.primaryEmail,
-            phone: c.primaryPhone
-          }))
-        }
+            phone: c.primaryPhone,
+          })),
+        },
       };
     } catch (error) {
       return {
         success: false,
-        error: "Failed to search contacts"
+        error: "Failed to search contacts",
       };
     }
   }
@@ -108,16 +111,16 @@ export class DatabaseQueryService {
             contactId,
             notesCount: notes.length,
             notes: notes.map((n: any) => ({
-              content: n.content.substring(0, 100) + (n.content.length > 100 ? '...' : ''),
-              createdAt: n.createdAt
-            }))
-          }
+              content: n.content.substring(0, 100) + (n.content.length > 100 ? "..." : ""),
+              createdAt: n.createdAt,
+            })),
+          },
         };
       } else {
         // Get total notes across all contacts
         const contacts = await contactsStorage.getContacts(userId);
         let totalNotes = 0;
-        
+
         for (const contact of contacts) {
           const notes = await contactsStorage.getNotes(contact.id, userId);
           totalNotes += notes.length;
@@ -127,14 +130,14 @@ export class DatabaseQueryService {
           success: true,
           data: {
             totalNotes,
-            message: `You have ${totalNotes} note${totalNotes === 1 ? '' : 's'} across all contacts.`
-          }
+            message: `You have ${totalNotes} note${totalNotes === 1 ? "" : "s"} across all contacts.`,
+          },
         };
       }
     } catch (error) {
       return {
         success: false,
-        error: "Failed to fetch notes information"
+        error: "Failed to fetch notes information",
       };
     }
   }
@@ -150,54 +153,69 @@ export class DatabaseQueryService {
       let description = "";
 
       // Pattern: "contacts that begin with [letter]" or "contacts beginning with [letter]"
-      const beginsWithMatch = normalizedQuery.match(/(?:contacts?\s+(?:that\s+)?(?:begin|start)(?:s|ning)?\s+with(?:\s+(?:the\s+)?letter)?\s+)([a-z])/i);
-      if (beginsWithMatch) {
+      const beginsWithMatch = normalizedQuery.match(
+        /(?:contacts?\s+(?:that\s+)?(?:begin|start)(?:s|ning)?\s+with(?:\s+(?:the\s+)?letter)?\s+)([a-z])/i,
+      );
+      if (beginsWithMatch?.[1]) {
         const letter = beginsWithMatch[1].toUpperCase();
-        filteredContacts = contacts.filter(contact => 
-          contact.displayName.toUpperCase().startsWith(letter)
+        filteredContacts = contacts.filter((contact) =>
+          contact.displayName.toUpperCase().startsWith(letter),
         );
         description = `contacts that begin with "${letter}"`;
       }
-      
+
       // Pattern: "contacts with email" or "contacts that have email"
-      else if (normalizedQuery.includes('with email') || normalizedQuery.includes('have email') || normalizedQuery.includes('has email')) {
-        filteredContacts = contacts.filter(contact => 
-          contact.primaryEmail && contact.primaryEmail.trim() !== ''
+      else if (
+        normalizedQuery.includes("with email") ||
+        normalizedQuery.includes("have email") ||
+        normalizedQuery.includes("has email")
+      ) {
+        filteredContacts = contacts.filter(
+          (contact) => contact.primaryEmail && contact.primaryEmail.trim() !== "",
         );
         description = "contacts with email addresses";
       }
-      
+
       // Pattern: "contacts with phone" or "contacts that have phone"
-      else if (normalizedQuery.includes('with phone') || normalizedQuery.includes('have phone') || normalizedQuery.includes('has phone')) {
-        filteredContacts = contacts.filter(contact => 
-          contact.primaryPhone && contact.primaryPhone.trim() !== ''
+      else if (
+        normalizedQuery.includes("with phone") ||
+        normalizedQuery.includes("have phone") ||
+        normalizedQuery.includes("has phone")
+      ) {
+        filteredContacts = contacts.filter(
+          (contact) => contact.primaryPhone && contact.primaryPhone.trim() !== "",
         );
         description = "contacts with phone numbers";
       }
-      
+
       // Pattern: "contacts without email"
-      else if (normalizedQuery.includes('without email') || normalizedQuery.includes('no email')) {
-        filteredContacts = contacts.filter(contact => 
-          !contact.primaryEmail || contact.primaryEmail.trim() === ''
+      else if (normalizedQuery.includes("without email") || normalizedQuery.includes("no email")) {
+        filteredContacts = contacts.filter(
+          (contact) => !contact.primaryEmail || contact.primaryEmail.trim() === "",
         );
         description = "contacts without email addresses";
       }
-      
+
       // Pattern: "contacts without phone"
-      else if (normalizedQuery.includes('without phone') || normalizedQuery.includes('no phone')) {
-        filteredContacts = contacts.filter(contact => 
-          !contact.primaryPhone || contact.primaryPhone.trim() === ''
+      else if (normalizedQuery.includes("without phone") || normalizedQuery.includes("no phone")) {
+        filteredContacts = contacts.filter(
+          (contact) => !contact.primaryPhone || contact.primaryPhone.trim() === "",
         );
         description = "contacts without phone numbers";
       }
-      
+
       // Pattern: "contacts containing [text]" or "contacts with [text] in name"
-      else if (normalizedQuery.includes('containing') || normalizedQuery.includes('with') && normalizedQuery.includes('in name')) {
-        const containingMatch = normalizedQuery.match(/(?:containing|with)\s+(\w+)(?:\s+in\s+name)?/);
-        if (containingMatch) {
+      else if (
+        normalizedQuery.includes("containing") ||
+        (normalizedQuery.includes("with") && normalizedQuery.includes("in name"))
+      ) {
+        const containingMatch = normalizedQuery.match(
+          /(?:containing|with)\s+(\w+)(?:\s+in\s+name)?/,
+        );
+        if (containingMatch?.[1]) {
           const searchTerm = containingMatch[1];
-          filteredContacts = contacts.filter(contact => 
-            contact.displayName.toLowerCase().includes(searchTerm.toLowerCase())
+          filteredContacts = contacts.filter((contact) =>
+            contact.displayName.toLowerCase().includes(searchTerm.toLowerCase()),
           );
           description = `contacts containing "${searchTerm}"`;
         }
@@ -210,12 +228,12 @@ export class DatabaseQueryService {
             count: filteredContacts.length,
             description,
             message: `You have ${filteredContacts.length} ${description}.`,
-            contacts: filteredContacts.slice(0, 10).map(c => ({
+            contacts: filteredContacts.slice(0, 10).map((c) => ({
               name: c.displayName,
               email: c.primaryEmail,
-              phone: c.primaryPhone
-            }))
-          }
+              phone: c.primaryPhone,
+            })),
+          },
         };
       }
 
@@ -224,7 +242,7 @@ export class DatabaseQueryService {
     } catch (error) {
       return {
         success: false,
-        error: "Failed to filter contacts"
+        error: "Failed to filter contacts",
       };
     }
   }
@@ -235,22 +253,22 @@ export class DatabaseQueryService {
   static async getAllContactNames(userId: string): Promise<DatabaseQueryResult> {
     try {
       const contacts = await contactsStorage.getContacts(userId);
-      
+
       return {
         success: true,
         data: {
-          contacts: contacts.map(c => ({
+          contacts: contacts.map((c) => ({
             name: c.displayName,
             email: c.primaryEmail,
-            phone: c.primaryPhone
+            phone: c.primaryPhone,
           })),
-          message: `Here are your ${contacts.length} contacts:\n\n${contacts.map(c => `• ${c.displayName}${c.primaryEmail ? ` (${c.primaryEmail})` : ''}${c.primaryPhone ? ` - ${c.primaryPhone}` : ''}`).join('\n')}`
-        }
+          message: `Here are your ${contacts.length} contacts:\n\n${contacts.map((c) => `• ${c.displayName}${c.primaryEmail ? ` (${c.primaryEmail})` : ""}${c.primaryPhone ? ` - ${c.primaryPhone}` : ""}`).join("\n")}`,
+        },
       };
     } catch (error) {
       return {
         success: false,
-        error: "Failed to fetch contact names"
+        error: "Failed to fetch contact names",
       };
     }
   }
@@ -258,28 +276,32 @@ export class DatabaseQueryService {
   /**
    * Get detailed information about a specific contact
    */
-  static async getContactDetails(userId: string, contactName: string): Promise<DatabaseQueryResult> {
+  static async getContactDetails(
+    userId: string,
+    contactName: string,
+  ): Promise<DatabaseQueryResult> {
     try {
       const contacts = await contactsStorage.getContacts(userId);
       const searchTerm = contactName.toLowerCase();
-      
-      const matchingContact = contacts.find(contact => 
-        contact.displayName.toLowerCase().includes(searchTerm) ||
-        (contact.primaryEmail && contact.primaryEmail.toLowerCase().includes(searchTerm))
+
+      const matchingContact = contacts.find(
+        (contact) =>
+          contact.displayName.toLowerCase().includes(searchTerm) ||
+          (contact.primaryEmail && contact.primaryEmail.toLowerCase().includes(searchTerm)),
       );
 
       if (!matchingContact) {
         return {
           success: true,
           data: {
-            message: `I couldn't find any contact matching "${contactName}". Try checking the spelling or browse your contacts to see available names.`
-          }
+            message: `I couldn't find any contact matching "${contactName}". Try checking the spelling or browse your contacts to see available names.`,
+          },
         };
       }
 
       // Format contact details with AI insights
       let contactInfo = `## ${matchingContact.displayName}\n\n`;
-      
+
       // Basic contact info
       if (matchingContact.primaryEmail) {
         contactInfo += `📧 **Email:** ${matchingContact.primaryEmail}\n`;
@@ -290,30 +312,28 @@ export class DatabaseQueryService {
       if (matchingContact.source) {
         contactInfo += `📁 **Source:** ${matchingContact.source}\n`;
       }
-      
-      contactInfo += '\n';
+
+      contactInfo += "\n";
 
       // AI Insights
       if (matchingContact.stage) {
         contactInfo += `🎯 **Client Stage:** ${matchingContact.stage}\n`;
       }
-      
-      if (matchingContact.notes) {
-        contactInfo += `🧠 **AI Insights:** ${matchingContact.notes}\n\n`;
-      }
+
+      // AI Insights are now stored separately in notes table
 
       // Wellness tags
       if (matchingContact.tags) {
         try {
           let tags = [];
-          if (typeof matchingContact.tags === 'string') {
+          if (typeof matchingContact.tags === "string") {
             tags = JSON.parse(matchingContact.tags);
           } else if (Array.isArray(matchingContact.tags)) {
             tags = matchingContact.tags;
           }
-          
+
           if (tags.length > 0) {
-            contactInfo += `🏷️ **Wellness Tags:** ${tags.join(', ')}\n\n`;
+            contactInfo += `🏷️ **Wellness Tags:** ${tags.join(", ")}\n\n`;
           }
         } catch (e) {
           // Ignore parsing errors
@@ -336,13 +356,13 @@ export class DatabaseQueryService {
         success: true,
         data: {
           message: contactInfo,
-          contact: matchingContact
-        }
+          contact: matchingContact,
+        },
       };
     } catch (error) {
       return {
         success: false,
-        error: "Failed to get contact details"
+        error: "Failed to get contact details",
       };
     }
   }
@@ -354,12 +374,18 @@ export class DatabaseQueryService {
     const normalizedQuery = query.toLowerCase();
 
     // Personal information queries - check these first!
-    if (normalizedQuery.includes('tell me about') || normalizedQuery.includes('about ') || 
-        normalizedQuery.includes('who is') || normalizedQuery.includes('information about') ||
-        normalizedQuery.includes('details about') || normalizedQuery.includes('profile')) {
-      
+    if (
+      normalizedQuery.includes("tell me about") ||
+      normalizedQuery.includes("about ") ||
+      normalizedQuery.includes("who is") ||
+      normalizedQuery.includes("information about") ||
+      normalizedQuery.includes("details about") ||
+      normalizedQuery.includes("profile")
+    ) {
       // Extract the person's name
-      const nameMatch = normalizedQuery.match(/(?:tell me about|about|who is|information about|details about|profile for|profile of)\s+(.+)/);
+      const nameMatch = normalizedQuery.match(
+        /(?:tell me about|about|who is|information about|details about|profile for|profile of)\s+(.+)/,
+      );
       if (nameMatch?.[1]) {
         return this.getContactDetails(userId, nameMatch[1].trim());
       }
@@ -373,46 +399,75 @@ export class DatabaseQueryService {
     }
 
     // Check for specific contact names in our database
-    if (/\b(fischer|fisher|wilson|rossi|torres|svensson|nascimento|oconnor|chen|mendez|singh|costa|ruiz|kaur|novak|herrera|patel|rivas|blizzard)\b/i.test(normalizedQuery)) {
-      const contactNameMatch = normalizedQuery.match(/\b(fischer|fisher|wilson|rossi|torres|svensson|nascimento|oconnor|chen|mendez|singh|costa|ruiz|kaur|novak|herrera|patel|rivas|blizzard)\b/i);
+    if (
+      /\b(fischer|fisher|wilson|rossi|torres|svensson|nascimento|oconnor|chen|mendez|singh|costa|ruiz|kaur|novak|herrera|patel|rivas|blizzard)\b/i.test(
+        normalizedQuery,
+      )
+    ) {
+      const contactNameMatch = normalizedQuery.match(
+        /\b(fischer|fisher|wilson|rossi|torres|svensson|nascimento|oconnor|chen|mendez|singh|costa|ruiz|kaur|novak|herrera|patel|rivas|blizzard)\b/i,
+      );
       if (contactNameMatch) {
         return this.getContactDetails(userId, contactNameMatch[0]);
       }
     }
 
     // Names/listing queries
-    if (normalizedQuery.includes('names') || normalizedQuery.includes('their names') || 
-        normalizedQuery.includes('list contacts') || normalizedQuery.includes('show me contacts') ||
-        normalizedQuery.includes('all contacts') || normalizedQuery.includes('contact names') ||
-        (normalizedQuery.includes('their') && normalizedQuery.length < 15)) {
+    if (
+      normalizedQuery.includes("names") ||
+      normalizedQuery.includes("their names") ||
+      normalizedQuery.includes("list contacts") ||
+      normalizedQuery.includes("show me contacts") ||
+      normalizedQuery.includes("all contacts") ||
+      normalizedQuery.includes("contact names") ||
+      (normalizedQuery.includes("their") && normalizedQuery.length < 15)
+    ) {
       return this.getAllContactNames(userId);
     }
 
     // Specific filter queries (more specific patterns first)
-    if (normalizedQuery.includes('begin') || normalizedQuery.includes('start') || 
-        normalizedQuery.includes('with email') || normalizedQuery.includes('with phone') ||
-        normalizedQuery.includes('without') || normalizedQuery.includes('containing') ||
-        normalizedQuery.includes('have email') || normalizedQuery.includes('have phone')) {
+    if (
+      normalizedQuery.includes("begin") ||
+      normalizedQuery.includes("start") ||
+      normalizedQuery.includes("with email") ||
+      normalizedQuery.includes("with phone") ||
+      normalizedQuery.includes("without") ||
+      normalizedQuery.includes("containing") ||
+      normalizedQuery.includes("have email") ||
+      normalizedQuery.includes("have phone")
+    ) {
       return this.filterContacts(userId, query);
     }
 
     // Count queries
-    if (normalizedQuery.includes('how many contacts') || normalizedQuery.includes('contacts count') || normalizedQuery.includes('number of contacts')) {
+    if (
+      normalizedQuery.includes("how many contacts") ||
+      normalizedQuery.includes("contacts count") ||
+      normalizedQuery.includes("number of contacts")
+    ) {
       return this.getContactsCount(userId);
     }
 
     // Notes queries
-    if (normalizedQuery.includes('how many notes') || normalizedQuery.includes('notes count')) {
+    if (normalizedQuery.includes("how many notes") || normalizedQuery.includes("notes count")) {
       return this.getNotesInfo(userId);
     }
 
     // Summary queries
-    if (normalizedQuery.includes('contacts summary') || normalizedQuery.includes('overview') || normalizedQuery.includes('all contacts')) {
+    if (
+      normalizedQuery.includes("contacts summary") ||
+      normalizedQuery.includes("overview") ||
+      normalizedQuery.includes("all contacts")
+    ) {
       return this.getContactsSummary(userId);
     }
 
     // Search queries
-    if (normalizedQuery.includes('find') || normalizedQuery.includes('search') || normalizedQuery.includes('look for')) {
+    if (
+      normalizedQuery.includes("find") ||
+      normalizedQuery.includes("search") ||
+      normalizedQuery.includes("look for")
+    ) {
       // Extract search term (simple approach)
       const searchMatch = normalizedQuery.match(/(?:find|search|look for)\s+(?:contact\s+)?(.+)/);
       if (searchMatch?.[1]) {
@@ -421,13 +476,14 @@ export class DatabaseQueryService {
     }
 
     // Default to contacts count for general contact queries
-    if (normalizedQuery.includes('contact')) {
+    if (normalizedQuery.includes("contact")) {
       return this.getContactsCount(userId);
     }
 
     return {
       success: false,
-      error: "I can help you with:\n- How many contacts you have\n- Contacts that begin with a specific letter\n- Contacts with/without email or phone\n- Contact summaries and searches\n- Notes information\n\nTry asking: 'How many contacts begin with P?' or 'Show me contacts with email addresses'."
+      error:
+        "I can help you with:\n- How many contacts you have\n- Contacts that begin with a specific letter\n- Contacts with/without email or phone\n- Contact summaries and searches\n- Notes information\n\nTry asking: 'How many contacts begin with P?' or 'Show me contacts with email addresses'.",
     };
   }
 }

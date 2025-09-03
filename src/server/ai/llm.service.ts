@@ -5,7 +5,7 @@ import {
   openRouterHeaders,
 } from "@/server/providers/openrouter.provider";
 import { withGuardrails } from "@/server/ai/with-guardrails";
-import { log } from "@/server/log";
+import { log } from "@/lib/log";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";

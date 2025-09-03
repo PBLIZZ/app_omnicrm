@@ -1,9 +1,10 @@
-import { log } from "@/server/log";
+import { log } from "@/lib/log";
 
 // Environment-based configuration
 const PRIMARY_KEY = process.env["OPENROUTER_API_KEY"];
 const BACKUP_KEYS = (process.env["OPENROUTER_BACKUP_KEYS"] ?? "").split(",").filter(Boolean);
-const ROTATION_CHECK_INTERVAL = Number(process.env["API_KEY_ROTATION_CHECK_MINUTES"] ?? 60) * 60 * 1000;
+const ROTATION_CHECK_INTERVAL =
+  Number(process.env["API_KEY_ROTATION_CHECK_MINUTES"] ?? 60) * 60 * 1000;
 const HEALTH_CHECK_TIMEOUT = Number(process.env["API_KEY_HEALTH_CHECK_TIMEOUT_MS"] ?? 10000);
 
 interface ApiKeyStatus {
@@ -31,27 +32,30 @@ export class ApiKeyRotator {
 
   constructor() {
     const allKeys = [PRIMARY_KEY, ...BACKUP_KEYS].filter((key): key is string => Boolean(key));
-    
+
     if (allKeys.length === 0) {
-      log.warn({
-        op: "key_rotation.no_keys",
-        message: "No OpenRouter API keys configured"
-      }, "API key rotation disabled - no keys available");
+      log.warn(
+        {
+          op: "key_rotation.no_keys",
+          message: "No OpenRouter API keys configured",
+        },
+        "API key rotation disabled - no keys available",
+      );
     }
 
     this.state = {
       currentKey: PRIMARY_KEY ?? "",
       keyStatuses: new Map(),
       lastRotationCheck: new Date(),
-      rotationCount: 0
+      rotationCount: 0,
     };
 
     // Initialize key statuses
-    allKeys.forEach(key => {
+    allKeys.forEach((key) => {
       this.state.keyStatuses.set(key, {
         key: this.maskKey(key),
         isHealthy: true, // Assume healthy until proven otherwise
-        lastChecked: new Date()
+        lastChecked: new Date(),
       });
     });
 
@@ -77,11 +81,14 @@ export class ApiKeyRotator {
     }
 
     // No healthy keys found - return current key and log error
-    log.error({
-      op: "key_rotation.no_healthy_keys",
-      currentKey: this.maskKey(this.state.currentKey),
-      availableKeys: Array.from(this.state.keyStatuses.keys()).map(k => this.maskKey(k))
-    }, "No healthy API keys available - using current key");
+    log.error(
+      {
+        op: "key_rotation.no_healthy_keys",
+        currentKey: this.maskKey(this.state.currentKey),
+        availableKeys: Array.from(this.state.keyStatuses.keys()).map((k) => this.maskKey(k)),
+      },
+      "No healthy API keys available - using current key",
+    );
 
     return this.state.currentKey;
   }
@@ -91,16 +98,16 @@ export class ApiKeyRotator {
    */
   public async checkKeyHealth(key: string): Promise<ApiKeyStatus> {
     const startTime = Date.now();
-    
+
     try {
       // Simple health check - get models list with minimal request
       const response = await fetch("https://openrouter.ai/api/v1/models", {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${key}`,
-          "User-Agent": "OmniCRM-KeyRotator/1.0"
+          Authorization: `Bearer ${key}`,
+          "User-Agent": "OmniCRM-KeyRotator/1.0",
         },
-        signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT)
+        signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT),
       });
 
       const responseTimeMs = Date.now() - startTime;
@@ -111,41 +118,46 @@ export class ApiKeyRotator {
         isHealthy,
         lastChecked: new Date(),
         responseTimeMs,
-        ...(isHealthy ? {} : { errorMessage: `HTTP ${response.status}: ${response.statusText}` })
+        ...(isHealthy ? {} : { errorMessage: `HTTP ${response.status}: ${response.statusText}` }),
       };
 
       this.state.keyStatuses.set(key, status);
-      
-      log.info({
-        op: "key_rotation.health_check",
-        keyMasked: this.maskKey(key),
-        isHealthy,
-        responseTimeMs,
-        errorMessage: status.errorMessage
-      }, "API key health check completed");
+
+      log.info(
+        {
+          op: "key_rotation.health_check",
+          keyMasked: this.maskKey(key),
+          isHealthy,
+          responseTimeMs,
+          errorMessage: status.errorMessage,
+        },
+        "API key health check completed",
+      );
 
       return status;
-
     } catch (error) {
       const responseTimeMs = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       const status: ApiKeyStatus = {
         key: this.maskKey(key),
         isHealthy: false,
         lastChecked: new Date(),
         responseTimeMs,
-        errorMessage
+        errorMessage,
       };
 
       this.state.keyStatuses.set(key, status);
 
-      log.warn({
-        op: "key_rotation.health_check_failed",
-        keyMasked: this.maskKey(key),
-        error: errorMessage,
-        responseTimeMs
-      }, "API key health check failed");
+      log.warn(
+        {
+          op: "key_rotation.health_check_failed",
+          keyMasked: this.maskKey(key),
+          error: errorMessage,
+          responseTimeMs,
+        },
+        "API key health check failed",
+      );
 
       return status;
     }
@@ -156,10 +168,10 @@ export class ApiKeyRotator {
    */
   public async checkAllKeysHealth(): Promise<Map<string, ApiKeyStatus>> {
     const allKeys = [PRIMARY_KEY, ...BACKUP_KEYS].filter((key): key is string => Boolean(key));
-    
-    const healthChecks = allKeys.map(key => this.checkKeyHealth(key));
+
+    const healthChecks = allKeys.map((key) => this.checkKeyHealth(key));
     await Promise.allSettled(healthChecks);
-    
+
     return this.state.keyStatuses;
   }
 
@@ -168,10 +180,13 @@ export class ApiKeyRotator {
    */
   public rotateToKey(newKey: string): boolean {
     if (!this.state.keyStatuses.has(newKey)) {
-      log.error({
-        op: "key_rotation.invalid_key",
-        keyMasked: this.maskKey(newKey)
-      }, "Attempted to rotate to unknown API key");
+      log.error(
+        {
+          op: "key_rotation.invalid_key",
+          keyMasked: this.maskKey(newKey),
+        },
+        "Attempted to rotate to unknown API key",
+      );
       return false;
     }
 
@@ -179,12 +194,15 @@ export class ApiKeyRotator {
     this.state.currentKey = newKey;
     this.state.rotationCount++;
 
-    log.info({
-      op: "key_rotation.rotated",
-      previousKeyMasked: this.maskKey(previousKey),
-      newKeyMasked: this.maskKey(newKey),
-      rotationCount: this.state.rotationCount
-    }, "API key rotation completed");
+    log.info(
+      {
+        op: "key_rotation.rotated",
+        previousKeyMasked: this.maskKey(previousKey),
+        newKeyMasked: this.maskKey(newKey),
+        rotationCount: this.state.rotationCount,
+      },
+      "API key rotation completed",
+    );
 
     return true;
   }
@@ -200,14 +218,14 @@ export class ApiKeyRotator {
     healthyKeysCount: number;
   } {
     const keyStatuses = Array.from(this.state.keyStatuses.values());
-    const healthyKeysCount = keyStatuses.filter(status => status.isHealthy).length;
+    const healthyKeysCount = keyStatuses.filter((status) => status.isHealthy).length;
 
     return {
       currentKey: this.maskKey(this.state.currentKey),
       keyStatuses,
       lastRotationCheck: this.state.lastRotationCheck,
       rotationCount: this.state.rotationCount,
-      healthyKeysCount
+      healthyKeysCount,
     };
   }
 
@@ -223,7 +241,7 @@ export class ApiKeyRotator {
       try {
         this.state.lastRotationCheck = new Date();
         await this.checkAllKeysHealth();
-        
+
         // Auto-rotate if current key is unhealthy
         const currentStatus = this.state.keyStatuses.get(this.state.currentKey);
         if (!currentStatus?.isHealthy) {
@@ -235,20 +253,25 @@ export class ApiKeyRotator {
             }
           }
         }
-        
       } catch (error) {
-        log.error({
-          op: "key_rotation.timer_error",
-          error: error instanceof Error ? error.message : String(error)
-        }, "Error in API key rotation timer");
+        log.error(
+          {
+            op: "key_rotation.timer_error",
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Error in API key rotation timer",
+        );
       }
     }, ROTATION_CHECK_INTERVAL);
 
-    log.info({
-      op: "key_rotation.timer_started",
-      intervalMinutes: ROTATION_CHECK_INTERVAL / (60 * 1000),
-      availableKeys: Array.from(this.state.keyStatuses.keys()).map(k => this.maskKey(k))
-    }, "API key rotation timer started");
+    log.info(
+      {
+        op: "key_rotation.timer_started",
+        intervalMinutes: ROTATION_CHECK_INTERVAL / (60 * 1000),
+        availableKeys: Array.from(this.state.keyStatuses.keys()).map((k) => this.maskKey(k)),
+      },
+      "API key rotation timer started",
+    );
   }
 
   /**
@@ -258,10 +281,13 @@ export class ApiKeyRotator {
     if (this.rotationTimer) {
       clearInterval(this.rotationTimer);
       this.rotationTimer = null;
-      
-      log.info({
-        op: "key_rotation.stopped"
-      }, "API key rotation timer stopped");
+
+      log.info(
+        {
+          op: "key_rotation.stopped",
+        },
+        "API key rotation timer stopped",
+      );
     }
   }
 
@@ -272,11 +298,11 @@ export class ApiKeyRotator {
     if (!key || key.length < 12) {
       return "***";
     }
-    
+
     const start = key.substring(0, 8);
     const end = key.substring(key.length - 4);
     const middle = "*".repeat(Math.max(0, key.length - 12));
-    
+
     return `${start}${middle}${end}`;
   }
 }
@@ -302,37 +328,38 @@ export function getCurrentApiKey(): string {
 /**
  * Helper function to wrap API calls with automatic key rotation
  */
-export async function withKeyRotation<T>(
-  apiCall: (apiKey: string) => Promise<T>
-): Promise<T> {
+export async function withKeyRotation<T>(apiCall: (apiKey: string) => Promise<T>): Promise<T> {
   const rotator = getApiKeyRotator();
   let lastError: Error | null = null;
-  
+
   // Try current key
   try {
     const currentKey = rotator.getCurrentKey();
     return await apiCall(currentKey);
   } catch (error) {
     lastError = error instanceof Error ? error : new Error(String(error));
-    
+
     // If it's an auth error (401/403), mark current key as unhealthy
-    if (error instanceof Error && (error.message.includes("401") || error.message.includes("403"))) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("401") || error.message.includes("403"))
+    ) {
       await rotator.checkKeyHealth(rotator.getCurrentKey());
     }
   }
-  
+
   // Try backup keys if available
   const status = rotator.getRotationStatus();
   const healthyBackupKeys = status.keyStatuses
-    .filter(s => s.isHealthy && s.key !== status.currentKey)
-    .map(s => s.key);
-    
+    .filter((s) => s.isHealthy && s.key !== status.currentKey)
+    .map((s) => s.key);
+
   for (const maskedKey of healthyBackupKeys) {
     // Find actual key from masked key (this is a limitation of our design)
     // In production, you'd want a better way to map back to actual keys
     const allKeys = [PRIMARY_KEY, ...BACKUP_KEYS].filter((key): key is string => Boolean(key));
-    const actualKey = allKeys.find(k => rotator['maskKey'](k) === maskedKey);
-    
+    const actualKey = allKeys.find((k) => rotator["maskKey"](k) === maskedKey);
+
     if (actualKey) {
       try {
         rotator.rotateToKey(actualKey);
@@ -343,7 +370,7 @@ export async function withKeyRotation<T>(
       }
     }
   }
-  
+
   // All keys failed
   throw new Error(`All API keys failed. Last error: ${lastError?.message}`);
 }

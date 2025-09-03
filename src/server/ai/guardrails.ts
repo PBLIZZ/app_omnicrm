@@ -34,14 +34,14 @@ export async function ensureMonthlyQuota(userId: string): Promise<void> {
  */
 export async function trySpendCredit(userId: string): Promise<number | null> {
   const dbo = await getDb();
-  const { rows } = await dbo.execute(sql`
+  const result = await dbo.execute(sql`
     update ai_quotas
     set credits_left = credits_left - 1
     where user_id = ${userId}::uuid
       and credits_left > 0
     returning credits_left
   `);
-  const left = rows[0]?.["credits_left"];
+  const left = result[0]?.["credits_left"];
   return typeof left === "number" ? left : null;
 }
 
@@ -50,13 +50,13 @@ export async function trySpendCredit(userId: string): Promise<number | null> {
  */
 export async function checkRateLimit(userId: string): Promise<boolean> {
   const dbo = await getDb();
-  const { rows } = await dbo.execute(sql`
+  const result = await dbo.execute(sql`
     select count(*)::int as c
     from ai_usage
     where user_id = ${userId}::uuid
       and created_at > now() - interval '60 seconds'
   `);
-  const c = Number(rows[0]?.["c"] ?? 0);
+  const c = Number(result[0]?.["c"] ?? 0);
   return c < RPM;
 }
 
@@ -66,13 +66,13 @@ export async function checkRateLimit(userId: string): Promise<boolean> {
 export async function underDailyCostCap(userId: string): Promise<boolean> {
   if (!DAILY_CAP_EUR || DAILY_CAP_EUR <= 0) return true;
   const dbo = await getDb();
-  const { rows } = await dbo.execute(sql`
+  const result = await dbo.execute(sql`
     select coalesce(sum(cost_usd), 0)::numeric as sum
     from ai_usage
     where user_id = ${userId}::uuid
       and created_at::date = current_date
   `);
-  const raw = rows[0]?.["sum"] ?? 0;
+  const raw = result[0]?.["sum"] ?? 0;
   const spent = Number(raw);
   return spent < DAILY_CAP_EUR;
 }

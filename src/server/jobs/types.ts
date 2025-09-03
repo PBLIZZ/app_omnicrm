@@ -6,12 +6,19 @@ export type GoogleJobKind =
   | "google_calendar_sync"
   | "normalize_google_email"
   | "normalize_google_event";
+export type EmailIntelligenceJobKind = 
+  | "email_intelligence" 
+  | "email_intelligence_batch" 
+  | "email_intelligence_cleanup";
 
-export type JobKind = GenericJobKind | GoogleJobKind;
+export type JobKind = GenericJobKind | GoogleJobKind | EmailIntelligenceJobKind;
 
 // Payloads
 export interface BatchJobPayload {
   batchId?: string;
+  daysPast?: number;
+  daysFuture?: number;
+  maxResults?: number;
 }
 
 export interface ContactExtractionPayload {
@@ -21,16 +28,52 @@ export interface ContactExtractionPayload {
   batchId?: string;
 }
 
+export interface EmbedJobPayload {
+  ownerType?: "interaction" | "document" | "contact";
+  ownerId?: string;
+  batchId?: string;
+  maxItems?: number;
+}
+
+export interface InsightJobPayload {
+  subjectType?: "contact" | "segment" | "inbox" | "workspace";
+  subjectId?: string;
+  kind?: "summary" | "next_step" | "risk" | "persona" | "thread_summary" | "next_best_action" | "weekly_digest" | "lead_score" | "duplicate_contact_suspected";
+  batchId?: string;
+  context?: Record<string, unknown>;
+  interactionIds?: string[];
+}
+
+export interface EmailIntelligenceJobPayload {
+  rawEventId: string;
+  batchId?: string;
+  maxRetries?: number;
+}
+
+export interface EmailIntelligenceBatchJobPayload {
+  batchId?: string;
+  maxItems?: number;
+  onlyUnprocessed?: boolean;
+}
+
+export interface EmailIntelligenceCleanupJobPayload {
+  retentionDays?: number;
+  keepHighValue?: boolean;
+}
+
 type Empty = Record<string, never>;
 export type JobPayloadByKind = {
   normalize: Empty;
-  embed: Empty;
-  insight: Empty;
+  embed: EmbedJobPayload;
+  insight: InsightJobPayload;
   extract_contacts: ContactExtractionPayload;
   google_gmail_sync: BatchJobPayload;
   google_calendar_sync: BatchJobPayload;
   normalize_google_email: BatchJobPayload;
   normalize_google_event: BatchJobPayload;
+  email_intelligence: EmailIntelligenceJobPayload;
+  email_intelligence_batch: EmailIntelligenceBatchJobPayload;
+  email_intelligence_cleanup: EmailIntelligenceCleanupJobPayload;
 };
 
 // Database record shape (matches your schema, but we type payload by kind)

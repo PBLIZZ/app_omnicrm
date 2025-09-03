@@ -51,7 +51,7 @@ vi.mock("@/server/db/client", () => {
 });
 
 // Mock supabase admin service-role writes to push into our in-memory rawEvents
-vi.mock("@/server/db/supabase-admin", () => {
+vi.mock("@/lib/supabase/admin", () => {
   function toCamelCaseKeys(row: Record<string, unknown>): Record<string, unknown> {
     const mapping: Record<string, string> = {
       user_id: "userId",

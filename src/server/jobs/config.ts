@@ -9,7 +9,7 @@ const intFromEnv = (key: string, def: number): number => {
 
 // Core sync limits
 export const SYNC_MAX_PER_RUN = intFromEnv("SYNC_MAX_PER_RUN", 2000);
-export const JOB_HARD_CAP_MS = intFromEnv("JOB_HARD_CAP_MS", 3 * 60 * 1000); // 3 minutes
+export const JOB_HARD_CAP_MS = intFromEnv("JOB_HARD_CAP_MS", 10 * 60 * 1000); // 10 minutes
 
 // Dynamic batching configuration
 export const GMAIL_CHUNK_MIN = intFromEnv("SYNC_GMAIL_CHUNK_MIN", 10);

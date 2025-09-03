@@ -1,41 +1,41 @@
 // Gmail API Rate Limiter with Adaptive Backoff and Quota Management
 // Addresses the critical Gmail API rate limiting issues causing sync failures
 
-import { log } from "@/server/log";
+import { log } from "@/lib/log";
 
 export interface RateLimitConfig {
   // Gmail API quotas per user per 100 seconds
-  gmailReadRequestsPerUser: number;      // Default: 250
-  gmailSendRequestsPerUser: number;      // Default: 250
-  gmailMetadataRequestsPerUser: number;  // Default: 1000
-  
-  // Calendar API quotas per user per 100 seconds  
-  calendarRequestsPerUser: number;       // Default: 600
-  
+  gmailReadRequestsPerUser: number; // Default: 250
+  gmailSendRequestsPerUser: number; // Default: 250
+  gmailMetadataRequestsPerUser: number; // Default: 1000
+
+  // Calendar API quotas per user per 100 seconds
+  calendarRequestsPerUser: number; // Default: 600
+
   // Backoff configuration
-  initialBackoffMs: number;              // Initial backoff delay
-  maxBackoffMs: number;                  // Maximum backoff delay
-  backoffMultiplier: number;             // Exponential backoff multiplier
-  jitterFactor: number;                  // Random jitter to prevent thundering herd
-  
+  initialBackoffMs: number; // Initial backoff delay
+  maxBackoffMs: number; // Maximum backoff delay
+  backoffMultiplier: number; // Exponential backoff multiplier
+  jitterFactor: number; // Random jitter to prevent thundering herd
+
   // Circuit breaker
-  maxConsecutiveFailures: number;        // Trip circuit after N failures
-  circuitBreakerTimeoutMs: number;       // How long circuit stays open
+  maxConsecutiveFailures: number; // Trip circuit after N failures
+  circuitBreakerTimeoutMs: number; // How long circuit stays open
 }
 
 const DEFAULT_CONFIG: RateLimitConfig = {
-  gmailReadRequestsPerUser: 200,      // Conservative limit (80% of quota)
-  gmailSendRequestsPerUser: 200,      // Conservative limit
-  gmailMetadataRequestsPerUser: 800,  // Conservative limit (80% of quota)
-  calendarRequestsPerUser: 480,       // Conservative limit (80% of quota)
-  
-  initialBackoffMs: 1000,             // Start with 1 second
-  maxBackoffMs: 60000,                // Max 60 seconds
-  backoffMultiplier: 2,               // Double each time
-  jitterFactor: 0.1,                  // Add 10% random jitter
-  
-  maxConsecutiveFailures: 5,          // Circuit breaker
-  circuitBreakerTimeoutMs: 300000,    // 5 minutes
+  gmailReadRequestsPerUser: 200, // Conservative limit (80% of quota)
+  gmailSendRequestsPerUser: 200, // Conservative limit
+  gmailMetadataRequestsPerUser: 800, // Conservative limit (80% of quota)
+  calendarRequestsPerUser: 480, // Conservative limit (80% of quota)
+
+  initialBackoffMs: 1000, // Start with 1 second
+  maxBackoffMs: 60000, // Max 60 seconds
+  backoffMultiplier: 2, // Double each time
+  jitterFactor: 0.1, // Add 10% random jitter
+
+  maxConsecutiveFailures: 5, // Circuit breaker
+  circuitBreakerTimeoutMs: 300000, // 5 minutes
 };
 
 interface TokenBucket {
@@ -76,7 +76,7 @@ class GoogleApiRateLimiter {
       backoffState: new Map(),
       circuitBreakers: new Map(),
     };
-    
+
     this.startMaintenance();
   }
 
@@ -84,55 +84,61 @@ class GoogleApiRateLimiter {
    * Check if API request is allowed and consume token if so
    */
   async checkAndConsumeQuota(
-    userId: string, 
+    userId: string,
     service: "gmail_read" | "gmail_send" | "gmail_metadata" | "calendar",
-    requestCount: number = 1
+    requestCount: number = 1,
   ): Promise<{ allowed: boolean; waitMs?: number; reason?: string }> {
     const bucketKey = `${userId}:${service}`;
-    
+
     // Check circuit breaker first
     const circuitResult = this.checkCircuitBreaker(bucketKey);
     if (!circuitResult.allowed) {
       return circuitResult;
     }
-    
+
     // Check backoff state
     const backoffResult = this.checkBackoff(bucketKey);
     if (!backoffResult.allowed) {
       return backoffResult;
     }
-    
+
     // Check token bucket
     const bucket = this.getOrCreateBucket(bucketKey, service);
     this.refillBucket(bucket);
-    
+
     if (bucket.tokens >= requestCount) {
       bucket.tokens -= requestCount;
-      
+
       // Reset backoff on successful request
       this.resetBackoff(bucketKey);
-      
-      log.debug({
-        op: "rate_limiter.request_allowed",
-        userId,
-        service,
-        requestCount,
-        remainingTokens: bucket.tokens,
-      }, "API request allowed");
-      
+
+      log.debug(
+        {
+          op: "rate_limiter.request_allowed",
+          userId,
+          service,
+          requestCount,
+          remainingTokens: bucket.tokens,
+        },
+        "API request allowed",
+      );
+
       return { allowed: true };
     } else {
       const refillTimeMs = ((requestCount - bucket.tokens) / bucket.refillRate) * 1000;
-      
-      log.warn({
-        op: "rate_limiter.quota_exceeded",
-        userId,
-        service,
-        requestCount,
-        availableTokens: bucket.tokens,
-        estimatedWaitMs: refillTimeMs,
-      }, "API quota exceeded");
-      
+
+      log.warn(
+        {
+          op: "rate_limiter.quota_exceeded",
+          userId,
+          service,
+          requestCount,
+          availableTokens: bucket.tokens,
+          estimatedWaitMs: refillTimeMs,
+        },
+        "API quota exceeded",
+      );
+
       return {
         allowed: false,
         waitMs: Math.ceil(refillTimeMs),
@@ -147,32 +153,33 @@ class GoogleApiRateLimiter {
   recordFailure(
     userId: string,
     service: "gmail_read" | "gmail_send" | "gmail_metadata" | "calendar",
-    error: { status?: number; message?: string }
+    error: { status?: number; message?: string },
   ): { backoffMs: number; circuitBreakerTripped: boolean } {
     const bucketKey = `${userId}:${service}`;
-    
+
     // Update backoff state
     const backoff = this.getOrCreateBackoffState(bucketKey);
     backoff.consecutiveFailures++;
-    
+
     // Calculate exponential backoff with jitter
     backoff.currentBackoffMs = Math.min(
-      this.config.initialBackoffMs * Math.pow(this.config.backoffMultiplier, backoff.consecutiveFailures - 1),
-      this.config.maxBackoffMs
+      this.config.initialBackoffMs *
+        Math.pow(this.config.backoffMultiplier, backoff.consecutiveFailures - 1),
+      this.config.maxBackoffMs,
     );
-    
+
     // Add jitter to prevent thundering herd
     const jitter = backoff.currentBackoffMs * this.config.jitterFactor * Math.random();
     backoff.currentBackoffMs += jitter;
-    
+
     backoff.nextAllowedRequest = Date.now() + backoff.currentBackoffMs;
-    
+
     // Check if circuit breaker should trip
     let circuitBreakerTripped = false;
     if (backoff.consecutiveFailures >= this.config.maxConsecutiveFailures) {
       circuitBreakerTripped = this.tripCircuitBreaker(bucketKey);
     }
-    
+
     // Special handling for different error types
     let multiplier = 1;
     if (error.status === 429) {
@@ -182,20 +189,23 @@ class GoogleApiRateLimiter {
     } else if (error.status && error.status >= 500) {
       multiplier = 1.5; // Moderate backoff for server errors
     }
-    
+
     backoff.currentBackoffMs *= multiplier;
-    
-    log.warn({
-      op: "rate_limiter.failure_recorded",
-      userId,
-      service,
-      consecutiveFailures: backoff.consecutiveFailures,
-      backoffMs: backoff.currentBackoffMs,
-      circuitBreakerTripped,
-      errorStatus: error.status,
-      errorMessage: error.message,
-    }, "API failure recorded with backoff");
-    
+
+    log.warn(
+      {
+        op: "rate_limiter.failure_recorded",
+        userId,
+        service,
+        consecutiveFailures: backoff.consecutiveFailures,
+        backoffMs: backoff.currentBackoffMs,
+        circuitBreakerTripped,
+        errorStatus: error.status,
+        errorMessage: error.message,
+      },
+      "API failure recorded with backoff",
+    );
+
     return {
       backoffMs: backoff.currentBackoffMs,
       circuitBreakerTripped,
@@ -207,24 +217,30 @@ class GoogleApiRateLimiter {
    */
   recordSuccess(
     userId: string,
-    service: "gmail_read" | "gmail_send" | "gmail_metadata" | "calendar"
+    service: "gmail_read" | "gmail_send" | "gmail_metadata" | "calendar",
   ): void {
     const bucketKey = `${userId}:${service}`;
-    
+
     this.resetBackoff(bucketKey);
     this.resetCircuitBreaker(bucketKey);
-    
-    log.debug({
-      op: "rate_limiter.success_recorded",
-      userId,
-      service,
-    }, "API success recorded");
+
+    log.debug(
+      {
+        op: "rate_limiter.success_recorded",
+        userId,
+        service,
+      },
+      "API success recorded",
+    );
   }
 
   /**
    * Get current rate limit status for debugging
    */
-  getStatus(userId: string, service?: string): {
+  getStatus(
+    userId: string,
+    service?: string,
+  ): {
     buckets: Array<{ service: string; tokens: number; capacity: number }>;
     backoffs: Array<{ service: string; failures: number; nextAllowedMs: number }>;
     circuitBreakers: Array<{ service: string; state: string; failures: number }>;
@@ -232,7 +248,7 @@ class GoogleApiRateLimiter {
     const buckets: Array<{ service: string; tokens: number; capacity: number }> = [];
     const backoffs: Array<{ service: string; failures: number; nextAllowedMs: number }> = [];
     const circuitBreakers: Array<{ service: string; state: string; failures: number }> = [];
-    
+
     for (const [key, bucket] of this.state.buckets.entries()) {
       if (key.startsWith(userId)) {
         const serviceName = key.split(":")[1] ?? "unknown";
@@ -246,7 +262,7 @@ class GoogleApiRateLimiter {
         }
       }
     }
-    
+
     for (const [key, backoff] of this.state.backoffState.entries()) {
       if (key.startsWith(userId)) {
         const serviceName = key.split(":")[1] ?? "unknown";
@@ -259,7 +275,7 @@ class GoogleApiRateLimiter {
         }
       }
     }
-    
+
     for (const [key, breaker] of this.state.circuitBreakers.entries()) {
       if (key.startsWith(userId)) {
         const serviceName = key.split(":")[1] ?? "unknown";
@@ -272,12 +288,12 @@ class GoogleApiRateLimiter {
         }
       }
     }
-    
+
     return { buckets, backoffs, circuitBreakers };
   }
 
   // Private helper methods
-  
+
   private getOrCreateBucket(bucketKey: string, service: string): TokenBucket {
     if (!this.state.buckets.has(bucketKey)) {
       const capacity = this.getServiceCapacity(service);
@@ -291,34 +307,43 @@ class GoogleApiRateLimiter {
     }
     return this.state.buckets.get(bucketKey)!;
   }
-  
+
   private getServiceCapacity(service: string): number {
     switch (service) {
-      case "gmail_read": return this.config.gmailReadRequestsPerUser;
-      case "gmail_send": return this.config.gmailSendRequestsPerUser;
-      case "gmail_metadata": return this.config.gmailMetadataRequestsPerUser;
-      case "calendar": return this.config.calendarRequestsPerUser;
-      default: return 100; // Conservative default
+      case "gmail_read":
+        return this.config.gmailReadRequestsPerUser;
+      case "gmail_send":
+        return this.config.gmailSendRequestsPerUser;
+      case "gmail_metadata":
+        return this.config.gmailMetadataRequestsPerUser;
+      case "calendar":
+        return this.config.calendarRequestsPerUser;
+      default:
+        return 100; // Conservative default
     }
   }
-  
+
   private refillBucket(bucket: TokenBucket): void {
     const now = Date.now();
     const timePassed = now - bucket.lastRefill;
     const tokensToAdd = (timePassed / 1000) * bucket.refillRate;
-    
+
     bucket.tokens = Math.min(bucket.capacity, bucket.tokens + tokensToAdd);
     bucket.lastRefill = now;
   }
-  
-  private checkCircuitBreaker(bucketKey: string): { allowed: boolean; waitMs?: number; reason?: string } {
+
+  private checkCircuitBreaker(bucketKey: string): {
+    allowed: boolean;
+    waitMs?: number;
+    reason?: string;
+  } {
     const breaker = this.state.circuitBreakers.get(bucketKey);
     if (!breaker || breaker.state === "closed") {
       return { allowed: true };
     }
-    
+
     const now = Date.now();
-    
+
     if (breaker.state === "open") {
       if (now >= breaker.nextAttempt) {
         breaker.state = "half-open";
@@ -331,17 +356,17 @@ class GoogleApiRateLimiter {
         };
       }
     }
-    
+
     // half-open state - allow one request to test
     return { allowed: true };
   }
-  
+
   private checkBackoff(bucketKey: string): { allowed: boolean; waitMs?: number; reason?: string } {
     const backoff = this.state.backoffState.get(bucketKey);
     if (!backoff) {
       return { allowed: true };
     }
-    
+
     const now = Date.now();
     if (now < backoff.nextAllowedRequest) {
       return {
@@ -350,10 +375,10 @@ class GoogleApiRateLimiter {
         reason: "backoff_delay",
       };
     }
-    
+
     return { allowed: true };
   }
-  
+
   private getOrCreateBackoffState(bucketKey: string): BackoffState {
     if (!this.state.backoffState.has(bucketKey)) {
       const backoff: BackoffState = {
@@ -365,7 +390,7 @@ class GoogleApiRateLimiter {
     }
     return this.state.backoffState.get(bucketKey)!;
   }
-  
+
   private resetBackoff(bucketKey: string): void {
     const backoff = this.state.backoffState.get(bucketKey);
     if (backoff) {
@@ -374,7 +399,7 @@ class GoogleApiRateLimiter {
       backoff.nextAllowedRequest = 0;
     }
   }
-  
+
   private tripCircuitBreaker(bucketKey: string): boolean {
     const now = Date.now();
     const breaker: CircuitBreakerState = {
@@ -383,64 +408,73 @@ class GoogleApiRateLimiter {
       lastFailure: now,
       nextAttempt: now + this.config.circuitBreakerTimeoutMs,
     };
-    
+
     this.state.circuitBreakers.set(bucketKey, breaker);
-    
-    log.error({
-      op: "rate_limiter.circuit_breaker_tripped",
-      bucketKey,
-      failures: breaker.failures,
-      timeoutMs: this.config.circuitBreakerTimeoutMs,
-    }, "Circuit breaker tripped due to consecutive failures");
-    
+
+    log.error(
+      {
+        op: "rate_limiter.circuit_breaker_tripped",
+        bucketKey,
+        failures: breaker.failures,
+        timeoutMs: this.config.circuitBreakerTimeoutMs,
+      },
+      "Circuit breaker tripped due to consecutive failures",
+    );
+
     return true;
   }
-  
+
   private resetCircuitBreaker(bucketKey: string): void {
     const breaker = this.state.circuitBreakers.get(bucketKey);
     if (breaker && breaker.state !== "closed") {
       breaker.state = "closed";
       breaker.failures = 0;
-      
-      log.info({
-        op: "rate_limiter.circuit_breaker_reset",
-        bucketKey,
-      }, "Circuit breaker reset after successful request");
+
+      log.info(
+        {
+          op: "rate_limiter.circuit_breaker_reset",
+          bucketKey,
+        },
+        "Circuit breaker reset after successful request",
+      );
     }
   }
-  
+
   private startMaintenance(): void {
     this.maintenanceInterval = setInterval(() => {
       this.cleanupExpiredState();
     }, 300000); // Run every 5 minutes
   }
-  
+
   private cleanupExpiredState(): void {
     const now = Date.now();
     const expiredThreshold = 24 * 60 * 60 * 1000; // 24 hours
-    
+
     // Cleanup old backoff states
     for (const [key, backoff] of this.state.backoffState.entries()) {
       if (backoff.nextAllowedRequest < now - expiredThreshold) {
         this.state.backoffState.delete(key);
       }
     }
-    
+
     // Cleanup old circuit breaker states
     for (const [key, breaker] of this.state.circuitBreakers.entries()) {
       if (breaker.lastFailure < now - expiredThreshold && breaker.state === "closed") {
         this.state.circuitBreakers.delete(key);
       }
     }
-    
-    log.debug({
-      op: "rate_limiter.maintenance",
-      bucketsCount: this.state.buckets.size,
-      backoffStatesCount: this.state.backoffState.size,
-      circuitBreakersCount: this.state.circuitBreakers.size,
-    }, "Rate limiter maintenance completed");
+
+    log.debug(
+      {
+        op: "rate_limiter.maintenance",
+        bucketsCount: this.state.buckets.size,
+        backoffStatesCount: this.state.backoffState.size,
+        circuitBreakersCount: this.state.circuitBreakers.size,
+      },
+      "Rate limiter maintenance completed",
+    );
   }
-  
+
   /**
    * Cleanup all state
    */
@@ -449,7 +483,7 @@ class GoogleApiRateLimiter {
       clearInterval(this.maintenanceInterval);
       this.maintenanceInterval = null;
     }
-    
+
     this.state.buckets.clear();
     this.state.backoffState.clear();
     this.state.circuitBreakers.clear();
@@ -464,26 +498,33 @@ export async function withRateLimit<T>(
   userId: string,
   service: "gmail_read" | "gmail_send" | "gmail_metadata" | "calendar",
   requestCount: number,
-  apiCall: () => Promise<T>
+  apiCall: () => Promise<T>,
 ): Promise<T> {
   // Check quota before making request
   const quotaCheck = await googleApiRateLimiter.checkAndConsumeQuota(userId, service, requestCount);
-  
+
   if (!quotaCheck.allowed) {
     if (quotaCheck.waitMs && quotaCheck.waitMs < 60000) {
       // Wait for short delays (< 1 minute)
-      log.info({
-        op: "rate_limiter.waiting",
+      log.info(
+        {
+          op: "rate_limiter.waiting",
+          userId,
+          service,
+          waitMs: quotaCheck.waitMs,
+          reason: quotaCheck.reason,
+        },
+        "Waiting for rate limit to reset",
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, quotaCheck.waitMs));
+
+      // Retry quota check after waiting
+      const retryCheck = await googleApiRateLimiter.checkAndConsumeQuota(
         userId,
         service,
-        waitMs: quotaCheck.waitMs,
-        reason: quotaCheck.reason,
-      }, "Waiting for rate limit to reset");
-      
-      await new Promise(resolve => setTimeout(resolve, quotaCheck.waitMs));
-      
-      // Retry quota check after waiting
-      const retryCheck = await googleApiRateLimiter.checkAndConsumeQuota(userId, service, requestCount);
+        requestCount,
+      );
       if (!retryCheck.allowed) {
         throw new Error(`Rate limit exceeded: ${retryCheck.reason}`);
       }
@@ -491,23 +532,25 @@ export async function withRateLimit<T>(
       throw new Error(`Rate limit exceeded: ${quotaCheck.reason} (wait: ${quotaCheck.waitMs}ms)`);
     }
   }
-  
+
   try {
     const result = await apiCall();
     googleApiRateLimiter.recordSuccess(userId, service);
     return result;
-    
   } catch (error) {
     // Parse Google API error
-    const errorStatus = error instanceof Error && 'status' in error ? (error as { status: unknown }).status : undefined;
+    const errorStatus =
+      error instanceof Error && "status" in error
+        ? (error as { status: unknown }).status
+        : undefined;
     const apiError: { status?: number; message?: string } = {
       message: error instanceof Error ? error.message : String(error),
     };
-    
-    if (typeof errorStatus === 'number') {
+
+    if (typeof errorStatus === "number") {
       apiError.status = errorStatus;
     }
-    
+
     googleApiRateLimiter.recordFailure(userId, service, apiError);
     throw error;
   }

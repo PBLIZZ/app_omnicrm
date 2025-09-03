@@ -14,8 +14,19 @@ export interface GmailPreviewPrefs {
 }
 
 export interface GmailPreviewResult {
-  countByLabel: Record<string, number>;
-  sampleSubjects: string[];
+  sampleEmails: Array<{
+    id: string;
+    subject: string;
+    from: string;
+    date: string;
+    snippet: string;
+    hasAttachments: boolean;
+    labels: string[];
+  }>;
+  dateRange: {
+    from: string;
+    to: string;
+  };
 }
 
 export async function listGmailMessageIds(
@@ -32,11 +43,13 @@ export async function listGmailMessageIds(
       maxResults: 100,
       ...(pageToken ? { pageToken } : {}),
     };
+
     // conservative timeout + small retry budget per page
     const res = await callWithRetry(
       () => gmail.users.messages.list(params, { timeout: 10_000 }),
       "gmail.messages.list",
     );
+
     pages += 1;
     (res.data.messages ?? []).forEach((m) => {
       if (m.id) {
@@ -45,6 +58,7 @@ export async function listGmailMessageIds(
     });
     pageToken = res.data.nextPageToken ?? undefined;
   } while (pageToken);
+
   return { ids, pages };
 }
 
@@ -56,56 +70,117 @@ export async function gmailPreview(
 ): Promise<GmailPreviewResult> {
   const { gmail } = await getGoogleClients(userId);
 
-  // Build query with label filters
+  // Build query with label filters - PREVIEW should show ALL matching emails, not incremental
   let query = prefs.gmailQuery;
-  
+
   // Add label includes
   if (prefs.gmailLabelIncludes.length > 0) {
     const includes = prefs.gmailLabelIncludes.map(toLabelId).join(" OR ");
     query += ` (${includes})`;
   }
-  
+
   // Add label excludes
   if (prefs.gmailLabelExcludes.length > 0) {
-    const excludes = prefs.gmailLabelExcludes.map(label => `-${toLabelId(label)}`);
+    const excludes = prefs.gmailLabelExcludes.map((label) => `-${toLabelId(label)}`);
     query += ` ${excludes.join(" ")}`;
   }
 
+  // console.log(`Gmail preview: Using query "${query}" (no incremental filtering for preview)`);
   const { ids: messageIds } = await listGmailMessageIds(gmail, query);
-  
-  // Sample first 10 messages for subjects
+
+  // Helpers
+  const getHeader = (
+    headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
+    name: string,
+  ): string | undefined => {
+    const lower = name.toLowerCase();
+    return headers?.find((h) => (h.name ?? "").toLowerCase() === lower)?.value ?? undefined;
+  };
+
+  const payloadHasAttachments = (payload: gmail_v1.Schema$MessagePart | undefined): boolean => {
+    if (!payload) return false;
+    if ((payload.filename ?? "").length > 0) return true;
+    const parts = payload.parts ?? [];
+    for (const p of parts) {
+      if ((p.filename ?? "").length > 0) return true;
+      if (payloadHasAttachments(p)) return true;
+    }
+    return false;
+  };
+
+  // Sample first 10 messages for richer preview
   const sampleIds = messageIds.slice(0, 10);
-  const sampleSubjects: string[] = [];
-  
+  const sampleEmails: Array<{
+    id: string;
+    subject: string;
+    from: string;
+    date: string;
+    snippet: string;
+    hasAttachments: boolean;
+    labels: string[];
+  }> = [];
+
+  let minDateMs: number | null = null;
+  let maxDateMs: number | null = null;
+
   for (const id of sampleIds) {
     try {
       const msg = await callWithRetry(
-        () => gmail.users.messages.get({
-          userId: "me",
-          id,
-          format: "metadata",
-          metadataHeaders: ["Subject"],
-        }),
+        () =>
+          gmail.users.messages.get({
+            userId: "me",
+            id,
+            format: "full",
+          }),
         "gmail.messages.get",
       );
-      
-      const subject = msg.data.payload?.headers?.find(h => h.name === "Subject")?.value;
+
+      const headers = msg.data.payload?.headers || [];
+      const subject = getHeader(headers, "Subject");
+      const from = getHeader(headers, "From");
+      const dateHeader = getHeader(headers, "Date");
+
+      const internalDateMs = msg.data.internalDate ? Number(msg.data.internalDate) : undefined;
+      const parsedHeaderMs = dateHeader ? Date.parse(dateHeader) : undefined;
+      const effectiveMs =
+        typeof internalDateMs === "number" && !Number.isNaN(internalDateMs)
+          ? internalDateMs
+          : typeof parsedHeaderMs === "number" && !Number.isNaN(parsedHeaderMs)
+            ? parsedHeaderMs
+            : Date.now();
+      const dateISO = new Date(effectiveMs).toISOString();
+
+      // Track date range
+      if (minDateMs === null || effectiveMs < minDateMs) minDateMs = effectiveMs;
+      if (maxDateMs === null || effectiveMs > maxDateMs) maxDateMs = effectiveMs;
+
       if (subject) {
-        sampleSubjects.push(subject);
+        sampleEmails.push({
+          id,
+          subject: subject || "(no subject)",
+          from: from || "Unknown Sender",
+          date: dateISO,
+          snippet: msg.data.snippet ?? "",
+          hasAttachments: payloadHasAttachments(msg.data.payload),
+          labels: msg.data.labelIds ?? [],
+        });
       }
     } catch (error) {
       console.warn(`Failed to fetch message ${id}:`, error);
     }
   }
 
-  // Simple count by labels (this would need more sophisticated logic for real label counting)
-  const countByLabel: Record<string, number> = {
-    "INBOX": messageIds.length,
-  };
+  const dateRange =
+    minDateMs !== null && maxDateMs !== null
+      ? { from: new Date(minDateMs).toISOString(), to: new Date(maxDateMs).toISOString() }
+      : {
+          from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+          to: new Date().toISOString(),
+        };
 
   return {
-    countByLabel,
-    sampleSubjects,
+    sampleEmails,
+    dateRange,
   };
 }
 
@@ -115,16 +190,17 @@ export async function getGmailMessage(
 ): Promise<gmail_v1.Schema$Message | null> {
   try {
     const { gmail } = await getGoogleClients(userId);
-    
+
     const res = await callWithRetry(
-      () => gmail.users.messages.get({
-        userId: "me",
-        id: messageId,
-        format: "full",
-      }),
+      () =>
+        gmail.users.messages.get({
+          userId: "me",
+          id: messageId,
+          format: "full",
+        }),
       "gmail.messages.get",
     );
-    
+
     return res.data;
   } catch (error) {
     console.error(`Failed to fetch Gmail message ${messageId}:`, error);

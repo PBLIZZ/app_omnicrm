@@ -78,27 +78,45 @@ export async function listCalendarEvents(
   timeMax: string,
 ): Promise<{ items: calendar_v3.Schema$Event[]; pages: number }> {
   const items: calendar_v3.Schema$Event[] = [];
-  let pageToken: string | undefined = undefined;
-  let pages = 0;
-  do {
-    const params: calendar_v3.Params$Resource$Events$List = {
-      calendarId: "primary",
-      singleEvents: true,
-      orderBy: "startTime",
-      timeMin,
-      timeMax,
-      maxResults: 2500,
-      ...(pageToken ? { pageToken } : {}),
-    };
-    const resp = await callWithRetry(
-      () => cal.events.list(params, { timeout: 10_000 }),
-      "calendar.events.list",
-    );
-    pages += 1;
-    items.push(...(resp.data.items ?? []));
-    pageToken = resp.data.nextPageToken ?? undefined;
-  } while (pageToken);
-  return { items, pages };
+  let totalPages = 0;
+
+  // Get list of all calendars (like GoogleCalendarService does)
+  const calendarsResponse = await callWithRetry(
+    () => cal.calendarList.list(),
+    "calendar.calendarList.list",
+  );
+  const calendars = calendarsResponse.data.items || [];
+
+  // Sync events from each calendar
+  for (const calendar of calendars) {
+    if (!calendar.id) continue;
+
+    let pageToken: string | undefined = undefined;
+    let calendarPages = 0;
+    
+    do {
+      const params: calendar_v3.Params$Resource$Events$List = {
+        calendarId: calendar.id, // Use each calendar ID instead of hardcoded "primary"
+        singleEvents: true,
+        orderBy: "startTime",
+        timeMin,
+        timeMax,
+        maxResults: 2500,
+        ...(pageToken ? { pageToken } : {}),
+      };
+      const resp = await callWithRetry(
+        () => cal.events.list(params, { timeout: 10_000 }),
+        "calendar.events.list",
+      );
+      calendarPages += 1;
+      items.push(...(resp.data.items ?? []));
+      pageToken = resp.data.nextPageToken ?? undefined;
+    } while (pageToken);
+    
+    totalPages += calendarPages;
+  }
+  
+  return { items, pages: totalPages };
 }
 
 // callWithRetry shared in ./utils

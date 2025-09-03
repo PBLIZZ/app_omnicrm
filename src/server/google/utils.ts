@@ -1,4 +1,4 @@
-import { log } from "@/server/log";
+import { log } from "@/lib/log";
 
 // Shared retry with jitter for Google API calls
 export async function callWithRetry<T>(fn: () => Promise<T>, op: string, max = 3): Promise<T> {

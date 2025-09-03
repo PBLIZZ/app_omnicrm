@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
 import { userIntegrations } from "@/server/db/schema";
-import { decryptString, encryptString, isEncrypted } from "@/server/lib/crypto";
+import { decryptString, encryptString, isEncrypted } from "@/lib/crypto";
 import type { GmailClient } from "./gmail";
 import type { CalendarClient } from "./calendar";
 
@@ -32,14 +32,18 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
     throw Object.assign(new Error("google_not_connected"), { status: 401 });
   }
 
-  function buildOAuthFromRow(r: typeof userIntegrations.$inferSelect): InstanceType<typeof google.auth.OAuth2> {
+  function buildOAuthFromRow(
+    r: typeof userIntegrations.$inferSelect,
+  ): InstanceType<typeof google.auth.OAuth2> {
     const auth = new google.auth.OAuth2(
       process.env["GOOGLE_CLIENT_ID"]!,
       process.env["GOOGLE_CLIENT_SECRET"]!,
     );
 
     // Decrypt and backfill if previously stored in plaintext
-    const decryptedAccess = isEncrypted(r.accessToken) ? decryptString(r.accessToken) : r.accessToken;
+    const decryptedAccess = isEncrypted(r.accessToken)
+      ? decryptString(r.accessToken)
+      : r.accessToken;
     const decryptedRefresh = r.refreshToken
       ? isEncrypted(r.refreshToken)
         ? decryptString(r.refreshToken)
@@ -81,7 +85,8 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
       await dboInner
         .update(userIntegrations)
         .set({
-          accessToken: tokens.access_token != null ? encryptString(tokens.access_token) : r.accessToken,
+          accessToken:
+            tokens.access_token != null ? encryptString(tokens.access_token) : r.accessToken,
           refreshToken:
             tokens.refresh_token != null ? encryptString(tokens.refresh_token) : r.refreshToken,
           expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : r.expiryDate,
@@ -99,10 +104,16 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
     return auth;
   }
 
-  function selectServiceRowOrFallback(service: "gmail" | "calendar"): typeof userIntegrations.$inferSelect {
+  function selectServiceRowOrFallback(
+    service: "gmail" | "calendar",
+  ): typeof userIntegrations.$inferSelect {
     // Priority order: 1) unified (new), 2) specific service, 3) auth fallback, 4) any row
     const unified = rows.find((r) => r.service === "unified");
-    const match = unified ?? rows.find((r) => r.service === service) ?? rows.find((r) => r.service === "auth") ?? rows[0]!;
+    const match =
+      unified ??
+      rows.find((r) => r.service === service) ??
+      rows.find((r) => r.service === "auth") ??
+      rows[0]!;
     return match;
   }
 

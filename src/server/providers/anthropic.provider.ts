@@ -16,12 +16,12 @@ let anthropicClient: Anthropic | null = null;
 
 export function getAnthropicClient(): Anthropic {
   if (!anthropicClient) {
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env['ANTHROPIC_API_KEY']) {
       throw new Error("ANTHROPIC_API_KEY is required");
     }
     
     anthropicClient = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
+      apiKey: process.env['ANTHROPIC_API_KEY'],
     });
   }
   
@@ -29,7 +29,7 @@ export function getAnthropicClient(): Anthropic {
 }
 
 export function isAnthropicConfigured(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
+  return !!process.env['ANTHROPIC_API_KEY'];
 }
 
 export function assertAnthropicConfigured(): void {

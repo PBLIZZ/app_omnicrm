@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { fetchPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,34 @@ interface ChatThread {
   updatedAt: string;
 }
 
+interface MessageContent {
+  text?: string;
+}
+
+interface ApiMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: MessageContent | string;
+  createdAt: string;
+}
+
+interface MessageResponse {
+  messages: ApiMessage[];
+}
+
+interface ThreadsResponse {
+  threads: ChatThread[];
+}
+
+interface ThreadResponse {
+  thread: ChatThread;
+}
+
+interface StreamEvent {
+  content?: string;
+  titleUpdate?: string;
+}
+
 export default function ChatPage(): JSX.Element {
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
@@ -80,7 +109,7 @@ export default function ChatPage(): JSX.Element {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { user, isLoading: authLoading } = useAuth();
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (): void => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector(
         "[data-radix-scroll-area-viewport]",
@@ -97,27 +126,31 @@ export default function ChatPage(): JSX.Element {
 
   // Load threads on component mount
   useEffect(() => {
-    loadThreads();
+    loadThreads().catch((error) => {
+      console.error("Failed to load threads on mount:", error);
+    });
   }, []);
 
   // Load messages when thread changes
   useEffect(() => {
     if (currentThreadId) {
-      loadMessages(currentThreadId);
+      loadMessages(currentThreadId).catch((error) => {
+        console.error("Failed to load messages for thread:", currentThreadId, error);
+      });
     } else {
       setMessages([]);
     }
   }, [currentThreadId]);
 
-  const loadThreads = async () => {
+  const loadThreads = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch("/api/chat/threads");
       if (response.ok) {
-        const data = await response.json();
-        setThreads(data.threads || []);
+        const data = (await response.json()) as ThreadsResponse;
+        setThreads(data.threads ?? []);
         // Select first thread if no current thread
         if (!currentThreadId && data.threads?.length > 0) {
-          setCurrentThreadId(data.threads[0].id);
+          setCurrentThreadId(data.threads[0]?.id || null);
         }
       }
     } catch (error) {
@@ -125,20 +158,23 @@ export default function ChatPage(): JSX.Element {
     } finally {
       setThreadsLoading(false);
     }
-  };
+  }, [currentThreadId]);
 
-  const loadMessages = async (threadId: string) => {
+  const loadMessages = async (threadId: string): Promise<void> => {
     try {
       const response = await fetch(`/api/chat/threads/${threadId}/messages`);
       if (response.ok) {
-        const data = await response.json();
-        const formattedMessages =
-          data.messages?.map((msg: any) => ({
+        const data = (await response.json()) as MessageResponse;
+        const formattedMessages: ChatMessage[] =
+          data.messages?.map((msg: ApiMessage) => ({
             id: msg.id,
             role: msg.role,
-            content: msg.content?.text || msg.content,
+            content:
+              typeof msg.content === "string"
+                ? msg.content
+                : ((msg.content as MessageContent)?.text ?? ""),
             timestamp: new Date(msg.createdAt),
-          })) || [];
+          })) ?? [];
         setMessages(formattedMessages);
       }
     } catch (error) {
@@ -146,26 +182,22 @@ export default function ChatPage(): JSX.Element {
     }
   };
 
-  const createNewThread = async (firstMessage?: string) => {
+  const createNewThread = async (firstMessage?: string): Promise<string | null> => {
     try {
-      const response = await fetch("/api/chat/threads", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrf() },
-        body: JSON.stringify({
+      const data = await fetchPost<ThreadResponse>(
+        "/api/chat/threads",
+        {
           title: generateThreadTitle(firstMessage),
           message: firstMessage,
-        }),
-      });
+        },
+        { showErrorToast: false },
+      );
 
-      if (response.ok) {
-        const data = await response.json();
-        const newThread = data.thread;
-        setThreads((prev) => [newThread, ...prev]);
-        setCurrentThreadId(newThread.id);
-        setMessages([]);
-        return newThread.id;
-      }
+      const newThread = data.thread;
+      setThreads((prev) => [newThread, ...prev]);
+      setCurrentThreadId(newThread.id);
+      setMessages([]);
+      return newThread.id;
     } catch (error) {
       console.error("Error creating thread:", error);
     }
@@ -192,17 +224,17 @@ export default function ChatPage(): JSX.Element {
     return truncated + "...";
   };
 
-  const startRenaming = (threadId: string, currentTitle: string) => {
+  const startRenaming = (threadId: string, currentTitle: string): void => {
     setEditingThreadId(threadId);
     setEditingTitle(currentTitle);
   };
 
-  const cancelRenaming = () => {
+  const cancelRenaming = (): void => {
     setEditingThreadId(null);
     setEditingTitle("");
   };
 
-  const saveRename = async (threadId: string) => {
+  const saveRename = async (threadId: string): Promise<void> => {
     if (!editingTitle.trim()) return;
 
     try {
@@ -226,7 +258,7 @@ export default function ChatPage(): JSX.Element {
     }
   };
 
-  const deleteThread = async (threadId: string) => {
+  const deleteThread = async (threadId: string): Promise<void> => {
     if (!confirm("Are you sure you want to delete this chat? This action cannot be undone.")) {
       return;
     }
@@ -252,7 +284,7 @@ export default function ChatPage(): JSX.Element {
     }
   };
 
-  const sendMessage = async () => {
+  const sendMessage = async (): Promise<void> => {
     if (!input.trim() || isLoading) return;
 
     const messageText = input;
@@ -293,7 +325,9 @@ export default function ChatPage(): JSX.Element {
       }
 
       // Refresh threads to show updated timestamp
-      loadThreads();
+      loadThreads().catch((error) => {
+        console.error("Failed to refresh threads after message:", error);
+      });
 
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -321,14 +355,14 @@ export default function ChatPage(): JSX.Element {
               if (data === "[DONE]") continue;
 
               try {
-                const parsed = JSON.parse(data);
+                const parsed = JSON.parse(data) as StreamEvent;
 
                 // Handle content updates
                 if (parsed.content) {
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === assistantMessage.id
-                        ? { ...msg, content: msg.content + parsed.content }
+                        ? { ...msg, content: msg.content + (parsed.content ?? "") }
                         : msg,
                     ),
                   );
@@ -338,7 +372,9 @@ export default function ChatPage(): JSX.Element {
                 if (parsed.titleUpdate && threadId) {
                   setThreads((prev) =>
                     prev.map((thread) =>
-                      thread.id === threadId ? { ...thread, title: parsed.titleUpdate } : thread,
+                      thread.id === threadId
+                        ? { ...thread, title: parsed.titleUpdate ?? thread.title }
+                        : thread,
                     ),
                   );
                 }
@@ -365,10 +401,12 @@ export default function ChatPage(): JSX.Element {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent): void => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      sendMessage().catch((error) => {
+        console.error("Failed to send message:", error);
+      });
     }
   };
 
@@ -386,7 +424,11 @@ export default function ChatPage(): JSX.Element {
       <div className="w-80 border-r bg-background/50 flex flex-col">
         <div className="p-4 border-b">
           <Button
-            onClick={() => createNewThread()}
+            onClick={() => {
+              createNewThread().catch((error) => {
+                console.error("Failed to create new thread:", error);
+              });
+            }}
             className="w-full justify-start gap-2"
             data-testid="new-chat-button"
           >
@@ -421,7 +463,9 @@ export default function ChatPage(): JSX.Element {
                         onChange={(e) => setEditingTitle(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
-                            saveRename(thread.id);
+                            saveRename(thread.id).catch((error) => {
+                              console.error("Failed to save thread rename:", error);
+                            });
                           } else if (e.key === "Escape") {
                             cancelRenaming();
                           }
@@ -434,7 +478,11 @@ export default function ChatPage(): JSX.Element {
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8"
-                        onClick={() => saveRename(thread.id)}
+                        onClick={() => {
+                          saveRename(thread.id).catch((error) => {
+                            console.error("Failed to save thread rename:", error);
+                          });
+                        }}
                         data-testid={`save-rename-${thread.id}`}
                       >
                         <Check className="h-4 w-4" />
@@ -491,7 +539,9 @@ export default function ChatPage(): JSX.Element {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteThread(thread.id);
+                              deleteThread(thread.id).catch((error) => {
+                                console.error("Failed to delete thread:", error);
+                              });
                             }}
                             className="text-destructive focus:text-destructive"
                             data-testid={`delete-thread-${thread.id}`}
@@ -594,7 +644,11 @@ export default function ChatPage(): JSX.Element {
                     data-testid="chat-input"
                   />
                   <Button
-                    onClick={sendMessage}
+                    onClick={() => {
+                      sendMessage().catch((error) => {
+                        console.error("Failed to send message:", error);
+                      });
+                    }}
                     disabled={!input.trim() || isLoading}
                     size="icon"
                     data-testid="send-button"
@@ -615,7 +669,14 @@ export default function ChatPage(): JSX.Element {
               <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
               <h2 className="text-xl font-semibold mb-2">Welcome to AI Assistant</h2>
               <p className="mb-4">Select a chat from the sidebar or start a new conversation</p>
-              <Button onClick={() => createNewThread()} className="gap-2">
+              <Button
+                onClick={() => {
+                  createNewThread().catch((error) => {
+                    console.error("Failed to create new thread:", error);
+                  });
+                }}
+                className="gap-2"
+              >
                 <Plus className="h-4 w-4" />
                 Start New Chat
               </Button>

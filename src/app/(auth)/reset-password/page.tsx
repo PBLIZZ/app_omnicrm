@@ -14,7 +14,7 @@ import {
   CardContent,
   Input,
 } from "@/components/ui";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowser } from "@/lib/supabase/client";
 
 export const dynamic = "force-dynamic";
 

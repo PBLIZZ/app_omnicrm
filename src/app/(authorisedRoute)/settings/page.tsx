@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,13 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  ArrowRight, 
-  Cog, 
-  Mail, 
-  User, 
-  Bell, 
-  Shield, 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  ArrowRight,
+  Cog,
+  Mail,
+  User,
+  Bell,
+  Shield,
   Database,
   Phone,
   Globe,
@@ -21,7 +24,8 @@ import {
   RefreshCw,
   Settings as SettingsIcon,
   RotateCcw,
-  Brain
+  Brain,
+  CheckCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { GmailSyncStatusPanel } from "./_components/GmailSyncStatusPanel";
@@ -65,6 +69,24 @@ function SettingsSection({
 }
 
 export default function SettingsPage(): JSX.Element {
+  const searchParams = useSearchParams();
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const connected = searchParams.get("connected");
+
+    if (connected === "gmail") {
+      setSuccessMessage(
+        "Gmail has been successfully connected! You can now configure your sync settings.",
+      );
+    } else if (connected === "calendar") {
+      setSuccessMessage(
+        "Google Calendar has been successfully connected! You can now sync your rhythm events.",
+      );
+    }
+    // If tab is specified, it will be handled by the Tabs component
+  }, [searchParams]);
+
   const settingsSections: SettingsSectionProps[] = [
     {
       title: "Account Settings",
@@ -89,7 +111,15 @@ export default function SettingsPage(): JSX.Element {
           </p>
         </div>
 
-        <Tabs defaultValue="integrations" className="w-full">
+        {/* Success Message */}
+        {successMessage && (
+          <Alert className="mb-6 border-green-200 bg-green-50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">{successMessage}</AlertDescription>
+          </Alert>
+        )}
+
+        <Tabs defaultValue={searchParams.get("tab") || "integrations"} className="w-full">
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
             <TabsTrigger value="sync">Sync Settings</TabsTrigger>
@@ -120,7 +150,9 @@ export default function SettingsPage(): JSX.Element {
                       <Mail className="h-8 w-8 text-blue-600" />
                       <div>
                         <div className="font-medium">Gmail Sync</div>
-                        <div className="text-sm text-muted-foreground">Sync contacts and analyze email interactions</div>
+                        <div className="text-sm text-muted-foreground">
+                          Sync contacts and analyze email interactions
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -135,13 +167,15 @@ export default function SettingsPage(): JSX.Element {
                     </div>
                   </div>
 
-                  {/* Calendar Integration */}
+                  {/* Rhythm Integration */}
                   <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
                     <div className="flex items-center gap-3">
                       <Calendar className="h-8 w-8 text-green-600" />
                       <div>
                         <div className="font-medium">Google Calendar</div>
-                        <div className="text-sm text-muted-foreground">Track events and build client timelines</div>
+                        <div className="text-sm text-muted-foreground">
+                          Track events and build client timelines
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -162,7 +196,9 @@ export default function SettingsPage(): JSX.Element {
                       <Database className="h-8 w-8 text-yellow-600" />
                       <div>
                         <div className="font-medium">Google Drive</div>
-                        <div className="text-sm text-muted-foreground">Import attendance sheets and documents</div>
+                        <div className="text-sm text-muted-foreground">
+                          Import attendance sheets and documents
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -198,7 +234,9 @@ export default function SettingsPage(): JSX.Element {
                       <Brain className="h-8 w-8 text-purple-600" />
                       <div>
                         <div className="font-medium">OpenAI Integration</div>
-                        <div className="text-sm text-muted-foreground">AI insights, embeddings, and semantic search</div>
+                        <div className="text-sm text-muted-foreground">
+                          AI insights, embeddings, and semantic search
+                        </div>
                       </div>
                     </div>
                     <Button variant="outline">
@@ -217,9 +255,7 @@ export default function SettingsPage(): JSX.Element {
                   <Phone className="h-5 w-5" />
                   Communication Platforms
                 </CardTitle>
-                <CardDescription>
-                  Connect messaging and communication services
-                </CardDescription>
+                <CardDescription>Connect messaging and communication services</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-4">
@@ -228,7 +264,9 @@ export default function SettingsPage(): JSX.Element {
                       <Phone className="h-8 w-8 text-green-600" />
                       <div>
                         <div className="font-medium">WhatsApp Business</div>
-                        <div className="text-sm text-muted-foreground">Send messages to contacts</div>
+                        <div className="text-sm text-muted-foreground">
+                          Send messages to contacts
+                        </div>
                       </div>
                     </div>
                     <Button variant="outline">Connect</Button>
@@ -263,9 +301,9 @@ export default function SettingsPage(): JSX.Element {
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <Label>Calendar Event Processing</Label>
+                      <Label>Rhythm Event Processing</Label>
                       <div className="text-sm text-muted-foreground">
-                        Generate AI insights from calendar events
+                        Generate AI insights from rhythm events
                       </div>
                     </div>
                     <Switch defaultChecked />
@@ -344,9 +382,7 @@ export default function SettingsPage(): JSX.Element {
                   <Bell className="h-5 w-5" />
                   Notification Preferences
                 </CardTitle>
-                <CardDescription>
-                  Choose how you want to receive notifications
-                </CardDescription>
+                <CardDescription>Choose how you want to receive notifications</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -398,9 +434,7 @@ export default function SettingsPage(): JSX.Element {
                   <Shield className="h-5 w-5" />
                   Security Settings
                 </CardTitle>
-                <CardDescription>
-                  Manage your account security and privacy
-                </CardDescription>
+                <CardDescription>Manage your account security and privacy</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -453,9 +487,7 @@ export default function SettingsPage(): JSX.Element {
                   <Database className="h-5 w-5" />
                   System Preferences
                 </CardTitle>
-                <CardDescription>
-                  Configure system-wide settings and preferences
-                </CardDescription>
+                <CardDescription>Configure system-wide settings and preferences</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -483,7 +515,7 @@ export default function SettingsPage(): JSX.Element {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline">Export Contacts</Button>
-                    <Button variant="outline">Export Calendar Data</Button>
+                    <Button variant="outline">Export Rhythm Data</Button>
                     <Button variant="outline">Export All Data</Button>
                   </div>
                 </div>
@@ -498,7 +530,9 @@ export default function SettingsPage(): JSX.Element {
       <div className="mt-12 pt-8 border-t border-gray-200">
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold tracking-tight text-gray-500">Legacy Settings</h2>
-          <p className="text-muted-foreground">Original settings interface (to be integrated later)</p>
+          <p className="text-muted-foreground">
+            Original settings interface (to be integrated later)
+          </p>
         </div>
 
         <div>
@@ -528,9 +562,7 @@ export default function SettingsPage(): JSX.Element {
               <Mail className="h-5 w-5" />
               Legacy Data Ingestion
             </h4>
-            <p className="text-muted-foreground mt-1">
-              Original Gmail sync interface
-            </p>
+            <p className="text-muted-foreground mt-1">Original Gmail sync interface</p>
           </div>
 
           <GmailSyncStatusPanel />

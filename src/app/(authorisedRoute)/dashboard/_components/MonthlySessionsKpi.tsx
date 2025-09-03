@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 
 function startOfMonth(d: Date): Date {
@@ -54,15 +54,17 @@ export default function MonthlySessionsKpi(): JSX.Element {
         .gte("created_at", thisStart.toISOString())
         .lt("created_at", nextStart.toISOString());
 
-      const [m0, m1, m2, m3, risks] = await Promise.all([
-        ...meetingPromises,
-        riskThisMonthPromise,
-      ]);
+      const [m0, m1, m2, m3, risks] = await Promise.all([...meetingPromises, riskThisMonthPromise]);
 
       const safeCount = (r: { count?: number | null } | null | undefined): number =>
         typeof r?.count === "number" ? r.count : 0;
 
-      const counts: [number, number, number, number] = [safeCount(m0), safeCount(m1), safeCount(m2), safeCount(m3)];
+      const counts: [number, number, number, number] = [
+        safeCount(m0),
+        safeCount(m1),
+        safeCount(m2),
+        safeCount(m3),
+      ];
       const current = counts[3] ?? 0;
       const trailing3 = ((counts[0] ?? 0) + (counts[1] ?? 0) + (counts[2] ?? 0)) / 3;
 
@@ -87,7 +89,8 @@ export default function MonthlySessionsKpi(): JSX.Element {
       <CardHeader>
         <CardTitle>Sessions this month</CardTitle>
         <CardDescription>
-          Comparing against the last 3 months average. Risks flagged this month: {data?.riskThisMonth ?? 0}
+          Comparing against the last 3 months average. Risks flagged this month:{" "}
+          {data?.riskThisMonth ?? 0}
         </CardDescription>
       </CardHeader>
       <CardContent>

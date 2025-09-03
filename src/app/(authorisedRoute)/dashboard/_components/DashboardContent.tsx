@@ -14,7 +14,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchContacts, type ContactDTO } from "@/components/contacts/api";
+import { fetchContacts, type ContactDTO } from "@/lib/api/contacts";
 import MonthlySessionsKpi from "./MonthlySessionsKpi";
 import { getSyncStatus } from "@/lib/api/sync";
 
@@ -444,7 +444,7 @@ export default function DashboardContent(): JSX.Element {
                 <div className="text-2xl font-bold">85%</div>
                 <p className="text-sm text-muted-foreground">Average contact engagement</p>
               </div>
-              
+
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <Calendar className="h-4 w-4 text-green-500" />
@@ -453,7 +453,7 @@ export default function DashboardContent(): JSX.Element {
                 <div className="text-2xl font-bold">{upcomingTasks}</div>
                 <p className="text-sm text-muted-foreground">Scheduled activities</p>
               </div>
-              
+
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <CheckSquare className="h-4 w-4 text-purple-500" />

@@ -11,6 +11,7 @@ This backup was created before implementing Drizzle Kit migrations to ensure we 
 ## Extensions Status
 
 ✅ **Installed Extensions:**
+
 - `vector` (0.8.0) - pgvector for embeddings
 - `uuid-ossp` (1.1) - UUID generation
 - `pg_stat_statements` (1.11) - Query statistics
@@ -25,8 +26,9 @@ This backup was created before implementing Drizzle Kit migrations to ensure we 
 **43 RLS Policies Across 21 Tables:**
 
 ### Core Tables (authenticated users):
+
 - **contacts**: 4 policies (select/insert/update/delete own)
-- **interactions**: 4 policies (select/insert/update/delete own)  
+- **interactions**: 4 policies (select/insert/update/delete own)
 - **documents**: 4 policies (select/insert/update/delete own)
 - **jobs**: 4 policies (select/insert/update/delete own)
 - **threads**: 4 policies (select/insert/update/delete own)
@@ -35,11 +37,13 @@ This backup was created before implementing Drizzle Kit migrations to ensure we 
 - **user_integrations**: 4 policies (select/insert/update/delete own)
 
 ### Read-Only Tables:
+
 - **ai_insights**: 1 policy (select own)
 - **embeddings**: 1 policy (select own)
 - **raw_events**: 1 policy (select own)
 
 ### All-Access Tables (public role):
+
 - **calendar_events**: 1 policy (manage own calendar events)
 - **contact_timeline**: 1 policy (manage own contact timeline)
 - **notes**: 1 policy (manage own notes)
@@ -49,6 +53,7 @@ This backup was created before implementing Drizzle Kit migrations to ensure we 
 - **workspaces**: 1 policy (manage own workspaces)
 
 ### Combined Access:
+
 - **ai_quotas**: 1 policy (all operations on own)
 - **ai_usage**: 1 policy (all operations on own)
 - **sync_audit**: 1 policy (all operations on own)
@@ -59,6 +64,7 @@ This backup was created before implementing Drizzle Kit migrations to ensure we 
 **133 Indexes Total** across all tables:
 
 ### Performance-Critical Indexes:
+
 - **Vector Index**: `embeddings_vec_idx` (ivfflat, cosine similarity)
 - **Complex Performance Indexes**: 85+ indexes for query optimization
 - **Unique Constraints**: Primary keys + business logic uniqueness
@@ -67,33 +73,35 @@ This backup was created before implementing Drizzle Kit migrations to ensure we 
 
 ## Data Volume (Current State)
 
-| Table | Live Rows | Historical Activity |
-|-------|-----------|-------------------|
-| **workspaces** | 438 | 438 inserts |
-| **notes** | 64 | 69 inserts, 6 deletes |
-| **embeddings** | 55 | 55 inserts |
-| **calendar_events** | 54 | 54 inserts, 6 updates |
-| **contacts** | 26 | 198 inserts, 83 updates, 172 deletes |
-| **sync_audit** | 9 | 126 inserts, 117 deletes |
-| **jobs** | 5 | 58 inserts, 290 updates, 53 deletes |
-| **ai_usage** | 4 | 4 inserts |
-| **raw_events** | 3 | 50 inserts, 47 deletes |
-| **user_integrations** | 2 | 4 inserts, 43 updates, 2 deletes |
-| **ai_quotas** | 1 | 1 insert, 7 updates |
-| **interactions** | 1 | 33 inserts, 2 updates, 32 deletes |
+| Table                 | Live Rows | Historical Activity                  |
+| --------------------- | --------- | ------------------------------------ |
+| **workspaces**        | 438       | 438 inserts                          |
+| **notes**             | 64        | 69 inserts, 6 deletes                |
+| **embeddings**        | 55        | 55 inserts                           |
+| **calendar_events**   | 54        | 54 inserts, 6 updates                |
+| **contacts**          | 26        | 198 inserts, 83 updates, 172 deletes |
+| **sync_audit**        | 9         | 126 inserts, 117 deletes             |
+| **jobs**              | 5         | 58 inserts, 290 updates, 53 deletes  |
+| **ai_usage**          | 4         | 4 inserts                            |
+| **raw_events**        | 3         | 50 inserts, 47 deletes               |
+| **user_integrations** | 2         | 4 inserts, 43 updates, 2 deletes     |
+| **ai_quotas**         | 1         | 1 insert, 7 updates                  |
+| **interactions**      | 1         | 33 inserts, 2 updates, 32 deletes    |
 
 **Empty Tables**: ai_insights, contact_timeline, documents, messages, projects, task_actions, tasks, threads, tool_invocations, user_sync_prefs
 
 ## Schema Integrity
 
 ### Foreign Key Relationships:
+
 - **auth.users** → All user_id columns (via RLS, not FK constraints)
 - **contacts** ← interactions, notes, contact_timeline
-- **threads** ← messages ← tool_invocations  
+- **threads** ← messages ← tool_invocations
 - **workspaces** ← projects ← tasks ← task_actions
 - **tasks** ← tasks (parent_task_id self-reference)
 
 ### Check Constraints:
+
 - **messages.role**: 'user' | 'assistant' | 'tool'
 - **tasks.status**: 'todo' | 'in_progress' | 'waiting' | 'done' | 'cancelled'
 - **tasks.priority**: 'low' | 'medium' | 'high' | 'urgent'
@@ -103,6 +111,7 @@ This backup was created before implementing Drizzle Kit migrations to ensure we 
 ## Critical Elements for Migration
 
 ### ⚠️ MUST PRESERVE MANUALLY:
+
 1. **RLS Policies**: All 43 policies - Drizzle cannot manage these
 2. **pgvector Extension**: Critical for AI embeddings functionality
 3. **Complex Performance Indexes**: 85+ specialized indexes
@@ -110,6 +119,7 @@ This backup was created before implementing Drizzle Kit migrations to ensure we 
 5. **Vector Index**: `embeddings_vec_idx` for cosine similarity
 
 ### ✅ CAN MIGRATE WITH DRIZZLE:
+
 1. **Basic Table Structure**: Columns, types, defaults
 2. **Primary Keys**: All UUID primary keys
 3. **Simple Indexes**: Basic single/multi-column indexes
@@ -130,7 +140,7 @@ CREATE SCHEMA public;
 ## Next Steps
 
 1. Install Drizzle Kit
-2. Create drizzle.config.ts 
+2. Create drizzle.config.ts
 3. Introspect current schema
 4. Generate baseline migration
 5. Apply migration with MCP monitoring

@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `npx drizzle-kit pull` - Pull current database schema to schema.ts (RECOMMENDED)
 - `npx drizzle-kit generate` - Generate migration files when schema.ts matches database
-- `npx drizzle-kit migrate` - Apply pending migrations to database  
+- `npx drizzle-kit migrate` - Apply pending migrations to database
 - `npx drizzle-kit studio` - Launch Drizzle Studio for database inspection
 - `npx drizzle-kit introspect` - Legacy command, use `pull` instead
 
@@ -45,12 +45,12 @@ pnpm typecheck && pnpm lint && pnpm test
 
 - **Framework**: Next.js 15 with App Router
 - **Database**: Supabase (PostgreSQL) with Row Level Security (RLS)
-- **ORM**: Drizzle (types only, no migrations)
+- **ORM**: Drizzle
 - **Auth**: Supabase Auth with Google OAuth
-- **Styling**: Tailwind CSS with shadcn/ui components
+- **Styling**: Tailwind CSS v4 + shadcn components
 - **Testing**: Vitest (unit) + Playwright (E2E)
 - **State Management**: TanStack React Query
-- **AI**: OpenRouter integration for LLM features
+- **AI**: OpenRouter integration for LLM features, Anthropic for chat and openai for Insights. Need to swithc to an embeddings model for embeddings.
 
 ### Database Philosophy
 
@@ -60,6 +60,7 @@ pnpm typecheck && pnpm lint && pnpm test
 - **Schema introspection**: Run `npx drizzle-kit introspect` to capture current database state
 - **Selective migrations**: Use `npx drizzle-kit generate` for simple column/table additions
 - **Manual SQL for complex changes**: RLS policies, extensions, complex indexes, and structural changes
+- **Use MCP Server Tools**: Prefer MCP Tools for database management over RAW SQL QUERIES where available.
 - **NEVER use `drizzle-kit push`**: Always use the migration workflow to prevent data loss
 - **Comprehensive backups**: Use MCP Supabase server for full schema/data backup before changes
 - **Schema sync**: Keep `src/server/db/schema.ts` as the source of truth for application types
@@ -69,14 +70,14 @@ pnpm typecheck && pnpm lint && pnpm test
 1. **Database-first approach**: Make all schema changes in Supabase SQL editor first
 2. **Introspect after changes**: Run `npx drizzle-kit pull` to update schema.ts
 3. **Generate safe migrations**: `npx drizzle-kit generate` works safely when schema matches DB
-4. **Review migration SQL**: Always inspect generated SQL before applying  
+4. **Review migration SQL**: Always inspect generated SQL before applying
 5. **Apply incremental changes**: Use `npx drizzle-kit migrate` for approved changes
 6. **Keep schema.ts synchronized**: Re-run `pull` after any manual SQL changes
 
 #### What Goes Where (UPDATED)
 
 - **Drizzle Kit safe for**: Simple column additions, table creation, basic constraints when schema is synchronized
-- **Manual SQL for**: Complex indexes, RLS policies, extensions, structural changes 
+- **Manual SQL for**: Complex indexes, RLS policies, extensions, structural changes
 - **Schema.ts**: Must exactly match database via `drizzle-kit pull` - is source of truth for TypeScript types
 - **Key insight**: `drizzle-kit generate` only becomes destructive when schema.ts is out of sync with database
 
@@ -94,6 +95,7 @@ pnpm typecheck && pnpm lint && pnpm test
 src/
 ├── app/                    # Next.js App Router
 │   ├── (authorisedRoute)/ # Protected routes (dashboard, contacts, calendar, messages)
+│   ├── (auth)/            # Public routes (login, register)
 │   ├── api/               # API routes (thin handlers)
 │   └── layout.tsx         # Root layout with auth
 ├── components/            # React components
@@ -298,11 +300,11 @@ The system intelligently extracts structured data from unstructured calendar eve
 // Pattern extraction from event titles and descriptions
 private static extractEventType(title: string, description?: string): string {
   const text = `${title} ${description || ''}`.toLowerCase();
-  
+
   if (/\b(class|lesson|session)\b/.test(text)) return 'class';
   if (/\b(workshop|seminar|training)\b/.test(text)) return 'workshop';
   if (/\b(appointment|consultation|private)\b/.test(text)) return 'appointment';
-  
+
   return 'event'; // default
 }
 ```
@@ -319,7 +321,7 @@ const data = await fetchPost<ResponseType>("/api/contacts-new/suggestions", payl
 // ❌ Raw fetch (missing CSRF tokens, will fail with 403)
 const response = await fetch("/api/contacts-new/suggestions", {
   method: "POST",
-  body: JSON.stringify(payload)
+  body: JSON.stringify(payload),
 });
 ```
 
@@ -333,7 +335,7 @@ const createNoteMutation = useMutation({
   onMutate: async (newNote) => {
     // Optimistic update
     const previous = queryClient.getQueryData(["notes", contactId]);
-    queryClient.setQueryData(["notes", contactId], old => [tempNote, ...old]);
+    queryClient.setQueryData(["notes", contactId], (old) => [tempNote, ...old]);
     return { previous };
   },
   onError: (error, variables, context) => {
@@ -341,7 +343,7 @@ const createNoteMutation = useMutation({
     if (context?.previous) {
       queryClient.setQueryData(["notes", contactId], context.previous);
     }
-  }
+  },
 });
 ```
 
@@ -350,14 +352,14 @@ const createNoteMutation = useMutation({
 #### 36 Wellness Tags (4 Categories)
 
 - **Services (14)**: Yoga, Massage, Meditation, Pilates, Reiki, Acupuncture, Personal Training, Nutrition Coaching, Life Coaching, Therapy, Workshops, Retreats, Group Classes, Private Sessions
-- **Demographics (11)**: Senior, Young Adult, Professional, Parent, Student, Beginner, Intermediate, Advanced, VIP, Local, Traveler  
+- **Demographics (11)**: Senior, Young Adult, Professional, Parent, Student, Beginner, Intermediate, Advanced, VIP, Local, Traveler
 - **Goals & Health (11)**: Stress Relief, Weight Loss, Flexibility, Strength Building, Pain Management, Mental Health, Spiritual Growth, Mindfulness, Athletic Performance, Injury Recovery, Prenatal, Postnatal
 - **Engagement Patterns (10)**: Regular Attendee, Weekend Warrior, Early Bird, Evening Preferred, Seasonal Client, Frequent Visitor, Occasional Visitor, High Spender, Referral Source, Social Media Active
 
 #### 7 Client Lifecycle Stages
 
 - **Prospect**: 1-2 events, recent inquiries
-- **New Client**: 2-5 events, getting started  
+- **New Client**: 2-5 events, getting started
 - **Core Client**: 6+ events, regular attendance
 - **Referring Client**: Evidence of bringing others
 - **VIP Client**: High frequency (10+ events) + premium services
@@ -408,8 +410,8 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 1. Add real Google OAuth tokens to `.env.local`:
 
    ```typescript
-   E2E_GOOGLE_ACCESS_TOKEN=your_actual_access_token
-   E2E_GOOGLE_REFRESH_TOKEN=your_actual_refresh_token
+   E2E_GOOGLE_ACCESS_TOKEN = your_actual_access_token;
+   E2E_GOOGLE_REFRESH_TOKEN = your_actual_refresh_token;
    ```
 
 2. Run setup: `pnpm e2e:setup` (creates test user + OAuth tokens)
@@ -439,3 +441,171 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 - **Toast notifications**: Use Sonner for user feedback (success, error, info)
 - **Mock data**: Use realistic mock data during development for better UX testing
 - **Accessibility**: Ensure proper ARIA labels and keyboard navigation
+- i stopped you becasue when you move files you have to manually update all the broken imports, when i move them the imports update automatically
+
+Codebase Patterns Analysis
+
+Here's a comprehensive overview of the patterns used in your OmniCRM codebase,
+organized by categories:
+
+HTTP/API Layer Patterns
+
+✅ Standardized Approach:
+
+-
+
+```typescript
+
+fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
+
+- Centralized API
+  utilities
+- Never direct fetch() - All HTTP calls go through utilities in src/lib/api.ts
+- OkEnvelope Pattern: { ok: true; data: T } | { ok: false; error: string; details?:
+  unknown }
+- CSRF Protection: Automatic x-csrf-token header injection
+- Error Handling: Built-in toast notifications and error boundaries
+- Type Safety: Full TypeScript generics for request/response types
+
+  Data Layer Patterns
+
+  ✅ Database Connection:
+
+- getDb() Pattern: Always use await getDb() for database connections
+- Never db import: The proxy-based db import causes runtime errors (db.from is not a
+  function)
+- postgres.js: Uses postgres.js driver (NOT pg)
+- Drizzle ORM: All queries use Drizzle with strict type safety
+- Connection Pooling: Singleton pattern with lazy initialization
+- Configuration: Optimized for Supabase Transaction mode (prepare: false)
+
+  Critical Database Pattern:
+  // ✅ Correct
+  import { getDb } from "@/server/db/client";
+  const db = await getDb();
+
+  // ❌ Broken
+  import { db } from "@/server/db";
+
+  State Management Patterns
+
+  ✅ React Query Ecosystem:
+
+- TanStack React Query: Primary state management for server state
+- Custom Hooks: All API interactions wrapped in custom hooks
+- Optimistic Updates: Mutations with rollback on error
+- Query Invalidation: Automatic cache invalidation after mutations
+- Error Handling: Integrated with toast notifications
+
+  Hook Pattern Example:
+  export function useContactActions() {
+    return useMutation({
+      mutationFn: (data) => fetchPost("/api/contacts-new", data),
+      onSuccess: () => queryClient.invalidateQueries(["/api/contacts-new"]),
+      onError: (error) => toast.error("Failed: " + error.message)
+    });
+  }
+
+  Validation Patterns
+
+  ✅ Zod Schemas:
+
+- Centralized Schemas: All in src/lib/schemas/ directory
+- Type Inference: type T = z.infer<typeof Schema> - No manual types
+- API Validation: Request/response schemas for all endpoints
+- Preprocessing: Input sanitization and coercion
+- Strict Mode: .strict() on all object schemas
+- Error Mapping: Custom error messages and transformations
+
+  Schema Organization:
+
+- src/lib/schemas/index.ts - Central exports
+- Individual files: contacts.ts, chat.ts, sync.ts, etc.
+- DTO patterns match database schema exactly
+
+  Service Layer Architecture
+
+  ✅ Business Logic Separation:
+
+- Thin API Routes: Controllers in src/app/api/
+- Service Layer: Business logic in src/server/services/
+- Repository Pattern: Data access in src/server/storage/
+- Job Processing: Background tasks in src/server/jobs/
+
+  Service Structure:
+  src/server/
+  ├── services/     # Business logic
+  ├── storage/      # Data repositories
+  ├── jobs/         # Background processing
+  ├── ai/           # LLM integrations
+  └── google/       # External APIs
+
+  Authentication/Encryption Patterns
+
+  ✅ Security Implementation:
+
+- AES-256-GCM: All sensitive data encryption
+- HMAC-SHA256: Message authentication and CSRF tokens
+- Key Derivation: Master key with labeled sub-keys
+- Versioned Format: v1:<iv>:<ciphertext>:<tag> envelope
+- OAuth Storage: Encrypted tokens in user_integrations table
+- Environment Key: APP_ENCRYPTION_KEY (base64url preferred)
+
+  Encryption Utilities:
+
+- src/lib/crypto.ts - Node.js crypto functions
+- src/lib/crypto-edge.ts - Edge runtime compatible
+- Auto-detection of encrypted vs plaintext data
+
+  Error Handling Patterns
+
+  ✅ Comprehensive Error Management:
+
+- Toast Notifications: Sonner for user feedback
+- Error Boundaries: React error boundaries throughout UI
+- API Envelopes: Structured error responses
+- Logging: Console errors with context
+- Validation Errors: Zod error mapping
+- Retry Logic: Built into React Query mutations
+
+  File Organization Patterns
+
+  ✅ Directory Structure:
+  src/
+  ├── app/                    # Next.js App Router
+  │   ├── (authorisedRoute)/  # Protected routes
+  │   ├── (auth)/            # Public routes
+  │   └── api/               # API endpoints
+  ├── components/            # React components
+  ├── hooks/                 # Custom React hooks
+  ├── lib/                   # Utilities & schemas
+  └── server/               # Backend services
+
+  Background Job Patterns
+
+  ✅ Job Processing:
+
+- Job Queue: Database-backed job queue in jobs table
+- Processors: Separate processor classes for each job type
+- Retry Logic: Configurable retry attempts with backoff
+- Batch Processing: Support for batch operations
+- Status Tracking: Job status monitoring
+
+  Job Types:
+
+- normalize - Data normalization
+- embed - Vector embeddings
+- insight - AI insights generation
+- sync_gmail / sync_calendar - External API sync
+
+  Component Architecture Patterns
+
+  ✅ UI Components:
+
+- shadcn/ui: Base component library
+- Compound Components: Complex UI patterns with multiple parts
+- Props Interface: Strict TypeScript interfaces for all props
+- Error Boundaries: Component-level error handling
+- Loading States: Skeleton components and loading indicators
+- pnpm typecheck and pnpm lint are the preferred commands
+```

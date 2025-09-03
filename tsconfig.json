@@ -32,7 +32,16 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "vitest-env.d.ts", "src/**/*", ".next/types/**/*.ts", "playwright.config.ts"],
+  "include": [
+    "next-env.d.ts",
+    "vitest-env.d.ts",
+    "src/**/*",
+    ".next/types/**/*.ts",
+    "playwright.config.ts",
+    "scripts/trigger-sync.js",
+    "scripts/test-sync.js",
+    "scripts/contrast-check.js"
+  ],
   "exclude": [
     "drizzle/**",
     "node_modules",

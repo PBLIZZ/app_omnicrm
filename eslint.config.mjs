@@ -49,6 +49,32 @@ const eslintConfig = [
       parserOptions: {
         project: "./tsconfig.json",
       },
+      globals: {
+        // Browser globals
+        window: "readonly",
+        document: "readonly",
+        navigator: "readonly",
+        fetch: "readonly",
+        localStorage: "readonly",
+        sessionStorage: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        FormData: "readonly",
+        Request: "readonly",
+        Response: "readonly",
+        Headers: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
+        // Node.js globals (for server-side code)
+        process: "readonly",
+        Buffer: "readonly",
+        global: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+      },
     },
     plugins: {
       "unused-imports": unusedImports,

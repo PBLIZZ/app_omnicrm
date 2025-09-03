@@ -74,7 +74,7 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
   });
 
   // Format date helper
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -89,7 +89,7 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
   };
 
   // Get status badge
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string): JSX.Element => {
     switch (status) {
       case 'pending':
         return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Pending</Badge>;
@@ -103,7 +103,7 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
   };
 
   // Get priority badge
-  const getPriorityBadge = (priority: string) => {
+  const getPriorityBadge = (priority: string): JSX.Element => {
     switch (priority) {
       case 'high':
         return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">High</Badge>;

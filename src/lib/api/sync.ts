@@ -48,7 +48,26 @@ export interface SyncPreferences {
 
 export interface PreviewGmailResponse {
   countByLabel: Record<string, number>;
-  sampleSubjects: string[];
+  sampleSubjects: Array<{
+    id: string;
+    subject: string;
+    from: string;
+    date: string;
+  }>;
+  // Optional richer preview fields
+  sampleEmails?: Array<{
+    id: string;
+    subject: string;
+    from: string;
+    date: string;
+    snippet: string;
+    hasAttachments: boolean;
+    labels: string[];
+  }>;
+  dateRange?: {
+    from: string;
+    to: string;
+  };
 }
 
 export interface PreviewCalendarResponse {

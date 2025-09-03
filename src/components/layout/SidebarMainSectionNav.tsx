@@ -13,16 +13,16 @@ import {
 import { Home, Users, CheckSquare, Calendar, MessageSquare, Megaphone, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useContactCount } from "@/hooks/use-contact-count";
-import { useTaskCount } from "@/hooks/use-task-count";
+import { useMomentumCount } from "@/hooks/use-momentum-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Only include sections that have a page.tsx under (authorisedRoute), excluding Settings
 const mainNavItems = [
   { title: "Dashboard", href: "/dashboard" as const, icon: Home },
   { title: "Contacts", href: "/contacts" as const, icon: Users },
-  { title: "Tasks", href: "/tasks" as const, icon: CheckSquare },
-  { title: "Calendar", href: "/calendar" as const, icon: Calendar },
-  { title: "Messages", href: "/messages" as const, icon: MessageSquare },
+  { title: "Omni Momentum", href: "/omni-momentum" as const, icon: CheckSquare },
+  { title: "Omni Rhythm", href: "/omni-rhythm" as const, icon: Calendar },
+  { title: "Omni Connect", href: "/omni-connect" as const, icon: MessageSquare },
   { title: "AI Chat", href: "/chat" as const, icon: Bot },
   { title: "Marketing", href: "/marketing" as const, icon: Megaphone },
 ];
@@ -30,7 +30,7 @@ const mainNavItems = [
 export function SidebarMainSectionNav(): JSX.Element {
   const pathname = usePathname() ?? "/";
   const contactCount = useContactCount();
-  const taskCount = useTaskCount();
+  const momentumCount = useMomentumCount();
   const { state } = useSidebar();
 
   return (
@@ -41,7 +41,11 @@ export function SidebarMainSectionNav(): JSX.Element {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
           const count =
-            item.href === "/contacts" ? contactCount : item.href === "/tasks" ? taskCount : 0;
+            item.href === "/contacts"
+              ? contactCount
+              : item.href === "/omni-momentum"
+                ? momentumCount
+                : 0;
           return (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton asChild isActive={isActive} tooltip={item.title} data-nav="main">

@@ -77,9 +77,9 @@ export function DailyInspirationCard({ className }: DailyInspirationCardProps) {
       <CardContent className="flex flex-col items-center justify-center space-y-4 pt-4">
         <Quote className="h-8 w-8 text-primary/60" />
         <blockquote className="text-lg italic text-center">
-          "{quote.text}"
+          "{quote?.text || 'Loading inspiration...'}"
         </blockquote>
-        <cite className="font-medium text-sm">— {quote.author}</cite>
+        <cite className="font-medium text-sm">— {quote?.author || 'Anonymous'}</cite>
       </CardContent>
     </Card>
   );

@@ -4,7 +4,7 @@
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
-import { encryptString } from "@/server/lib/crypto";
+import { encryptString } from "@/lib/crypto";
 
 export async function setupTestOAuthTokens(userId: string): Promise<void> {
   if (process.env.NODE_ENV === "production") {

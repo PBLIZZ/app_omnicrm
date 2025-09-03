@@ -2,7 +2,7 @@
 // no NextResponse usage; responses via helpers
 import { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { err, ok } from "@/server/http/responses";
+import { err, ok } from "@/lib/api/http";
 import { z } from "zod";
 import { toApiError } from "@/server/jobs/types";
 

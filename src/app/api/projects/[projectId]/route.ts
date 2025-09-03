@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/server/http/responses";
+import { ok, err, safeJson } from "@/lib/api/http";
 import { tasksStorage } from "@/server/storage/tasks.storage";
 import { z } from "zod";
+import type { NewMomentumProject } from "@/server/db/schema";
 
 const UpdateProjectSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1), // Required to match DB schema
   description: z.string().optional(),
   color: z.string().optional(),
   status: z.enum(["active", "completed", "on_hold", "cancelled"]).optional(),
@@ -60,9 +61,14 @@ export async function PUT(
   }
 
   try {
-    const updateData = { ...parsed.data };
-    if (parsed.data.dueDate) {
-      updateData.dueDate = new Date(parsed.data.dueDate);
+    // Handle optional fields properly for exactOptionalPropertyTypes
+    const updateData: Partial<Omit<NewMomentumProject, 'userId'>> = {};
+    if (parsed.data['name'] !== undefined) updateData['name'] = parsed.data['name'];
+    if (parsed.data['description'] !== undefined) updateData['description'] = parsed.data['description'];
+    if (parsed.data['color'] !== undefined) updateData['color'] = parsed.data['color'];
+    if (parsed.data['status'] !== undefined) updateData['status'] = parsed.data['status'];
+    if (parsed.data['dueDate'] !== undefined) {
+      updateData['dueDate'] = new Date(parsed.data['dueDate']);
     }
     
     await tasksStorage.updateProject(projectId, userId, updateData);

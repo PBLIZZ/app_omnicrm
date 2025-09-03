@@ -44,8 +44,8 @@ export const routeConfig: Record<string, RouteConfig> = {
     label: "Edit",
     parent: "/contacts/[contactId]",
   },
-  "/tasks": {
-    label: "Tasks",
+  "/omni-momentum": {
+    label: "Momentum",
     parent: "/",
   },
   "/marketing": {
@@ -56,8 +56,8 @@ export const routeConfig: Record<string, RouteConfig> = {
     label: "Analytics",
     parent: "/",
   },
-  "/calendar": {
-    label: "Calendar",
+  "/omni-rhythm": {
+    label: "Omni Rhythm",
     parent: "/",
   },
   "/messages": {

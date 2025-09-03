@@ -25,7 +25,7 @@ export interface EnrichmentState {
   errors: string[];
 }
 
-export function useStreamingEnrichment() {
+export function useStreamingEnrichment(): EnrichmentState & { startEnrichment: () => Promise<void> } {
   const queryClient = useQueryClient();
   const [state, setState] = useState<EnrichmentState>({
     isRunning: false,
@@ -140,7 +140,7 @@ export function useStreamingEnrichment() {
                     }
                     
                     // Invalidate queries to refresh data
-                    queryClient.invalidateQueries({ queryKey: ['/api/contacts-new'] });
+                    void queryClient.invalidateQueries({ queryKey: ['/api/contacts-new'] });
                     
                     return {
                       ...prev,

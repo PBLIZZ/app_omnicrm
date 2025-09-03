@@ -4,10 +4,10 @@ import { usePathname } from "next/navigation";
 
 import { ContactsSidebar } from "@/app/(authorisedRoute)/contacts/_components/ContactsSidebar";
 import { DashboardSidebar } from "@/app/(authorisedRoute)/dashboard/_components/DashboardSidebar";
-import { TasksSidebar } from "@/app/(authorisedRoute)/tasks/_components/TasksSidebar";
+import { MomentumSidebar } from "@/app/(authorisedRoute)/omni-momentum/_components/MomentumSidebar";
 import { MarketingSidebar } from "@/app/(authorisedRoute)/marketing/_components/MarketingSidebar";
-import { MessagesSidebar } from "@/app/(authorisedRoute)/messages/_components/MessagesSidebar";
-import { CalendarSidebar } from "@/app/(authorisedRoute)/calendar/_components/CalendarSidebar";
+import { ConnectSidebar } from "@/app/(authorisedRoute)/omni-connect/_components/ConnectSidebar";
+import { CalendarSidebar } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarSidebar";
 import { SettingsSidebar } from "@/app/(authorisedRoute)/settings/_components/SettingsSidebar";
 import { AnalyticsSidebar } from "@/app/(authorisedRoute)/analytics/AnalyticsSidebar";
 
@@ -23,19 +23,19 @@ export function AppSidebarController(): JSX.Element {
       return <ContactsSidebar />;
     }
 
-    if (pathname.startsWith("/tasks")) {
-      return <TasksSidebar />;
+    if (pathname.startsWith("/omni-momentum")) {
+      return <MomentumSidebar />;
     }
 
     if (pathname.startsWith("/marketing")) {
       return <MarketingSidebar />;
     }
 
-    if (pathname.startsWith("/messages")) {
-      return <MessagesSidebar />;
+    if (pathname.startsWith("/omni-connect")) {
+      return <ConnectSidebar />;
     }
 
-    if (pathname.startsWith("/calendar")) {
+    if (pathname.startsWith("/omni-rhythm")) {
       return <CalendarSidebar />;
     }
 

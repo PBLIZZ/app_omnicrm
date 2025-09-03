@@ -3,7 +3,7 @@
 import { Card } from '@/components/ui/card';
 import { api } from '@/lib/trpc';
 
-export function ContactsWidgets() {
+export function ContactsWidgets(): JSX.Element {
   // We can fetch data here or pass it down. For now, let's fetch.
   const { data: contacts = [] } = api.contacts.list.useQuery({});
 

@@ -2,11 +2,7 @@
 import { getDb } from "@/server/db/client";
 import { threads, messages, toolInvocations } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
-import type { 
-  Thread, 
-  Message, 
-  ToolInvocation 
-} from "@/server/db/schema";
+import type { Thread, Message, ToolInvocation } from "@/server/db/schema";
 
 export class ChatStorage {
   // Threads
@@ -16,9 +12,10 @@ export class ChatStorage {
       .insert(threads)
       .values({
         userId,
-        title: title || "New Chat",
+        title: title ?? "New Chat",
       })
       .returning();
+    if (!thread) throw new Error("Failed to create thread");
     return thread;
   }
 
@@ -37,7 +34,7 @@ export class ChatStorage {
       .select()
       .from(threads)
       .where(and(eq(threads.id, threadId), eq(threads.userId, userId)));
-    return thread || null;
+    return thread ?? null;
   }
 
   async updateThreadTitle(threadId: string, userId: string, title: string): Promise<void> {
@@ -54,21 +51,21 @@ export class ChatStorage {
     await db
       .delete(messages)
       .where(and(eq(messages.threadId, threadId), eq(messages.userId, userId)));
-    
+
     // Then delete thread
-    await db
-      .delete(threads)
-      .where(and(eq(threads.id, threadId), eq(threads.userId, userId)));
+    await db.delete(threads).where(and(eq(threads.id, threadId), eq(threads.userId, userId)));
   }
 
   // Messages
-  async createMessage(threadId: string, userId: string, role: string, content: unknown): Promise<Message> {
+  async createMessage(
+    threadId: string,
+    userId: string,
+    role: string,
+    content: unknown,
+  ): Promise<Message> {
     const db = await getDb();
     // Update thread's updatedAt timestamp
-    await db
-      .update(threads)
-      .set({ updatedAt: new Date() })
-      .where(eq(threads.id, threadId));
+    await db.update(threads).set({ updatedAt: new Date() }).where(eq(threads.id, threadId));
 
     const [message] = await db
       .insert(messages)
@@ -79,6 +76,7 @@ export class ChatStorage {
         content,
       })
       .returning();
+    if (!message) throw new Error("Failed to create message");
     return message;
   }
 
@@ -101,12 +99,12 @@ export class ChatStorage {
 
   // Tool Invocations
   async createToolInvocation(
-    messageId: string, 
-    userId: string, 
-    tool: string, 
-    args: unknown, 
+    messageId: string,
+    userId: string,
+    tool: string,
+    args: unknown,
     result?: unknown,
-    latencyMs?: number
+    latencyMs?: number,
   ): Promise<ToolInvocation> {
     const db = await getDb();
     const [toolInvocation] = await db
@@ -120,6 +118,7 @@ export class ChatStorage {
         latencyMs,
       })
       .returning();
+    if (!toolInvocation) throw new Error("Failed to create tool invocation");
     return toolInvocation;
   }
 }

@@ -1,7 +1,7 @@
 // src/app/api/openrouter/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { log } from "@/server/log";
-import { ChatRequestSchema } from "@/server/schemas";
+import { ChatRequestSchema } from "@/lib/schemas";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 

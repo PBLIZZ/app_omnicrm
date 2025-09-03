@@ -4,9 +4,9 @@ import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
 import { userIntegrations } from "@/server/db/schema";
-import { err, ok } from "@/server/http/responses";
+import { err, ok } from "@/lib/api/http";
 import { toApiError } from "@/server/jobs/types";
-import { decryptString } from "@/server/lib/crypto";
+import { decryptString } from "@/lib/crypto";
 import { gmail_v1, google } from "googleapis";
 
 interface GmailLabel {

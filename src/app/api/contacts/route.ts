@@ -1,13 +1,12 @@
 // src/app/api/contacts/route.ts
 import { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { err, ok, safeJson } from "@/server/http/responses";
+import { err, ok, safeJson } from "@/lib/api/http";
 import {
   GetContactsQuerySchema,
   CreateContactBodySchema,
-  toDateRange,
   type GetContactsQuery,
-} from "@/server/schemas/contacts";
+} from "@/lib/schemas/contacts";
 import { createContactService, listContactsService } from "@/server/services/contacts.service";
 
 export async function GET(req: NextRequest): Promise<Response> {
@@ -41,7 +40,14 @@ export async function GET(req: NextRequest): Promise<Response> {
   const pageSize = parsed.pageSize ?? 25;
   const sortKey = parsed.sort ?? "displayName";
   const sortDir = parsed.order === "desc" ? "desc" : "asc";
-  const dateRange = toDateRange(parsed.createdAtFilter);
+  const dateRange = parsed.createdAtFilter && 'from' in parsed.createdAtFilter && 'to' in parsed.createdAtFilter ? 
+    Object.fromEntries(
+      Object.entries({
+        from: parsed.createdAtFilter.from ? new Date(parsed.createdAtFilter.from) : undefined,
+        to: parsed.createdAtFilter.to ? new Date(parsed.createdAtFilter.to) : undefined,
+      }).filter(([, value]) => value !== undefined)
+    ) as { from?: Date; to?: Date; }
+    : undefined;
 
   const params: Parameters<typeof listContactsService>[1] = {
     sort: sortKey,

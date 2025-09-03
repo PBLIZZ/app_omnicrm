@@ -54,7 +54,7 @@ export default function ContactsPage(): JSX.Element {
   // Enhanced System Queries
   const { data: enhancedContactsData, isLoading: enhancedLoading } = useQuery({
     queryKey: ["/api/contacts-new", searchQuery],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ contacts: ContactWithNotes[] }> => {
       const url = new URL("/api/contacts-new", window.location.origin);
       if (searchQuery.trim()) {
         url.searchParams.set("search", searchQuery.trim());
@@ -68,7 +68,7 @@ export default function ContactsPage(): JSX.Element {
   });
 
   const enhancedContacts: ContactWithNotes[] = enhancedContactsData?.contacts || [];
-  const filteredContacts = useMemo(() => {
+  const filteredContacts = useMemo((): ContactWithNotes[] => {
     if (!searchQuery.trim()) return enhancedContacts;
     const query = searchQuery.toLowerCase();
     return enhancedContacts.filter(
@@ -82,7 +82,7 @@ export default function ContactsPage(): JSX.Element {
   // Contact suggestions query
   const { data: suggestionsData, isLoading: suggestionsLoading } = useQuery({
     queryKey: ["/api/contacts-new/suggestions"],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ suggestions: ContactSuggestion[] }> => {
       const response = await fetch("/api/contacts-new/suggestions");
       if (!response.ok) throw new Error("Failed to fetch suggestions");
       const json = await response.json();
@@ -98,7 +98,11 @@ export default function ContactsPage(): JSX.Element {
   const streamingEnrichment = useStreamingEnrichment();
 
   const createContactsMutation = useMutation({
-    mutationFn: async (suggestionIds: string[]) => {
+    mutationFn: async (suggestionIds: string[]): Promise<{
+      success: boolean;
+      createdCount: number;
+      errors: string[];
+    }> => {
       return await fetchPost<{
         success: boolean;
         createdCount: number;
@@ -106,8 +110,8 @@ export default function ContactsPage(): JSX.Element {
       }>("/api/contacts-new/suggestions", { suggestionIds });
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts-new"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts-new/suggestions"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/contacts-new"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/contacts-new/suggestions"] });
       setSelectedSuggestions([]);
       toast({
         title: "Success",
@@ -178,7 +182,7 @@ export default function ContactsPage(): JSX.Element {
     return variants[confidence as keyof typeof variants] || variants.low;
   };
 
-  const handleExportContacts = () => {
+  const handleExportContacts = (): void => {
     try {
       if (filteredContacts.length === 0) {
         toast({
@@ -196,7 +200,7 @@ export default function ContactsPage(): JSX.Element {
         c.primaryPhone ?? "",
         c.stage ?? "",
         Array.isArray(c.tags) ? c.tags.join(", ") : "",
-        c.notes ?? "",
+        "", // Notes are now stored separately
         new Date(c.updatedAt).toLocaleDateString(),
       ]);
 

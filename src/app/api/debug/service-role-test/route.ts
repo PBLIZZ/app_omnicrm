@@ -1,7 +1,7 @@
 /** POST /api/debug/service-role-test — diagnose service role configuration (auth required). */
 import { getServerUserId } from "@/server/auth/user";
-import { supaAdminGuard } from "@/server/db/supabase-admin";
-import { err, ok } from "@/server/http/responses";
+import { supaAdminGuard } from "@/lib/supabase/admin";
+import { err, ok } from "@/lib/api/http";
 import { log } from "@/server/log";
 import { toApiError } from "@/server/jobs/types";
 

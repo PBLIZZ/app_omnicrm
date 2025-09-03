@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/server/http/responses";
+import { ok, err, safeJson } from "@/lib/api/http";
 import { tasksStorage } from "@/server/storage/tasks.storage";
 import { z } from "zod";
+import type { NewMomentumWorkspace } from "@/server/db/schema";
 
 const UpdateWorkspaceSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1), // Required to match DB schema
   description: z.string().optional(),
   color: z.string().optional(),
   isDefault: z.boolean().optional(),
@@ -59,7 +60,14 @@ export async function PUT(
   }
 
   try {
-    await tasksStorage.updateWorkspace(workspaceId, userId, parsed.data);
+    // Handle optional fields properly for exactOptionalPropertyTypes
+    const updateData: Partial<Omit<NewMomentumWorkspace, 'userId'>> = {};
+    if (parsed.data['name'] !== undefined) updateData['name'] = parsed.data['name'];
+    if (parsed.data['description'] !== undefined) updateData['description'] = parsed.data['description'];
+    if (parsed.data['color'] !== undefined) updateData['color'] = parsed.data['color'];
+    if (parsed.data['isDefault'] !== undefined) updateData['isDefault'] = parsed.data['isDefault'];
+    
+    await tasksStorage.updateWorkspace(workspaceId, userId, updateData);
     const workspace = await tasksStorage.getWorkspace(workspaceId, userId);
     return ok({ workspace });
   } catch (error) {

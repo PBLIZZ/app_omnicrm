@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/supabase";
-import { ok, err } from "@/server/lib/http";
+import { supabaseServerAdmin, supabaseServerPublishable } from "@/lib/supabase/server";
+import { ok, err } from "@/lib/api/http";
 
 // GET /api/storage/file-url?filePath=<bucket/path/to/file>
 // Returns: { signedUrl: string | null }

@@ -1,5 +1,5 @@
 "use client";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowser } from "@/lib/supabase/client";
 
 export async function signOut(): Promise<{ error: Error | null }> {
   try {

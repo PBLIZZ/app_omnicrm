@@ -19,7 +19,7 @@ import {
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getServerUserId } from "@/server/auth/user";
-import { err } from "@/server/http/responses";
+import { err } from "@/lib/api/http";
 import { toApiError } from "@/server/jobs/types";
 
 export async function GET(): Promise<Response> {

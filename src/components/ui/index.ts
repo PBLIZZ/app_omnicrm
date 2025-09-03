@@ -85,6 +85,7 @@ export { LoadingSpinner } from "./loading-spinner";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
 export { HoverCard, HoverCardContent, HoverCardTrigger } from "./hover-card";
 export { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./collapsible";
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
 
 // Data display components
 export {

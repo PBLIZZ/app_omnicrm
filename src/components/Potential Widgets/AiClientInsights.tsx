@@ -11,7 +11,7 @@ interface AiClientInsightsProps {
   className?: string;
 }
 
-export function AiClientInsights({ className }: AiClientInsightsProps) {
+export function AiClientInsights({ className }: AiClientInsightsProps): JSX.Element {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   // Mock insights data - would be fetched from API in real implementation
@@ -47,7 +47,7 @@ export function AiClientInsights({ className }: AiClientInsightsProps) {
   ];
 
   // Simulate refresh action
-  const handleRefresh = () => {
+  const handleRefresh = (): void => {
     setIsRefreshing(true);
     // Simulate API call delay
     setTimeout(() => {

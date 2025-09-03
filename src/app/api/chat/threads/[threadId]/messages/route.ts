@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
-import { ok, err } from "@/server/http/responses";
+import { ok, err } from "@/lib/api/http";
 import { chatStorage } from "@/server/storage/chat.storage";
 
 export async function GET(

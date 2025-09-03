@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { fetchPost } from '@/lib/api';
 
@@ -34,7 +34,7 @@ export interface ContactTaskSuggestion {
 /**
  * Hook to ask AI about a contact and get insights
  */
-export function useAskAIAboutContact() {
+export function useAskAIAboutContact(): UseMutationResult<ContactAIInsightResponse, Error, string, unknown> {
   return useMutation({
     mutationFn: async (contactId: string): Promise<ContactAIInsightResponse> => {
       return await fetchPost<ContactAIInsightResponse>(`/api/contacts-new/${contactId}/ai-insights`, {});
@@ -49,7 +49,7 @@ export function useAskAIAboutContact() {
 /**
  * Hook to generate AI email suggestions for a contact
  */
-export function useGenerateEmailSuggestion() {
+export function useGenerateEmailSuggestion(): UseMutationResult<ContactEmailSuggestion, Error, { contactId: string; purpose?: string }, unknown> {
   return useMutation({
     mutationFn: async ({
       contactId,
@@ -70,7 +70,7 @@ export function useGenerateEmailSuggestion() {
 /**
  * Hook to generate AI note suggestions for a contact
  */
-export function useGenerateNoteSuggestions() {
+export function useGenerateNoteSuggestions(): UseMutationResult<ContactNoteSuggestion[], Error, string, unknown> {
   return useMutation({
     mutationFn: async (contactId: string): Promise<ContactNoteSuggestion[]> => {
       const data = await fetchPost<{ suggestions: ContactNoteSuggestion[] }>(`/api/contacts-new/${contactId}/note-suggestions`, {});
@@ -86,7 +86,7 @@ export function useGenerateNoteSuggestions() {
 /**
  * Hook to generate AI task suggestions for a contact
  */
-export function useGenerateTaskSuggestions() {
+export function useGenerateTaskSuggestions(): UseMutationResult<ContactTaskSuggestion[], Error, string, unknown> {
   return useMutation({
     mutationFn: async (contactId: string): Promise<ContactTaskSuggestion[]> => {
       const data = await fetchPost<{ suggestions: ContactTaskSuggestion[] }>(`/api/contacts-new/${contactId}/task-suggestions`, {});
@@ -102,7 +102,7 @@ export function useGenerateTaskSuggestions() {
 /**
  * Hook to create a note for a contact
  */
-export function useCreateContactNote() {
+export function useCreateContactNote(): UseMutationResult<unknown, Error, { contactId: string; content: string }, unknown> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -118,7 +118,7 @@ export function useCreateContactNote() {
     onSuccess: () => {
       toast.success('Note created successfully');
       // Invalidate contacts query to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts-new'] });
+      void queryClient.invalidateQueries({ queryKey: ['/api/contacts-new'] });
     },
     onError: (error) => {
       console.error('Create note error:', error);
@@ -130,7 +130,7 @@ export function useCreateContactNote() {
 /**
  * Hook to create a task for a contact
  */
-export function useCreateContactTask() {
+export function useCreateContactTask(): UseMutationResult<unknown, Error, { contactId: string; title: string; description?: string; priority?: string; estimatedMinutes?: number }, unknown> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -152,7 +152,7 @@ export function useCreateContactTask() {
     onSuccess: () => {
       toast.success('Task created successfully');
       // Invalidate tasks query to refresh data
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
     onError: (error) => {
       console.error('Create task error:', error);
@@ -164,13 +164,13 @@ export function useCreateContactTask() {
 /**
  * Hook to create a note from suggestion (alias for useCreateContactNote)
  */
-export function useCreateNoteFromSuggestion() {
+export function useCreateNoteFromSuggestion(): UseMutationResult<unknown, Error, { contactId: string; content: string }, unknown> {
   return useCreateContactNote();
 }
 
 /**
  * Hook to create a task from suggestion (alias for useCreateContactTask)
  */
-export function useCreateTaskFromSuggestion() {
+export function useCreateTaskFromSuggestion(): UseMutationResult<unknown, Error, { contactId: string; title: string; description?: string; priority?: string; estimatedMinutes?: number }, unknown> {
   return useCreateContactTask();
 }

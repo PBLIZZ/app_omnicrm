@@ -6,7 +6,7 @@ import type { Contact, NewContact, Note } from "@/server/db/schema";
 
 export class ContactsStorage {
   // Contacts
-  async createContact(userId: string, data: Omit<NewContact, 'userId'>): Promise<Contact> {
+  async createContact(userId: string, data: Omit<NewContact, "userId">): Promise<Contact> {
     const db = await getDb();
     const [contact] = await db
       .insert(contacts)
@@ -15,6 +15,7 @@ export class ContactsStorage {
         userId,
       })
       .returning();
+    if (!contact) throw new Error("Failed to create contact");
     return contact;
   }
 
@@ -28,7 +29,6 @@ export class ContactsStorage {
         primaryEmail: contacts.primaryEmail,
         primaryPhone: contacts.primaryPhone,
         source: contacts.source,
-        notes: contacts.notes,
         stage: contacts.stage,
         tags: contacts.tags,
         confidenceScore: contacts.confidenceScore,
@@ -46,10 +46,14 @@ export class ContactsStorage {
       .select()
       .from(contacts)
       .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)));
-    return contact || null;
+    return contact ?? null;
   }
 
-  async updateContact(contactId: string, userId: string, data: Partial<Omit<NewContact, 'userId'>>): Promise<void> {
+  async updateContact(
+    contactId: string,
+    userId: string,
+    data: Partial<Omit<NewContact, "userId">>,
+  ): Promise<void> {
     const db = await getDb();
     await db
       .update(contacts)
@@ -59,9 +63,7 @@ export class ContactsStorage {
 
   async deleteContact(contactId: string, userId: string): Promise<void> {
     const db = await getDb();
-    await db
-      .delete(contacts)
-      .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)));
+    await db.delete(contacts).where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)));
   }
 
   // Notes
@@ -75,6 +77,7 @@ export class ContactsStorage {
         content,
       })
       .returning();
+    if (!note) throw new Error("Failed to create note");
     return note;
   }
 
@@ -97,9 +100,7 @@ export class ContactsStorage {
 
   async deleteNote(noteId: string, userId: string): Promise<void> {
     const db = await getDb();
-    await db
-      .delete(notes)
-      .where(and(eq(notes.id, noteId), eq(notes.userId, userId)));
+    await db.delete(notes).where(and(eq(notes.id, noteId), eq(notes.userId, userId)));
   }
 }
 

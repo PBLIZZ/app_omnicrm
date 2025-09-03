@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
-import { logSync } from "@/server/sync/audit";
+import { logSync } from "@/lib/api/sync-audit";
 import { and, eq } from "drizzle-orm";
-import { err } from "@/server/http/responses";
-import { encryptString, hmacVerify } from "@/server/lib/crypto";
+import { err } from "@/lib/api/http";
+import { encryptString, hmacVerify } from "@/lib/crypto";
 import { getServerUserId } from "@/server/auth/user";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
 
   // Clear nonce cookie
-  const res = NextResponse.redirect(new URL("/settings/sync-preferences?connected=gmail", req.url));
+  const res = NextResponse.redirect(new URL("/omni-connect?connected=gmail", req.url));
   res.cookies.set("gmail_auth", "", { path: "/", httpOnly: true, maxAge: 0 });
   return res;
 }

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/server/http/responses";
+import { ok, err, safeJson } from "@/lib/api/http";
 import { toApiError } from "@/server/jobs/types";
 
 /**

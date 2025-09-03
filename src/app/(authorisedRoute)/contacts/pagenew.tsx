@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { fetchPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Users, Sparkles, Calendar, Mail, Brain } from "lucide-react";
-import { ContactsTable } from "./components/contacts-table";
-import { contactsColumns, ContactWithNotes } from "./components/contacts-columns";
+import { ContactsTable } from "./_components/contacts-table-new";
+import { contactsColumns, ContactWithNotes } from "./_components/contacts-columns-new";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -26,7 +27,7 @@ interface ContactSuggestion {
   source: 'calendar_attendee';
 }
 
-export default function ContactsPage() {
+export default function ContactsPage(): JSX.Element {
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [newContact, setNewContact] = useState({
     displayName: "",
@@ -38,9 +39,9 @@ export default function ContactsPage() {
   const { toast } = useToast();
 
   const { data: contactsData, isLoading } = useQuery({
-    queryKey: ["/api/contacts"],
+    queryKey: ["/api/contacts-new"],
     queryFn: async () => {
-      const response = await fetch("/api/contacts");
+      const response = await fetch("/api/contacts-new");
       if (!response.ok) throw new Error("Failed to fetch contacts");
       return response.json();
     },
@@ -50,9 +51,9 @@ export default function ContactsPage() {
 
   // Contact suggestions query
   const { data: suggestionsData, isLoading: suggestionsLoading } = useQuery({
-    queryKey: ["/api/contacts/suggestions"],
+    queryKey: ["/api/contacts-new/suggestions"],
     queryFn: async () => {
-      const response = await fetch("/api/contacts/suggestions");
+      const response = await fetch("/api/contacts-new/suggestions");
       if (!response.ok) throw new Error("Failed to fetch suggestions");
       return response.json();
     },
@@ -64,20 +65,15 @@ export default function ContactsPage() {
   // Enrich existing contacts mutation
   const enrichContactsMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/contacts/enrich", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!response.ok) throw new Error("Failed to enrich contacts");
-      return response.json();
+      return await fetchPost<{ enrichedCount: number; errors?: string[] }>("/api/contacts-new/enrich", {});
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       toast({
         title: "Success",
         description: `Enriched ${data.enrichedCount} contacts with AI insights`,
       });
-      if (data.errors?.length > 0) {
+      if (data.errors && data.errors.length > 0) {
         console.warn("Some contacts failed to enrich:", data.errors);
       }
     },
@@ -93,23 +89,17 @@ export default function ContactsPage() {
   // Create contacts from suggestions mutation
   const createContactsMutation = useMutation({
     mutationFn: async (suggestionIds: string[]) => {
-      const response = await fetch("/api/contacts/suggestions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ suggestionIds }),
-      });
-      if (!response.ok) throw new Error("Failed to create contacts");
-      return response.json();
+      return await fetchPost<{ createdCount: number; errors?: string[] }>("/api/contacts/suggestions", { suggestionIds });
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts/suggestions"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/contacts/suggestions"] });
       setSelectedSuggestions([]);
       toast({
         title: "Success",
         description: `Created ${data.createdCount} contacts from calendar data`,
       });
-      if (data.errors?.length > 0) {
+      if (data.errors && data.errors.length > 0) {
         console.warn("Some contacts failed to create:", data.errors);
       }
     },
@@ -122,7 +112,7 @@ export default function ContactsPage() {
     },
   });
 
-  const handleAddContact = async () => {
+  const handleAddContact = async (): Promise<void> => {
     if (!newContact.displayName.trim()) {
       toast({
         title: "Error",
@@ -133,14 +123,7 @@ export default function ContactsPage() {
     }
 
     try {
-      const response = await fetch("/api/contacts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newContact),
-      });
-
-      if (!response.ok) throw new Error("Failed to create contact");
-
+      await fetchPost("/api/contacts", newContact);
       await queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       setIsAddingContact(false);
       setNewContact({ displayName: "", primaryEmail: "", primaryPhone: "" });
@@ -157,7 +140,7 @@ export default function ContactsPage() {
     }
   };
 
-  const handleCreateSuggested = () => {
+  const handleCreateSuggested = (): void => {
     if (selectedSuggestions.length === 0) {
       toast({
         title: "No Selection",

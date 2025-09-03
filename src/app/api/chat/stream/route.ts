@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
-import { err, safeJson } from "@/server/http/responses";
+import { err, safeJson } from "@/lib/api/http";
 import { StreamingChatRequestSchema } from "@/server/schemas";
 import { streamingChatService } from "@/server/services/chat.service";
 import { ClaudeChatService } from "@/server/services/claude-chat.service";

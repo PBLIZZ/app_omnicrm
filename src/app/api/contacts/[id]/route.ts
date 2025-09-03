@@ -6,7 +6,7 @@ import { UpdateContactBodySchema } from "@/server/schemas";
 import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { contacts } from "@/server/db/schema";
-import { err, ok, safeJson } from "@/server/http/responses";
+import { err, ok, safeJson } from "@/lib/api/http";
 
 export async function GET(
   req: NextRequest,

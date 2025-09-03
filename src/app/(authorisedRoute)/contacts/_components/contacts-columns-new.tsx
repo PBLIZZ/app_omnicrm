@@ -6,7 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { MoreHorizontal, Edit, Trash2, MessageSquare, Plus, Brain, Mail, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, PenTool } from "lucide-react";
+import {
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  MessageSquare,
+  Plus,
+  Mail,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Sparkles,
+  PenTool,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -26,10 +38,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Contact } from "@/server/db/schema";
 import { formatDistanceToNow } from "date-fns";
-import { NotesHoverCard } from "@/components/contacts/NotesHoverCard";
-import { ContactAIInsightsDialog } from "@/components/contacts/ContactAIInsightsDialog";
-import { ContactEmailDialog } from "@/components/contacts/ContactEmailDialog";
-import { ContactNoteSuggestionsDialog } from "@/components/contacts/ContactNoteSuggestionsDialog";
+import { NotesHoverCard } from "@/app/(authorisedRoute)/contacts/_components/NotesHoverCard";
+import { ContactAIInsightsDialog } from "@/app/(authorisedRoute)/contacts/_components/ContactAIInsightsDialog";
+import { ContactEmailDialog } from "@/app/(authorisedRoute)/contacts/_components/ContactEmailDialog";
+import { ContactNoteSuggestionsDialog } from "@/app/(authorisedRoute)/contacts/_components/ContactNoteSuggestionsDialog";
 import {
   useAskAIAboutContact,
   useGenerateEmailSuggestion,
@@ -60,12 +72,12 @@ function getInitials(displayName: string): string {
 }
 
 // AI Action Icons Component
-function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
+function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Element {
   const [aiInsightsOpen, setAiInsightsOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [addNoteDialogOpen, setAddNoteDialogOpen] = useState(false);
-  const [newNoteContent, setNewNoteContent] = useState('');
+  const [newNoteContent, setNewNoteContent] = useState("");
 
   const [aiInsights, setAiInsights] = useState<ContactAIInsightResponse | null>(null);
   const [emailSuggestion, setEmailSuggestion] = useState<ContactEmailSuggestion | null>(null);
@@ -76,7 +88,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
   const generateNotesMutation = useGenerateNoteSuggestions();
   const createNoteMutation = useCreateContactNote();
 
-  const handleAskAI = async () => {
+  const handleAskAI = async (): Promise<void> => {
     try {
       setAiInsightsOpen(true);
       const insights = await askAIMutation.mutateAsync(contact.id);
@@ -87,12 +99,12 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
     }
   };
 
-  const handleSendEmail = async () => {
+  const handleSendEmail = async (): Promise<void> => {
     if (!contact.primaryEmail) {
-      toast.error('This contact has no email address');
+      toast.error("This contact has no email address");
       return;
     }
-    
+
     try {
       setEmailDialogOpen(true);
       const suggestion = await generateEmailMutation.mutateAsync({
@@ -105,7 +117,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
     }
   };
 
-  const handleTakeNote = async () => {
+  const handleTakeNote = async (): Promise<void> => {
     try {
       setNoteDialogOpen(true);
       const suggestions = await generateNotesMutation.mutateAsync(contact.id);
@@ -116,20 +128,19 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
     }
   };
 
-
-  const handleAddNote = async () => {
+  const handleAddNote = async (): Promise<void> => {
     if (!newNoteContent.trim()) {
-      toast.error('Please enter a note');
+      toast.error("Please enter a note");
       return;
     }
-    
+
     try {
       await createNoteMutation.mutateAsync({
         contactId: contact.id,
         content: newNoteContent.trim(),
       });
       setAddNoteDialogOpen(false);
-      setNewNoteContent('');
+      setNewNoteContent("");
     } catch (error) {
       // Error handled by mutation
     }
@@ -192,7 +203,6 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
         </TooltipContent>
       </Tooltip>
 
-      
       {/* AI Dialogs */}
       <ContactAIInsightsDialog
         open={aiInsightsOpen}
@@ -201,16 +211,16 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
         isLoading={askAIMutation.isPending}
         contactName={contact.displayName}
       />
-      
+
       <ContactEmailDialog
         open={emailDialogOpen}
         onOpenChange={setEmailDialogOpen}
         emailSuggestion={emailSuggestion}
         isLoading={generateEmailMutation.isPending}
         contactName={contact.displayName}
-        contactEmail={contact.primaryEmail || undefined}
+        contactEmail={contact.primaryEmail}
       />
-      
+
       <ContactNoteSuggestionsDialog
         open={noteDialogOpen}
         onOpenChange={setNoteDialogOpen}
@@ -219,8 +229,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
         contactId={contact.id}
         contactName={contact.displayName}
       />
-      
-      
+
       {/* Add Note Dialog */}
       <Dialog open={addNoteDialogOpen} onOpenChange={setAddNoteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -247,7 +256,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
               variant="outline"
               onClick={() => {
                 setAddNoteDialogOpen(false);
-                setNewNoteContent('');
+                setNewNoteContent("");
               }}
             >
               Cancel
@@ -256,7 +265,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }) {
               onClick={handleAddNote}
               disabled={createNoteMutation.isPending || !newNoteContent.trim()}
             >
-              {createNoteMutation.isPending ? 'Adding...' : 'Add Note'}
+              {createNoteMutation.isPending ? "Adding..." : "Add Note"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -292,11 +301,11 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     cell: ({ row }) => {
       const contact = row.original;
       const initials = getInitials(contact.displayName);
-      
+
       return (
         <Avatar className="size-8" data-testid={`contact-avatar-${contact.id}`}>
-          <AvatarImage 
-            src={`/api/contacts/${contact.id}/avatar`} 
+          <AvatarImage
+            src={`/api/contacts/${contact.id}/avatar`}
             alt={`${contact.displayName} avatar`}
           />
           <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-blue-100 to-purple-100 text-blue-700 dark:from-blue-900 dark:to-purple-900 dark:text-blue-300">
@@ -325,7 +334,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
             <ArrowUpDown className="ml-2 h-4 w-4" />
           )}
         </Button>
-      )
+      );
     },
     cell: ({ row }) => {
       const name = row.getValue("displayName") as string;
@@ -372,7 +381,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
       const count = (row.getValue("notesCount") as number) || 0;
       const lastNote = row.original.lastNote;
       const contact = row.original;
-      
+
       return (
         <NotesHoverCard
           contactId={contact.id}
@@ -390,41 +399,96 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     cell: ({ row }) => {
       const tagsData = row.getValue("tags");
       let tags = [];
-      
+
       // Tags come as array from API, not string
       if (Array.isArray(tagsData)) {
         tags = tagsData;
-      } else if (typeof tagsData === 'string' && tagsData) {
+      } else if (typeof tagsData === "string" && tagsData) {
         try {
           tags = JSON.parse(tagsData);
         } catch (e) {
           tags = [];
         }
       }
-      
-      const getTagColor = (tag: string) => {
+
+      const getTagColor = (tag: string): string => {
         // Service types - Blue
-        if (['Yoga', 'Massage', 'Meditation', 'Pilates', 'Reiki', 'Acupuncture', 'Personal Training', 'Nutrition Coaching', 'Life Coaching', 'Therapy'].includes(tag)) {
-          return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+        if (
+          [
+            "Yoga",
+            "Massage",
+            "Meditation",
+            "Pilates",
+            "Reiki",
+            "Acupuncture",
+            "Personal Training",
+            "Nutrition Coaching",
+            "Life Coaching",
+            "Therapy",
+          ].includes(tag)
+        ) {
+          return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
         }
         // Class/Session types - Purple
-        if (['Workshops', 'Retreats', 'Group Classes', 'Private Sessions'].includes(tag)) {
-          return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
+        if (["Workshops", "Retreats", "Group Classes", "Private Sessions"].includes(tag)) {
+          return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300";
         }
         // Demographics - Green
-        if (['Senior', 'Young Adult', 'Professional', 'Parent', 'Student', 'Beginner', 'Intermediate', 'Advanced', 'VIP', 'Local', 'Traveler'].includes(tag)) {
-          return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+        if (
+          [
+            "Senior",
+            "Young Adult",
+            "Professional",
+            "Parent",
+            "Student",
+            "Beginner",
+            "Intermediate",
+            "Advanced",
+            "VIP",
+            "Local",
+            "Traveler",
+          ].includes(tag)
+        ) {
+          return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
         }
         // Goals & Health - Orange
-        if (['Stress Relief', 'Weight Loss', 'Flexibility', 'Strength Building', 'Pain Management', 'Mental Health', 'Spiritual Growth', 'Mindfulness', 'Athletic Performance', 'Injury Recovery', 'Prenatal', 'Postnatal'].includes(tag)) {
-          return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
+        if (
+          [
+            "Stress Relief",
+            "Weight Loss",
+            "Flexibility",
+            "Strength Building",
+            "Pain Management",
+            "Mental Health",
+            "Spiritual Growth",
+            "Mindfulness",
+            "Athletic Performance",
+            "Injury Recovery",
+            "Prenatal",
+            "Postnatal",
+          ].includes(tag)
+        ) {
+          return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
         }
         // Engagement patterns - Teal
-        if (['Regular Attendee', 'Weekend Warrior', 'Early Bird', 'Evening Preferred', 'Seasonal Client', 'Frequent Visitor', 'Occasional Visitor', 'High Spender', 'Referral Source', 'Social Media Active'].includes(tag)) {
-          return 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300';
+        if (
+          [
+            "Regular Attendee",
+            "Weekend Warrior",
+            "Early Bird",
+            "Evening Preferred",
+            "Seasonal Client",
+            "Frequent Visitor",
+            "Occasional Visitor",
+            "High Spender",
+            "Referral Source",
+            "Social Media Active",
+          ].includes(tag)
+        ) {
+          return "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300";
         }
         // Default - Gray
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
       };
 
       return (
@@ -452,18 +516,25 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     header: "Stage",
     cell: ({ row }) => {
       const stage = row.getValue("stage") as string;
-      const getStageColor = (stage: string) => {
+      const getStageColor = (stage: string): string => {
         switch (stage) {
-          case 'VIP Client': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
-          case 'Core Client': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-          case 'New Client': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-          case 'Prospect': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-          case 'At Risk Client': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
-          case 'Lost Client': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-          default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+          case "VIP Client":
+            return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300";
+          case "Core Client":
+            return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
+          case "New Client":
+            return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
+          case "Prospect":
+            return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
+          case "At Risk Client":
+            return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
+          case "Lost Client":
+            return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
+          default:
+            return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
         }
       };
-      
+
       return stage ? (
         <Badge className={`text-xs ${getStageColor(stage)}`}>{stage}</Badge>
       ) : (
@@ -479,9 +550,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
       const confidence = row.original.confidenceScore;
       return notes ? (
         <div className="max-w-60">
-          <span className="text-sm text-muted-foreground truncate block">
-            {notes}
-          </span>
+          <span className="text-sm text-muted-foreground truncate block">{notes}</span>
           {confidence && (
             <span className="text-xs text-muted-foreground">
               Confidence: {Math.round(parseFloat(confidence) * 100)}%
@@ -523,7 +592,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
             <ArrowUpDown className="ml-2 h-4 w-4" />
           )}
         </Button>
-      )
+      );
     },
     cell: ({ row }) => {
       const date = new Date(row.getValue("updatedAt"));
@@ -539,15 +608,19 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     cell: ({ row }) => {
       const contact = row.original;
 
-      const handleEditContact = (contact: ContactWithNotes) => {
+      const handleEditContact = (contact: ContactWithNotes): void => {
         toast.info(`Edit contact functionality for ${contact.displayName} - Coming soon!`);
         // TODO: Open edit contact dialog/form
       };
 
       const deleteContact = useDeleteContact();
 
-      const handleDeleteContact = (contact: ContactWithNotes) => {
-        if (confirm(`Are you sure you want to delete ${contact.displayName}? This action cannot be undone.`)) {
+      const handleDeleteContact = (contact: ContactWithNotes): void => {
+        if (
+          confirm(
+            `Are you sure you want to delete ${contact.displayName}? This action cannot be undone.`,
+          )
+        ) {
           deleteContact.mutate(contact.id);
         }
       };
@@ -565,19 +638,21 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem 
+            <DropdownMenuItem
               data-testid={`edit-contact-${contact.id}`}
               onClick={() => handleEditContact(contact)}
             >
               <Edit className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
               Edit Contact
             </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               data-testid={`add-note-${contact.id}`}
               onClick={() => {
                 // This should open the add note dialog for this specific contact
                 // Since this is outside the ContactAIActions component, we'll need to implement this differently
-                toast.info(`Add note for ${contact.displayName} - Use the note icon in the Actions column`);
+                toast.info(
+                  `Add note for ${contact.displayName} - Use the note icon in the Actions column`,
+                );
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -587,7 +662,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
               <MessageSquare className="h-4 w-4 mr-2" />
               View Notes
             </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               data-testid={`delete-contact-${contact.id}`}
               onClick={() => handleDeleteContact(contact)}

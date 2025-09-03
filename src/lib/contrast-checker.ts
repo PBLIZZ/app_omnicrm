@@ -37,7 +37,7 @@ function getLuminance(r: number, g: number, b: number): number {
     c = c / 255;
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
   });
-  return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
+  return 0.2126 * (sRGB[0] ?? 0) + 0.7152 * (sRGB[1] ?? 0) + 0.0722 * (sRGB[2] ?? 0);
 }
 
 // Calculate contrast ratio between two colors
@@ -46,7 +46,7 @@ export function getContrastRatio(color1: string, color2: string): number {
   const parseHSL = (hsl: string): [number, number, number] => {
     const match = hsl.match(/hsl\((\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%\)/);
     if (!match) throw new Error(`Invalid HSL format: ${hsl}`);
-    return [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3])];
+    return [parseFloat(match[1] ?? '0'), parseFloat(match[2] ?? '0'), parseFloat(match[3] ?? '0')];
   };
 
   const [h1, s1, l1] = parseHSL(color1);
@@ -107,7 +107,7 @@ export const omnicrmColors = {
 };
 
 // Validate all color combinations
-export function validateAllContrasts() {
+export function validateAllContrasts(): { combination: string; ratio: number; passes: boolean; mode: string }[] {
   const results: { combination: string; ratio: number; passes: boolean; mode: string }[] = [];
 
   const checkCombinations = (colors: any, mode: string) => {

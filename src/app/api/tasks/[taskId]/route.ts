@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/server/http/responses";
+import { ok, err, safeJson } from "@/lib/api/http";
 import { tasksStorage } from "@/server/storage/tasks.storage";
 import { z } from "zod";
 
@@ -76,12 +76,12 @@ export async function PUT(
       return err(404, "task_not_found");
     }
 
-    const updateData = { ...parsed.data };
-    if (parsed.data.dueDate) {
-      updateData.dueDate = new Date(parsed.data.dueDate);
+    const updateData: Record<string, any> = { ...parsed.data };
+    if (parsed.data['dueDate']) {
+      updateData['dueDate'] = new Date(parsed.data['dueDate']).toISOString();
     }
-    if (parsed.data.completedAt) {
-      updateData.completedAt = new Date(parsed.data.completedAt);
+    if (parsed.data['completedAt']) {
+      updateData['completedAt'] = new Date(parsed.data['completedAt']).toISOString();
     }
     
     await tasksStorage.updateTask(taskId, userId, updateData);
@@ -89,7 +89,7 @@ export async function PUT(
     // Record action for AI training if significant changes
     if (originalTask.approvalStatus === "pending_approval" && parsed.data.approvalStatus === "approved") {
       await tasksStorage.createTaskAction(userId, {
-        taskId,
+        momentumId: taskId,
         action: "edited",
         previousData: originalTask,
         newData: updateData,
@@ -126,7 +126,7 @@ export async function DELETE(
 
     // Record deletion action for AI training
     await tasksStorage.createTaskAction(userId, {
-      taskId,
+      momentumId: taskId,
       action: "deleted",
       previousData: task,
       newData: null,

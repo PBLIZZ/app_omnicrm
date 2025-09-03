@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/server/http/responses";
+import { ok, err, safeJson } from "@/lib/api/http";
 import { tasksStorage } from "@/server/storage/tasks.storage";
 import { getDb } from "@/server/db/client";
-import { workspaces } from "@/server/db/schema";
+import { momentumWorkspaces } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
@@ -35,16 +35,15 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   const { searchParams } = new URL(req.url);
-  const filters = {
-    workspaceId: searchParams.get("workspaceId") || undefined,
-    projectId: searchParams.get("projectId") || undefined,
-    status: searchParams.get("status") || undefined,
-    assignee: searchParams.get("assignee") || undefined,
-    approvalStatus: searchParams.get("approvalStatus") || undefined,
-    parentTaskId: searchParams.has("parentTaskId") 
-      ? (searchParams.get("parentTaskId") || null)
-      : undefined,
-  };
+  const filters: any = {};
+  if (searchParams.get("workspaceId")) filters.workspaceId = searchParams.get("workspaceId");
+  if (searchParams.get("projectId")) filters.projectId = searchParams.get("projectId");
+  if (searchParams.get("status")) filters.status = searchParams.get("status");
+  if (searchParams.get("assignee")) filters.assignee = searchParams.get("assignee");
+  if (searchParams.get("approvalStatus"))
+    filters.approvalStatus = searchParams.get("approvalStatus");
+  if (searchParams.has("parentTaskId"))
+    filters.parentTaskId = searchParams.get("parentTaskId") || null;
 
   const withContacts = searchParams.get("withContacts") === "true";
 
@@ -80,25 +79,28 @@ export async function POST(req: NextRequest): Promise<Response> {
   try {
     // Get workspaceId or create default workspace
     let workspaceId = parsed.data.workspaceId;
-    
+
     if (!workspaceId) {
       const db = await getDb();
-      let defaultWorkspace = await db.query.workspaces.findFirst({
-        where: and(eq(workspaces.userId, userId), eq(workspaces.isDefault, true))
+      let defaultWorkspace = await db.query.momentumWorkspaces.findFirst({
+        where: and(eq(momentumWorkspaces.userId, userId), eq(momentumWorkspaces.isDefault, true)),
       });
 
       if (!defaultWorkspace) {
         // Create default workspace
-        const newWorkspace = await db.insert(workspaces).values({
-          userId,
-          name: 'Default Workspace',
-          description: 'Auto-created workspace for tasks',
-          isDefault: true
-        }).returning();
+        const newWorkspace = await db
+          .insert(momentumWorkspaces)
+          .values({
+            userId,
+            name: "Default Workspace",
+            description: "Auto-created workspace for tasks",
+            isDefault: true,
+          })
+          .returning();
         defaultWorkspace = newWorkspace[0];
       }
-      
-      workspaceId = defaultWorkspace.id;
+
+      workspaceId = defaultWorkspace?.id;
     }
 
     console.log("Creating task with data:", {
@@ -111,7 +113,6 @@ export async function POST(req: NextRequest): Promise<Response> {
     const task = await tasksStorage.createTask(userId, {
       workspaceId,
       projectId: parsed.data.projectId || null,
-      parentTaskId: parsed.data.parentTaskId || null,
       title: parsed.data.title,
       description: parsed.data.description || null,
       status: parsed.data.status,

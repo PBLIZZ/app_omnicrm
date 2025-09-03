@@ -1,7 +1,7 @@
 // src/app/api/db-ping/route.ts
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
-import { ok, err } from "@/server/http/responses";
+import { ok, err } from "@/lib/api/http";
 
 export async function GET(): Promise<Response> {
   try {

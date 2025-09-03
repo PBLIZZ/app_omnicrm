@@ -1,9 +1,9 @@
 import { getServerUserId } from "@/server/auth/user";
 import type { JobError } from "@/server/jobs/types";
-import { log } from "@/server/log";
-import { ok, err } from "@/server/http/responses";
-import { simpleJobRunner } from "@/server/jobs/simple-runner";
-import { RateLimiter } from "@/server/lib/rate-limiter";
+import { log } from "@/lib/log";
+import { ok, err } from "@/lib/api/http";
+import { JobRunner } from "@/server/jobs/runner";
+import { RateLimiter } from "@/lib/rate-limiter";
 
 export async function POST(): Promise<Response> {
   let userId: string;
@@ -48,20 +48,31 @@ export async function POST(): Promise<Response> {
       return response;
     }
 
-    // Use the simplified job runner - basic queue processing
-    await simpleJobRunner.processQueuedJobs(userId);
+    // Use the new JobRunner to process queued jobs
+    const jobRunner = new JobRunner();
+
+    // Process jobs for the authenticated user
+    const result = await jobRunner.processUserJobs(userId);
 
     log.info(
       {
-        op: "job_runner.simple_complete",
+        op: "job_runner.complete",
         userId,
+        processed: result.processed,
+        succeeded: result.succeeded,
+        failed: result.failed,
+        errorCount: result.errors.length,
       },
-      "Simple job processing completed",
+      "Job runner processing completed",
     );
 
     return ok({
-      message: "Jobs processed successfully",
-      runner: "simple",
+      message: `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
+      runner: "job_runner",
+      processed: result.processed,
+      succeeded: result.succeeded,
+      failed: result.failed,
+      errors: result.errors.length > 0 ? result.errors : undefined,
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";

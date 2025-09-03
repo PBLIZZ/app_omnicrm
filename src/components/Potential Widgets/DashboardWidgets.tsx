@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 
 // Import all the widget components
 import { AiClientInsights } from '@/components/dashboard/ai-client-insights/AiClientInsights';

@@ -9,7 +9,7 @@ export const queryClient = new QueryClient({
   },
 });
 
-export async function apiRequest<T = any>(
+export async function apiRequest<T = unknown>(
   url: string,
   options: RequestInit = {}
 ): Promise<T> {

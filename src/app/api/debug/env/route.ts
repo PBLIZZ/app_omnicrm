@@ -1,5 +1,5 @@
 import { env } from "@/lib/env";
-import { ok, err } from "@/server/http/responses";
+import { ok, err } from "@/lib/api/http";
 
 export const dynamic = "force-dynamic";
 

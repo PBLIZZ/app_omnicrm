@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
-import { logSync } from "@/server/sync/audit";
+import { logSync } from "@/lib/api/sync-audit";
 import { and, eq } from "drizzle-orm";
-import { err } from "@/server/http/responses";
-import { encryptString, hmacVerify } from "@/server/lib/crypto";
+import { err } from "@/lib/api/http";
+import { encryptString, hmacVerify } from "@/lib/crypto";
 import { getServerUserId } from "@/server/auth/user";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -67,59 +67,73 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     process.env["GOOGLE_CALENDAR_REDIRECT_URI"]!,
   );
 
-  const { tokens } = await oauth2Client.getToken(code);
-  const accessToken = tokens.access_token!;
-  const refreshToken = tokens.refresh_token ?? null;
-  const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    const accessToken = tokens.access_token!;
+    const refreshToken = tokens.refresh_token ?? null;
+    const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
 
-  // upsert by (userId, provider, service)
-  const exists = await db
-    .select()
-    .from(userIntegrations)
-    .where(
-      and(
-        eq(userIntegrations.userId, userId),
-        eq(userIntegrations.provider, "google"),
-        eq(userIntegrations.service, "calendar"),
-      ),
-    )
-    .limit(1);
-
-  if (exists[0]) {
-    await db
-      .update(userIntegrations)
-      .set({
-        accessToken: encryptString(accessToken),
-        refreshToken: refreshToken ? encryptString(refreshToken) : exists[0].refreshToken,
-        expiryDate,
-        updatedAt: new Date(),
-      })
+    // Check if integration already exists
+    const existing = await db
+      .select()
+      .from(userIntegrations)
       .where(
         and(
           eq(userIntegrations.userId, userId),
           eq(userIntegrations.provider, "google"),
           eq(userIntegrations.service, "calendar"),
         ),
-      );
-  } else {
-    await db.insert(userIntegrations).values({
-      userId,
-      provider: "google",
-      service: "calendar",
-      accessToken: encryptString(accessToken),
-      refreshToken: refreshToken ? encryptString(refreshToken) : null,
-      expiryDate,
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing integration
+      await db
+        .update(userIntegrations)
+        .set({
+          accessToken: encryptString(accessToken),
+          refreshToken: refreshToken ? encryptString(refreshToken) : existing[0].refreshToken,
+          expiryDate,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(userIntegrations.userId, userId),
+            eq(userIntegrations.provider, "google"),
+            eq(userIntegrations.service, "calendar"),
+          ),
+        );
+    } else {
+      // Insert new integration
+      await db.insert(userIntegrations).values({
+        userId,
+        provider: "google",
+        service: "calendar",
+        accessToken: encryptString(accessToken),
+        refreshToken: refreshToken ? encryptString(refreshToken) : null,
+        expiryDate,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+
+    await logSync(userId, "calendar", "approve", {
+      grantedScopes: tokens.scope,
     });
+
+    // Clear nonce cookie and redirect to omni-rhythm
+    const res = NextResponse.redirect(new URL("/omni-rhythm?success=true", req.url));
+    res.cookies.set("calendar_auth", "", { path: "/", httpOnly: true, maxAge: 0 });
+    return res;
+  } catch (error) {
+    console.error("Calendar OAuth callback error:", error);
+
+    // Clear nonce cookie even on error
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    const res = NextResponse.redirect(
+      new URL(`/omni-rhythm?error=${encodeURIComponent(errorMessage)}`, req.url),
+    );
+    res.cookies.set("calendar_auth", "", { path: "/", httpOnly: true, maxAge: 0 });
+    return res;
   }
-
-  await logSync(userId, "calendar", "approve", {
-    grantedScopes: tokens.scope,
-  });
-
-  // Clear nonce cookie
-  const res = NextResponse.redirect(
-    new URL("/settings/sync-preferences?connected=calendar", req.url),
-  );
-  res.cookies.set("calendar_auth", "", { path: "/", httpOnly: true, maxAge: 0 });
-  return res;
 }

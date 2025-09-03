@@ -1,8 +1,8 @@
 // src/app/api/google/gmail/raw-events/route.ts
 import { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { err, ok } from "@/server/http/responses";
-import { GetRawEventsQuerySchema, type GetRawEventsQuery, toDateRange } from "@/server/schemas";
+import { err, ok } from "@/lib/api/http";
+import { GetRawEventsQuerySchema, type GetRawEventsQuery, toDateRange } from "@/lib/schemas";
 import { listRawEventsService } from "@/server/services/raw-events.service";
 
 export async function GET(req: NextRequest): Promise<Response> {

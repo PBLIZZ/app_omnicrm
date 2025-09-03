@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui";
 import { ArrowUpDown, Bot, Mail, FileText, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { deleteContacts } from "@/components/contacts/api";
+import { deleteContacts } from "@/lib/api/contacts";
 import { useState } from "react";
 
 // Minimal local type compatible with the table usage

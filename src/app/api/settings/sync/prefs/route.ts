@@ -4,10 +4,10 @@ import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { eq } from "drizzle-orm";
 import { userSyncPrefs } from "@/server/db/schema";
-import { err, ok } from "@/server/http/responses";
+import { err, ok } from "@/lib/api/http";
 import { toApiError } from "@/server/jobs/types";
-import { safeJson } from "@/server/http/responses";
-import { UserSyncPrefsUpdateSchema } from "@/server/schemas";
+import { safeJson } from "@/lib/api/http";
+import { UserSyncPrefsUpdateSchema } from "@/lib/schemas";
 
 export async function GET(): Promise<Response> {
   try {

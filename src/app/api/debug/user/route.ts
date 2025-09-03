@@ -1,4 +1,4 @@
-import { ok, err } from "@/server/http/responses";
+import { ok, err } from "@/lib/api/http";
 import { getServerUserId } from "@/server/auth/user";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";

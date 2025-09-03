@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, Users, Save, CheckCircle } from "lucide-react";
+import { Heart, Save, CheckCircle } from "lucide-react";
 
 interface TherapistCheckInProps {
   className?: string;

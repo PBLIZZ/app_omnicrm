@@ -4,7 +4,7 @@ import { getGoogleClients } from "@/server/google/client";
 import { gmail_v1 } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { rawEvents } from "@/server/db/schema";
-import { err, ok } from "@/server/http/responses";
+import { err, ok } from "@/lib/api/http";
 import { log } from "@/server/log";
 import { toApiError } from "@/server/jobs/types";
 

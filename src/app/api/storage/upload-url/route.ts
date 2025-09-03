@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/supabase";
-import { ok, err } from "@/server/lib/http";
+import { supabaseServerAdmin, supabaseServerPublishable } from "@/lib/supabase/server";
+import { ok, err } from "@/lib/api/http";
 
 // POST /api/storage/upload-url
 // Body: { fileName: string; contentType: string; folderPath?: string; bucket?: string }

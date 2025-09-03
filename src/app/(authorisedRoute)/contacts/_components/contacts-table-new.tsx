@@ -38,7 +38,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
 }
 
-export function ContactsTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
+export function ContactsTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>): JSX.Element {
   const bulkDeleteContacts = useBulkDeleteContacts();
   const [sorting, setSorting] = useState<SortingState>([]);
   // Initialize column visibility from localStorage
@@ -57,7 +57,7 @@ export function ContactsTable<TData, TValue>({ columns, data }: DataTableProps<T
   });
 
   // Save column visibility to localStorage when it changes
-  const handleColumnVisibilityChange = (updater: any) => {
+  const handleColumnVisibilityChange = (updater: any): void => {
     const newVisibility = typeof updater === "function" ? updater(columnVisibility) : updater;
     setColumnVisibility(newVisibility);
     if (typeof window !== "undefined") {

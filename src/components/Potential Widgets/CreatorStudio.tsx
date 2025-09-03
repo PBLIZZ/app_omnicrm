@@ -14,7 +14,7 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 
-export function CreatorStudio() {
+export function CreatorStudio(): JSX.Element {
   const [promptText, setPromptText] = useState('');
 
   return (

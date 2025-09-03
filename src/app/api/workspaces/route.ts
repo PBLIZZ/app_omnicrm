@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/server/http/responses";
-import { tasksStorage } from "@/server/storage/tasks.storage";
+import { ok, err, safeJson } from "@/lib/api/http";
+import { momentumStorage } from "@/server/storage/momentum.storage";
 import { z } from "zod";
 
 const CreateWorkspaceSchema = z.object({
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   try {
-    const workspaces = await tasksStorage.getWorkspaces(userId);
+    const workspaces = await momentumStorage.getMomentumWorkspaces(userId);
     return ok({ workspaces });
   } catch (error) {
     console.error("Error fetching workspaces:", error);
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   try {
-    const workspace = await tasksStorage.createWorkspace(userId, {
+    const workspace = await momentumStorage.createMomentumWorkspace(userId, {
       name: parsed.data.name,
       description: parsed.data.description || null,
       color: parsed.data.color,

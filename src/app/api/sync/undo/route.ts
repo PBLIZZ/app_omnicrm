@@ -3,7 +3,7 @@ import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
 import { interactions, jobs, rawEvents } from "@/server/db/schema";
-import { err, ok, safeJson } from "@/server/http/responses";
+import { err, ok, safeJson } from "@/lib/api/http";
 import { toApiError } from "@/server/jobs/types";
 
 export async function POST(req: NextRequest): Promise<Response> {

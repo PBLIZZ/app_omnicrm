@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/server/db';
-import { tasks, workspaces } from '@/server/db/schema';
+import { getDb } from '@/server/db/client';
+import { momentums as tasks, momentumWorkspaces as workspaces } from '@/server/db/schema';
 import { getServerUserId } from '@/server/auth/user';
 import { eq, and } from 'drizzle-orm';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
+    const db = await getDb();
     
     const { id: contactId } = await params;
     const body = await request.json();
@@ -24,9 +25,9 @@ export async function POST(
     }
 
     // Get or create default workspace
-    let defaultWorkspace = await db.query.workspaces.findFirst({
-      where: and(eq(workspaces.userId, userId), eq(workspaces.isDefault, true))
-    });
+    let defaultWorkspace = await db.select().from(workspaces).where(
+      and(eq(workspaces.userId, userId), eq(workspaces.isDefault, true))
+    ).limit(1).then(rows => rows[0] || null);
 
     if (!defaultWorkspace) {
       // Create default workspace
@@ -36,12 +37,12 @@ export async function POST(
         description: 'Auto-created workspace for contact tasks',
         isDefault: true
       }).returning();
-      defaultWorkspace = newWorkspace[0];
+      defaultWorkspace = newWorkspace[0] || null;
     }
 
     const newTask = await db.insert(tasks).values({
       userId,
-      workspaceId: defaultWorkspace.id,
+      workspaceId: defaultWorkspace?.id || '',
       title: title.trim(),
       description: description ? description.trim() : null,
       priority: priority || 'medium',

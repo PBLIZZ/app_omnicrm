@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import "@/lib/env"; // fail-fast env validation at edge import
-import { hmacSign, hmacVerify, randomNonce } from "@/server/lib/crypto-edge";
+import { hmacSign, hmacVerify, randomNonce } from "@/lib/crypto-edge";
 
 // Configurable limits (env or sane defaults)
 const MAX_JSON_BYTES = Number(process.env["API_MAX_JSON_BYTES"] ?? 1_000_000); // 1MB
@@ -231,7 +231,9 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   // CSRF: for mutating requests from browsers, require custom header with signed token
   // In unit tests, skip CSRF enforcement; end-to-end tests cover it explicitly.
-  if (isUnsafe && process.env.NODE_ENV !== "test") {
+  // Skip CSRF for cron endpoints (server-to-server calls)
+  const isCronEndpoint = url.pathname.startsWith("/api/cron/");
+  if (isUnsafe && process.env.NODE_ENV !== "test" && !isCronEndpoint) {
     const nonceCookie = req.cookies.get("csrf")?.value;
     const sigCookie = req.cookies.get("csrf_sig")?.value;
     const csrfHeader = req.headers.get("x-csrf-token") ?? "";

@@ -1,6 +1,6 @@
 'use client';
 
-import _React, { useState } from 'react';
+import { useState } from 'react';
 import { Users, ArrowRight, Sparkles, Award, Star, BadgePercent } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';

@@ -5,7 +5,7 @@ import { getServerUserId } from '@/server/auth/user';
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
     

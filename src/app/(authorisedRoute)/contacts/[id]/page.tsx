@@ -8,7 +8,7 @@ import Link from "next/link";
 import { InteractionTimeline } from "../_components/InteractionTimeline";
 import { AIInsightsSection } from "../_components/AIInsightsSection";
 import { ContactEditDialog } from "../_components/ContactEditDialog";
-import { fetchContact } from "@/components/contacts/api";
+import { fetchContact } from "@/lib/api/contacts";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 

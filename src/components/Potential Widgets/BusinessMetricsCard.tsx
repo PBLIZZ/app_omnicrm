@@ -1,13 +1,10 @@
 'use client';
 
-import React from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/trpc";
-import { AlertCircle, ArrowRight, TrendingUp, TrendingDown, Users, Calendar, AlertTriangle } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ArrowRight, TrendingUp, Calendar, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 // Theme-consistent color constants - using the same color palette as the rest of the dashboard
 const COLORS = ['#00afaf', '#ffaf00', '#8884d8', '#FF8042', '#00C49F'];
@@ -18,19 +15,9 @@ interface BusinessMetricsCardProps {
 
 export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
   // Try to fetch dashboard summary data, but use mock data if the endpoint doesn't exist
-  const { data: apiData, isLoading, error } = api.dashboard.summary.useQuery({}, {
-    retry: false
-  });
+  const isLoading = false;
   
-  // Try to fetch contact metrics, but use mock data if the endpoint doesn't exist
-  const { data: apiContactMetrics } = api.dashboard.contactMetrics.useQuery({}, {
-    retry: false
-  });
   
-  // Try to fetch session metrics, but use mock data if the endpoint doesn't exist
-  const { data: apiSessionMetrics } = api.dashboard.sessionMetrics.useQuery({}, {
-    retry: false
-  });
 
   // Mock data to use when API endpoints are not available
   const mockData = {
@@ -60,10 +47,10 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
     ]
   };
 
-  // Use API data if available, otherwise use mock data
-  const data = apiData || mockData;
-  const contactMetrics = apiContactMetrics || mockContactMetrics;
-  const sessionMetrics = apiSessionMetrics || mockSessionMetrics;
+  // Use mock data since we don't have TRPC setup
+  const data = mockData;
+  const contactMetrics = mockContactMetrics;
+  const sessionMetrics = mockSessionMetrics;
 
   // Loading state
   if (isLoading) {
@@ -75,7 +62,7 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
   }
 
   // Format journey stage data for pie chart with warmer terminology
-  const journeyStageData = contactMetrics.journeyStageDistribution.map((stage: any, index: number) => {
+  const journeyStageData = contactMetrics.journeyStageDistribution.map((stage, index) => {
     // Map the existing journey stage names to warmer, more relationship-focused terms
     let displayName = stage.wellness_journey_stage;
     
@@ -106,10 +93,10 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
   }) || [];
 
   // Format session trend data for area chart
-  const sessionTrendData = sessionMetrics.sessionTrend.map(item => ({
+  const sessionTrendData = sessionMetrics.sessionTrend.map((item: { date: string; count: number }) => ({
     date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     sessions: item.count,
-  })) || [];
+  }));
 
   // Calculate retention risk (mock data - would be calculated based on engagement metrics)
   const retentionRisk = {
@@ -266,7 +253,7 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
                     cx="50%"
                     cy="50%"
                     labelLine={true}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name}: ${(percent ? percent * 100 : 0).toFixed(0)}%`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"

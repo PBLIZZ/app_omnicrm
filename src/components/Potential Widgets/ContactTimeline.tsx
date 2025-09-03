@@ -126,7 +126,7 @@ const mockTimelineEvents: TimelineEvent[] = [
   },
 ];
 
-export function ContactTimeline({ contactId: _contactId, limit = 10 }: ContactTimelineProps) {
+export function ContactTimeline({ contactId: _contactId, limit = 10 }: ContactTimelineProps): JSX.Element {
   const [isCompact, setIsCompact] = useState(false);
 
   const timelineEvents = limit ? mockTimelineEvents.slice(0, limit) : mockTimelineEvents;

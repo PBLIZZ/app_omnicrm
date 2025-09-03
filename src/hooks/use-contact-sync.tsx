@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import { toast } from "sonner";
+import { fetchPost } from "@/lib/api";
 
 interface Contact {
   id: string;
@@ -239,39 +240,25 @@ export function ContactSyncProvider({ children }: { children: React.ReactNode })
     }
 
     // Type guard for sync response
-    const isSyncResponse = (data: unknown): data is SyncResponse => {
-      return (
-        typeof data === "object" &&
-        data !== null &&
-        "message" in data &&
-        typeof (data as { message: unknown }).message === "string"
-      );
-    };
+    // const isSyncResponse = (data: unknown): data is SyncResponse => {
+    //   return (
+    //     typeof data === "object" &&
+    //     data !== null &&
+    //     "message" in data &&
+    //     typeof (data as { message: unknown }).message === "string"
+    //   );
+    // };
 
     try {
       setIsSyncing(true);
       setIsComplete(false);
       setProgress({ current: 0, total: 0, message: "Starting sync..." });
 
-      const response = await fetch("/api/contacts/sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ source, mode: "full" }),
+      const result = await fetchPost<SyncResponse>("/api/contacts/sync", { 
+        source, 
+        mode: "full" 
       });
 
-      if (!response.ok) {
-        throw new Error(`Sync failed: ${response.statusText}`);
-      }
-
-      const rawResult: unknown = await response.json();
-
-      if (!isSyncResponse(rawResult)) {
-        throw new Error("Invalid sync response format");
-      }
-
-      const result = rawResult;
       toast.success("Contact sync started!", {
         description: result.message,
         duration: 3000,

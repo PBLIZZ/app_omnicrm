@@ -4,7 +4,7 @@ import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { jobs, rawEvents, syncAudit, userIntegrations } from "@/server/db/schema";
-import { err, ok } from "@/server/http/responses";
+import { err, ok } from "@/lib/api/http";
 import { toApiError } from "@/server/jobs/types";
 
 export async function GET(): Promise<Response> {

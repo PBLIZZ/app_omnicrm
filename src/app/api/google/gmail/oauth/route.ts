@@ -1,10 +1,10 @@
 /** GET /api/google/gmail/oauth — start Gmail OAuth (auth required). Errors: 401 Unauthorized */
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { logSync } from "@/server/sync/audit";
+import { logSync } from "@/lib/api/sync-audit";
 import { getServerUserId } from "@/server/auth/user";
-import { err } from "@/server/http/responses";
-import { hmacSign, randomNonce } from "@/server/lib/crypto";
+import { err } from "@/lib/api/http";
+import { hmacSign, randomNonce } from "@/lib/crypto";
 import { toApiError } from "@/server/jobs/types";
 
 // GET /api/google/gmail/oauth - specific Gmail readonly authorization

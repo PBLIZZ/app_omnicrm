@@ -1,6 +1,6 @@
 "use client";
 import type { User } from "@supabase/supabase-js";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowser } from "@/lib/supabase/client";
 
 export async function fetchCurrentUser(): Promise<{ user: User | null; error: Error | null }> {
   try {

@@ -20,7 +20,7 @@ import {
 } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getServerUserId } from "@/server/auth/user";
-import { err, ok } from "@/server/http/responses";
+import { err, ok } from "@/lib/api/http";
 import { toApiError } from "@/server/jobs/types";
 import { log } from "@/server/log";
 
@@ -144,20 +144,20 @@ export async function DELETE(req: NextRequest): Promise<Response> {
           op: "user.deletion.complete",
           userId,
           deletionResults: {
-            toolInvocations: toolInvocationResult.rowCount,
-            messages: messagesResult.rowCount,
-            threads: threadsResult.rowCount,
-            embeddings: embeddingsResult.rowCount,
-            documents: documentsResult.rowCount,
-            aiInsights: aiInsightsResult.rowCount,
-            interactions: interactionsResult.rowCount,
-            contacts: contactsResult.rowCount,
-            rawEvents: rawEventsResult.rowCount,
-            jobs: jobsResult.rowCount,
-            aiUsage: aiUsageResult.rowCount,
-            aiQuotas: aiQuotasResult.rowCount,
-            integrations: integrationsResult.rowCount,
-            syncPrefs: syncPrefsResult.rowCount,
+            toolInvocations: toolInvocationResult.count,
+            messages: messagesResult.count,
+            threads: threadsResult.count,
+            embeddings: embeddingsResult.count,
+            documents: documentsResult.count,
+            aiInsights: aiInsightsResult.count,
+            interactions: interactionsResult.count,
+            contacts: contactsResult.count,
+            rawEvents: rawEventsResult.count,
+            jobs: jobsResult.count,
+            aiUsage: aiUsageResult.count,
+            aiQuotas: aiQuotasResult.count,
+            integrations: integrationsResult.count,
+            syncPrefs: syncPrefsResult.count,
           },
           completedAt: new Date().toISOString(),
         },

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowser } from "@/lib/supabase/client";
 import type { AuthFormData } from "./auth-utils";
 
 export function useAuthActions(): {

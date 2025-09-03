@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { 
   Mail, 
   Calendar, 
@@ -12,12 +11,12 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 // Import widget components
-import { EmailMarketing } from "./widgets/EmailMarketing";
-import { CreatorStudio } from "./widgets/CreatorStudio";
-import { ContentCalendar } from "./widgets/ContentCalendar";
-import { LeadMagnetStudio } from "./widgets/LeadMagnetStudio";
-import { MembershipLoyalty } from "./widgets/MembershipLoyalty";
-import { QuizCreator } from "./widgets/QuizCreator";
+import { EmailMarketing } from "./EmailMarketing";
+import { CreatorStudio } from "./CreatorStudio";
+import { ContentCalendar } from "./ContentCalendar";
+import { LeadMagnetStudio } from "./LeadMagnetStudio";
+import { MembershipLoyalty } from "./MembershipLoyalty";
+import { QuizCreator } from "./QuizCreator";
 
 export function MarketingWidgets() {
   return (

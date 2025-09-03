@@ -1,11 +1,11 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { fetchDelete, fetchPost } from '@/lib/api';
 
 /**
  * Hook to delete a single contact
  */
-export function useDeleteContact() {
+export function useDeleteContact(): UseMutationResult<unknown, Error, string, unknown> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -15,8 +15,8 @@ export function useDeleteContact() {
     onSuccess: () => {
       toast.success('Contact deleted successfully');
       // Invalidate contacts queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts-new'] });
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      void queryClient.invalidateQueries({ queryKey: ['/api/contacts-new'] });
+      void queryClient.invalidateQueries({ queryKey: ['contacts'] });
     },
     onError: (error) => {
       console.error('Delete contact error:', error);
@@ -28,7 +28,7 @@ export function useDeleteContact() {
 /**
  * Hook to delete multiple contacts in bulk
  */
-export function useBulkDeleteContacts() {
+export function useBulkDeleteContacts(): UseMutationResult<{ deleted: number }, Error, string[], unknown> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -38,8 +38,8 @@ export function useBulkDeleteContacts() {
     onSuccess: (data) => {
       toast.success(`Successfully deleted ${data.deleted} contact(s)`);
       // Invalidate contacts queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts-new'] });
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      void queryClient.invalidateQueries({ queryKey: ['/api/contacts-new'] });
+      void queryClient.invalidateQueries({ queryKey: ['contacts'] });
     },
     onError: (error) => {
       console.error('Bulk delete contacts error:', error);

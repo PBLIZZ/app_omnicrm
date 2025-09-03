@@ -1,13 +1,13 @@
 /** GET /api/google/calendar/oauth — start Calendar OAuth (auth required). Errors: 401 Unauthorized */
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { logSync } from "@/server/sync/audit";
+import { logSync } from "@/lib/api/sync-audit";
 import { getServerUserId } from "@/server/auth/user";
-import { err } from "@/server/http/responses";
-import { hmacSign, randomNonce } from "@/server/lib/crypto";
+import { err } from "@/lib/api/http";
+import { hmacSign, randomNonce } from "@/lib/crypto";
 import { toApiError } from "@/server/jobs/types";
 
-// GET /api/google/calendar/oauth - specific Calendar full-access authorization
+// GET /api/google/calendar/oauth - specific Calendar full access authorization
 export async function GET(): Promise<Response> {
   let userId: string;
   try {

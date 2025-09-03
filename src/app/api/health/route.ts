@@ -2,7 +2,7 @@ import { log } from "@/server/log";
 import { buildLogContext } from "@/server/log-context";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
-import { ok } from "@/server/http/responses";
+import { ok } from "@/lib/api/http";
 
 export async function GET(): Promise<Response> {
   const ctx = await buildLogContext();

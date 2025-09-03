@@ -1,82 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { eq, and } from "drizzle-orm";
 import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
+import { userIntegrations } from "@/server/db/schema";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
+import { enqueue } from "@/server/jobs/enqueue";
+import { randomUUID } from "node:crypto";
 
-// GET: Return basic connection status and minimal stats the Calendar page expects
-export async function GET(req: NextRequest): Promise<Response> {
-  console.log("Calendar sync GET - starting, method:", req.method, "URL:", req.url);
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-    console.log("Calendar sync GET - userId:", userId);
-  } catch (error) {
-    console.error("Calendar sync GET - auth error:", error);
-    return new NextResponse(JSON.stringify({
-      error: "unauthorized",
-      details: error instanceof Error ? error.message : "Authentication failed"
-    }), { 
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  try {
-    const db = await getDb();
-    console.log("Calendar sync GET - got database connection");
-    
-    // Check if user has Google Calendar integration
-    const integration = await db.execute(sql`
-      SELECT user_id, provider, service, access_token, expiry_date 
-      FROM user_integrations 
-      WHERE user_id = ${userId} 
-      AND provider = 'google' 
-      AND service = 'calendar' 
-      LIMIT 1
-    `);
-    
-    console.log("Calendar sync GET - integration found:", !!integration.rows[0]);
-    
-    if (!integration.rows[0]) {
-      console.log("Calendar sync GET - no integration found, returning not_connected");
-      return new NextResponse("not_connected", { status: 500 });
-    }
-
-    // Integration exists, get actual upcoming events using the service
-    console.log("Calendar sync GET - getting upcoming events from Google Calendar service");
-    try {
-      const upcomingEvents = await GoogleCalendarService.getUpcomingEvents(userId, 5);
-      console.log("Calendar sync GET - found", upcomingEvents.length, "upcoming events");
-      
-      return NextResponse.json({
-        upcomingEventsCount: upcomingEvents.length,
-        upcomingEvents: upcomingEvents.map(event => ({
-          id: event.id,
-          title: event.title,
-          startTime: event.startTime,
-          endTime: event.endTime,
-          location: event.location,
-        })),
-        lastSync: new Date().toISOString(),
-      });
-    } catch (serviceError) {
-      console.log("Calendar sync GET - service error, falling back to mock data:", serviceError);
-      return NextResponse.json({
-        upcomingEventsCount: 0,
-        upcomingEvents: [],
-        lastSync: new Date().toISOString(),
-      });
-    }
-  } catch (error) {
-    console.log("Calendar sync GET - database error:", error);
-    return new NextResponse("database_error", { status: 500 });
-  }
-
-}
-
-// POST: Trigger a sync (no-op placeholder so UI can proceed)
-export async function POST(req: NextRequest): Promise<Response> {
+// POST: Trigger a sync
+export async function POST(): Promise<Response> {
   console.log("Calendar sync POST - starting authentication check");
   let userId: string;
   try {
@@ -84,48 +16,61 @@ export async function POST(req: NextRequest): Promise<Response> {
     console.log("Calendar sync POST - authenticated user:", userId);
   } catch (error) {
     console.log("Calendar sync POST - authentication failed:", error);
-    return new NextResponse(JSON.stringify({ 
-      error: "unauthorized", 
-      details: error instanceof Error ? error.message : "Authentication failed" 
-    }), { 
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new NextResponse(
+      JSON.stringify({
+        error: "unauthorized",
+        details: error instanceof Error ? error.message : "Authentication failed",
+      }),
+      {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 
   console.log("Calendar sync POST - checking for existing integration");
   try {
     const db = await getDb();
-    // Use raw SQL to bypass Drizzle ORM issues
-    const existing = await db.execute(sql`
-      SELECT user_id FROM user_integrations 
-      WHERE user_id = ${userId} 
-      AND provider = 'google' 
-      AND service = 'calendar' 
-      LIMIT 1
-    `);
+    // Check for existing integration using Drizzle ORM
+    const existing = await db
+      .select()
+      .from(userIntegrations)
+      .where(
+        and(
+          eq(userIntegrations.userId, userId),
+          eq(userIntegrations.provider, "google"),
+          eq(userIntegrations.service, "calendar"),
+        ),
+      )
+      .limit(1);
 
-    console.log("Calendar sync POST - integration check result:", existing.rows.length > 0);
-    if (existing.rows.length === 0) {
+    console.log("Calendar sync POST - integration check result:", existing.length > 0);
+    if (existing.length === 0) {
       console.log("Calendar sync POST - no integration found, user needs to connect first");
-      return new NextResponse(JSON.stringify({
-        error: "not_connected", 
-        message: "Google Calendar not connected. Please connect first."
-      }), { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return new NextResponse(
+        JSON.stringify({
+          error: "not_connected",
+          message: "Google Calendar not connected. Please connect first.",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
   } catch (dbError) {
     console.error("Calendar sync POST - database error during integration check:", dbError);
-    return new NextResponse(JSON.stringify({
-      error: "database_error",
-      message: "Failed to check integration status",
-      details: dbError instanceof Error ? dbError.message : "Unknown database error"
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new NextResponse(
+      JSON.stringify({
+        error: "database_error",
+        message: "Failed to check integration status",
+        details: dbError instanceof Error ? dbError.message : "Unknown database error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 
   // Trigger actual calendar sync using the service
@@ -136,30 +81,55 @@ export async function POST(req: NextRequest): Promise<Response> {
       daysFuture: 90,
       maxResults: 1000,
     });
-    
+
     console.log("Calendar sync POST - sync completed:", syncResult);
-    
+
     if (syncResult.success) {
       console.log("Calendar sync POST - sync successful, events synced:", syncResult.syncedEvents);
-      return NextResponse.json({ 
-        success: true, 
+
+      // Enqueue processing jobs for the synced raw events
+      const batchId = randomUUID();
+      console.log("Calendar sync POST - enqueueing processing jobs with batchId:", batchId);
+
+      try {
+        // Enqueue jobs to process the raw events
+        await enqueue("normalize", {}, userId, batchId);
+        await enqueue("extract_contacts", { batchId }, userId, batchId);
+        await enqueue("embed", { batchId }, userId, batchId);
+
+        console.log("Calendar sync POST - successfully enqueued processing jobs");
+        console.log("Calendar sync POST - jobs will be processed by cron or manual trigger");
+      } catch (enqueueError) {
+        console.error("Calendar sync POST - failed to enqueue processing jobs:", enqueueError);
+        // Continue anyway since raw events were synced successfully
+      }
+
+      return NextResponse.json({
+        success: true,
         syncedEvents: syncResult.syncedEvents,
-        message: `Successfully synced ${syncResult.syncedEvents} events`
+        batchId,
+        message: `Successfully synced ${syncResult.syncedEvents} events and enqueued processing jobs`,
       });
     } else {
       console.error("Calendar sync POST - sync failed:", syncResult.error);
-      return NextResponse.json({ 
-        success: false, 
-        error: syncResult.error || "Sync failed",
-        details: "Check server logs for more information"
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: syncResult.error || "Sync failed",
+          details: "Check server logs for more information",
+        },
+        { status: 500 },
+      );
     }
   } catch (error) {
     console.error("Calendar sync POST - service exception:", error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : "Unknown sync error",
-      details: error instanceof Error ? error.stack : "No stack trace available"
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown sync error",
+        details: error instanceof Error ? error.stack : "No stack trace available",
+      },
+      { status: 500 },
+    );
   }
 }

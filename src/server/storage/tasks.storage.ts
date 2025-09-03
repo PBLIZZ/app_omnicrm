@@ -21,7 +21,7 @@ export class TasksStorage {
         userId,
       })
       .returning();
-    return workspace;
+    return workspace!;
   }
 
   async getWorkspaces(userId: string): Promise<Workspace[]> {
@@ -64,17 +64,17 @@ export class TasksStorage {
         userId,
       })
       .returning();
-    return project;
+    return project!;
   }
 
   async getProjects(userId: string, workspaceId?: string): Promise<Project[]> {
-    const query = db
+    let query: any = db
       .select()
       .from(projects)
       .where(eq(projects.userId, userId));
     
     if (workspaceId) {
-      query.where(and(eq(projects.userId, userId), eq(projects.workspaceId, workspaceId)));
+      query = query.where(and(eq(projects.userId, userId), eq(projects.workspaceId, workspaceId)));
     }
     
     return await query.orderBy(desc(projects.updatedAt));
@@ -112,7 +112,7 @@ export class TasksStorage {
         userId,
       })
       .returning();
-    return task;
+    return task!;
   }
 
   async getTasks(userId: string, filters?: {
@@ -123,7 +123,7 @@ export class TasksStorage {
     approvalStatus?: string;
     parentTaskId?: string | null;
   }): Promise<Task[]> {
-    let query = db
+    let query: any = db
       .select()
       .from(tasks)
       .where(eq(tasks.userId, userId));
@@ -198,7 +198,7 @@ export class TasksStorage {
 
   // Get tasks with tagged contacts populated
   async getTasksWithContacts(userId: string, taskIds?: string[]): Promise<Array<Task & { taggedContactsData?: Contact[] }>> {
-    let query = db
+    let query: any = db
       .select()
       .from(tasks)
       .where(eq(tasks.userId, userId));
@@ -211,14 +211,14 @@ export class TasksStorage {
     
     // For each task, fetch the tagged contacts if they exist
     const tasksWithContacts = await Promise.all(
-      tasksList.map(async (task) => {
-        if (task.taggedContacts && Array.isArray(task.taggedContacts) && task.taggedContacts.length > 0) {
+      tasksList.map(async (task: any) => {
+        if (task['taggedContacts'] && Array.isArray(task['taggedContacts']) && task['taggedContacts'].length > 0) {
           const taggedContactsData = await db
             .select()
             .from(contacts)
             .where(and(
               eq(contacts.userId, userId),
-              inArray(contacts.id, task.taggedContacts as string[])
+              inArray(contacts.id, task['taggedContacts'] as string[])
             ));
           
           return { ...task, taggedContactsData };
@@ -240,7 +240,7 @@ export class TasksStorage {
         userId,
       })
       .returning();
-    return action;
+    return action!;
   }
 
   async getTaskActions(taskId: string, userId: string): Promise<TaskAction[]> {
@@ -252,7 +252,7 @@ export class TasksStorage {
   }
 
   async getUserTaskActions(userId: string, limit?: number): Promise<TaskAction[]> {
-    let query = db
+    let query: any = db
       .select()
       .from(taskActions)
       .where(eq(taskActions.userId, userId))

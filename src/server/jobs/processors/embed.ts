@@ -1,47 +1,38 @@
 import { getDb } from "@/server/db/client";
-import { supaAdminGuard } from "@/server/db/supabase-admin";
+import { drizzleAdminGuard } from "@/server/db/admin";
 import { embeddings, interactions, documents } from "@/server/db/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { generateEmbedding } from "@/server/ai/llm.service";
 import { buildEmbedInput } from "@/server/prompts/embed.prompt";
-import { log } from "@/server/log";
+import { log } from "@/lib/log";
 import type { JobRecord } from "../types";
-
-// Type guard for embed job payload
-interface EmbedJobPayload {
-  ownerType?: "interaction" | "document" | "contact";
-  ownerId?: string;
-  batchId?: string;
-  maxItems?: number;
-}
-
-function isEmbedPayload(payload: unknown): payload is EmbedJobPayload {
-  return typeof payload === "object" && payload !== null;
-}
 
 /**
  * Process embedding generation for interactions and documents
  * Finds items missing embeddings and generates vectors for semantic search
  */
-export async function runEmbed(job: JobRecord): Promise<void> {
+export async function runEmbed(job: JobRecord<"embed">): Promise<void> {
   const startTime = Date.now();
   const db = await getDb();
   const maxItems = 50; // Process in batches to avoid timeouts
 
   try {
-    const payload = isEmbedPayload(job.payload) ? job.payload : {};
+    const payload = job.payload;
     const ownerType = payload.ownerType;
     const ownerId = payload.ownerId;
     const batchMaxItems = payload.maxItems ?? maxItems;
 
-    log.info({
-      op: "embed.start",
-      userId: job.userId,
-      ownerType,
-      ownerId,
-      maxItems: batchMaxItems,
-      jobId: job.id
-    }, "Starting embedding generation");
+    log.info(
+      {
+        op: "embed.start",
+        userId: job.userId,
+        ownerType,
+        ownerId,
+        maxItems: batchMaxItems,
+        jobId: job.id,
+      },
+      "Starting embedding generation",
+    );
 
     let processedItems = 0;
     let generatedEmbeddings = 0;
@@ -68,25 +59,30 @@ export async function runEmbed(job: JobRecord): Promise<void> {
     }
 
     const duration = Date.now() - startTime;
-    log.info({
-      op: "embed.complete",
-      userId: job.userId,
-      processedItems,
-      generatedEmbeddings,
-      skippedItems,
-      duration,
-      jobId: job.id
-    }, "Embedding generation completed");
-
+    log.info(
+      {
+        op: "embed.complete",
+        userId: job.userId,
+        processedItems,
+        generatedEmbeddings,
+        skippedItems,
+        duration,
+        jobId: job.id,
+      },
+      "Embedding generation completed",
+    );
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error({
-      op: "embed.error",
-      userId: job.userId,
-      error: error instanceof Error ? error.message : String(error),
-      duration,
-      jobId: job.id
-    }, "Embedding generation failed");
+    log.error(
+      {
+        op: "embed.error",
+        userId: job.userId,
+        error: error instanceof Error ? error.message : String(error),
+        duration,
+        jobId: job.id,
+      },
+      "Embedding generation failed",
+    );
     throw error;
   }
 }
@@ -97,17 +93,19 @@ export async function runEmbed(job: JobRecord): Promise<void> {
 async function processSpecificInteraction(
   db: Awaited<ReturnType<typeof getDb>>,
   userId: string,
-  interactionId: string
+  interactionId: string,
 ): Promise<{ generated: boolean }> {
   // Check if embedding already exists
   const [existingEmbedding] = await db
     .select({ id: embeddings.id })
     .from(embeddings)
-    .where(and(
-      eq(embeddings.userId, userId),
-      eq(embeddings.ownerType, "interaction"),
-      eq(embeddings.ownerId, interactionId)
-    ))
+    .where(
+      and(
+        eq(embeddings.userId, userId),
+        eq(embeddings.ownerType, "interaction"),
+        eq(embeddings.ownerId, interactionId),
+      ),
+    )
     .limit(1);
 
   if (existingEmbedding) {
@@ -122,17 +120,20 @@ async function processSpecificInteraction(
     .limit(1);
 
   if (!interaction) {
-    log.warn({
-      op: "embed.interaction_not_found",
-      userId,
-      interactionId
-    }, "Interaction not found for embedding");
+    log.warn(
+      {
+        op: "embed.interaction_not_found",
+        userId,
+        interactionId,
+      },
+      "Interaction not found for embedding",
+    );
     return { generated: false };
   }
 
   // Generate embedding content
   const textContent = buildEmbedInput({
-    text: `${interaction.subject ?? ""} ${interaction.bodyText ?? ""}`.trim()
+    text: `${interaction.subject ?? ""} ${interaction.bodyText ?? ""}`.trim(),
   });
 
   if (!textContent || textContent.length < 10) {
@@ -143,7 +144,7 @@ async function processSpecificInteraction(
   const embeddingVector = await generateEmbedding(userId, textContent);
 
   // Store embedding
-  await supaAdminGuard.insert("embeddings", {
+  await drizzleAdminGuard.insert("embeddings", {
     userId,
     ownerType: "interaction",
     ownerId: interactionId,
@@ -152,8 +153,8 @@ async function processSpecificInteraction(
       type: interaction.type,
       source: interaction.source,
       contentLength: textContent.length,
-      generatedAt: new Date().toISOString()
-    }
+      generatedAt: new Date().toISOString(),
+    },
   });
 
   return { generated: true };
@@ -165,17 +166,19 @@ async function processSpecificInteraction(
 async function processSpecificDocument(
   db: Awaited<ReturnType<typeof getDb>>,
   userId: string,
-  documentId: string
+  documentId: string,
 ): Promise<{ generated: boolean }> {
   // Check if embedding already exists
   const [existingEmbedding] = await db
     .select({ id: embeddings.id })
     .from(embeddings)
-    .where(and(
-      eq(embeddings.userId, userId),
-      eq(embeddings.ownerType, "document"),
-      eq(embeddings.ownerId, documentId)
-    ))
+    .where(
+      and(
+        eq(embeddings.userId, userId),
+        eq(embeddings.ownerType, "document"),
+        eq(embeddings.ownerId, documentId),
+      ),
+    )
     .limit(1);
 
   if (existingEmbedding) {
@@ -190,11 +193,14 @@ async function processSpecificDocument(
     .limit(1);
 
   if (!document) {
-    log.warn({
-      op: "embed.document_not_found", 
-      userId,
-      documentId
-    }, "Document not found for embedding");
+    log.warn(
+      {
+        op: "embed.document_not_found",
+        userId,
+        documentId,
+      },
+      "Document not found for embedding",
+    );
     return { generated: false };
   }
 
@@ -202,7 +208,7 @@ async function processSpecificDocument(
   const docTitle = document.title ?? "";
   const docContent = document.textContent ?? "";
   const textContent = buildEmbedInput({
-    text: `${docTitle} ${docContent}`.trim()
+    text: `${docTitle} ${docContent}`.trim(),
   });
 
   if (!textContent || textContent.length < 10) {
@@ -213,7 +219,7 @@ async function processSpecificDocument(
   const embeddingVector = await generateEmbedding(userId, textContent);
 
   // Store embedding
-  await supaAdminGuard.insert("embeddings", {
+  await drizzleAdminGuard.insert("embeddings", {
     userId,
     ownerType: "document",
     ownerId: documentId,
@@ -222,8 +228,8 @@ async function processSpecificDocument(
       title: document.title,
       mime: document.mime,
       contentLength: textContent.length,
-      generatedAt: new Date().toISOString()
-    }
+      generatedAt: new Date().toISOString(),
+    },
   });
 
   return { generated: true };
@@ -235,7 +241,7 @@ async function processSpecificDocument(
 async function processMissingEmbeddings(
   db: Awaited<ReturnType<typeof getDb>>,
   userId: string,
-  maxItems: number
+  maxItems: number,
 ): Promise<{ processed: number; generated: number; skipped: number }> {
   let processed = 0;
   let generated = 0;
@@ -248,24 +254,29 @@ async function processMissingEmbeddings(
       type: interactions.type,
       subject: interactions.subject,
       bodyText: interactions.bodyText,
-      source: interactions.source
+      source: interactions.source,
     })
     .from(interactions)
-    .leftJoin(embeddings, and(
-      eq(embeddings.ownerId, interactions.id),
-      eq(embeddings.ownerType, "interaction"),
-      eq(embeddings.userId, userId)
-    ))
-    .where(and(
-      eq(interactions.userId, userId),
-      isNull(embeddings.id) // No embedding exists
-    ))
+    .leftJoin(
+      embeddings,
+      and(
+        eq(embeddings.ownerId, interactions.id),
+        eq(embeddings.ownerType, "interaction"),
+        eq(embeddings.userId, userId),
+      ),
+    )
+    .where(
+      and(
+        eq(interactions.userId, userId),
+        isNull(embeddings.id), // No embedding exists
+      ),
+    )
     .orderBy(desc(interactions.createdAt))
     .limit(Math.floor(maxItems / 2)); // Reserve half for documents
 
   for (const interaction of interactionsWithoutEmbeddings) {
     const textContent = buildEmbedInput({
-      text: `${interaction.subject ?? ""} ${interaction.bodyText ?? ""}`.trim()
+      text: `${interaction.subject ?? ""} ${interaction.bodyText ?? ""}`.trim(),
     });
 
     processed++;
@@ -278,7 +289,7 @@ async function processMissingEmbeddings(
     try {
       const embeddingVector = await generateEmbedding(userId, textContent);
 
-      await supaAdminGuard.insert("embeddings", {
+      await drizzleAdminGuard.insert("embeddings", {
         userId,
         ownerType: "interaction",
         ownerId: interaction.id,
@@ -287,18 +298,21 @@ async function processMissingEmbeddings(
           type: interaction.type,
           source: interaction.source,
           contentLength: textContent.length,
-          generatedAt: new Date().toISOString()
-        }
+          generatedAt: new Date().toISOString(),
+        },
       });
 
       generated++;
     } catch (error) {
-      log.warn({
-        op: "embed.interaction_failed",
-        userId,
-        interactionId: interaction.id,
-        error: error instanceof Error ? error.message : String(error)
-      }, "Failed to generate embedding for interaction");
+      log.warn(
+        {
+          op: "embed.interaction_failed",
+          userId,
+          interactionId: interaction.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Failed to generate embedding for interaction",
+      );
       skipped++;
     }
   }
@@ -309,18 +323,23 @@ async function processMissingEmbeddings(
       id: documents.id,
       title: documents.title,
       textContent: documents.textContent,
-      mime: documents.mime
+      mime: documents.mime,
     })
     .from(documents)
-    .leftJoin(embeddings, and(
-      eq(embeddings.ownerId, documents.id),
-      eq(embeddings.ownerType, "document"),
-      eq(embeddings.userId, userId)
-    ))
-    .where(and(
-      eq(documents.userId, userId),
-      isNull(embeddings.id) // No embedding exists
-    ))
+    .leftJoin(
+      embeddings,
+      and(
+        eq(embeddings.ownerId, documents.id),
+        eq(embeddings.ownerType, "document"),
+        eq(embeddings.userId, userId),
+      ),
+    )
+    .where(
+      and(
+        eq(documents.userId, userId),
+        isNull(embeddings.id), // No embedding exists
+      ),
+    )
     .orderBy(desc(documents.createdAt))
     .limit(maxItems - processed); // Use remaining capacity
 
@@ -328,7 +347,7 @@ async function processMissingEmbeddings(
     const docTitle = document.title ?? "";
     const docContent = document.textContent ?? "";
     const textContent = buildEmbedInput({
-      text: `${docTitle} ${docContent}`.trim()
+      text: `${docTitle} ${docContent}`.trim(),
     });
 
     processed++;
@@ -341,7 +360,7 @@ async function processMissingEmbeddings(
     try {
       const embeddingVector = await generateEmbedding(userId, textContent);
 
-      await supaAdminGuard.insert("embeddings", {
+      await drizzleAdminGuard.insert("embeddings", {
         userId,
         ownerType: "document",
         ownerId: document.id,
@@ -350,18 +369,21 @@ async function processMissingEmbeddings(
           title: document.title,
           mime: document.mime,
           contentLength: textContent.length,
-          generatedAt: new Date().toISOString()
-        }
+          generatedAt: new Date().toISOString(),
+        },
       });
 
       generated++;
     } catch (error) {
-      log.warn({
-        op: "embed.document_failed",
-        userId,
-        documentId: document.id,
-        error: error instanceof Error ? error.message : String(error)
-      }, "Failed to generate embedding for document");
+      log.warn(
+        {
+          op: "embed.document_failed",
+          userId,
+          documentId: document.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Failed to generate embedding for document",
+      );
       skipped++;
     }
   }

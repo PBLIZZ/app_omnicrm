@@ -1,14 +1,13 @@
 import { getDb } from "@/server/db/client";
-import { supaAdminGuard } from "@/server/db/supabase-admin";
+import { drizzleAdminGuard } from "@/server/db/admin";
 import { and, desc, eq } from "drizzle-orm";
 import { jobs, rawEvents, userSyncPrefs } from "@/server/db/schema";
 import { getGoogleClients } from "@/server/google/client";
 import type { GmailClient } from "@/server/google/gmail";
 import { listGmailMessageIds } from "@/server/google/gmail";
-import { toLabelId } from "@/server/google/constants";
 import type { CalendarClient } from "@/server/google/calendar";
 import { listCalendarEvents } from "@/server/google/calendar";
-import { log } from "@/server/log";
+import { log } from "@/lib/log";
 import {
   CALENDAR_CHUNK,
   GMAIL_CHUNK_DEFAULT,
@@ -93,36 +92,64 @@ export async function runGmailSync(
   userId: string,
   injected?: { gmail?: GmailClient },
 ): Promise<void> {
+  // console.log(`🔄 GMAIL SYNC STARTED for user ${userId}`);
+
   // Type guard to ensure job has the expected structure
   if (!isJobRow(job)) {
+    // console.log(`❌ GMAIL SYNC FAILED: Invalid job structure`, job);
     log.warn({ op: "gmail.sync.invalid_job", job }, "sync_job_invalid_shape");
     return;
   }
-  
+
   // Safe cast after type guard validation
   const typedJob = job as MinimalJob;
+  console.log(
+    `✅ GMAIL SYNC: Job validated, ID: ${typedJob.id}, Batch: ${typedJob.payload?.batchId}`,
+  );
   const dbo = await getDb();
+  // console.log(`🔄 GMAIL SYNC: Got database connection`);
+
+  // console.log(`🔄 GMAIL SYNC: Getting Gmail client...`);
   const gmail = injected?.gmail ?? (await getGoogleClients(userId)).gmail;
+  // console.log(`✅ GMAIL SYNC: Gmail client obtained`);
+
+  // console.log(`🔄 GMAIL SYNC: Getting user preferences...`);
   const prefsRow = await dbo
     .select()
     .from(userSyncPrefs)
     .where(eq(userSyncPrefs.userId, userId))
     .limit(1);
   const prefs = prefsRow[0];
-  const since = await lastEventTimestamp(userId, "gmail");
+  console.log(`✅ GMAIL SYNC: Preferences loaded:`, {
+    hasPrefs: !!prefs,
+    query: prefs?.gmailQuery,
+  });
 
-  // Build incremental Gmail query using after:timestamp for efficiency  
+  // console.log(`🔄 GMAIL SYNC: Getting last event timestamp...`);
+  const since = await lastEventTimestamp(userId, "gmail");
+  // console.log(`✅ GMAIL SYNC: Last event timestamp: ${since.toISOString()}`);
+
+  // Build incremental Gmail query using after:timestamp for efficiency
   const baseQuery = prefs?.gmailQuery ?? "newer_than:30d";
   const daysSinceLastSync = Math.ceil((Date.now() - since.getTime()) / (1000 * 60 * 60 * 24));
-  
+
   // Gmail uses YYYY/MM/DD format for after: queries, not unix timestamp
-  const gmailDateFormat = since.toISOString().split('T')[0]?.replace(/-/g, '/') ?? '';
-  
-  // Only use incremental sync if last sync was recent (< 30 days), otherwise do full sync
-  const q = daysSinceLastSync <= 30 
-    ? `${baseQuery} after:${gmailDateFormat}`
-    : baseQuery;
+  // Subtract 1 day for overlap to catch any missed emails
+  const overlapDate = new Date(since.getTime() - 24 * 60 * 60 * 1000);
+  const gmailDateFormat = overlapDate.toISOString().split("T")[0]?.replace(/-/g, "/") ?? "";
+
+  // Use incremental sync with 1-day overlap to catch any missed emails
+  const q = daysSinceLastSync <= 30 ? `${baseQuery} after:${gmailDateFormat}` : baseQuery;
   const batchId = typedJob.payload?.batchId;
+
+  // console.log(`🔄 GMAIL SYNC: Query building complete`);
+  // console.log(`   - Base query: "${baseQuery}"`);
+  // console.log(`   - Days since last sync: ${daysSinceLastSync}`);
+  // console.log(`   - Gmail date format: "${gmailDateFormat}"`);
+  // console.log(`   - Final query: "${q}"`);
+  // console.log(`   - Is incremental sync: ${daysSinceLastSync <= 30}`);
+  // console.log(`   - Batch ID: ${batchId}`);
+
   const debugContext = {
     requestId: undefined as string | undefined,
     userId,
@@ -130,26 +157,44 @@ export async function runGmailSync(
     jobId: typedJob.id,
     provider: "gmail" as const,
   };
-  const includeIds = (prefs?.gmailLabelIncludes ?? []).map(toLabelId);
-  const excludeIds = (prefs?.gmailLabelExcludes ?? []).map(toLabelId);
+
+  // console.log(`🔄 GMAIL SYNC: Label filters prepared`);
+  // console.log(`   - Include IDs: ${includeIds.join(", ")}`);
+  // console.log(`   - Exclude IDs: ${excludeIds.join(", ")}`);
 
   // Cap total processed per run to keep memory/time bounded
+  // console.log(`🔄 GMAIL SYNC: Starting email ID fetch with query: "${q}"`);
   let ids: string[], pages: number, total: number;
   try {
     const result = await listGmailMessageIds(gmail, q);
     ids = result.ids;
     pages = result.pages;
     total = Math.min(ids.length, SYNC_MAX_PER_RUN);
+
+    // Override total to process at least some emails for debugging
+    if (total > 0 && total < 10) {
+      total = Math.min(10, ids.length);
+    }
+
+    // console.log(`✅ GMAIL SYNC: Email IDs fetched successfully`);
+    // console.log(`   - Total IDs found: ${ids.length}`);
+    // console.log(`   - Pages processed: ${pages}`);
+    // console.log(`   - IDs to process: ${total}`);
+    // console.log(`   - First few IDs: ${ids.slice(0, 3).join(", ")}`);
   } catch (queryError) {
-    log.error({
-      ...debugContext,
-      op: "gmail.sync.query_failed",
-      query: q,
-      error: queryError instanceof Error ? queryError.message : String(queryError),
-    }, "gmail_query_failed");
+    // console.log(`❌ GMAIL SYNC: Email ID fetch failed`, queryError);
+    log.error(
+      {
+        ...debugContext,
+        op: "gmail.sync.query_failed",
+        query: q,
+        error: queryError instanceof Error ? queryError.message : String(queryError),
+      },
+      "gmail_query_failed",
+    );
     throw queryError;
   }
-  
+
   // Persist initial progress snapshot on the job payload so the UI can compute progress
   if (typedJob.id) {
     try {
@@ -168,7 +213,11 @@ export async function runGmailSync(
         })
         .where(eq(jobs.id, String(typedJob.id)));
     } catch (updateErr) {
-      log.warn({ ...debugContext, op: "gmail.sync.init_progress_update_failed", error: String(updateErr) });
+      log.warn({
+        ...debugContext,
+        op: "gmail.sync.init_progress_update_failed",
+        error: String(updateErr),
+      });
     }
   }
 
@@ -187,26 +236,26 @@ export async function runGmailSync(
     },
     "gmail_sync_start",
   );
-  
+
   const startedAt = Date.now();
   const deadlineMs = startedAt + JOB_HARD_CAP_MS;
   let itemsFetched = 0;
   let itemsInserted = 0; // Still track for logging, but progress uses itemsFetched
   let itemsSkipped = 0;
-  let itemsFiltered = 0;
+  const itemsFiltered = 0;
   let errorsCount = 0;
 
   // Simple batch processing - no streaming, no adaptive sizing
   const processedIds = ids.slice(0, total);
-  
+
   for (let i = 0; i < processedIds.length; i += GMAIL_CHUNK_DEFAULT) {
     if (Date.now() > deadlineMs) {
       log.warn({ ...debugContext, op: "gmail.sync.timeout" }, "sync_timeout");
       break;
     }
-    
+
     const batchIds = processedIds.slice(i, i + GMAIL_CHUNK_DEFAULT);
-    
+
     // Process batch messages sequentially
     for (const messageId of batchIds) {
       try {
@@ -215,9 +264,9 @@ export async function runGmailSync(
           id: messageId,
           format: "full",
         });
-        
+
         const msg = response.data;
-        
+
         if (!msg || !isGmailMessagePayload(msg)) {
           if (!msg) {
             itemsSkipped += 1;
@@ -225,69 +274,74 @@ export async function runGmailSync(
           }
           continue;
         }
-        
+
         const labelIds = msg.labelIds ?? [];
-        
-        // Apply label filters
-        if (includeIds.length > 0 && !labelIds.some((l: string) => includeIds.includes(l))) {
-          itemsFiltered += 1;
-          continue;
-        }
-        if (excludeIds.length > 0 && labelIds.some((l: string) => excludeIds.includes(l))) {
-          itemsFiltered += 1;
-          continue;
-        }
+
+        // Debug logging - no filtering applied
+        console.log(`📧 Processing email ${msg.id} - NO FILTERING APPLIED`);
 
         // Parse email timestamp (Gmail API filtering should handle this, but keep as backup)
         const internalMs = Number(msg.internalDate ?? 0);
         const occurredAt = internalMs ? new Date(internalMs) : new Date();
 
         try {
-          // Use upsert - constraint handling is now done internally
-          await supaAdminGuard.upsert("raw_events", {
+          // Use Drizzle admin service with proper camelCase field names
+          await drizzleAdminGuard.upsert("raw_events", {
             userId,
             provider: "gmail",
             payload: msg,
             occurredAt,
             contactId: null,
             batchId: batchId ?? null,
-            sourceMeta: { 
-              labelIds, 
-              fetchedAt: new Date().toISOString(), 
+            sourceMeta: {
+              labelIds,
+              fetchedAt: new Date().toISOString(),
               matchedQuery: q,
             },
             sourceId: msg.id ?? null,
           });
-          
+
           itemsInserted += 1;
           itemsFetched += 1;
         } catch (dbError) {
-          log.warn({
-            ...debugContext,
-            op: "gmail.sync.db_insert_failed",
-            messageId: msg.id,
-            error: String(dbError),
-          }, "db_insert_failed");
+          log.warn(
+            {
+              ...debugContext,
+              op: "gmail.sync.db_insert_failed",
+              messageId: msg.id,
+              error: String(dbError),
+            },
+            "db_insert_failed",
+          );
           errorsCount += 1;
         }
       } catch (apiError) {
-        const errorDetails = apiError instanceof Error ? {
-          name: apiError.name,
-          message: apiError.message,
-          stack: apiError.stack?.split('\n')[0], // Just first line
-        } : { message: String(apiError) };
-        
-        log.warn({
-          ...debugContext,
-          op: "gmail.sync.api_error",
-          messageId,
-          errorDetails,
-          batchIndex: Math.floor(itemsFetched / GMAIL_CHUNK_DEFAULT),
-        }, "gmail_message_fetch_failed");
+        const errorDetails =
+          apiError instanceof Error
+            ? {
+                name: apiError.name,
+                message: apiError.message,
+                stack: apiError.stack?.split("\n")[0], // Just first line
+              }
+            : { message: String(apiError) };
+
+        // Enhanced error logging for debugging
+        console.error(`❌ Gmail API Error fetching message ${messageId}:`, errorDetails);
+
+        log.warn(
+          {
+            ...debugContext,
+            op: "gmail.sync.api_error",
+            messageId,
+            errorDetails,
+            batchIndex: Math.floor(itemsFetched / GMAIL_CHUNK_DEFAULT),
+          },
+          "gmail_message_fetch_failed",
+        );
         errorsCount += 1;
       }
     }
-    
+
     // Simple sleep between batches
     await new Promise((r) => setTimeout(r, SYNC_SLEEP_MS));
 
@@ -313,13 +367,17 @@ export async function runGmailSync(
           })
           .where(eq(jobs.id, String(typedJob.id)));
       } catch (updateErr) {
-        log.warn({ ...debugContext, op: "gmail.sync.progress_update_failed", error: String(updateErr) });
+        log.warn({
+          ...debugContext,
+          op: "gmail.sync.progress_update_failed",
+          error: String(updateErr),
+        });
       }
     }
   }
 
   const durationMs = Date.now() - startedAt;
-  
+
   // Simple metrics logging
   log.info(
     {
@@ -338,20 +396,30 @@ export async function runGmailSync(
     "gmail_sync_metrics",
   );
 
-  // Queue normalization job
-  await dbo.insert(jobs).values({
-    userId,
-    kind: "normalize_google_email",
-    payload: { 
+  // Enqueue normalization jobs using our new normalizers
+  if (itemsInserted > 0) {
+    await dbo.insert(jobs).values({
+      userId,
+      kind: "normalize",
+      payload: {
+        batchId,
+        provider: "gmail",
+      },
+      batchId: batchId ?? null,
+    });
+  }
+
+  log.info(
+    {
+      op: "gmail_sync_complete",
+      userId,
       batchId,
-      syncMetrics: {
-        itemsFetched,
-        itemsInserted,
-        durationMs,
-      }
+      itemsFetched,
+      itemsInserted,
+      durationMs,
     },
-    batchId: batchId ?? null,
-  });
+    "Gmail sync completed successfully - normalization queued",
+  );
 }
 
 export async function runCalendarSync(
@@ -384,7 +452,7 @@ export async function runCalendarSync(
     userId,
     batchId: batchId ?? null,
     jobId: typedJob.id,
-    provider: "calendar" as const,
+    provider: "google_calendar" as const,
   };
 
   // Calendar: process paginated items with caps & light filtering
@@ -414,29 +482,66 @@ export async function runCalendarSync(
     // Apply filters prior to inserts
     const toInsert: Array<{ ev: calendar_v3.Schema$Event; occurredAt: Date }> = [];
     for (const e of slice) {
-      if (!e) continue;
+      if (!e) {
+        log.debug({
+          ...debugContext,
+          op: "calendar.sync.skipped_null_event",
+        }, "Skipped null event");
+        continue;
+      }
+      
       if (
         prefs?.calendarIncludeOrganizerSelf === true &&
         e.organizer &&
         e.organizer.self === false
       ) {
         itemsFiltered += 1;
+        log.info({
+          ...debugContext,
+          op: "calendar.sync.filtered_organizer",
+          eventId: e.id,
+          eventTitle: e.summary,
+          organizerEmail: e.organizer?.email,
+          organizerSelf: e.organizer?.self,
+          calendarIncludeOrganizerSelf: prefs?.calendarIncludeOrganizerSelf,
+        }, "Filtered out event: not organizer self");
         continue;
       }
+      
       if (prefs?.calendarIncludePrivate === false && e.visibility === "private") {
         itemsFiltered += 1;
+        log.info({
+          ...debugContext,
+          op: "calendar.sync.filtered_private",
+          eventId: e.id,
+          eventTitle: e.summary,
+          visibility: e.visibility,
+          calendarIncludePrivate: prefs?.calendarIncludePrivate,
+        }, "Filtered out event: private visibility");
         continue;
       }
+      
       const startStr = e.start?.dateTime ?? e.start?.date;
-      if (!startStr) continue;
+      if (!startStr) {
+        log.info({
+          ...debugContext,
+          op: "calendar.sync.skipped_no_start_time",
+          eventId: e.id,
+          eventTitle: e.summary,
+          startDateTime: e.start?.dateTime,
+          startDate: e.start?.date,
+        }, "Skipped event: no start time");
+        continue;
+      }
+      
       const occurredAt = new Date(startStr);
       toInsert.push({ ev: e, occurredAt });
     }
     const results = await Promise.allSettled(
       toInsert.map(({ ev: e, occurredAt }) =>
-        supaAdminGuard.upsert("raw_events", {
+        drizzleAdminGuard.upsert("raw_events", {
           userId,
-          provider: "calendar",
+          provider: "google_calendar",
           payload: e,
           occurredAt,
           contactId: null,
@@ -446,22 +551,33 @@ export async function runCalendarSync(
         }),
       ),
     );
-    for (const r of results) {
+    for (const [index, r] of results.entries()) {
+      const eventForDebug = toInsert[index]?.ev;
       if (r.status !== "fulfilled") {
         const error = String((r as PromiseRejectedResult).reason);
         // Check if it's a duplicate constraint error (expected)
-        if (error.includes('23505') || error.includes('duplicate')) {
+        if (error.includes("23505") || error.includes("duplicate")) {
           // Duplicate is expected, just count as processed but not new
           itemsFetched += 1;
+          log.info({
+            ...debugContext,
+            op: "calendar.sync.duplicate_skipped",
+            eventId: eventForDebug?.id,
+            eventTitle: eventForDebug?.summary,
+            sourceId: eventForDebug?.id,
+          }, "Skipped event: already exists in database (duplicate)");
         } else {
           // Actual error
           log.warn(
             {
               ...debugContext,
               op: "calendar.sync.insert_failed",
+              eventId: eventForDebug?.id,
+              eventTitle: eventForDebug?.summary,
+              error: error,
               reason: (r as PromiseRejectedResult).reason,
             },
-            "calendar_event_insert_failed",
+            "Failed to insert event due to error",
           );
           itemsSkipped += 1;
           errorsCount += 1;
@@ -493,10 +609,14 @@ export async function runCalendarSync(
     "calendar_sync_metrics",
   );
 
+  // Enqueue normalization jobs using our new normalizers
   await dbo.insert(jobs).values({
     userId,
-    kind: "normalize_google_event",
-    payload: { batchId },
+    kind: "normalize",
+    payload: {
+      batchId,
+      provider: "google_calendar",
+    },
     batchId: batchId ?? null,
   });
 }

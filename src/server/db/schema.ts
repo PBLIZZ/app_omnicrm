@@ -14,7 +14,8 @@ import {
   numeric,
   primaryKey,
   pgEnum,
-  real,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -44,7 +45,8 @@ export const aiInsights = pgTable("ai_insights", {
   kind: text("kind").notNull(), // summary | next_step | risk | persona
   content: jsonb("content").notNull(), // structured LLM output
   model: text("model"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  fingerprint: text("fingerprint"),
 });
 
 export const aiQuotas = pgTable("ai_quotas", {
@@ -77,9 +79,21 @@ export const contacts = pgTable("contacts", {
   // notes column removed - use dedicated notes table instead
   stage: text("stage"), // Prospect | New Client | Core Client | Referring Client | VIP Client | Lost Client | At Risk Client
   tags: jsonb("tags"), // Wellness segmentation tags array
-  confidenceScore: numeric("confidence_score", { precision: 3, scale: 2 }), // AI insight confidence (0.00-1.00)
+  confidenceScore: text("confidence_score"), // AI insight confidence stored as text
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const contactIdentities = pgTable("contact_identities", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  contactId: uuid("contact_id").notNull(),
+  kind: text("kind").notNull(), // email | phone | social | etc
+  value: text("value").notNull(), // the actual email/phone/username value
+  provider: text("provider"), // optional provider (google, etc)
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const documents = pgTable("documents", {
@@ -103,9 +117,12 @@ export const embeddings = pgTable("embeddings", {
   ownerType: text("owner_type").notNull(), // interaction | document | contact | calendar_event
   ownerId: uuid("owner_id").notNull(),
   meta: jsonb("meta"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   // Optional in code (present in DB via SQL): vector(1536)
   embedding: vector1536("embedding"),
+  embeddingV: vector1536("embedding_v"),
+  contentHash: text("content_hash"),
+  chunkIndex: integer("chunk_index"),
 });
 
 export const interactions = pgTable("interactions", {
@@ -118,12 +135,12 @@ export const interactions = pgTable("interactions", {
   subject: text("subject"),
   bodyText: text("body_text"),
   bodyRaw: jsonb("body_raw"),
-  occurredAt: timestamp("occurred_at").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   source: text("source"), // gmail | calendar | manual
   sourceId: text("source_id"),
   sourceMeta: jsonb("source_meta"),
   batchId: uuid("batch_id"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const jobs = pgTable("jobs", {
@@ -149,11 +166,24 @@ export const rawEvents = pgTable("raw_events", {
   provider: text("provider").notNull(), // gmail | calendar | drive | upload
   payload: jsonb("payload").notNull(),
   contactId: uuid("contact_id"),
-  occurredAt: timestamp("occurred_at").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   sourceMeta: jsonb("source_meta"),
   batchId: uuid("batch_id"),
   sourceId: text("source_id"), // ✅ new (nullable)
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const rawEventErrors = pgTable("raw_event_errors", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  rawEventId: uuid("raw_event_id"),
+  userId: uuid("user_id").notNull(),
+  provider: text("provider").notNull(), // gmail | calendar | drive
+  errorAt: timestamp("error_at", { withTimezone: true }).notNull(),
+  stage: text("stage").notNull(), // ingestion | normalization | processing
+  error: text("error").notNull(), // error message
+  context: jsonb("context"), // additional context about the error
 });
 
 // ---------- Chat Trio ----------
@@ -243,139 +273,138 @@ export const syncAudit = pgTable("sync_audit", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const notes = pgTable('notes', {
-  id: uuid('id')
+export const notes = pgTable("notes", {
+  id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  contactId: uuid('contact_id').notNull(), // FK to contacts(id) in SQL
-  userId: uuid('user_id').notNull(),
-  content: text('content').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  userId: uuid("user_id").notNull(),
+  contactId: uuid("contact_id"), // FK to contacts(id) in SQL; nullable
+  title: text("title"),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Calendar Events for business intelligence and timeline building
-export const calendarEvents = pgTable('calendar_events', {
-  id: uuid('id')
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
-  googleEventId: text('google_event_id').unique().notNull(), // Google Calendar event ID
-  calendarId: text('calendar_id').notNull(), // Google Calendar ID
-  title: text('title').notNull(),
-  description: text('description'),
-  location: text('location'),
-  startTime: timestamp('start_time', { withTimezone: true }).notNull(),
-  endTime: timestamp('end_time', { withTimezone: true }).notNull(),
-  timeZone: text('time_zone').notNull(),
-  isAllDay: boolean('is_all_day').default(false).notNull(),
-  recurring: boolean('recurring').default(false).notNull(),
-  recurrenceRule: text('recurrence_rule'), // RRULE if recurring
-  status: text('status').notNull().default('confirmed'), // confirmed, cancelled, tentative
-  visibility: text('visibility').notNull().default('public'), // public, private
-  attendees: jsonb('attendees'), // Store attendee emails/info
-  eventType: text('event_type'), // class, workshop, appointment, consultation
-  capacity: integer('capacity'), // max attendees for classes
-  actualAttendance: integer('actual_attendance'), // matched from attendance data
-  // AI and embeddings fields
-  embeddings: jsonb('embeddings'), // Semantic embeddings for matching
-  keywords: text('keywords').array(), // Extracted keywords for search
-  businessCategory: text('business_category'), // yoga, massage, workshop, etc
-  // Sync metadata
-  lastSynced: timestamp('last_synced', { withTimezone: true }).defaultNow().notNull(),
-  googleUpdated: timestamp('google_updated', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const calendarEvents = pgTable(
+  "calendar_events",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id").notNull(),
+    googleEventId: text("google_event_id").notNull(), // Google Calendar event ID
+    title: text("title").notNull(),
+    description: text("description"),
+    startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+    attendees: jsonb("attendees"), // Store attendee emails/info
+    location: text("location"),
+    status: text("status"), // confirmed, cancelled, tentative
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    timeZone: text("time_zone"),
+    isAllDay: boolean("is_all_day"),
+    visibility: text("visibility"),
+    eventType: text("event_type"),
+    businessCategory: text("business_category"),
+    keywords: jsonb("keywords"), // Stored as jsonb in database
+    googleUpdated: timestamp("google_updated", { withTimezone: true }),
+    lastSynced: timestamp("last_synced", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("cal_ev_user_googleid_uidx").on(table.userId, table.googleEventId),
+    index("cal_ev_user_start_idx").on(table.userId, table.startTime.desc()),
+  ],
+);
 
 // Contact timeline events (auto-generated from calendar data)
-export const contactTimeline = pgTable('contact_timeline', {
-  id: uuid('id')
+export const contactTimeline = pgTable("contact_timeline", {
+  id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
-  contactId: uuid('contact_id')
+  userId: uuid("user_id").notNull(),
+  contactId: uuid("contact_id")
     .references(() => contacts.id)
     .notNull(),
-  eventType: text('event_type').notNull(), // class_attended, workshop_booked, appointment_scheduled
-  title: text('title').notNull(), 
-  description: text('description'),
-  eventData: jsonb('event_data').default({}), // Soft schema - contains eventId, eventTitle, location, duration, etc.
-  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  eventType: text("event_type").notNull(), // class_attended, workshop_booked, appointment_scheduled
+  title: text("title").notNull(),
+  description: text("description"),
+  eventData: jsonb("event_data").default({}), // Soft schema - contains eventId, eventTitle, location, duration, etc.
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-// ---------- Task Management ----------
+// ---------- Momentum Management ----------
 
-export const workspaces = pgTable('workspaces', {
-  id: uuid('id')
+export const momentumWorkspaces = pgTable("momentum_workspaces", {
+  id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
-  name: text('name').notNull(),
-  description: text('description'),
-  color: text('color').default('#6366f1'), // Hex color for UI
-  isDefault: boolean('is_default').default(false).notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  userId: uuid("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#6366f1"), // Hex color for UI
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const projects = pgTable('projects', {
-  id: uuid('id')
+export const momentumProjects = pgTable("momentum_projects", {
+  id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
-  workspaceId: uuid('workspace_id')
-    .references(() => workspaces.id)
+  userId: uuid("user_id").notNull(),
+  momentumWorkspaceId: uuid("momentum_workspace_id")
+    .references(() => momentumWorkspaces.id)
     .notNull(),
-  name: text('name').notNull(),
-  description: text('description'),
-  color: text('color').default('#10b981'), // Hex color for UI
-  status: text('status').default('active').notNull(), // active, completed, on_hold, cancelled
-  dueDate: timestamp('due_date'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#10b981"), // Hex color for UI
+  status: text("status").default("active").notNull(), // active, completed, on_hold, cancelled
+  dueDate: timestamp("due_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const tasks = pgTable('tasks', {
-  id: uuid('id')
+export const momentums = pgTable("momentums", {
+  id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
-  workspaceId: uuid('workspace_id')
-    .references(() => workspaces.id), // nullable - tasks can exist without workspaces
-  projectId: uuid('project_id').references(() => projects.id), // nullable - tasks can exist without projects
-  parentTaskId: uuid('parent_task_id').references(() => tasks.id), // for subtasks
-  title: text('title').notNull(),
-  description: text('description'),
-  status: text('status').default('todo').notNull(), // todo, in_progress, waiting, done, cancelled
-  priority: text('priority').default('medium').notNull(), // low, medium, high, urgent
-  assignee: text('assignee').default('user').notNull(), // user, ai
-  source: text('source').default('user').notNull(), // user, ai_generated
-  approvalStatus: text('approval_status').default('approved').notNull(), // pending_approval, approved, rejected
-  taggedContacts: jsonb('tagged_contacts'), // array of contact IDs
-  dueDate: timestamp('due_date'),
-  completedAt: timestamp('completed_at'),
-  estimatedMinutes: integer('estimated_minutes'),
-  actualMinutes: integer('actual_minutes'),
-  aiContext: jsonb('ai_context'), // AI reasoning/context when generated
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  userId: uuid("user_id").notNull(),
+  momentumWorkspaceId: uuid("momentum_workspace_id").references(() => momentumWorkspaces.id), // nullable - momentums can exist without workspaces
+  momentumProjectId: uuid("momentum_project_id").references(() => momentumProjects.id), // nullable - momentums can exist without projects
+  parentMomentumId: uuid("parent_momentum_id").references((): any => momentums.id), // for sub-momentums
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").default("todo").notNull(), // todo, in_progress, waiting, done, cancelled
+  priority: text("priority").default("medium").notNull(), // low, medium, high, urgent
+  assignee: text("assignee").default("user").notNull(), // user, ai
+  source: text("source").default("user").notNull(), // user, ai_generated
+  approvalStatus: text("approval_status").default("approved").notNull(), // pending_approval, approved, rejected
+  taggedContacts: jsonb("tagged_contacts"), // array of contact IDs
+  dueDate: timestamp("due_date"),
+  completedAt: timestamp("completed_at"),
+  estimatedMinutes: integer("estimated_minutes"),
+  actualMinutes: integer("actual_minutes"),
+  aiContext: jsonb("ai_context"), // AI reasoning/context when generated
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const taskActions = pgTable('task_actions', {
-  id: uuid('id')
+export const momentumActions = pgTable("momentum_actions", {
+  id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
-  taskId: uuid('task_id')
-    .references(() => tasks.id)
+  userId: uuid("user_id").notNull(),
+  momentumId: uuid("momentum_id")
+    .references(() => momentums.id)
     .notNull(),
-  action: text('action').notNull(), // approved, rejected, edited, completed, deleted
-  previousData: jsonb('previous_data'), // task state before action
-  newData: jsonb('new_data'), // task state after action
-  notes: text('notes'), // user notes about the action
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  action: text("action").notNull(), // approved, rejected, edited, completed, deleted
+  previousData: jsonb("previous_data"), // momentum state before action
+  newData: jsonb("new_data"), // momentum state after action
+  notes: text("notes"), // user notes about the action
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // ---------- Types ----------
@@ -385,6 +414,9 @@ export type NewAiInsight = typeof aiInsights.$inferInsert;
 
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
+
+export type ContactIdentity = typeof contactIdentities.$inferSelect;
+export type NewContactIdentity = typeof contactIdentities.$inferInsert;
 
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
@@ -400,6 +432,9 @@ export type NewJob = typeof jobs.$inferInsert;
 
 export type RawEvent = typeof rawEvents.$inferSelect;
 export type NewRawEvent = typeof rawEvents.$inferInsert;
+
+export type RawEventError = typeof rawEventErrors.$inferSelect;
+export type NewRawEventError = typeof rawEventErrors.$inferInsert;
 
 export type Thread = typeof threads.$inferSelect;
 export type NewThread = typeof threads.$inferInsert;
@@ -434,14 +469,14 @@ export type NewCalendarEvent = typeof calendarEvents.$inferInsert;
 export type ContactTimeline = typeof contactTimeline.$inferSelect;
 export type NewContactTimeline = typeof contactTimeline.$inferInsert;
 
-export type Workspace = typeof workspaces.$inferSelect;
-export type NewWorkspace = typeof workspaces.$inferInsert;
+export type MomentumWorkspace = typeof momentumWorkspaces.$inferSelect;
+export type NewMomentumWorkspace = typeof momentumWorkspaces.$inferInsert;
 
-export type Project = typeof projects.$inferSelect;
-export type NewProject = typeof projects.$inferInsert;
+export type MomentumProject = typeof momentumProjects.$inferSelect;
+export type NewMomentumProject = typeof momentumProjects.$inferInsert;
 
-export type Task = typeof tasks.$inferSelect;
-export type NewTask = typeof tasks.$inferInsert;
+export type Momentum = typeof momentums.$inferSelect;
+export type NewMomentum = typeof momentums.$inferInsert;
 
-export type TaskAction = typeof taskActions.$inferSelect;
-export type NewTaskAction = typeof taskActions.$inferInsert;
+export type MomentumAction = typeof momentumActions.$inferSelect;
+export type NewMomentumAction = typeof momentumActions.$inferInsert;

@@ -1,15 +1,17 @@
 // src/server/db/client.ts
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { Pool, PoolConfig } from "pg";
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import * as schema from './schema';
 
-let dbInstance: NodePgDatabase | null = null;
-let dbInitPromise: Promise<NodePgDatabase> | null = null;
-let poolInstance: Pool | null = null;
+let dbInstance: PostgresJsDatabase<typeof schema> | null = null;
+let dbInitPromise: Promise<PostgresJsDatabase<typeof schema>> | null = null;
+let sqlInstance: ReturnType<typeof postgres> | null = null;
 
 // Test-only injection for deterministic mocking
 interface TestOverrides {
-  PoolCtor?: new (config: PoolConfig) => Pool;
-  drizzleFn?: (pool: Pool | unknown) => NodePgDatabase;
+  postgresFn?: typeof postgres;
+  drizzleFn?: typeof drizzle;
 }
 
 let testOverrides: TestOverrides = {};
@@ -19,32 +21,40 @@ export function __setDbDriversForTest(overrides: TestOverrides): void {
   // reset so next call rebuilds with overrides
   dbInstance = null;
   dbInitPromise = null;
-  if (poolInstance) {
-    void poolInstance.end();
-    poolInstance = null;
+  if (sqlInstance) {
+    void sqlInstance.end();
+    sqlInstance = null;
   }
 }
 
 /**
- * Pool configuration with optimized settings for CRM workload
+ * Postgres.js configuration optimized for Supabase Transaction mode
  */
-function getPoolConfig(databaseUrl: string): PoolConfig {
+function getPostgresConfig(databaseUrl: string): {
+  prepare: boolean;
+  max: number;
+  idle_timeout: number;
+  connect_timeout: number;
+  max_lifetime: number;
+  transform: { undefined: null };
+} {
   return {
-    connectionString: databaseUrl,
+    prepare: false, // CRITICAL: Disable prepared statements for Supabase Transaction mode
     max: 10, // Maximum connections in pool
-    min: 2,  // Minimum connections to maintain
-    idleTimeoutMillis: 30000, // 30 seconds idle timeout
-    connectionTimeoutMillis: 10000, // 10 seconds connection timeout
-    maxUses: 7500, // Rotate connections after 7500 uses
-    allowExitOnIdle: false, // Keep pool alive
+    idle_timeout: 30, // 30 seconds idle timeout
+    connect_timeout: 30, // 30 seconds connection timeout (increased for reliability)
+    max_lifetime: 60 * 60, // 1 hour connection lifetime
+    transform: {
+      undefined: null, // Transform undefined to null
+    },
   };
 }
 
 /**
- * Lazily initialize and return a singleton Drizzle database instance with connection pooling.
+ * Lazily initialize and return a singleton Drizzle database instance with postgres.js.
  * No connection is attempted at module import time.
  */
-export async function getDb(): Promise<NodePgDatabase> {
+export async function getDb(): Promise<PostgresJsDatabase<typeof schema>> {
   if (dbInstance) return dbInstance;
   if (dbInitPromise) return dbInitPromise;
 
@@ -53,23 +63,18 @@ export async function getDb(): Promise<NodePgDatabase> {
     throw new Error("DATABASE_URL is not set");
   }
 
-  dbInitPromise = (async (): Promise<NodePgDatabase> => {
-    const PoolCtor = testOverrides.PoolCtor ?? (await import("pg")).Pool;
-    const drizzleFn =
-      testOverrides.drizzleFn ?? (await import("drizzle-orm/node-postgres")).drizzle;
+  dbInitPromise = (async (): Promise<PostgresJsDatabase<typeof schema>> => {
+    const postgresFn = testOverrides.postgresFn ?? postgres;
+    const drizzleFn = testOverrides.drizzleFn ?? drizzle;
     
-    const poolConfig = getPoolConfig(databaseUrl);
-    const pool = new PoolCtor(poolConfig);
-    poolInstance = pool;
+    const config = getPostgresConfig(databaseUrl);
+    const sql = postgresFn(databaseUrl, config);
+    sqlInstance = sql;
     
-    // Test the pool connection
-    const client = await pool.connect();
-    client.release();
+    // Test the connection
+    await sql`SELECT 1`;
     
-    // Type assertion is necessary for test injection compatibility.
-    // The drizzleFn accepts different pool types in test vs production.
-    // This is safe because drizzleFn validates the pool interface internally.
-    const instance = drizzleFn(pool as Pool) as NodePgDatabase;
+    const instance = drizzleFn(sql, { schema });
     dbInstance = instance;
     return instance;
   })();
@@ -90,10 +95,10 @@ export async function getDb(): Promise<NodePgDatabase> {
  * A lightweight proxy that defers method calls to the lazily initialized db.
  * Example: await db.execute(sql`select 1`)
  */
-export const db: NodePgDatabase = new Proxy({} as NodePgDatabase, {
+export const db: PostgresJsDatabase<typeof schema> = new Proxy({} as PostgresJsDatabase<typeof schema>, {
   get(_target, propertyKey: string | symbol) {
     return (...args: unknown[]) =>
-      getDb().then((resolvedDb: NodePgDatabase) => {
+      getDb().then((resolvedDb: PostgresJsDatabase<typeof schema>) => {
         // Safe member access on resolved database instance
         const memberRecord = resolvedDb as unknown as Record<string | symbol, unknown>;
         const member = memberRecord[propertyKey];
@@ -106,19 +111,19 @@ export const db: NodePgDatabase = new Proxy({} as NodePgDatabase, {
 });
 
 /**
- * Get the underlying connection pool for advanced operations
+ * Get the underlying SQL instance for advanced operations
  */
-export function getPool(): Pool | null {
-  return poolInstance;
+export function getSql(): ReturnType<typeof postgres> | null {
+  return sqlInstance;
 }
 
 /**
- * Gracefully close the database pool
+ * Gracefully close the database connection
  */
 export async function closeDb(): Promise<void> {
-  if (poolInstance) {
-    await poolInstance.end();
-    poolInstance = null;
+  if (sqlInstance) {
+    await sqlInstance.end();
+    sqlInstance = null;
   }
   dbInstance = null;
   dbInitPromise = null;

@@ -23,5 +23,6 @@
     "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
   },
   "prettier.configPath": "prettier.config.cjs",
-  "editor.formatOnPaste": true
+  "editor.formatOnPaste": true,
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

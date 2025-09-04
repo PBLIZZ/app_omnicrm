@@ -3,9 +3,9 @@
 import { usePathname } from "next/navigation";
 
 import { ContactsSidebar } from "@/app/(authorisedRoute)/contacts/_components/ContactsSidebar";
-import { DashboardSidebar } from "@/app/(authorisedRoute)/dashboard/_components/DashboardSidebar";
+import { DashboardSidebar } from "@/app/(authorisedRoute)/omni-flow/_components/DashboardSidebar";
 import { MomentumSidebar } from "@/app/(authorisedRoute)/omni-momentum/_components/MomentumSidebar";
-import { MarketingSidebar } from "@/app/(authorisedRoute)/marketing/_components/MarketingSidebar";
+import { MarketingSidebar } from "@/app/(authorisedRoute)/omni-reach/_components/MarketingSidebar";
 import { ConnectSidebar } from "@/app/(authorisedRoute)/omni-connect/_components/ConnectSidebar";
 import { CalendarSidebar } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarSidebar";
 import { SettingsSidebar } from "@/app/(authorisedRoute)/settings/_components/SettingsSidebar";
@@ -15,7 +15,7 @@ export function AppSidebarController(): JSX.Element {
   const pathname = usePathname();
 
   const getSidebarComponent = (): JSX.Element => {
-    if (pathname.startsWith("/dashboard")) {
+    if (pathname.startsWith("/omni-flow")) {
       return <DashboardSidebar />;
     }
 
@@ -27,7 +27,7 @@ export function AppSidebarController(): JSX.Element {
       return <MomentumSidebar />;
     }
 
-    if (pathname.startsWith("/marketing")) {
+    if (pathname.startsWith("/omni-reach")) {
       return <MarketingSidebar />;
     }
 

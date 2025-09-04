@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { getServerUserId } from "@/server/auth/user";
+import { QueryClientProvider } from "./QueryClientProvider";
 
 export const metadata: Metadata = {
   title: "OmniCRM",
@@ -18,5 +19,9 @@ export default async function AuthorisedLayout({
     redirect("/login");
   }
 
-  return <MainLayout>{children}</MainLayout>;
+  return (
+    <QueryClientProvider>
+      <MainLayout>{children}</MainLayout>
+    </QueryClientProvider>
+  );
 }

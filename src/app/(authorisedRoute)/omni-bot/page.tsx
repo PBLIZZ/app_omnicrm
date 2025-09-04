@@ -104,10 +104,7 @@ export default function ChatPage(): JSX.Element {
     refetch: refetchThreads,
   } = useChatThreads();
 
-  const {
-    messages: queriedMessages,
-    refetch: refetchMessages,
-  } = useChatMessages(currentThreadId);
+  const { messages: queriedMessages, refetch: refetchMessages } = useChatMessages(currentThreadId);
 
   const scrollToBottom = (): void => {
     if (scrollAreaRef.current) {

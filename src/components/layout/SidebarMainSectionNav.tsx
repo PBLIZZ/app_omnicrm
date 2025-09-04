@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Home, Users, CheckSquare, Calendar, MessageSquare, Megaphone, Bot } from "lucide-react";
+import { Home, Users, CheckSquare, Calendar1, Megaphone, Bot, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useContactCount } from "@/hooks/use-contact-count";
 import { useMomentumCount } from "@/hooks/use-momentum-count";
@@ -18,13 +18,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 // Only include sections that have a page.tsx under (authorisedRoute), excluding Settings
 const mainNavItems = [
-  { title: "Dashboard", href: "/dashboard" as const, icon: Home },
+  { title: "OmniFlow", href: "/omni-flow" as const, icon: Home },
   { title: "Contacts", href: "/contacts" as const, icon: Users },
-  { title: "Omni Momentum", href: "/omni-momentum" as const, icon: CheckSquare },
-  { title: "Omni Rhythm", href: "/omni-rhythm" as const, icon: Calendar },
-  { title: "Omni Connect", href: "/omni-connect" as const, icon: MessageSquare },
-  { title: "AI Chat", href: "/chat" as const, icon: Bot },
-  { title: "Marketing", href: "/marketing" as const, icon: Megaphone },
+  { title: "OmniMomentum", href: "/omni-momentum" as const, icon: CheckSquare },
+  { title: "OmniRhythm", href: "/omni-rhythm" as const, icon: Calendar1 },
+  { title: "OmniConnect", href: "/omni-connect" as const, icon: Mail },
+  { title: "OmniBot", href: "/omni-bot" as const, icon: Bot },
+  { title: "OmniReach", href: "/omni-reach" as const, icon: Megaphone },
 ];
 
 export function SidebarMainSectionNav(): JSX.Element {

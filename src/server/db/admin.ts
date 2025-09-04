@@ -3,16 +3,6 @@
 import { log } from "@/lib/log";
 import { getDb } from "./client";
 import { rawEvents, interactions, aiInsights, embeddings } from "./schema";
-import type {
-  NewRawEvent,
-  NewInteraction,
-  NewAiInsight,
-  NewEmbedding,
-  RawEvent,
-  Interaction,
-  AiInsight,
-  Embedding,
-} from "./schema";
 
 const isTest = process.env.NODE_ENV === "test";
 
@@ -33,25 +23,25 @@ const tableMap = {
   embeddings: embeddings,
 } as const;
 
-// Type mappings for insert/select operations
+// Type mappings for insert/select operations with proper Drizzle constraint
 type AdminInsertRow<T extends AdminAllowedTable> = T extends "raw_events"
-  ? NewRawEvent
+  ? typeof rawEvents.$inferInsert
   : T extends "interactions"
-    ? NewInteraction
+    ? typeof interactions.$inferInsert
     : T extends "ai_insights"
-      ? NewAiInsight
+      ? typeof aiInsights.$inferInsert
       : T extends "embeddings"
-        ? NewEmbedding
+        ? typeof embeddings.$inferInsert
         : never;
 
 type AdminSelectRow<T extends AdminAllowedTable> = T extends "raw_events"
-  ? RawEvent
+  ? typeof rawEvents.$inferSelect
   : T extends "interactions"
-    ? Interaction
+    ? typeof interactions.$inferSelect
     : T extends "ai_insights"
-      ? AiInsight
+      ? typeof aiInsights.$inferSelect
       : T extends "embeddings"
-        ? Embedding
+        ? typeof embeddings.$inferSelect
         : never;
 
 export const drizzleAdminGuard = {
@@ -75,7 +65,7 @@ export const drizzleAdminGuard = {
 
       const result = await db
         .insert(drizzleTable)
-        .values(valuesArray as AdminInsertRow<T>[])
+        .values((valuesArray as unknown) as any[])
         .returning();
 
       log.info(
@@ -125,7 +115,7 @@ export const drizzleAdminGuard = {
       // Use onConflictDoNothing to gracefully handle duplicates
       const result = await db
         .insert(drizzleTable)
-        .values(valuesArray as any)
+        .values((valuesArray as unknown) as any[])
         .onConflictDoNothing()
         .returning();
 

@@ -2,11 +2,50 @@
 import { getOpenRouterConfig, assertOpenRouterConfigured, openRouterHeaders } from "@/server/providers/openrouter.provider";
 import { chatStorage } from "@/server/storage/chat.storage";
 
+// Type definitions for message content
+type MessageContent = string | { text: string } | { type: string; text?: string };
+
+interface ChatMessage {
+  role: string;
+  content: MessageContent;
+}
+
+// Type guard for OpenRouter response
+interface OpenRouterResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+}
+
+function isOpenRouterResponse(data: unknown): data is OpenRouterResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'choices' in data &&
+    Array.isArray((data as OpenRouterResponse).choices)
+  );
+}
+
+// Helper function to extract text content from message
+function extractTextContent(content: MessageContent): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (typeof content === 'object' && content !== null) {
+    if ('text' in content && typeof content.text === 'string') {
+      return content.text;
+    }
+  }
+  return '';
+}
+
 export class TitleGenerationService {
   /**
    * Generate a title based on conversation messages
    */
-  static async generateTitle(messages: Array<{role: string, content: any}>): Promise<string> {
+  static async generateTitle(messages: ChatMessage[]): Promise<string> {
     try {
       assertOpenRouterConfigured();
       const config = getOpenRouterConfig();
@@ -15,7 +54,7 @@ export class TitleGenerationService {
       const conversationText = messages
         .slice(0, 6) // Use first 6 messages for context
         .map(msg => {
-          const content = typeof msg.content === 'object' ? msg.content.text : msg.content;
+          const content = extractTextContent(msg.content);
           return `${msg.role}: ${content}`;
         })
         .join('\n');
@@ -46,6 +85,12 @@ export class TitleGenerationService {
       }
 
       const data = await response.json();
+      
+      if (!isOpenRouterResponse(data)) {
+        console.error('Invalid OpenRouter response format');
+        return this.fallbackTitle(messages);
+      }
+      
       const generatedTitle = data.choices?.[0]?.message?.content?.trim();
       
       if (generatedTitle && generatedTitle.length > 3) {
@@ -66,12 +111,10 @@ export class TitleGenerationService {
   /**
    * Create a fallback title from the first user message
    */
-  private static fallbackTitle(messages: Array<{role: string, content: any}>): string {
+  private static fallbackTitle(messages: ChatMessage[]): string {
     const firstUserMessage = messages.find(m => m.role === 'user');
     if (firstUserMessage) {
-      const content = typeof firstUserMessage.content === 'object' 
-        ? firstUserMessage.content.text 
-        : firstUserMessage.content;
+      const content = extractTextContent(firstUserMessage.content);
       
       if (content && typeof content === 'string') {
         const cleaned = content.trim().replace(/\n+/g, ' ').replace(/\s+/g, ' ');
@@ -97,7 +140,7 @@ export class TitleGenerationService {
    * Check if a thread should have its title auto-generated
    * Returns true if the thread has 2+ messages and still has a generic title
    */
-  static shouldGenerateTitle(messages: Array<{role: string, content: any}>, currentTitle: string): boolean {
+  static shouldGenerateTitle(messages: ChatMessage[], currentTitle: string): boolean {
     // Don't update if user has manually set a title (not generic)
     const genericTitles = ['New Chat', 'Untitled Chat'];
     const isGenericTitle = genericTitles.some(generic => currentTitle.includes(generic)) || 
@@ -117,7 +160,13 @@ export class TitleGenerationService {
       const thread = await chatStorage.getThread(threadId, userId);
       if (!thread) return null;
 
-      const messages = await chatStorage.getMessages(threadId, userId);
+      const rawMessages = await chatStorage.getMessages(threadId, userId);
+      
+      // Convert raw messages to ChatMessage format
+      const messages: ChatMessage[] = rawMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content as MessageContent
+      }));
       
       if (this.shouldGenerateTitle(messages, thread.title ?? "New Chat")) {
         const newTitle = await this.generateTitle(messages);

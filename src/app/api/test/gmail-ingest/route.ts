@@ -5,7 +5,7 @@ import { gmail_v1 } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { rawEvents } from "@/server/db/schema";
 import { err, ok } from "@/lib/api/http";
-import { log } from "@/server/log";
+// import { log } from "@/server/log"; // Removed missing module
 import { toApiError } from "@/server/jobs/types";
 
 interface GmailMessage {
@@ -30,7 +30,7 @@ export async function POST(): Promise<Response> {
     // Get Gmail client
     const { gmail } = await getGoogleClients(userId);
 
-    log.info({ userId, op: "test_gmail_ingest_start" }, "starting simple Gmail ingest");
+    console.log("starting simple Gmail ingest:", { userId, op: "test_gmail_ingest_start" });
 
     // Get the 10 most recent messages (no filters)
     const listResponse = await gmail.users.messages.list({
@@ -39,7 +39,7 @@ export async function POST(): Promise<Response> {
     });
 
     const messageIds = listResponse.data.messages?.map(m => m.id).filter(Boolean) ?? [];
-    log.info({ userId, messageCount: messageIds.length }, "fetched message IDs");
+    console.log("fetched message IDs:", { userId, messageCount: messageIds.length });
 
     const insertedMessages: Array<{ id: string; success: boolean; error?: string }> = [];
 
@@ -82,24 +82,24 @@ export async function POST(): Promise<Response> {
         });
 
         insertedMessages.push({ id: messageId, success: true });
-        log.info({ userId, messageId }, "successfully inserted message");
+        console.log("successfully inserted message:", { userId, messageId });
 
       } catch (insertError) {
         const errorMsg = insertError instanceof Error ? insertError.message : String(insertError);
         insertedMessages.push({ id: messageId, success: false, error: errorMsg });
-        log.warn({ userId, messageId, error: errorMsg }, "failed to insert message");
+        console.warn("failed to insert message:", { userId, messageId, error: errorMsg });
       }
     }
 
     const successCount = insertedMessages.filter(m => m.success).length;
     const failureCount = insertedMessages.filter(m => !m.success).length;
 
-    log.info({ 
+    console.log("Gmail ingest completed:", { 
       userId, 
       totalMessages: messageIds.length, 
       successCount, 
       failureCount 
-    }, "Gmail ingest completed");
+    });
 
     return ok({
       totalMessages: messageIds.length,
@@ -110,7 +110,7 @@ export async function POST(): Promise<Response> {
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    log.error({ userId, error: errorMsg }, "Gmail ingest failed");
+    console.error("Gmail ingest failed:", { userId, error: errorMsg });
     return err(500, "Gmail ingest failed");
   }
 }

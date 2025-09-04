@@ -96,10 +96,16 @@ export async function POST(req: NextRequest): Promise<Response> {
       { op: "gmail.preview.metrics", userId, pages, itemsFiltered, durationMs },
       "gmail_preview_metrics",
     );
+    // Safe property access for preview result logging
+    const previewObj = preview as unknown as Record<string, unknown>;
+    const countByLabel = 'countByLabel' in previewObj ? previewObj['countByLabel'] : undefined;
+    const sampleSubjects = 'sampleSubjects' in previewObj && Array.isArray(previewObj['sampleSubjects']) 
+      ? previewObj['sampleSubjects'] as unknown[] : [];
+    
     console.log(`Gmail preview: Final response being sent:`, {
-      countByLabel: preview.countByLabel,
-      sampleSubjectsCount: preview.sampleSubjects?.length || 0,
-      sampleSubjects: preview.sampleSubjects?.slice(0, 3) || [],
+      countByLabel,
+      sampleSubjectsCount: sampleSubjects.length,
+      sampleSubjects: sampleSubjects.slice(0, 3),
       previewType: typeof preview,
       previewKeys: preview ? Object.keys(preview) : [],
     });

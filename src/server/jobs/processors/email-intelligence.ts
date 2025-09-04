@@ -9,7 +9,6 @@ import type { JobRecord } from "../types";
 import {
   processEmailIntelligence,
   storeEmailIntelligence,
-  type EmailIntelligence,
 } from "@/server/services/email-intelligence.service";
 
 export interface EmailIntelligenceJobPayload {

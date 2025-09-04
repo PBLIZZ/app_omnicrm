@@ -41,11 +41,13 @@ export class GoogleAuthError extends Error {
   }
 }
 
+type OAuth2Type = InstanceType<typeof google.auth.OAuth2>;
+
 export class GoogleCalendarService {
   /**
    * Get OAuth2 client for a user with automatic token refresh
    */
-  private static async getAuth(userId: string) {
+  public static async getAuth(userId: string): Promise<OAuth2Type> {
     const db = await getDb();
 
     // Get user integration using Drizzle ORM
@@ -141,16 +143,17 @@ export class GoogleCalendarService {
             userId,
           }, "Successfully refreshed Google Calendar token");
         }
-      } catch (refreshError: any) {
+      } catch (refreshError: unknown) {
+        const refreshMsg = refreshError instanceof Error ? refreshError.message : String(refreshError);
         log.error({
           op: "google_calendar.token_refresh_failed",
           userId,
-          error: refreshError.message,
+          error: refreshMsg,
         }, "Failed to refresh Google Calendar token");
 
         // Check for specific auth errors
-        if (refreshError.message?.includes('invalid_grant') || 
-            refreshError.message?.includes('refresh_token_expired')) {
+        if (refreshMsg.includes('invalid_grant') || 
+            refreshMsg.includes('refresh_token_expired')) {
           // Clear invalid tokens
           await this.clearInvalidTokens(userId);
           throw new GoogleAuthError(
@@ -174,11 +177,12 @@ export class GoogleCalendarService {
   /**
    * Check if an error is an authentication/authorization error
    */
-  private static isAuthError(error: any): boolean {
+  private static isAuthError(error: unknown): boolean {
     if (!error) return false;
-    
-    const message = error.message?.toLowerCase() || '';
-    const code = error.code || '';
+    const anyErr = error as Record<string, unknown>;
+    const messageVal = anyErr && typeof anyErr['message'] === 'string' ? (anyErr['message'] as string) : '';
+    const message = messageVal.toLowerCase();
+    const code = (anyErr && (anyErr['code'] as string | number | undefined)) ?? '';
     
     // Check for common auth error patterns
     const authErrorPatterns = [
@@ -260,12 +264,12 @@ export class GoogleCalendarService {
         try {
           const events = await this.syncCalendarEvents(userId, cal.id, calendar, options);
           totalSyncedEvents += events;
-        } catch (error: any) {
+        } catch (error: unknown) {
           log.error({
             op: "google_calendar.calendar_sync_error",
             userId,
             calendarId: cal.id,
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           }, `Error syncing calendar ${cal.id}`);
           
           // Check for auth errors in individual calendar sync
@@ -280,11 +284,11 @@ export class GoogleCalendarService {
         success: true,
         syncedEvents: totalSyncedEvents,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.error({
         op: "google_calendar.sync_failed",
         userId,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         errorCode: error instanceof GoogleAuthError ? error.code : 'unknown',
       }, "Calendar sync failed");
 
@@ -375,7 +379,7 @@ export class GoogleCalendarService {
     calendarId: string,
     event: calendar_v3.Schema$Event,
     batchId?: string,
-  ) {
+  ): Promise<void> {
     if (!event.id || !event.start || !event.end) {
       return; // Skip events without required data
     }
@@ -413,18 +417,18 @@ export class GoogleCalendarService {
         sourceId: event.id,
         occurredAt: startTime,
         sourceMeta: sourceMeta,
-        batchId: batchId || null,
+        batchId: batchId ?? null,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If unique constraint violation, update existing record
-      if (error?.code === "23505") {
+      if ((error as any)?.code === "23505") {
         // PostgreSQL unique violation error code
         await db
           .update(rawEvents)
           .set({
             payload: eventPayload,
             sourceMeta: sourceMeta,
-            batchId: batchId || null,
+            batchId: batchId ?? null,
             createdAt: new Date(),
           })
           .where(

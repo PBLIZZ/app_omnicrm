@@ -120,8 +120,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
 
     const momentum = await momentumStorage.createMomentum(userId, {
-      workspaceId,
-      projectId: parsed.data.projectId || null,
+      momentumWorkspaceId: workspaceId,
+      momentumProjectId: parsed.data.projectId || null,
       parentMomentumId: parsed.data.parentMomentumId || null,
       title: parsed.data.title,
       description: parsed.data.description || null,

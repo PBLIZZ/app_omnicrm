@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import { contactsColumns, ContactWithNotes } from "./_components/contacts-column
 
 import { queryClient } from "@/lib/queryClient";
 import { fetchPost } from "@/lib/api";
+import { useEnhancedContacts, useContactSuggestions } from "@/hooks/use-contacts-new";
 
 interface ContactSuggestion {
   id: string;
@@ -51,21 +52,10 @@ export default function ContactsPage(): JSX.Element {
 
   const { toast } = useToast();
 
-  // Enhanced System Queries
-  const { data: enhancedContactsData, isLoading: enhancedLoading } = useQuery({
-    queryKey: ["/api/contacts-new", searchQuery],
-    queryFn: async (): Promise<{ contacts: ContactWithNotes[] }> => {
-      const url = new URL("/api/contacts-new", window.location.origin);
-      if (searchQuery.trim()) {
-        url.searchParams.set("search", searchQuery.trim());
-      }
-      const response = await fetch(url.toString());
-      if (!response.ok) throw new Error("Failed to fetch contacts");
-      const json = await response.json();
-      // Handle the API envelope { ok, data: { items } }
-      return json?.data ?? json;
-    },
-  });
+  // Enhanced System Queries (useQuery-backed hooks)
+  const { data: enhancedContactsData, isLoading: enhancedLoading } = useEnhancedContacts(
+    searchQuery,
+  );
 
   const enhancedContacts: ContactWithNotes[] = enhancedContactsData?.contacts || [];
   const filteredContacts = useMemo((): ContactWithNotes[] => {
@@ -79,18 +69,10 @@ export default function ContactsPage(): JSX.Element {
     );
   }, [enhancedContacts, searchQuery]);
 
-  // Contact suggestions query
-  const { data: suggestionsData, isLoading: suggestionsLoading } = useQuery({
-    queryKey: ["/api/contacts-new/suggestions"],
-    queryFn: async (): Promise<{ suggestions: ContactSuggestion[] }> => {
-      const response = await fetch("/api/contacts-new/suggestions");
-      if (!response.ok) throw new Error("Failed to fetch suggestions");
-      const json = await response.json();
-      // Handle the API envelope { ok, data }
-      return json?.data ?? json;
-    },
-    enabled: showSuggestions,
-  });
+  // Contact suggestions query (useQuery-backed hook)
+  const { data: suggestionsData, isLoading: suggestionsLoading } = useContactSuggestions(
+    showSuggestions,
+  );
 
   const suggestions: ContactSuggestion[] = suggestionsData?.suggestions || [];
 

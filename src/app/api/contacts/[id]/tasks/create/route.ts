@@ -42,7 +42,7 @@ export async function POST(
 
     const newTask = await db.insert(tasks).values({
       userId,
-      workspaceId: defaultWorkspace?.id || '',
+      momentumWorkspaceId: defaultWorkspace?.id || null,
       title: title.trim(),
       description: description ? description.trim() : null,
       priority: priority || 'medium',

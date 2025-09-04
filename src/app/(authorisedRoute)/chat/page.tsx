@@ -1,5 +1,9 @@
 "use client";
 
+import { useChatThreads } from "@/hooks/use-chat-threads";
+import { useChatMessages } from "@/hooks/use-chat-messages";
+import type { ChatMessage as RemoteChatMessage } from "@/hooks/use-chat-messages";
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import { fetchPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -69,24 +73,7 @@ interface ChatThread {
   updatedAt: string;
 }
 
-interface MessageContent {
-  text?: string;
-}
-
-interface ApiMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: MessageContent | string;
-  createdAt: string;
-}
-
-interface MessageResponse {
-  messages: ApiMessage[];
-}
-
-interface ThreadsResponse {
-  threads: ChatThread[];
-}
+// Removed unused local API response interfaces; query hooks define these.
 
 interface ThreadResponse {
   thread: ChatThread;
@@ -109,6 +96,19 @@ export default function ChatPage(): JSX.Element {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { user, isLoading: authLoading } = useAuth();
 
+  // Queries via TanStack Query hooks
+  const {
+    threads: queriedThreads,
+    isLoading: isLoadingThreads,
+    isFetching: isFetchingThreads,
+    refetch: refetchThreads,
+  } = useChatThreads();
+
+  const {
+    messages: queriedMessages,
+    refetch: refetchMessages,
+  } = useChatMessages(currentThreadId);
+
   const scrollToBottom = (): void => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector(
@@ -124,63 +124,57 @@ export default function ChatPage(): JSX.Element {
     scrollToBottom();
   }, [messages]);
 
-  // Load threads on component mount
+  // Keep threadsLoading in sync with query state
   useEffect(() => {
-    loadThreads().catch((error) => {
+    setThreadsLoading(isLoadingThreads || isFetchingThreads);
+  }, [isLoadingThreads, isFetchingThreads]);
+
+  // Load threads on component mount (delegates to query)
+  useEffect(() => {
+    refetchThreads().catch((error) => {
       console.error("Failed to load threads on mount:", error);
     });
-  }, []);
+  }, [refetchThreads]);
 
-  // Load messages when thread changes
+  // Load messages when thread changes (delegates to query)
   useEffect(() => {
     if (currentThreadId) {
-      loadMessages(currentThreadId).catch((error) => {
+      refetchMessages().catch((error) => {
         console.error("Failed to load messages for thread:", currentThreadId, error);
       });
     } else {
       setMessages([]);
     }
-  }, [currentThreadId]);
+  }, [currentThreadId, refetchMessages]);
+
+  // Sync threads local state and select first when none selected
+  useEffect(() => {
+    if (queriedThreads) {
+      setThreads(queriedThreads);
+      if (!currentThreadId && queriedThreads.length > 0) {
+        setCurrentThreadId(queriedThreads[0]?.id || null);
+      }
+    }
+  }, [queriedThreads, currentThreadId]);
+
+  // Sync messages local state (convert createdAt string to Date)
+  useEffect(() => {
+    if (queriedMessages) {
+      const mapped: ChatMessage[] = queriedMessages.map((m: RemoteChatMessage) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.createdAt),
+      }));
+      setMessages(mapped);
+    }
+  }, [queriedMessages]);
 
   const loadThreads = useCallback(async (): Promise<void> => {
-    try {
-      const response = await fetch("/api/chat/threads");
-      if (response.ok) {
-        const data = (await response.json()) as ThreadsResponse;
-        setThreads(data.threads ?? []);
-        // Select first thread if no current thread
-        if (!currentThreadId && data.threads?.length > 0) {
-          setCurrentThreadId(data.threads[0]?.id || null);
-        }
-      }
-    } catch (error) {
-      console.error("Error loading threads:", error);
-    } finally {
-      setThreadsLoading(false);
-    }
-  }, [currentThreadId]);
+    await refetchThreads();
+  }, [refetchThreads]);
 
-  const loadMessages = async (threadId: string): Promise<void> => {
-    try {
-      const response = await fetch(`/api/chat/threads/${threadId}/messages`);
-      if (response.ok) {
-        const data = (await response.json()) as MessageResponse;
-        const formattedMessages: ChatMessage[] =
-          data.messages?.map((msg: ApiMessage) => ({
-            id: msg.id,
-            role: msg.role,
-            content:
-              typeof msg.content === "string"
-                ? msg.content
-                : ((msg.content as MessageContent)?.text ?? ""),
-            timestamp: new Date(msg.createdAt),
-          })) ?? [];
-        setMessages(formattedMessages);
-      }
-    } catch (error) {
-      console.error("Error loading messages:", error);
-    }
-  };
+  // loadMessages left as refetch delegate for API parity is not needed elsewhere
 
   const createNewThread = async (firstMessage?: string): Promise<string | null> => {
     try {
@@ -424,7 +418,7 @@ export default function ChatPage(): JSX.Element {
       <div className="w-80 border-r bg-background/50 flex flex-col">
         <div className="p-4 border-b">
           <Button
-            onClick={() => {
+            onClick={(): void => {
               createNewThread().catch((error) => {
                 console.error("Failed to create new thread:", error);
               });
@@ -460,8 +454,8 @@ export default function ChatPage(): JSX.Element {
                     <div className="flex-1 flex items-center gap-2 p-3">
                       <Input
                         value={editingTitle}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        onKeyDown={(e) => {
+                        onChange={(e): void => setEditingTitle(e.target.value)}
+                        onKeyDown={(e): void => {
                           if (e.key === "Enter") {
                             saveRename(thread.id).catch((error) => {
                               console.error("Failed to save thread rename:", error);
@@ -478,7 +472,7 @@ export default function ChatPage(): JSX.Element {
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8"
-                        onClick={() => {
+                        onClick={(): void => {
                           saveRename(thread.id).catch((error) => {
                             console.error("Failed to save thread rename:", error);
                           });
@@ -502,7 +496,7 @@ export default function ChatPage(): JSX.Element {
                       <Button
                         variant="ghost"
                         className="flex-1 justify-start text-left h-auto p-3 whitespace-normal"
-                        onClick={() => setCurrentThreadId(thread.id)}
+                        onClick={(): void => setCurrentThreadId(thread.id)}
                         data-testid={`thread-${thread.id}`}
                       >
                         <div className="flex-1 min-w-0">
@@ -519,7 +513,7 @@ export default function ChatPage(): JSX.Element {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 opacity-0 group-hover:opacity-100 focus:opacity-100 mr-2"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e): void => e.stopPropagation()}
                             data-testid={`thread-menu-${thread.id}`}
                           >
                             <MoreVertical className="h-4 w-4" />
@@ -527,7 +521,7 @@ export default function ChatPage(): JSX.Element {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={(e) => {
+                            onClick={(e): void => {
                               e.stopPropagation();
                               startRenaming(thread.id, thread.title);
                             }}
@@ -537,7 +531,7 @@ export default function ChatPage(): JSX.Element {
                             Rename
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={(e) => {
+                            onClick={(e): void => {
                               e.stopPropagation();
                               deleteThread(thread.id).catch((error) => {
                                 console.error("Failed to delete thread:", error);
@@ -636,7 +630,7 @@ export default function ChatPage(): JSX.Element {
                 <div className="flex gap-2">
                   <Input
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e): void => setInput(e.target.value)}
                     onKeyDown={handleKeyPress}
                     placeholder="Ask me anything..."
                     disabled={isLoading}
@@ -644,7 +638,7 @@ export default function ChatPage(): JSX.Element {
                     data-testid="chat-input"
                   />
                   <Button
-                    onClick={() => {
+                    onClick={(): void => {
                       sendMessage().catch((error) => {
                         console.error("Failed to send message:", error);
                       });
@@ -670,7 +664,7 @@ export default function ChatPage(): JSX.Element {
               <h2 className="text-xl font-semibold mb-2">Welcome to AI Assistant</h2>
               <p className="mb-4">Select a chat from the sidebar or start a new conversation</p>
               <Button
-                onClick={() => {
+                onClick={(): void => {
                   createNewThread().catch((error) => {
                     console.error("Failed to create new thread:", error);
                   });

@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/lib/api/http";
-import { tasksStorage } from "@/server/storage/tasks.storage";
+import { MomentumStorage } from "@/server/storage/momentum.storage";
+
+const momentumStorage = new MomentumStorage();
 import { z } from "zod";
 
 const RejectTaskSchema = z.object({
@@ -30,8 +32,8 @@ export async function POST(
   }
 
   try {
-    await tasksStorage.rejectTask(taskId, userId, parsed.data.notes);
-    const task = await tasksStorage.getTask(taskId, userId);
+    await momentumStorage.rejectTask(taskId, userId, parsed.data.notes);
+    const task = await momentumStorage.getMomentum(taskId, userId);
     return ok({ task, message: "Task rejected successfully" });
   } catch (error) {
     console.error("Error rejecting task:", error);

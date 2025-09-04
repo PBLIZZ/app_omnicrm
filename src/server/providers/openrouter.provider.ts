@@ -13,9 +13,9 @@ export type OpenRouterConfig = {
 export function getOpenRouterConfig(): OpenRouterConfig {
   const cfg: OpenRouterConfig = {
     baseUrl: "https://openrouter.ai/api/v1",
-    chatModel: env.AI_MODEL_CHAT,
-    embedModel: env.AI_MODEL_EMBED,
-    summaryModel: env.AI_MODEL_SUMMARY,
+    chatModel: env.AI_MODEL_CHAT as string,
+    embedModel: env.AI_MODEL_EMBED as string,
+    summaryModel: env.AI_MODEL_SUMMARY as string,
   };
   
   // Use key rotation system for better reliability
@@ -23,7 +23,7 @@ export function getOpenRouterConfig(): OpenRouterConfig {
   if (currentKey) {
     cfg.apiKey = currentKey;
   } else if (env.OPENROUTER_API_KEY) {
-    cfg.apiKey = env.OPENROUTER_API_KEY;
+    cfg.apiKey = env.OPENROUTER_API_KEY as string;
   }
   
   return cfg;

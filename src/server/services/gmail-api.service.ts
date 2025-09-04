@@ -7,6 +7,22 @@ import {
   GmailInsights,
 } from "../../app/(authorisedRoute)/omni-connect/_components/types";
 
+interface SampleEmail {
+  id?: string;
+  subject?: string;
+  from?: string;
+  date?: string;
+  snippet?: string;
+  hasAttachments?: boolean;
+  labels?: string[];
+}
+
+interface EmailPreviewData {
+  sampleEmails?: SampleEmail[];
+  sampleSubjects?: SampleEmail[];
+  dateRange?: { from: string; to: string };
+}
+
 export class GmailApiService {
   static async checkGmailStatus(): Promise<GmailConnectionStatus> {
     try {
@@ -39,14 +55,10 @@ export class GmailApiService {
     dateRange: { from: string; to: string } | null;
   }> {
     try {
-      const data = await fetchPost<{
-        sampleEmails?: any[];
-        sampleSubjects?: any[];
-        dateRange?: { from: string; to: string };
-      }>("/api/sync/preview/gmail", {});
+      const data = await fetchPost<EmailPreviewData>("/api/sync/preview/gmail", {});
 
-      const richEmails: any[] = Array.isArray(data.sampleEmails) ? data.sampleEmails : [];
-      let samples = richEmails.slice(0, 5).map((e: any, index: number) => ({
+      const richEmails: SampleEmail[] = Array.isArray(data.sampleEmails) ? data.sampleEmails : [];
+      let samples = richEmails.slice(0, 5).map((e, index: number) => ({
         id: e?.id ?? `email-${index}`,
         subject: e?.subject ?? `Email ${index + 1}`,
         from: e?.from ?? "Sample Sender",
@@ -57,7 +69,7 @@ export class GmailApiService {
       }));
 
       if (samples.length === 0 && Array.isArray(data.sampleSubjects)) {
-        samples = data.sampleSubjects.slice(0, 5).map((emailObj: any, index: number) => ({
+        samples = data.sampleSubjects.slice(0, 5).map((emailObj, index: number) => ({
           id: emailObj.id || `email-${index}`,
           subject: emailObj.subject || `Email ${index + 1}`,
           from: emailObj.from || "Sample Sender",
@@ -73,12 +85,12 @@ export class GmailApiService {
         const from =
           data?.dateRange?.from ??
           new Date(
-            Math.min(...samples.map((e: any) => new Date(e.date).getTime() || Date.now())),
+            Math.min(...samples.map((e) => new Date(e.date).getTime() || Date.now())),
           ).toISOString();
         const to =
           data?.dateRange?.to ??
           new Date(
-            Math.max(...samples.map((e: any) => new Date(e.date).getTime() || Date.now())),
+            Math.max(...samples.map((e) => new Date(e.date).getTime() || Date.now())),
           ).toISOString();
         dateRange = { from, to };
       }
@@ -100,7 +112,7 @@ export class GmailApiService {
       const emailCount = eventsData.total || 0;
 
       // Get contact count
-      const suggestionsData = await fetchPost<{ suggestions: any[] }>(
+      const suggestionsData = await fetchPost<{ suggestions: SearchResult[] }>(
         "/api/contacts-new/suggestions",
         {},
         { showErrorToast: false },
@@ -121,11 +133,11 @@ export class GmailApiService {
   }
 
   static async syncApprove(): Promise<void> {
-    await fetchPost<any>("/api/sync/approve/gmail", {});
+    await fetchPost<Record<string, unknown>>("/api/sync/approve/gmail", {});
   }
 
   static async runJobProcessor(): Promise<void> {
-    await fetchPost<any>("/api/jobs/runner", {});
+    await fetchPost<Record<string, unknown>>("/api/jobs/runner", {});
   }
 
   static async checkJobStatus(): Promise<JobStatus> {

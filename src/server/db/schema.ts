@@ -480,3 +480,7 @@ export type NewMomentum = typeof momentums.$inferInsert;
 
 export type MomentumAction = typeof momentumActions.$inferSelect;
 export type NewMomentumAction = typeof momentumActions.$inferInsert;
+
+// Legacy aliases for backward compatibility
+export type Workspace = MomentumWorkspace;
+export type Project = MomentumProject;

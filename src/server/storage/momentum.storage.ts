@@ -103,7 +103,7 @@ export class MomentumStorage {
     const conditions = [eq(momentumProjects.userId, userId)];
 
     if (workspaceId) {
-      conditions.push(eq(momentumProjects.workspaceId, workspaceId));
+      conditions.push(eq(momentumProjects.momentumWorkspaceId, workspaceId));
     }
 
     return await db
@@ -171,10 +171,10 @@ export class MomentumStorage {
     const conditions = [eq(momentums.userId, userId)];
 
     if (filters?.workspaceId) {
-      conditions.push(eq(momentums.workspaceId, filters.workspaceId));
+      conditions.push(eq(momentums.momentumWorkspaceId, filters.workspaceId));
     }
     if (filters?.projectId) {
-      conditions.push(eq(momentums.projectId, filters.projectId));
+      conditions.push(eq(momentums.momentumProjectId, filters.projectId));
     }
     if (filters?.status) {
       conditions.push(eq(momentums.status, filters.status));
@@ -207,8 +207,7 @@ export class MomentumStorage {
       .select()
       .from(momentums)
       .where(and(eq(momentums.id, momentumId), eq(momentums.userId, userId)));
-    if (!momentum) throw new Error("Momentum not found");
-    return momentum;
+    return momentum ?? null;
   }
 
   async updateMomentum(
@@ -270,11 +269,15 @@ export class MomentumStorage {
 
     // For each momentum, fetch the tagged contacts if they exist
     const momentumsWithContacts = await Promise.all(
-      momentumsList.map(async (momentum: any) => {
+      momentumsList.map(async (momentum) => {
+        // Type-safe access to taggedContacts
+        const taggedContacts = momentum.taggedContacts;
+        
         if (
-          momentum["taggedContacts"] &&
-          Array.isArray(momentum["taggedContacts"]) &&
-          momentum["taggedContacts"].length > 0
+          taggedContacts &&
+          Array.isArray(taggedContacts) &&
+          taggedContacts.length > 0 &&
+          taggedContacts.every(id => typeof id === 'string')
         ) {
           const taggedContactsData = await db
             .select()
@@ -282,7 +285,7 @@ export class MomentumStorage {
             .where(
               and(
                 eq(contacts.userId, userId),
-                inArray(contacts.id, momentum["taggedContacts"] as string[]),
+                inArray(contacts.id, taggedContacts as string[]),
               ),
             );
 
@@ -516,8 +519,9 @@ export class MomentumStorage {
     // Map taskId to momentumId for compatibility
     const actionData = { ...data };
     if ("taskId" in actionData) {
-      actionData.momentumId = (actionData as any).taskId;
-      delete (actionData as any).taskId;
+      const dataWithTaskId = actionData as typeof actionData & { taskId: string };
+      actionData.momentumId = dataWithTaskId.taskId;
+      delete (dataWithTaskId as unknown as { taskId?: string }).taskId;
     }
     return this.createMomentumAction(userId, actionData);
   }

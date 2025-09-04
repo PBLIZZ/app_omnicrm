@@ -2,6 +2,7 @@
 import { getAnthropicClient, assertAnthropicConfigured, ANTHROPIC_MODEL } from "@/server/providers/anthropic.provider";
 import { chatStorage } from "@/server/storage/chat.storage";
 import { DatabaseQueryService } from "./database-query.service";
+import type { DatabaseQueryData, SearchContactsData, ContactNamesData, FilterContactsData } from "./database-query.service";
 import { TitleGenerationService } from "./title-generation.service";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 
@@ -13,11 +14,20 @@ export class ClaudeChatService {
     assertAnthropicConfigured();
     const client = getAnthropicClient();
     
+    // Type guard for message content
+    const extractContentText = (content: unknown): string => {
+      if (typeof content === 'string') return content;
+      if (content && typeof content === 'object' && 'text' in content) {
+        return typeof content.text === 'string' ? content.text : '';
+      }
+      return '';
+    };
+
     // Get full conversation history for context
     const messages = await chatStorage.getMessages(threadId, userId);
     const conversationHistory = messages.map(msg => ({
       role: msg.role as "user" | "assistant",
-      content: typeof msg.content === 'object' ? (msg.content as any)?.text || '' : msg.content || ''
+      content: extractContentText(msg.content)
     })).filter(msg => msg.content.trim() !== '');
 
     // Build message array with history
@@ -63,16 +73,41 @@ Current conversation context: You have full access to the conversation history a
             let responseContent = "";
             
             if (queryResult.success && queryResult.data) {
-              if (Array.isArray(queryResult.data.contacts)) {
+              // Type guard to check if data has contacts array
+              const hasContactsArray = (
+                data: DatabaseQueryData
+              ): data is (SearchContactsData | ContactNamesData | FilterContactsData) => {
+                return (
+                  !!data &&
+                  typeof data === 'object' &&
+                  'contacts' in data &&
+                  Array.isArray(data.contacts)
+                );
+              };
+              
+              const hasMessage = (
+                data: DatabaseQueryData
+              ): data is { message: string } => {
+                return (
+                  !!data &&
+                  typeof (data as any) === 'object' &&
+                  'message' in (data as any) &&
+                  typeof (data as any).message === 'string'
+                );
+              };
+              
+              if (hasContactsArray(queryResult.data)) {
                 responseContent = `Found ${queryResult.data.contacts.length} contacts:\n\n`;
-                queryResult.data.contacts.forEach((contact: any) => {
+                queryResult.data.contacts.forEach((contact) => {
                   responseContent += `• ${contact.name}`;
                   if (contact.email) responseContent += ` (${contact.email})`;
                   if (contact.phone) responseContent += ` - ${contact.phone}`;
                   responseContent += `\n`;
                 });
+              } else if (hasMessage(queryResult.data)) {
+                responseContent = queryResult.data.message;
               } else {
-                responseContent = queryResult.data.message || "Query completed successfully.";
+                responseContent = "Query completed successfully.";
               }
             } else {
               responseContent = queryResult.error || "Sorry, I couldn't process your database query.";
@@ -186,7 +221,7 @@ Current conversation context: You have full access to the conversation history a
   /**
    * Enhanced email composition with Claude's capabilities
    */
-  static async composeEmail(userId: string, prompt: string, context?: any): Promise<string> {
+  static async composeEmail(userId: string, prompt: string, context?: Record<string, unknown>): Promise<string> {
     assertAnthropicConfigured();
     const client = getAnthropicClient();
 

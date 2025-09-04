@@ -92,7 +92,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .update(userIntegrations)
         .set({
           accessToken: encryptString(accessToken),
-          refreshToken: refreshToken ? encryptString(refreshToken) : existing[0].refreshToken,
+          refreshToken: refreshToken ? encryptString(refreshToken) : existing[0]?.refreshToken,
           expiryDate,
           updatedAt: new Date(),
         })

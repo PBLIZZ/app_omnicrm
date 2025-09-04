@@ -1,9 +1,82 @@
 // Database query service for AI assistant
 import { contactsStorage } from "@/server/storage/contacts.storage";
+import type { Contact } from "@/server/db/schema";
+
+// Specific result data types
+export interface ContactsSummaryData {
+  totalContacts: number;
+  contactsWithEmail: number;
+  contactsWithPhone: number;
+  recentContacts: Array<{
+    name: string;
+    email: string | null;
+    createdAt: Date;
+  }>;
+}
+
+export interface SearchContactsData {
+  matches: number;
+  contacts: Array<{
+    name: string;
+    email: string | null;
+    phone: string | null;
+  }>;
+}
+
+export interface NotesInfoData {
+  contactId?: string;
+  notesCount: number;
+  notes?: Array<{
+    content: string;
+    createdAt: Date;
+  }>;
+  totalNotes?: number;
+  message?: string;
+}
+
+export interface FilterContactsData {
+  count: number;
+  description: string;
+  message: string;
+  contacts: Array<{
+    name: string;
+    email: string | null;
+    phone: string | null;
+  }>;
+}
+
+export interface ContactDetailsData {
+  message: string;
+  contact?: Contact;
+}
+
+export interface ContactNamesData {
+  contacts: Array<{
+    name: string;
+    email: string | null;
+    phone: string | null;
+  }>;
+  message: string;
+}
+
+export interface ContactCountData {
+  count: number;
+  message: string;
+}
+
+// Union type for all possible data types
+export type DatabaseQueryData = 
+  | ContactsSummaryData
+  | SearchContactsData
+  | NotesInfoData
+  | FilterContactsData
+  | ContactDetailsData
+  | ContactNamesData
+  | ContactCountData;
 
 export interface DatabaseQueryResult {
   success: boolean;
-  data?: any;
+  data?: DatabaseQueryData;
   error?: string;
 }
 
@@ -110,8 +183,8 @@ export class DatabaseQueryService {
           data: {
             contactId,
             notesCount: notes.length,
-            notes: notes.map((n: any) => ({
-              content: n.content.substring(0, 100) + (n.content.length > 100 ? "..." : ""),
+            notes: notes.map((n) => ({
+              content: (typeof n.content === 'string' ? n.content : String(n.content || '')).substring(0, 100) + (n.content && n.content.length > 100 ? "..." : ""),
               createdAt: n.createdAt,
             })),
           },

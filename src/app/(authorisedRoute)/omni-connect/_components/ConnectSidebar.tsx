@@ -3,7 +3,6 @@
 import {
   Users,
   LetterTextIcon,
-  Plus,
   ChevronDown,
   MoreHorizontal,
   Hammer,
@@ -16,7 +15,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   Collapsible,
   CollapsibleContent,
@@ -32,7 +30,6 @@ import {
 import {
   SidebarContent,
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
@@ -46,7 +43,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export function ConnectSidebar(): JSX.Element {
-  const pathname = usePathname();
 
   return (
     <SidebarContent>

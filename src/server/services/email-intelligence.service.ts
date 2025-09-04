@@ -255,7 +255,7 @@ export async function categorizeEmail(
   const { subject = "", bodyText = "", senderEmail = "", senderName = "" } = emailData;
   
   // Extract sender domain for metadata
-  const senderDomain = senderEmail.includes("@") ? senderEmail.split("@")[1] : "";
+  const senderDomain = senderEmail.includes("@") ? senderEmail.split("@")[1] : undefined;
 
   const messages: ChatMessage[] = [
     {
@@ -318,11 +318,11 @@ Analyze the content, sender, and context to provide accurate categorization and 
   const response = await callOpenRouter<EmailClassification>(userId, messages, {});
   
   // Ensure extracted metadata includes sender domain
-  const enrichedData = {
+  const enrichedData: EmailClassification = {
     ...response.data,
     extractedMetadata: {
       ...response.data.extractedMetadata,
-      senderDomain,
+      ...(senderDomain !== undefined && { senderDomain }),
     },
   };
 
@@ -559,7 +559,29 @@ export async function processEmailIntelligence(
   }
 
   const event = rawEvent[0]!;
-  const payload = event.payload as any;
+  // Type guard for Gmail payload structure
+  interface GmailPayload {
+    subject?: string;
+    bodyText?: string;
+    snippet?: string;
+    from?: {
+      email?: string;
+      name?: string;
+    };
+    senderEmail?: string;
+    senderName?: string;
+    to?: Array<{ email?: string }>;
+  }
+
+  const isGmailPayload = (payload: unknown): payload is GmailPayload => {
+    return payload !== null && typeof payload === 'object';
+  };
+
+  if (!isGmailPayload(event.payload)) {
+    throw new Error(`Invalid Gmail payload format for event: ${rawEventId}`);
+  }
+
+  const payload = event.payload;
 
   // Extract email data from Gmail payload
   const emailData = {
@@ -567,7 +589,7 @@ export async function processEmailIntelligence(
     bodyText: payload.bodyText || payload.snippet || "",
     senderEmail: payload.from?.email || payload.senderEmail || "",
     senderName: payload.from?.name || payload.senderName || "",
-    recipientEmails: payload.to?.map((t: any) => t.email).filter(Boolean) || [],
+    recipientEmails: payload.to?.map((t) => t.email).filter((email): email is string => Boolean(email)) || [],
     occurredAt: event.occurredAt,
   };
 
@@ -662,10 +684,18 @@ export async function generateWeeklyDigest(
       )
     );
 
-  const emailSummary = emailInteractions
-    .map((interaction: any) => ({
+  // Type for email interaction summary
+  interface EmailSummary {
+    subject: string;
+    bodyText: string;
+    source: string;
+    occurredAt: Date;
+  }
+
+  const emailSummary: EmailSummary[] = emailInteractions
+    .map((interaction) => ({
       subject: interaction.subject || "No subject",
-      bodyText: interaction.bodyText?.substring(0, 200) || "",
+      bodyText: (interaction.bodyText?.substring(0, 200)) || "",
       source: interaction.source || "unknown",
       occurredAt: interaction.occurredAt,
     }))
@@ -715,7 +745,7 @@ AI insights generated: ${insights.length}
 Recent email sample:
 ${emailSummary
   .map(
-    (email: any, idx: number) =>
+    (email, idx: number) =>
       `${idx + 1}. [${email.occurredAt.toDateString()}] ${email.subject}
    ${email.bodyText}
    Source: ${email.source}`
@@ -753,7 +783,7 @@ export async function storeEmailIntelligence(
     subjectType: "inbox",
     subjectId: rawEventId,
     kind: "email_intelligence",
-    content: intelligence as any, // Store complete intelligence object
+    content: intelligence as unknown, // Store complete intelligence object with safe typing
     model: intelligence.processingMeta.model,
     fingerprint: `email_intel_${rawEventId}`,
   });

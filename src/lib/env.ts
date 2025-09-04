@@ -6,7 +6,7 @@ import { logger } from "@/lib/logger";
 
 const baseSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  NEXT_PUBLIC_SUPABASE_URL: z.url({ message: "Invalid NEXT_PUBLIC_SUPABASE_URL" }),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url("Invalid NEXT_PUBLIC_SUPABASE_URL"),
   // Required publishable key for browser/server RLS client
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: z.string(),
   SUPABASE_SECRET_KEY: z.string().optional(),
@@ -14,8 +14,8 @@ const baseSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
   // Service-specific Google OAuth redirect URIs
-  GOOGLE_GMAIL_REDIRECT_URI: z.url({ message: "Invalid GOOGLE_GMAIL_REDIRECT_URI" }),
-  GOOGLE_CALENDAR_REDIRECT_URI: z.url({ message: "Invalid GOOGLE_CALENDAR_REDIRECT_URI" }),
+  GOOGLE_GMAIL_REDIRECT_URI: z.string().url("Invalid GOOGLE_GMAIL_REDIRECT_URI"),
+  GOOGLE_CALENDAR_REDIRECT_URI: z.string().url("Invalid GOOGLE_CALENDAR_REDIRECT_URI"),
   // AI / Providers
   OPENROUTER_API_KEY: z.string().optional(),
   AI_MODEL_CHAT: z.string().default("openrouter/auto"),
@@ -27,16 +27,26 @@ const baseSchema = z.object({
   APP_ORIGINS: z.string().optional(),
 });
 
+// Type-safe global access interface
+interface GlobalWithBuffer {
+  Buffer?: {
+    from(data: string, encoding: 'base64' | 'utf8'): { length: number };
+  };
+  atob?: (data: string) => string;
+}
+
 // Edge-safe byte length helpers (prefer Web APIs, fallback to Buffer if present)
 function byteLengthBase64(v: string): number {
   try {
     // Node fallback
-    if (typeof Buffer !== "undefined") return Buffer.from(v, "base64").length;
+    const g = globalThis as GlobalWithBuffer;
+    if (g && typeof g.Buffer !== "undefined") return g.Buffer.from(v, "base64").length;
   } catch {
     // ignore
   }
   try {
-    if (typeof atob === "function") return atob(v).length;
+    const g = globalThis as GlobalWithBuffer;
+    if (g && typeof g.atob === "function") return g.atob(v).length;
   } catch {
     // ignore
   }
@@ -54,7 +64,8 @@ function byteLengthUtf8(v: string): number {
     // ignore
   }
   try {
-    if (typeof Buffer !== "undefined") return Buffer.from(v, "utf8").length;
+    const g = globalThis as GlobalWithBuffer;
+    if (g && typeof g.Buffer !== "undefined") return g.Buffer.from(v, "utf8").length;
   } catch {
     // ignore
   }
@@ -84,7 +95,7 @@ export const env: Env = (() => {
   // Publishable key resolution (single source of truth)
   const pubKey = parsed.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
-  const secretKey = parsed.SUPABASE_SECRET_KEY;
+  const secretKey: string | undefined = parsed.SUPABASE_SECRET_KEY;
 
   // Service-role key required in production (server-side only)
   if (parsed.NODE_ENV === "production" && !secretKey) {

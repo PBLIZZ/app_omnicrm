@@ -18,7 +18,16 @@ export default function Providers({ children }: { children: React.ReactNode }): 
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           {children}
-          <Toaster />
+          <Toaster
+            position="top-center" // top-left | top-center | top-right | bottom-left | bottom-center | bottom-right
+            richColors // stronger color palettes for success/error/warning
+            closeButton // show an explicit X button on each toast
+            expand // stacks show full width as they grow
+            theme="system" // light | dark | system
+            visibleToasts={3} // max on-screen
+            offset={16} // px from edges
+            gap={8} // px between toasts
+          />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

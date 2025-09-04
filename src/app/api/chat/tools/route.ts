@@ -2,11 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { err } from "@/lib/api/http";
 import { DatabaseQueryService } from "@/server/services/database-query.service";
+import type { DatabaseQueryResult } from "@/server/services/database-query.service";
+
+
+// Tool function arguments interfaces
+interface SearchContactsArgs {
+  query: string;
+}
 
 // A map of available server-side functions that the agent can call.
-const availableTools: Record<string, (userId: string, args: any) => Promise<any>> = {
+const availableTools: Record<string, (userId: string, args?: unknown) => Promise<DatabaseQueryResult>> = {
   get_contacts_summary: (userId) => DatabaseQueryService.getContactsSummary(userId),
-  search_contacts: (userId, args) => DatabaseQueryService.searchContacts(userId, args.query),
+  search_contacts: (userId, args) => {
+    if (!args || typeof args !== 'object' || !('query' in args)) {
+      throw new Error('Missing required query parameter');
+    }
+    const typedArgs = args as SearchContactsArgs;
+    return DatabaseQueryService.searchContacts(userId, typedArgs.query);
+  },
 };
 
 /**

@@ -16,9 +16,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (code) {
     // Bind Supabase cookie adapter to the redirect response so Set-Cookie is returned to the browser
     const isProd = env.NODE_ENV === "production";
+    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+    
+    if (typeof supabaseUrl !== 'string' || typeof supabaseKey !== 'string') {
+      throw new Error('Missing Supabase environment variables');
+    }
+    
     const supabase = createServerClient(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+      supabaseUrl,
+      supabaseKey,
       {
         cookies: {
           get(name: string) {

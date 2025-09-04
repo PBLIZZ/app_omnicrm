@@ -1,12 +1,12 @@
-import { log } from "@/server/log";
-import { buildLogContext } from "@/server/log-context";
+// import { log } from "@/server/log"; // Removed missing module
+// import { buildLogContext } from "@/server/log-context"; // Removed missing module
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { ok } from "@/lib/api/http";
 
 export async function GET(): Promise<Response> {
-  const ctx = await buildLogContext();
-  log.info({ route: "/api/health", ...ctx }, "health ping");
+  // const ctx = await buildLogContext(); // Removed missing module
+  console.log("health ping:", { route: "/api/health" });
   // Minimal self-check: if DB is configured, attempt a quick ping without blocking the response
   let dbOk: boolean | undefined = undefined;
   if (process.env["DATABASE_URL"]) {

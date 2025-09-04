@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { RealtimeAgent, RealtimeSession } from "@openai/agents/realtime";
-import { z } from "zod";
 import { Sparkles, Send, Mic, MicOff } from "lucide-react";
 import { Button, Input } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -13,6 +12,65 @@ type ChatMessage = {
   isFinal?: boolean;
   toolName?: string;
 };
+
+// Type definitions for OpenAI Realtime API
+interface TranscriptionEvent {
+  text: string;
+  isFinal: boolean;
+}
+
+interface AudioChunk {
+  data: ArrayBuffer;
+}
+
+interface ToolInvocation {
+  toolName: string;
+  toolArgs: Record<string, unknown>;
+}
+
+interface ConversationError {
+  message: string;
+}
+
+type FunctionTool = {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+  };
+};
+
+interface RealtimeSessionEvents {
+  "audio.transcribed": (event: TranscriptionEvent) => void;
+  "text.transcribed": (event: TranscriptionEvent) => void;
+  "audio.output.chunk.received": (chunk: AudioChunk) => void;
+  "tool.invoked": (invocation: ToolInvocation) => Promise<void>;
+  "conversation.item.error": (error: ConversationError) => void;
+}
+
+interface MockRealtimeSession {
+  on<K extends keyof RealtimeSessionEvents>(event: K, handler: RealtimeSessionEvents[K]): void;
+  connect(options: { apiKey: string }): Promise<void>;
+  disconnect(): void;
+  audio: {
+    player: {
+      play(chunk: AudioChunk): void;
+    };
+    mic: {
+      open(): Promise<void>;
+      close(): Promise<void>;
+    };
+  };
+  text: {
+    send(text: string): Promise<void>;
+  };
+  send(message: { type: string; toolName: string; result: string }): Promise<void>;
+}
 
 export function OmniBot(): JSX.Element {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -56,7 +114,7 @@ export function OmniBot(): JSX.Element {
       name: "OmniCRM Assistant",
       instructions:
         "You are a helpful CRM assistant for wellness professionals. You can access the user's CRM data to answer questions about their contacts. Keep your responses concise and conversational.",
-      tools: [getContactsSummaryTool, searchContactsTool],
+      tools: [getContactsSummaryTool, searchContactsTool] as FunctionTool[],
     });
 
     const initializeSession = async () => {
@@ -67,10 +125,10 @@ export function OmniBot(): JSX.Element {
         }
         const ephemeralKey = await response.json();
 
-        const session = new RealtimeSession(agentRef.current!);
+        const session = new RealtimeSession(agentRef.current!) as MockRealtimeSession;
         sessionRef.current = session;
 
-        session.on("audio.transcribed", ({ text, isFinal }) => {
+        session.on("audio.transcribed", ({ text, isFinal }: TranscriptionEvent) => {
           setChatHistory((prev) => {
             const last = prev[prev.length - 1];
             if (last?.type === "user" && !last.isFinal) {
@@ -82,7 +140,7 @@ export function OmniBot(): JSX.Element {
           });
         });
 
-        session.on("text.transcribed", ({ text, isFinal }) => {
+        session.on("text.transcribed", ({ text, isFinal }: TranscriptionEvent) => {
           setChatHistory((prev) => {
             const last = prev[prev.length - 1];
             if (last?.type === "bot" && !last.isFinal) {
@@ -94,11 +152,11 @@ export function OmniBot(): JSX.Element {
           });
         });
 
-        session.on("audio.output.chunk.received", (chunk) => {
+        session.on("audio.output.chunk.received", (chunk: AudioChunk) => {
           session.audio.player.play(chunk);
         });
 
-        session.on("tool.invoked", async (toolInvocation) => {
+        session.on("tool.invoked", async (toolInvocation: ToolInvocation) => {
           const { toolName, toolArgs } = toolInvocation;
           setChatHistory((prev) => [
             ...prev,
@@ -147,7 +205,7 @@ export function OmniBot(): JSX.Element {
           }
         });
 
-        session.on("conversation.item.error", (error) => {
+        session.on("conversation.item.error", (error: ConversationError) => {
           console.error("Conversation item error:", error);
           setChatHistory((prev) => [
             ...prev,

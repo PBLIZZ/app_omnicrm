@@ -22,7 +22,7 @@ import { eq } from "drizzle-orm";
 import { getServerUserId } from "@/server/auth/user";
 import { err, ok } from "@/lib/api/http";
 import { toApiError } from "@/server/jobs/types";
-import { log } from "@/server/log";
+import { log } from "@/lib/log";
 
 interface DeletionConfirmation {
   confirmation: string;

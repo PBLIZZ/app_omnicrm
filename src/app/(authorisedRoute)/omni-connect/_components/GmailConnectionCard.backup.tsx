@@ -30,7 +30,7 @@ interface ContactData {
 
 interface GmailConnectionStatus {
   isConnected: boolean;
-  lastSync?: string;
+  lastSync?: string | undefined;
   emailCount?: number;
   contactCount?: number;
   error?: string;
@@ -95,7 +95,7 @@ export function GmailConnectionCard({
       if (hasGmailToken) {
         setStatus({
           isConnected: true,
-          lastSync: lastSync,
+          lastSync: lastSync ?? undefined,
           emailCount: 0, // We'll get this from raw_events count later
           contactCount: 0, // We'll get this from contacts count later
         });
@@ -273,7 +273,7 @@ export function GmailConnectionCard({
   const generateEmbeddings = async (): Promise<void> => {
     setIsEmbedding(true);
     try {
-      const csrfToken = getCsrfToken();
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
       const response = await fetch("/api/gmail/embed", {
         method: "POST",
         headers: {

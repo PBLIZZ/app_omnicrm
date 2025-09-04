@@ -13,7 +13,7 @@ export interface BatchJobOptions {
 }
 
 export interface BatchJob {
-  payload: any;
+  payload: Record<string, unknown>;
   options?: BatchJobOptions;
 }
 
@@ -172,7 +172,7 @@ export class QueueManager {
           )
         );
 
-      const cancelledCount = (result as any).rowCount || 0;
+      const cancelledCount = (result as { rowCount?: number }).rowCount || 0;
       log.info(
         {
           op: "queue_manager.cancel_batch",
@@ -183,7 +183,7 @@ export class QueueManager {
         `Cancelled ${cancelledCount} jobs in batch`
       );
 
-      return (result as any).rowCount || 0;
+      return (result as { rowCount?: number }).rowCount || 0;
     } catch (error) {
       log.error(
         {

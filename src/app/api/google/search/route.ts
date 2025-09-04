@@ -12,6 +12,30 @@ interface SearchOptions {
   limit?: number;
 }
 
+interface SearchResultItem {
+  type: string;
+  event: unknown;
+  similarity: number;
+  preview: string;
+  source: string;
+}
+
+interface ProviderResults {
+  results: SearchResultItem[];
+  count: number;
+  error?: string;
+  message?: string;
+}
+
+interface SearchResults {
+  query: string;
+  provider: Provider;
+  total: number;
+  results: SearchResultItem[];
+  calendar?: ProviderResults;
+  gmail?: ProviderResults;
+}
+
 // POST: Search Google data using vector similarity (calendar, gmail, or both)
 export async function POST(req: NextRequest): Promise<Response> {
   let userId: string;
@@ -40,7 +64,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       "google_search_started",
     );
 
-    const results: any = {
+    const results: SearchResults = {
       query,
       provider,
       total: 0,
@@ -99,7 +123,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     // Sort all results by similarity (descending) and limit
     results.results = results.results
-      .sort((a: any, b: any) => b.similarity - a.similarity)
+      .sort((a: SearchResultItem, b: SearchResultItem) => b.similarity - a.similarity)
       .slice(0, limit);
 
     results.total = results.results.length;

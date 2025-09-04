@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/lib/api/http";
-import { tasksStorage } from "@/server/storage/tasks.storage";
+import { MomentumStorage } from "@/server/storage/momentum.storage";
+
+const momentumStorage = new MomentumStorage();
 import { getDb } from "@/server/db/client";
 import { momentumWorkspaces } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -50,9 +52,9 @@ export async function GET(req: NextRequest): Promise<Response> {
   try {
     let tasks;
     if (withContacts) {
-      tasks = await tasksStorage.getTasksWithContacts(userId);
+      tasks = await momentumStorage.getMomentumsWithContacts(userId);
     } else {
-      tasks = await tasksStorage.getTasks(userId, filters);
+      tasks = await momentumStorage.getMomentums(userId, filters);
     }
     return ok({ tasks });
   } catch (error) {
@@ -105,25 +107,25 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     console.log("Creating task with data:", {
       workspaceId,
-      projectId: parsed.data.projectId || null,
+      projectId: parsed.data.projectId ?? null,
       title: parsed.data.title,
-      description: parsed.data.description || null,
+      description: parsed.data.description ?? null,
     });
 
-    const task = await tasksStorage.createTask(userId, {
-      workspaceId,
-      projectId: parsed.data.projectId || null,
+    const task = await momentumStorage.createMomentum(userId, {
+      momentumWorkspaceId: workspaceId,
+      momentumProjectId: parsed.data.projectId ?? null,
       title: parsed.data.title,
-      description: parsed.data.description || null,
+      description: parsed.data.description ?? null,
       status: parsed.data.status,
       priority: parsed.data.priority,
       assignee: parsed.data.assignee,
       source: parsed.data.source,
       approvalStatus: parsed.data.approvalStatus,
-      taggedContacts: parsed.data.taggedContacts || null,
+      taggedContacts: parsed.data.taggedContacts ?? null,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      estimatedMinutes: parsed.data.estimatedMinutes || null,
-      aiContext: parsed.data.aiContext || null,
+      estimatedMinutes: parsed.data.estimatedMinutes ?? null,
+      aiContext: parsed.data.aiContext ?? null,
     });
     return ok({ task });
   } catch (error) {

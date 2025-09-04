@@ -29,7 +29,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { fetchPost } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import type { Workspace, Project, Contact } from "@/server/db/schema";
+import type { MomentumWorkspace, MomentumProject, Contact } from "@/server/db/schema";
 
 const createTaskSchema = z.object({
   workspaceId: z.string().optional(),
@@ -47,8 +47,8 @@ type CreateTaskFormData = z.infer<typeof createTaskSchema>;
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaces: Workspace[];
-  projects: Project[];
+  workspaces: MomentumWorkspace[];
+  projects: MomentumProject[];
 }
 
 export function CreateMomentumDialog({ 

@@ -36,8 +36,8 @@ export class OmniConnectApiService {
     return {
       emailsProcessed,
       suggestedContacts,
-      lastSync: syncData.lastSync?.gmail || null,
-      isConnected: syncData.serviceTokens?.gmail || false,
+      lastSync: syncData.lastSync?.gmail ?? null,
+      isConnected: syncData.serviceTokens?.gmail ?? false,
     };
   }
 
@@ -49,7 +49,7 @@ export class OmniConnectApiService {
     }>("/api/sync/preview/gmail", {});
 
     // Calculate total emails from countByLabel
-    const totalEmails = Object.values(preview?.countByLabel || {}).reduce(
+    const totalEmails = Object.values(preview?.countByLabel ?? {}).reduce(
       (sum: number, count: any) => sum + (typeof count === "number" ? count : 0),
       0,
     );
@@ -107,10 +107,10 @@ export class OmniConnectApiService {
       data.sampleSubjects.length > 0
     ) {
       return data.sampleSubjects.slice(0, 5).map((emailObj: any, index: number) => ({
-        id: emailObj.id || `email-${index}`,
-        subject: emailObj.subject || `Email ${index + 1}`,
-        from: emailObj.from || "Sample Sender",
-        date: emailObj.date || new Date(Date.now() - index * 24 * 60 * 60 * 1000).toISOString(),
+        id: emailObj.id ?? `email-${index}`,
+        subject: emailObj.subject ?? `Email ${index + 1}`,
+        from: emailObj.from ?? "Sample Sender",
+        date: emailObj.date ?? new Date(Date.now() - index * 24 * 60 * 60 * 1000).toISOString(),
         snippet: `This is a preview of email ${index + 1}...`,
       }));
     }

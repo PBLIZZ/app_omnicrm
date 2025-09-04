@@ -2,7 +2,7 @@
 import { getServerUserId } from "@/server/auth/user";
 import { supaAdminGuard } from "@/lib/supabase/admin";
 import { err, ok } from "@/lib/api/http";
-import { log } from "@/server/log";
+// import { log } from "@/server/log"; // Removed missing module
 import { toApiError } from "@/server/jobs/types";
 
 async function handleRequest(): Promise<Response> {
@@ -33,8 +33,7 @@ async function handleRequest(): Promise<Response> {
     const adminKey = process.env["SUPABASE_SECRET_KEY"];
     
     if (!adminUrl || !adminKey) {
-      log.warn({ userId, hasUrl: Boolean(adminUrl), hasKey: Boolean(adminKey) }, 
-        "service_role_env_missing");
+      console.warn("service_role_env_missing:", { userId, hasUrl: Boolean(adminUrl), hasKey: Boolean(adminKey) });
       return ok({ success: false, diagnostics, error: "Missing service role environment variables" });
     }
 
@@ -53,22 +52,22 @@ async function handleRequest(): Promise<Response> {
         sourceId: `test_${Date.now()}`,
       };
 
-      log.info({ userId, testPayload: testRawEvent }, "attempting_service_role_raw_events_insert");
+      console.log("attempting_service_role_raw_events_insert:", { userId, testPayload: testRawEvent });
       
       const result = await supaAdminGuard.insert("raw_events", testRawEvent);
       diagnostics.testResults.canInsertRawEvents = true;
       
-      log.info({ userId, insertResult: result }, "service_role_raw_events_insert_success");
+      console.log("service_role_raw_events_insert_success:", { userId, insertResult: result });
       
     } catch (insertError) {
       const errorMsg = insertError instanceof Error ? insertError.message : String(insertError);
       diagnostics.testResults.insertError = errorMsg;
       
-      log.error({ 
+      console.error("service_role_raw_events_insert_failed:", { 
         userId, 
         error: errorMsg, 
         errorType: insertError instanceof Error ? insertError.constructor.name : typeof insertError 
-      }, "service_role_raw_events_insert_failed");
+      });
     }
 
     // Test 2: Try inserting into interactions (different table for comparison)
@@ -91,19 +90,19 @@ async function handleRequest(): Promise<Response> {
       diagnostics.testResults.canInsertInteractions = true;
       
     } catch (interactionError) {
-      log.warn({ 
+      console.warn("service_role_interactions_insert_failed:", { 
         userId, 
         error: interactionError instanceof Error ? interactionError.message : String(interactionError) 
-      }, "service_role_interactions_insert_failed");
+      });
     }
 
     const success = diagnostics.testResults.canInsertRawEvents;
-    log.info({ 
+    console.log("service_role_diagnostics_complete:", { 
       userId, 
       success,
       canInsertRawEvents: diagnostics.testResults.canInsertRawEvents,
       canInsertInteractions: diagnostics.testResults.canInsertInteractions,
-    }, "service_role_diagnostics_complete");
+    });
 
     return ok({ 
       success, 
@@ -113,7 +112,7 @@ async function handleRequest(): Promise<Response> {
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    log.error({ userId, error: errorMsg }, "service_role_diagnostics_failed");
+    console.error("service_role_diagnostics_failed:", { userId, error: errorMsg });
     
     return ok({ 
       success: false, 

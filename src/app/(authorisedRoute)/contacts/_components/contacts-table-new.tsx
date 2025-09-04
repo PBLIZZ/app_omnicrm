@@ -29,6 +29,7 @@ import {
   SortingState,
   RowSelectionState,
   useReactTable,
+  Updater,
 } from "@tanstack/react-table";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Settings2 } from "lucide-react";
 import { useBulkDeleteContacts } from "@/hooks/use-contact-delete";
@@ -57,7 +58,7 @@ export function ContactsTable<TData, TValue>({ columns, data }: DataTableProps<T
   });
 
   // Save column visibility to localStorage when it changes
-  const handleColumnVisibilityChange = (updater: any): void => {
+  const handleColumnVisibilityChange = (updater: Updater<VisibilityState>): void => {
     const newVisibility = typeof updater === "function" ? updater(columnVisibility) : updater;
     setColumnVisibility(newVisibility);
     if (typeof window !== "undefined") {
@@ -114,7 +115,7 @@ export function ContactsTable<TData, TValue>({ columns, data }: DataTableProps<T
                 const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
                 const selectedRows = table.getSelectedRowModel().rows;
                 const contactNames = selectedRows
-                  .map((row) => (row.original as any).displayName)
+                  .map((row) => (row.original as { displayName: string }).displayName)
                   .join(", ");
 
                 if (
@@ -251,7 +252,7 @@ export function ContactsTable<TData, TValue>({ columns, data }: DataTableProps<T
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  data-testid={`contact-row-${(row.original as any).id}`}
+                  data-testid={`contact-row-${(row.original as { id: string }).id}`}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

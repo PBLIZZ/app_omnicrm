@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/lib/api/http";
-import { tasksStorage } from "@/server/storage/tasks.storage";
+import { MomentumStorage } from "@/server/storage/momentum.storage";
+
+const momentumStorage = new MomentumStorage();
 import { z } from "zod";
 import type { NewMomentumProject } from "@/server/db/schema";
 
@@ -29,7 +31,7 @@ export async function GET(
   const { projectId } = await params;
 
   try {
-    const project = await tasksStorage.getProject(projectId, userId);
+    const project = await momentumStorage.getMomentumProject(projectId, userId);
     if (!project) {
       return err(404, "project_not_found");
     }
@@ -71,8 +73,8 @@ export async function PUT(
       updateData['dueDate'] = new Date(parsed.data['dueDate']);
     }
     
-    await tasksStorage.updateProject(projectId, userId, updateData);
-    const project = await tasksStorage.getProject(projectId, userId);
+    await momentumStorage.updateMomentumProject(projectId, userId, updateData);
+    const project = await momentumStorage.getMomentumProject(projectId, userId);
     return ok({ project });
   } catch (error) {
     console.error("Error updating project:", error);
@@ -95,7 +97,7 @@ export async function DELETE(
   const { projectId } = await params;
 
   try {
-    await tasksStorage.deleteProject(projectId, userId);
+    await momentumStorage.deleteMomentumProject(projectId, userId);
     return ok({ success: true });
   } catch (error) {
     console.error("Error deleting project:", error);

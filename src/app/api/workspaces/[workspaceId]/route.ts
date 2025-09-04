@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/lib/api/http";
-import { tasksStorage } from "@/server/storage/tasks.storage";
+import { MomentumStorage } from "@/server/storage/momentum.storage";
+
+const momentumStorage = new MomentumStorage();
 import { z } from "zod";
 import type { NewMomentumWorkspace } from "@/server/db/schema";
 
@@ -28,7 +30,7 @@ export async function GET(
   const { workspaceId } = await params;
 
   try {
-    const workspace = await tasksStorage.getWorkspace(workspaceId, userId);
+    const workspace = await momentumStorage.getMomentumWorkspace(workspaceId, userId);
     if (!workspace) {
       return err(404, "workspace_not_found");
     }
@@ -67,8 +69,8 @@ export async function PUT(
     if (parsed.data['color'] !== undefined) updateData['color'] = parsed.data['color'];
     if (parsed.data['isDefault'] !== undefined) updateData['isDefault'] = parsed.data['isDefault'];
     
-    await tasksStorage.updateWorkspace(workspaceId, userId, updateData);
-    const workspace = await tasksStorage.getWorkspace(workspaceId, userId);
+    await momentumStorage.updateMomentumWorkspace(workspaceId, userId, updateData);
+    const workspace = await momentumStorage.getMomentumWorkspace(workspaceId, userId);
     return ok({ workspace });
   } catch (error) {
     console.error("Error updating workspace:", error);
@@ -91,7 +93,7 @@ export async function DELETE(
   const { workspaceId } = await params;
 
   try {
-    await tasksStorage.deleteWorkspace(workspaceId, userId);
+    await momentumStorage.deleteMomentumWorkspace(workspaceId, userId);
     return ok({ success: true });
   } catch (error) {
     console.error("Error deleting workspace:", error);

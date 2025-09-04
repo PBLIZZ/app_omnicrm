@@ -1,6 +1,6 @@
 // src/app/api/openrouter/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { log } from "@/server/log";
+// import { log } from "@/server/log"; // Removed missing module
 import { ChatRequestSchema } from "@/lib/schemas";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Minimal, non-sensitive request logging
     const model = parsed.data.model;
     const msgCount = parsed.data.messages.length;
-    log.info({ path: "api/openrouter", model, msgCount }, "LLM proxy request");
+    console.log("LLM proxy request:", { path: "api/openrouter", model, msgCount });
 
     const r = await fetch(OPENROUTER_URL, {
       method: "POST",
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       body: JSON.stringify(parsed.data),
     });
 
-    log.info({ status: r.status, ok: r.ok }, "LLM proxy response");
+    console.log("LLM proxy response:", { status: r.status, ok: r.ok });
 
     const text = await r.text();
     return new NextResponse(text, {
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    log.error({ err: message }, "LLM proxy failed");
+    console.error("LLM proxy failed:", { err: message });
     return new NextResponse("Upstream error", { status: 502 });
   }
 }

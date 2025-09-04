@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err } from "@/lib/api/http";
-import { tasksStorage } from "@/server/storage/tasks.storage";
+import { MomentumStorage } from "@/server/storage/momentum.storage";
+
+const momentumStorage = new MomentumStorage();
 
 export async function GET(req: NextRequest): Promise<Response> {
   let userId: string;
@@ -14,7 +16,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   try {
-    const tasks = await tasksStorage.getPendingApprovalTasks(userId);
+    const tasks = await momentumStorage.getPendingApprovalMomentums(userId);
     return ok({ tasks });
   } catch (error) {
     console.error("Error fetching pending approval tasks:", error);

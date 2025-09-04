@@ -22,6 +22,13 @@ import { GmailConnectionCard } from "./GmailConnectionCard";
 import { GmailSyncPreview } from "./GmailSyncPreview";
 import { GmailSettingsPanel } from "./GmailSettingsPanel";
 
+// Helper function to get CSRF token from cookie
+function getCsrf(): string {
+  if (typeof document === "undefined") return "";
+  const m = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1] ?? "") : "";
+}
+
 interface GmailStats {
   emailsProcessed: number;
   suggestedContacts: number;
@@ -99,7 +106,7 @@ export function OmniConnectPage(): JSX.Element {
     const loadJobStatus = async () => {
       try {
         setIsLoadingJobStatus(true);
-        const csrfToken = getCsrfToken();
+        const csrfToken = getCsrf();
         
         const response = await fetch("/api/jobs/status", {
           method: "GET",
@@ -184,7 +191,7 @@ export function OmniConnectPage(): JSX.Element {
 
     setIsSyncing(true);
     try {
-      const csrfToken = getCsrfToken();
+      const csrfToken = getCsrf();
 
       // First preview the sync
       const previewResponse = await fetch("/api/sync/preview/gmail", {
@@ -331,7 +338,7 @@ export function OmniConnectPage(): JSX.Element {
 
     try {
       setIsLoadingEmails(true);
-      const csrfToken = getCsrfToken();
+      const csrfToken = getCsrf();
 
       // Use the preview endpoint to get sample emails
       const response = await fetch("/api/sync/preview/gmail", {
@@ -423,6 +430,14 @@ export function OmniConnectPage(): JSX.Element {
           onSyncStart={handleSyncStart}
           onSettingsClick={handleSettingsClick}
           refreshTrigger={refreshTrigger}
+          isSyncing={isSyncing}
+          isEmbedding={isEmbedding}
+          isProcessingContacts={false}
+          showSyncPreview={showSyncPreview}
+          setShowSyncPreview={setShowSyncPreview}
+          onApproveSync={handleSyncApprove}
+          onGenerateEmbeddings={generateEmbeddings}
+          onProcessContacts={() => {}}
         />
       ) : (
         <>
@@ -470,7 +485,7 @@ export function OmniConnectPage(): JSX.Element {
                           const loadJobStatus = async () => {
                             try {
                               setIsLoadingJobStatus(true);
-                              const csrfToken = getCsrfToken();
+                              const csrfToken = getCsrf();
                               
                               const response = await fetch("/api/jobs/status", {
                                 method: "GET",

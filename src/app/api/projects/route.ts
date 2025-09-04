@@ -2,11 +2,13 @@ import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/lib/api/http";
-import { tasksStorage } from "@/server/storage/tasks.storage";
+import { MomentumStorage } from "@/server/storage/momentum.storage";
+
+const momentumStorage = new MomentumStorage();
 import { z } from "zod";
 
 const CreateProjectSchema = z.object({
-  workspaceId: z.string().uuid("Invalid workspace ID"),
+  momentumWorkspaceId: z.string().uuid("Invalid workspace ID"),
   name: z.string().min(1, "Project name is required"),
   description: z.string().optional(),
   color: z.string().default("#10b981"),
@@ -27,7 +29,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const workspaceId = searchParams.get("workspaceId") || undefined;
 
   try {
-    const projects = await tasksStorage.getProjects(userId, workspaceId);
+    const projects = await momentumStorage.getMomentumProjects(userId, workspaceId);
     return ok({ projects });
   } catch (error) {
     console.error("Error fetching projects:", error);
@@ -51,10 +53,10 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   try {
-    const project = await tasksStorage.createProject(userId, {
-      workspaceId: parsed.data.workspaceId,
+    const project = await momentumStorage.createMomentumProject(userId, {
+      momentumWorkspaceId: parsed.data.momentumWorkspaceId,
       name: parsed.data.name,
-      description: parsed.data.description || null,
+      description: parsed.data.description ?? null,
       color: parsed.data.color,
       status: parsed.data.status,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,

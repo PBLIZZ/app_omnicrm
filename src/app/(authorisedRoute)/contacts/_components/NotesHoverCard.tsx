@@ -213,7 +213,7 @@ function AddNoteForm({
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (content.trim()) {
-        handleSubmit(e as any);
+        handleSubmit(e as React.FormEvent);
       }
     } else if (e.key === "Escape") {
       e.preventDefault();

@@ -1,16 +1,60 @@
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchPost, fetchGet } from "@/lib/api";
 
-export function useCalendarIntegration() {
+interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+  attendees?: Array<{ email: string; displayName?: string }>;
+  location?: string;
+  [key: string]: unknown;
+}
+
+interface CalendarSearchResult {
+  event: CalendarEvent;
+  similarity: number;
+  preview: string;
+}
+
+interface CalendarSyncResponse {
+  processedEvents: number;
+  message?: string;
+}
+
+export function useCalendarIntegration(): {
+  isConnected: boolean;
+  isConnecting: boolean;
+  isSyncing: boolean;
+  isEmbedding: boolean;
+  searchQuery: string;
+  searchResults: CalendarSearchResult[];
+  insights: {
+    patterns?: string[];
+    busyTimes?: string[];
+    recommendations?: string[];
+    clientEngagement?: string[];
+  } | null;
+  upcomingEventsCount: number;
+  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  connectCalendar: () => Promise<void>;
+  syncCalendar: () => Promise<CalendarSyncResponse>;
+  generateEmbeddings: () => Promise<{ processedEvents: number }>;
+  searchEvents: () => Promise<void>;
+  loadInsights: () => Promise<void>;
+  checkCalendarStatus: () => Promise<{ isConnected: boolean; upcomingEventsCount: number } | null>;
+  isFetchingInsights: boolean;
+  setIsConnected: React.Dispatch<React.SetStateAction<boolean>>;
+} {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<
-    Array<{ event: any; similarity: number; preview: string }>
-  >([]);
+  const [searchResults, setSearchResults] = useState<CalendarSearchResult[]>([]);
   const [insights, setInsights] = useState<{
     patterns?: string[];
     busyTimes?: string[];
@@ -18,8 +62,7 @@ export function useCalendarIntegration() {
     clientEngagement?: string[];
   } | null>(null);
 
-
-  const connectCalendar = useCallback(async () => {
+  const connectCalendar = useCallback(async (): Promise<void> => {
     setIsConnecting(true);
     try {
       // Simplest, secure flow: full-page redirect to server OAuth start
@@ -30,11 +73,11 @@ export function useCalendarIntegration() {
     }
   }, []);
 
-  const syncCalendar = useCallback(async () => {
+  const syncCalendar = useCallback(async (): Promise<CalendarSyncResponse> => {
     setIsSyncing(true);
 
     try {
-      const data = await fetchPost<any>("/api/calendar/sync", {});
+      const data = await fetchPost<CalendarSyncResponse>("/api/calendar/sync", {});
       toast.success("Calendar synced successfully");
       return data;
     } catch (error) {
@@ -46,7 +89,7 @@ export function useCalendarIntegration() {
     }
   }, []);
 
-  const generateEmbeddings = useCallback(async () => {
+  const generateEmbeddings = useCallback(async (): Promise<{ processedEvents: number }> => {
     setIsEmbedding(true);
 
     try {
@@ -62,13 +105,13 @@ export function useCalendarIntegration() {
     }
   }, []);
 
-  const searchEvents = useCallback(async () => {
+  const searchEvents = useCallback(async (): Promise<void> => {
     if (!searchQuery.trim()) return;
 
     try {
-      const data = await fetchPost<{ results?: Array<{ event: any; similarity: number; preview: string }> }>("/api/calendar/search", { 
-        query: searchQuery, 
-        limit: 5 
+      const data = await fetchPost<{ results?: CalendarSearchResult[] }>("/api/calendar/search", {
+        query: searchQuery,
+        limit: 5,
       });
       setSearchResults(data.results ?? []);
     } catch {
@@ -76,27 +119,92 @@ export function useCalendarIntegration() {
     }
   }, [searchQuery]);
 
-  const loadInsights = useCallback(async () => {
-    try {
-      const data = await fetchGet<{ insights?: any }>("/api/calendar/insights");
-      setInsights(data.insights ?? null);
-    } catch {
-      // Insights error - silently handle
-    }
-  }, []);
+  // Calendar insights (GET) via TanStack Query v5
+  const {
+    data: insightsData,
+    refetch: refetchInsights,
+    isFetching: isFetchingInsights,
+  } = useQuery<{
+    patterns?: string[];
+    busyTimes?: string[];
+    recommendations?: string[];
+    clientEngagement?: string[];
+  } | null>({
+    queryKey: ["calendar", "insights"],
+    queryFn: async () => {
+      const data = await fetchGet<{
+        insights?: {
+          patterns?: string[];
+          busyTimes?: string[];
+          recommendations?: string[];
+          clientEngagement?: string[];
+        };
+      }>("/api/calendar/insights");
+      return data.insights ?? null;
+    },
+    staleTime: 60_000, // 1 minute
+  });
 
-  const checkCalendarStatus = useCallback(async () => {
-    try {
-      const data = await fetchGet<{ isConnected?: boolean }>("/api/calendar/sync");
-      // Use the isConnected field from the response if available
-      setIsConnected(data.isConnected ?? true);
-      return data;
-    } catch {
-      // Error checking calendar status
-      setIsConnected(false);
-      return null;
+  React.useEffect(() => {
+    // keep previous API surface stable
+    if (insightsData !== undefined) {
+      setInsights(insightsData);
     }
-  }, []);
+  }, [insightsData]);
+
+  const loadInsights = useCallback(async (): Promise<void> => {
+    await refetchInsights();
+  }, [refetchInsights]);
+
+  // Calendar status (GET) via TanStack Query v5 returning key values
+  const {
+    data: calendarStatus,
+    refetch: refetchStatus,
+    isError: isStatusError,
+  } = useQuery<{ isConnected: boolean; upcomingEventsCount: number }>({
+    queryKey: ["calendar", "status"],
+    queryFn: async (): Promise<{ isConnected: boolean; upcomingEventsCount: number }> => {
+      // First check overall connection status
+      const status = await fetchGet<{ isConnected?: boolean; error?: string }>(
+        "/api/calendar/status",
+      );
+      if (!status.isConnected) {
+        return { isConnected: false, upcomingEventsCount: 0 };
+      }
+
+      // If connected, try to get upcoming events count via preview
+      try {
+        const preview = await fetchGet<{ upcomingEventsCount?: number; error?: string }>(
+          "/api/calendar/preview",
+        );
+        return { isConnected: true, upcomingEventsCount: preview.upcomingEventsCount ?? 0 };
+      } catch {
+        return { isConnected: true, upcomingEventsCount: 0 };
+      }
+    },
+    staleTime: 15_000,
+    refetchOnWindowFocus: false,
+  });
+
+  React.useEffect(() => {
+    if (calendarStatus) {
+      setIsConnected(calendarStatus.isConnected);
+    }
+  }, [calendarStatus]);
+
+  React.useEffect(() => {
+    if (isStatusError) {
+      setIsConnected(false);
+    }
+  }, [isStatusError]);
+
+  const checkCalendarStatus = useCallback(async (): Promise<{
+    isConnected: boolean;
+    upcomingEventsCount: number;
+  } | null> => {
+    const res = await refetchStatus();
+    return res.data ?? null;
+  }, [refetchStatus]);
 
   return {
     // State
@@ -106,7 +214,8 @@ export function useCalendarIntegration() {
     isEmbedding,
     searchQuery,
     searchResults,
-    insights,
+    insights: insightsData ?? insights,
+    upcomingEventsCount: calendarStatus?.upcomingEventsCount ?? 0,
 
     // Actions
     setSearchQuery,
@@ -116,6 +225,8 @@ export function useCalendarIntegration() {
     searchEvents,
     loadInsights,
     checkCalendarStatus,
+    // Query flags
+    isFetchingInsights,
     setIsConnected,
   };
 }

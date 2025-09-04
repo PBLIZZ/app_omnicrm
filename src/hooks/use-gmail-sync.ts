@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchPost } from "@/lib/api";
@@ -13,7 +13,22 @@ interface SyncPreviewData {
   }>;
 }
 
-export function useGmailSync() {
+type UseGmailSyncReturn = {
+  // State
+  showSyncPreview: boolean;
+  setShowSyncPreview: Dispatch<SetStateAction<boolean>>;
+  isSyncing: boolean;
+  isEmbedding: boolean;
+  isProcessingContacts: boolean;
+
+  // Actions
+  startSync: () => void;
+  approveSync: () => void;
+  generateEmbeddings: () => void;
+  processContacts: () => void;
+};
+
+export function useGmailSync(): UseGmailSyncReturn {
   const queryClient = useQueryClient();
   const [showSyncPreview, setShowSyncPreview] = useState(false);
   const [isEmbedding, setIsEmbedding] = useState(false);
@@ -26,13 +41,13 @@ export function useGmailSync() {
       const preview: SyncPreviewData = await fetchPost("/api/sync/preview/gmail", {});
 
       // Calculate total emails from countByLabel
-      const totalEmails = Object.values(preview?.countByLabel || {}).reduce(
-        (sum: number, count: any) => sum + (typeof count === "number" ? count : 0),
+      const totalEmails = Object.values(preview?.countByLabel ?? {}).reduce(
+        (sum: number, count: number) => sum + count,
         0,
       );
 
       // Show preview to user and ask for confirmation
-      const sampleCount = preview?.sampleSubjects?.length || 0;
+      const sampleCount = preview?.sampleSubjects?.length ?? 0;
       const confirmed = window.confirm(
         `Gmail Sync Preview:\n\n` +
           `• Total emails found: ${totalEmails}\n` +
@@ -47,16 +62,18 @@ export function useGmailSync() {
 
       // Proceed with sync
       const result = await fetchPost<{ message?: string }>("/api/sync/approve/gmail", {});
-      return { message: result.message || "Gmail sync approved and processing started" };
+      return { message: result.message ?? "Gmail sync approved and processing started" };
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      toast.info("Jobs are processing automatically in the background. Check job status below for progress.");
-      
+      toast.info(
+        "Jobs are processing automatically in the background. Check job status below for progress.",
+      );
+
       // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: ["gmail-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["gmail-emails"] });
-      queryClient.invalidateQueries({ queryKey: ["job-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["gmail-stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["gmail-emails"] });
+      void queryClient.invalidateQueries({ queryKey: ["job-status"] });
     },
     onError: (error: Error) => {
       if (error.message === "Sync cancelled by user") {
@@ -92,7 +109,7 @@ export function useGmailSync() {
   const processContactsMutation = useMutation({
     mutationFn: async () => {
       const data = await fetchPost<{ message?: string }>("/api/gmail/process-contacts", {});
-      return { message: data.message || "Contacts processed successfully" };
+      return { message: data.message ?? "Contacts processed successfully" };
     },
     onMutate: () => {
       setIsProcessingContacts(true);
@@ -100,9 +117,9 @@ export function useGmailSync() {
     onSuccess: (data) => {
       toast.success(data.message);
       // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: ["gmail-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["gmail-emails"] });
-      queryClient.invalidateQueries({ queryKey: ["job-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["gmail-stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["gmail-emails"] });
+      void queryClient.invalidateQueries({ queryKey: ["job-status"] });
     },
     onError: (error: Error) => {
       console.error("Contact processing error:", error);
@@ -112,7 +129,6 @@ export function useGmailSync() {
       setIsProcessingContacts(false);
     },
   });
-
 
   return {
     // State

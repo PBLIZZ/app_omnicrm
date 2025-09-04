@@ -1,12 +1,41 @@
 import { useMemo } from "react";
 import {
   CalendarBusinessIntelligence,
+  type CalendarEvent,
+  type WeeklyStats,
 } from "../app/(authorisedRoute)/omni-rhythm/_components/CalendarBusinessIntelligence";
 
 export function useBusinessIntelligence(
   biService: CalendarBusinessIntelligence,
-  appointments: any[] = [],
-) {
+  appointments: CalendarEvent[] = [],
+): {
+  enhancedAppointments: CalendarEvent[];
+  weeklyStats: WeeklyStats;
+  todaysEvents: CalendarEvent[];
+  upcomingEvents: CalendarEvent[];
+  preparationEvents: CalendarEvent[];
+  businessInsights: {
+    totalRevenue: number;
+    totalSessions: number;
+    busiestDay: string;
+    utilizationRate: number;
+    newClients: number;
+    avgSessionLength: number;
+    clientRetention: number;
+  };
+  performanceIndicators: {
+    isHighPerforming: boolean;
+    needsMoreClients: boolean;
+    goodUtilization: boolean;
+    strongRetention: boolean;
+    revenueGrowth: boolean;
+  };
+  recommendations: string[];
+  getTodaysPriorityEvents: () => CalendarEvent[];
+  getUpcomingPriorityEvents: (limit?: number) => CalendarEvent[];
+  getUpcomingPreparationEvents: () => CalendarEvent[];
+  calculateWeeklyStats: () => WeeklyStats;
+} {
   // Enhanced appointments with business intelligence
   const enhancedAppointments = useMemo(() => {
     return biService.enhanceEvents(appointments);
@@ -110,7 +139,8 @@ export function useBusinessIntelligence(
 
     // Utility functions
     getTodaysPriorityEvents: () => biService.getTodaysPriorityEvents(appointments),
-    getUpcomingPriorityEvents: (limit?: number) => biService.getUpcomingPriorityEvents(appointments, limit),
+    getUpcomingPriorityEvents: (limit?: number) =>
+      biService.getUpcomingPriorityEvents(appointments, limit),
     getUpcomingPreparationEvents: () => biService.getUpcomingPreparationEvents(appointments),
     calculateWeeklyStats: () => biService.calculateWeeklyStats(appointments),
   };

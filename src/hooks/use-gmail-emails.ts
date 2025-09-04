@@ -16,7 +16,39 @@ interface PreviewRange {
   to: string;
 }
 
-export function useGmailEmails(isConnected: boolean, refreshTrigger?: number) {
+interface RawEmailData {
+  id?: string;
+  subject?: string;
+  from?: string;
+  date?: string;
+  snippet?: string;
+  hasAttachments?: boolean;
+  labels?: string[];
+}
+
+interface EmailSubjectData {
+  id?: string;
+  subject?: string;
+  from?: string;
+  date?: string;
+}
+
+interface GmailPreviewResponse {
+  sampleEmails?: RawEmailData[];
+  sampleSubjects?: EmailSubjectData[];
+  dateRange?: { from: string; to: string };
+}
+
+export function useGmailEmails(
+  isConnected: boolean,
+  refreshTrigger?: number,
+): {
+  emails: EmailPreview[];
+  previewRange: PreviewRange | null;
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => void;
+} {
   const {
     data: emailsData,
     isLoading,
@@ -25,19 +57,15 @@ export function useGmailEmails(isConnected: boolean, refreshTrigger?: number) {
   } = useQuery({
     queryKey: ["gmail-emails", refreshTrigger],
     queryFn: async (): Promise<{ emails: EmailPreview[]; previewRange: PreviewRange | null }> => {
-      const data = await fetchPost<{
-        sampleEmails?: any[];
-        sampleSubjects?: any[];
-        dateRange?: { from: string; to: string };
-      }>("/api/sync/preview/gmail", {});
+      const data = await fetchPost<GmailPreviewResponse>("/api/sync/preview/gmail", {});
 
       let emails: EmailPreview[] = [];
       let previewRange: PreviewRange | null = null;
 
       // Handle rich emails format (from GmailConnectionCard)
-      const richEmails: any[] = Array.isArray(data.sampleEmails) ? data.sampleEmails : [];
+      const richEmails: RawEmailData[] = Array.isArray(data.sampleEmails) ? data.sampleEmails : [];
       if (richEmails.length > 0) {
-        emails = richEmails.slice(0, 5).map((e: any, index: number) => ({
+        emails = richEmails.slice(0, 5).map((e: RawEmailData, index: number) => ({
           id: e?.id ?? `email-${index}`,
           subject: e?.subject ?? `Email ${index + 1}`,
           from: e?.from ?? "Sample Sender",
@@ -55,11 +83,11 @@ export function useGmailEmails(isConnected: boolean, refreshTrigger?: number) {
       ) {
         emails = data.sampleSubjects
           .slice(0, 5)
-          .map((emailObj: any, index: number) => ({
-            id: emailObj.id || `email-${index}`,
-            subject: emailObj.subject || `Email ${index + 1}`,
-            from: emailObj.from || "Sample Sender",
-            date: emailObj.date || new Date(Date.now() - index * 24 * 60 * 60 * 1000).toISOString(),
+          .map((emailObj: EmailSubjectData, index: number) => ({
+            id: emailObj.id ?? `email-${index}`,
+            subject: emailObj.subject ?? `Email ${index + 1}`,
+            from: emailObj.from ?? "Sample Sender",
+            date: emailObj.date ?? new Date(Date.now() - index * 24 * 60 * 60 * 1000).toISOString(),
             snippet: `This is a preview of email ${index + 1}...`,
             hasAttachments: false,
             labels: ["INBOX"],
@@ -88,10 +116,9 @@ export function useGmailEmails(isConnected: boolean, refreshTrigger?: number) {
     staleTime: 60000, // 1 minute
   });
 
-
   return {
-    emails: emailsData?.emails || [],
-    previewRange: emailsData?.previewRange || null,
+    emails: emailsData?.emails ?? [],
+    previewRange: emailsData?.previewRange ?? null,
     isLoading,
     error,
     refetch,

@@ -27,7 +27,16 @@ interface Insights {
   }>;
 }
 
-export function useGmailAI() {
+export function useGmailAI(): {
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  searchResults: SearchResult[];
+  isSearching: boolean;
+  searchGmail: () => void;
+  insights: Insights | null;
+  isLoadingInsights: boolean;
+  loadInsights: () => Promise<void>;
+} {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
@@ -51,13 +60,18 @@ export function useGmailAI() {
     },
   });
 
+  // Define API response type for insights
+  interface InsightsApiResponse {
+    insights: Insights;
+  }
+
   // Load insights function
   const loadInsights = async (): Promise<void> => {
     setIsLoadingInsights(true);
     try {
       const response = await fetch("/api/gmail/insights");
       if (response.ok) {
-        const data = await response.json();
+        const data: InsightsApiResponse = (await response.json()) as InsightsApiResponse;
         setInsights(data.insights);
       } else {
         toast.error("Failed to load insights");
@@ -70,7 +84,7 @@ export function useGmailAI() {
     }
   };
 
-  const searchGmail = () => {
+  const searchGmail = (): void => {
     if (!searchQuery.trim()) return;
     searchMutation.mutate(searchQuery);
   };

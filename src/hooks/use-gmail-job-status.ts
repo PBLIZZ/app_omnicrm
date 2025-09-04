@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchPost, fetchGet } from "@/lib/api";
+import { toast } from "sonner";
 
 interface JobStatusResponse {
   id: string;
@@ -25,7 +26,16 @@ interface JobStatus {
   processedEmails?: number;
 }
 
-export function useGmailJobStatus(isConnected: boolean, refreshTrigger?: number) {
+export function useGmailJobStatus(
+  isConnected: boolean,
+  refreshTrigger?: number,
+): {
+  jobStatus: JobStatus | null;
+  isLoadingJobStatus: boolean;
+  error: unknown;
+  refreshJobStatus: () => Promise<unknown>;
+  runJobProcessor: () => Promise<void>;
+} {
   const {
     data: jobStatus,
     isLoading: isLoadingJobStatus,
@@ -42,7 +52,6 @@ export function useGmailJobStatus(isConnected: boolean, refreshTrigger?: number)
     staleTime: 0, // Always fetch fresh data
   });
 
-
   // Run job processor mutation
   const runJobProcessor = async (): Promise<void> => {
     try {
@@ -51,13 +60,18 @@ export function useGmailJobStatus(isConnected: boolean, refreshTrigger?: number)
       // Refresh job status after running processor
       await refreshJobStatus();
     } catch (error) {
-      console.error("Error running job processor:", error);
+      const errRec = error as Record<string, unknown>;
+      const message =
+        errRec && typeof errRec["message"] === "string"
+          ? (errRec["message"] as string)
+          : "Failed to run job processor";
+      toast.error(message);
       throw error;
     }
   };
 
   return {
-    jobStatus: jobStatus || null,
+    jobStatus: jobStatus ?? null,
     isLoadingJobStatus,
     error,
     refreshJobStatus,

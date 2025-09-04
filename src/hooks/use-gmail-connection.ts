@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchGet, fetchPost, buildUrl } from "@/lib/api";
+import { fetchGet, buildUrl } from "@/lib/api";
 
 interface GmailConnectionStatus {
   isConnected: boolean;
@@ -17,7 +17,15 @@ interface GmailStats {
   isConnected: boolean;
 }
 
-export function useGmailConnection(refreshTrigger?: number) {
+export function useGmailConnection(refreshTrigger?: number): {
+  status: GmailConnectionStatus;
+  stats: GmailStats | undefined;
+  isLoading: boolean;
+  error: string | null;
+  connect: () => void;
+  isConnecting: boolean;
+  refetch: () => void;
+} {
   // const queryClient = useQueryClient();
 
   // Query for Gmail connection status and stats
@@ -49,8 +57,8 @@ export function useGmailConnection(refreshTrigger?: number) {
       return {
         emailsProcessed,
         suggestedContacts,
-        lastSync: syncData.lastSync?.gmail || null,
-        isConnected: syncData.serviceTokens?.gmail || false,
+        lastSync: syncData.lastSync?.gmail ?? null,
+        isConnected: syncData.serviceTokens?.gmail ?? false,
       };
     },
     retry: 2,
@@ -58,13 +66,14 @@ export function useGmailConnection(refreshTrigger?: number) {
   });
 
   // Convert to the expected format for backward compatibility
+  const hasError = Boolean(error);
   const status: GmailConnectionStatus = stats
     ? {
         isConnected: stats.isConnected,
-        lastSync: stats.lastSync || undefined,
+        ...(stats.lastSync && { lastSync: stats.lastSync }),
         emailCount: stats.emailsProcessed,
         contactCount: stats.suggestedContacts,
-        error: error ? "Failed to load Gmail statistics" : undefined,
+        ...(hasError ? { error: "Failed to load Gmail statistics" } : {}),
       }
     : { isConnected: false };
 

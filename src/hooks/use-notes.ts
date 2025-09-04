@@ -30,12 +30,17 @@ interface UseNotesReturn {
   isCreating: boolean;
   isUpdating: boolean;
   isDeleting: boolean;
-  refetch: () => Promise<any>;
+  refetch: () => Promise<{ data: Note[] | undefined; error: Error | null }>;
 }
 
 export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Define API response type for notes
+  interface NotesApiResponse {
+    notes: Note[];
+  }
 
   // Fetch notes for a contact
   const notesQuery = useQuery({
@@ -45,8 +50,8 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
       if (!response.ok) {
         throw new Error("Failed to fetch notes");
       }
-      const data = await response.json();
-      return data.notes || [];
+      const data: NotesApiResponse = (await response.json()) as NotesApiResponse;
+      return data.notes ?? [];
     },
     enabled: !!contactId,
   });
@@ -77,12 +82,12 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
 
       queryClient.setQueryData<Note[]>(["contacts", contactId, "notes"], (old) => [
         tempNote,
-        ...(old || []),
+        ...(old ?? []),
       ]);
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
+    onError: (_, _variables, context) => {
       // Rollback on error
       if (context?.previousNotes) {
         queryClient.setQueryData(["contacts", contactId, "notes"], context.previousNotes);
@@ -132,7 +137,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
+    onError: (_, _variables, context) => {
       if (context?.previousNotes) {
         queryClient.setQueryData(["contacts", contactId, "notes"], context.previousNotes);
       }
@@ -169,7 +174,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
+    onError: (_, _variables, context) => {
       if (context?.previousNotes) {
         queryClient.setQueryData(["contacts", contactId, "notes"], context.previousNotes);
       }
@@ -190,7 +195,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   });
 
   return {
-    notes: notesQuery.data || [],
+    notes: notesQuery.data ?? [],
     isLoading: notesQuery.isLoading,
     error: notesQuery.error,
     createNote: createNoteMutation.mutate,
@@ -199,6 +204,12 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
     isCreating: createNoteMutation.isPending,
     isUpdating: updateNoteMutation.isPending,
     isDeleting: deleteNoteMutation.isPending,
-    refetch: notesQuery.refetch,
+    refetch: async (): Promise<{ data: Note[] | undefined; error: Error | null }> => {
+      const result = await notesQuery.refetch();
+      return {
+        data: result.data,
+        error: result.error,
+      };
+    },
   };
 }

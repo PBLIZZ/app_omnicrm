@@ -30,7 +30,7 @@ const baseSchema = z.object({
 // Type-safe global access interface
 interface GlobalWithBuffer {
   Buffer?: {
-    from(data: string, encoding: 'base64' | 'utf8'): { length: number };
+    from(data: string, encoding: "base64" | "utf8"): { length: number };
   };
   atob?: (data: string) => string;
 }
@@ -40,7 +40,7 @@ function byteLengthBase64(v: string): number {
   try {
     // Node fallback
     const g = globalThis as GlobalWithBuffer;
-    if (g && typeof g.Buffer !== "undefined") return g.Buffer.from(v, "base64").length;
+    if (typeof g?.Buffer !== "undefined") return g.Buffer.from(v, "base64").length;
   } catch {
     // ignore
   }
@@ -65,7 +65,7 @@ function byteLengthUtf8(v: string): number {
   }
   try {
     const g = globalThis as GlobalWithBuffer;
-    if (g && typeof g.Buffer !== "undefined") return g.Buffer.from(v, "utf8").length;
+    if (typeof g?.Buffer !== "undefined") return g.Buffer.from(v, "utf8").length;
   } catch {
     // ignore
   }

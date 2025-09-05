@@ -41,13 +41,25 @@ export async function POST(req: NextRequest): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
-  } catch (error: unknown) {
+  } catch (authError: unknown) {
+    console.error("Google search POST - auth error:", authError);
     return err(401, "Unauthorized");
   }
 
+  let body: unknown;
   try {
-    const body = await req.json();
-    const { provider = "both", query, limit = 10 }: SearchOptions = body;
+    body = await req.json();
+  } catch (parseError: unknown) {
+    console.error("Google search POST - JSON parse error:", parseError);
+    return err(400, "invalid_json");
+  }
+
+  try {
+    const bodyRecord = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+    const bodyOptions = bodyRecord as Partial<SearchOptions>;
+    const provider = (bodyOptions.provider ?? "both") as Provider;
+    const query = bodyOptions.query as string;
+    const limit = bodyOptions.limit ?? 10;
 
     if (!query || typeof query !== "string" || query.trim().length === 0) {
       return err(400, "Query parameter is required and must be a non-empty string");
@@ -82,7 +94,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         results.calendar = {
           results: calendarResults.map((result) => ({
             type: "calendar_event",
-            event: result.event,
+            event: result.event as unknown,
             similarity: Math.round(result.similarity * 100) / 100,
             preview: result.textContent.substring(0, 200) + "...",
             source: "calendar",
@@ -134,8 +146,8 @@ export async function POST(req: NextRequest): Promise<Response> {
         userId,
         provider,
         totalResults: results.total,
-        calendarResults: results.calendar?.count || 0,
-        gmailResults: results.gmail?.count || 0,
+        calendarResults: results.calendar?.count ?? 0,
+        gmailResults: results.gmail?.count ?? 0,
       },
       "google_search_completed",
     );

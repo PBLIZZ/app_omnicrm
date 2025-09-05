@@ -1,25 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getDb } from "@/server/db/client";
 import { notes } from "@/server/db/schema";
 import { getServerUserId } from "@/server/auth/user";
+import { ok, err } from "@/lib/api/http";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
+): Promise<Response> {
   try {
     const userId = await getServerUserId();
 
     const { id: contactId } = await params;
-    const body = await request.json();
+    const body = (await request.json()) as { content?: string };
     const { content } = body;
 
     if (!contactId) {
-      return NextResponse.json({ error: "Contact ID is required" }, { status: 400 });
+      return err(400, "Contact ID is required");
     }
 
     if (!content || typeof content !== "string" || content.trim().length === 0) {
-      return NextResponse.json({ error: "Note content is required" }, { status: 400 });
+      return err(400, "Note content is required");
     }
 
     const db = await getDb();
@@ -32,9 +33,9 @@ export async function POST(
       })
       .returning();
 
-    return NextResponse.json(newNote[0]);
+    return ok(newNote[0]);
   } catch (error) {
     console.error("Error creating note:", error);
-    return NextResponse.json({ error: "Failed to create note" }, { status: 500 });
+    return err(500, "Failed to create note");
   }
 }

@@ -8,6 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { err } from "@/lib/api/http";
 import { encryptString, hmacVerify } from "@/lib/crypto";
 import { getServerUserId } from "@/server/auth/user";
+import { z } from "zod";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const db = await getDb();
@@ -29,26 +30,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return err(status, message);
   }
 
+  const stateSchema = z.object({
+    n: z.string().min(18).max(50), // Enforce nonce length requirements
+    s: z.enum(["gmail", "calendar"]), // Strict service validation
+  });
+
   let parsed: { n: string; s: string };
   try {
     const parsedState = JSON.parse(stateRaw) as unknown;
-    // Type guard to ensure parsed state has expected structure
-    if (
-      typeof parsedState === "object" &&
-      parsedState !== null &&
-      "n" in parsedState &&
-      "s" in parsedState
-    ) {
-      parsed = parsedState as { n: string; s: string };
-    } else {
-      return err(400, "invalid_state");
-    }
+    parsed = stateSchema.parse(parsedState);
   } catch {
-    return err(400, "invalid_state");
+    return err(400, "invalid_state_format");
   }
-  if (typeof parsed?.n !== "string" || typeof parsed?.s !== "string") {
-    return err(400, "invalid_state");
-  }
+
   if (parsed.s !== "gmail") {
     return err(400, "invalid_state");
   }
@@ -68,7 +62,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   const { tokens } = await oauth2Client.getToken(code);
-  const accessToken = tokens.access_token!;
+  const accessToken = tokens.access_token;
+  if (!accessToken) {
+    throw new Error("Google OAuth did not return an access token");
+  }
   const refreshToken = tokens.refresh_token ?? null;
   const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
 

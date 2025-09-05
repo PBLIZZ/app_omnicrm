@@ -21,7 +21,7 @@ const UpdateTaskSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ): Promise<Response> {
   let userId: string;
   try {
@@ -41,7 +41,7 @@ export async function GET(
 
     // Get subtasks if any
     const subtasks = await tasksStorage.getSubtasks(taskId, userId);
-    
+
     return ok({ task, subtasks });
   } catch (error) {
     console.error("Error fetching task:", error);
@@ -51,7 +51,7 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ): Promise<Response> {
   let userId: string;
   try {
@@ -62,7 +62,7 @@ export async function PUT(
   }
 
   const { taskId } = await params;
-  
+
   const body = (await safeJson<unknown>(req)) ?? {};
   const parsed = UpdateTaskSchema.safeParse(body);
   if (!parsed.success) {
@@ -76,18 +76,21 @@ export async function PUT(
       return err(404, "task_not_found");
     }
 
-    const updateData: Record<string, any> = { ...parsed.data };
-    if (parsed.data['dueDate']) {
-      updateData['dueDate'] = new Date(parsed.data['dueDate']).toISOString();
+    const updateData: Record<string, unknown> = { ...parsed.data };
+    if (parsed.data["dueDate"]) {
+      updateData["dueDate"] = new Date(parsed.data["dueDate"]).toISOString();
     }
-    if (parsed.data['completedAt']) {
-      updateData['completedAt'] = new Date(parsed.data['completedAt']).toISOString();
+    if (parsed.data["completedAt"]) {
+      updateData["completedAt"] = new Date(parsed.data["completedAt"]).toISOString();
     }
-    
+
     await tasksStorage.updateTask(taskId, userId, updateData);
 
     // Record action for AI training if significant changes
-    if (originalTask.approvalStatus === "pending_approval" && parsed.data.approvalStatus === "approved") {
+    if (
+      originalTask.approvalStatus === "pending_approval" &&
+      parsed.data.approvalStatus === "approved"
+    ) {
       await tasksStorage.createTaskAction(userId, {
         momentumId: taskId,
         action: "edited",
@@ -106,7 +109,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ): Promise<Response> {
   let userId: string;
   try {

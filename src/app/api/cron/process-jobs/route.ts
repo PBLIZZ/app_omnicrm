@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { ok, err } from "@/lib/api/http";
 import { JobRunner } from "@/server/jobs/runner";
+import { logger } from "@/lib/observability/unified-logger";
 
 /**
  * This is the API endpoint that our Supabase cron job will call.
@@ -8,45 +10,40 @@ import { JobRunner } from "@/server/jobs/runner";
 export async function POST(req: NextRequest): Promise<Response> {
   // 1. --- Secure the Endpoint ---
   // This is critical. We only want to allow requests from our own cron job.
-  const authToken = (req.headers.get("authorization") || "").split("Bearer ").at(1);
+  const authToken = (req.headers.get("authorization") ?? "").split("Bearer ").at(1);
 
   if (authToken !== process.env["CRON_SECRET"]) {
     console.warn("CRON - Unauthorized access attempt");
-    return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+    return err(401, "unauthorized");
   }
 
   // 2. --- Run the Job Processor ---
   try {
-    console.log("CRON - Job processor starting...");
+    logger.info("CRON - Job processor starting...", { operation: "cron_job_start" });
     const runner = new JobRunner();
 
     // Process pending jobs using the new cron-based approach
     const result = await runner.processPendingJobs();
 
-    console.log(
+    logger.info(
       `CRON - Job processor finished. Processed: ${result.processed}, Failed: ${result.failed}`,
+      {
+        operation: "cron_job_complete",
+        processed: result.processed,
+        failed: result.failed,
+      },
     );
 
-    return NextResponse.json({
+    return ok({
       success: true,
       message: "Job processor ran successfully.",
       ...result,
     });
   } catch (error) {
     console.error("CRON - A critical error occurred in the job runner:", error);
-    return new NextResponse(
-      JSON.stringify({
-        success: false,
-        error: "runner_exception",
-        message: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return err(500, "runner_exception", {
+      success: false,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 }

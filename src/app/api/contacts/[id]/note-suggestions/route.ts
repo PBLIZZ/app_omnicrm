@@ -1,36 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ContactAIActionsService } from '@/server/services/contact-ai-actions.service';
-import { getServerUserId } from '@/server/auth/user';
+import { NextRequest } from "next/server";
+import { ContactAIActionsService } from "@/server/services/contact-ai-actions.service";
+import { getServerUserId } from "@/server/auth/user";
+import { ok, err } from "@/lib/api/http";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
   try {
     const userId = await getServerUserId();
-    
+
     const { id: contactId } = await params;
-    
+
     if (!contactId) {
-      return NextResponse.json({ error: 'Contact ID is required' }, { status: 400 });
+      return err(400, "Contact ID is required");
     }
 
     const noteSuggestions = await ContactAIActionsService.generateNoteSuggestions(
-      userId, 
-      contactId
+      userId,
+      contactId,
     );
 
-    return NextResponse.json({ suggestions: noteSuggestions });
+    return ok({ suggestions: noteSuggestions });
   } catch (error) {
-    console.error('Error generating note suggestions:', error);
-    
-    if (error instanceof Error && error.message === 'Contact not found') {
-      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+    console.error("Error generating note suggestions:", error);
+
+    if (error instanceof Error && error.message === "Contact not found") {
+      return err(404, "Contact not found");
     }
-    
-    return NextResponse.json(
-      { error: 'Failed to generate note suggestions' }, 
-      { status: 500 }
-    );
+
+    return err(500, "Failed to generate note suggestions");
   }
 }

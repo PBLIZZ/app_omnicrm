@@ -3,12 +3,13 @@ import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/lib/api/http";
 import { MomentumStorage } from "@/server/storage/momentum.storage";
-
-const momentumStorage = new MomentumStorage();
 import { getDb } from "@/server/db/client";
 import { momentumWorkspaces } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { logger } from "@/lib/observability/unified-logger";
+
+const momentumStorage = new MomentumStorage();
 
 const CreateTaskSchema = z.object({
   title: z.string().min(1, "Task title is required"),
@@ -24,8 +25,17 @@ const CreateTaskSchema = z.object({
   taggedContacts: z.array(z.string().uuid()).optional(),
   dueDate: z.string().datetime().optional(),
   estimatedMinutes: z.number().int().min(0).optional(),
-  aiContext: z.any().optional(),
+  aiContext: z.record(z.unknown()).optional(),
 });
+
+interface TaskFilters {
+  workspaceId?: string;
+  projectId?: string;
+  status?: string;
+  assignee?: string;
+  approvalStatus?: string;
+  parentTaskId?: string | null;
+}
 
 export async function GET(req: NextRequest): Promise<Response> {
   let userId: string;
@@ -37,15 +47,18 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   const { searchParams } = new URL(req.url);
-  const filters: any = {};
-  if (searchParams.get("workspaceId")) filters.workspaceId = searchParams.get("workspaceId");
-  if (searchParams.get("projectId")) filters.projectId = searchParams.get("projectId");
-  if (searchParams.get("status")) filters.status = searchParams.get("status");
-  if (searchParams.get("assignee")) filters.assignee = searchParams.get("assignee");
-  if (searchParams.get("approvalStatus"))
-    filters.approvalStatus = searchParams.get("approvalStatus");
-  if (searchParams.has("parentTaskId"))
-    filters.parentTaskId = searchParams.get("parentTaskId") || null;
+  const filters: TaskFilters = {};
+  const workspaceId = searchParams.get("workspaceId");
+  if (workspaceId) filters.workspaceId = workspaceId;
+  const projectId = searchParams.get("projectId");
+  if (projectId) filters.projectId = projectId;
+  const status = searchParams.get("status");
+  if (status) filters.status = status;
+  const assignee = searchParams.get("assignee");
+  if (assignee) filters.assignee = assignee;
+  const approvalStatus = searchParams.get("approvalStatus");
+  if (approvalStatus) filters.approvalStatus = approvalStatus;
+  if (searchParams.has("parentTaskId")) filters.parentTaskId = searchParams.get("parentTaskId");
 
   const withContacts = searchParams.get("withContacts") === "true";
 
@@ -105,11 +118,11 @@ export async function POST(req: NextRequest): Promise<Response> {
       workspaceId = defaultWorkspace?.id;
     }
 
-    console.log("Creating task with data:", {
+    logger.info("Creating task", {
+      operation: "create_task",
       workspaceId,
       projectId: parsed.data.projectId ?? null,
-      title: parsed.data.title,
-      description: parsed.data.description ?? null,
+      title: parsed.data.title.substring(0, 50), // Truncate for logs
     });
 
     const task = await momentumStorage.createMomentum(userId, {

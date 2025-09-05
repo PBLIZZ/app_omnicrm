@@ -29,15 +29,16 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     const body = (await safeJson<unknown>(request)) ?? {};
-    const { 
+    const bodyObj = body as Record<string, unknown>;
+    const {
       action = "process_single",
       rawEventId,
       batchId,
       maxItems = 10,
       generateWeekly = false,
       retentionDays = 90,
-      keepHighValue = true
-    } = body as any;
+      keepHighValue = true,
+    } = bodyObj;
 
     const db = await getDb();
 
@@ -53,10 +54,10 @@ export async function POST(request: NextRequest): Promise<Response> {
           .from(rawEvents)
           .where(
             and(
-              eq(rawEvents.id, rawEventId),
+              eq(rawEvents.id, rawEventId as string),
               eq(rawEvents.userId, userId),
-              eq(rawEvents.provider, "gmail")
-            )
+              eq(rawEvents.provider, "gmail"),
+            ),
           )
           .limit(1);
 
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         // Process immediately
-        const intelligence = await processEmailIntelligence(userId, rawEventId);
+        const intelligence = await processEmailIntelligence(userId, rawEventId as string);
 
         log.info(
           {
@@ -75,13 +76,13 @@ export async function POST(request: NextRequest): Promise<Response> {
             category: intelligence.classification.primaryCategory,
             businessRelevance: intelligence.classification.businessRelevance,
           },
-          "Single email intelligence processed via admin API"
+          "Single email intelligence processed via admin API",
         );
 
         return ok({
           success: true,
           data: {
-            rawEventId,
+            rawEventId: rawEventId as string,
             intelligence,
             processingTime: intelligence.processingMeta.processedAt,
           },
@@ -90,18 +91,22 @@ export async function POST(request: NextRequest): Promise<Response> {
 
       case "enqueue_batch": {
         // Enqueue a batch processing job
-        await enqueue("email_intelligence_batch", {
-          batchId,
-          maxItems,
-          onlyUnprocessed: true,
-        }, userId);
+        await enqueue(
+          "email_intelligence_batch",
+          {
+            batchId: batchId as string,
+            maxItems: maxItems as number,
+            onlyUnprocessed: true,
+          },
+          userId,
+        );
 
         return ok({
           success: true,
           data: {
             action: "email_intelligence_batch",
-            batchId,
-            maxItems,
+            batchId: batchId as string,
+            maxItems: maxItems as number,
           },
         });
       }
@@ -121,7 +126,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             emailCount: digest.summary.totalEmails,
             businessRelevance: digest.summary.avgBusinessRelevance,
           },
-          "Weekly digest generated via admin API"
+          "Weekly digest generated via admin API",
         );
 
         return ok({
@@ -134,26 +139,34 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
 
       case "cleanup": {
-        await enqueue("email_intelligence_cleanup", {
-          retentionDays,
-          keepHighValue,
-        }, userId);
+        await enqueue(
+          "email_intelligence_cleanup",
+          {
+            retentionDays: retentionDays as number,
+            keepHighValue: keepHighValue as boolean,
+          },
+          userId,
+        );
 
         return ok({
           success: true,
           data: {
             action: "email_intelligence_cleanup",
-            retentionDays,
-            keepHighValue,
+            retentionDays: retentionDays as number,
+            keepHighValue: keepHighValue as boolean,
           },
         });
       }
 
       default:
-        return err(400, `Unknown action: ${action}. Available: process_single, enqueue_batch, weekly_digest, cleanup`);
+        return err(
+          400,
+          `Unknown action: ${action}. Available: process_single, enqueue_batch, weekly_digest, cleanup`,
+        );
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to process email intelligence";
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to process email intelligence";
     return err(500, errorMessage);
   }
 }
@@ -173,14 +186,14 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") || "20", 10);
-    const daysBack = parseInt(searchParams.get("days") || "7", 10);
+    const limit = parseInt(searchParams.get("limit") ?? "20", 10);
+    const daysBack = parseInt(searchParams.get("days") ?? "7", 10);
 
     const db = await getDb();
 
     // Get recent raw Gmail events
     const cutoffDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
-    
+
     const recentGmailEvents = await db
       .select({
         id: rawEvents.id,
@@ -193,8 +206,8 @@ export async function GET(request: NextRequest): Promise<Response> {
         and(
           eq(rawEvents.userId, userId),
           eq(rawEvents.provider, "gmail"),
-          sql`${rawEvents.occurredAt} >= ${cutoffDate.toISOString()}`
-        )
+          sql`${rawEvents.occurredAt} >= ${cutoffDate.toISOString()}`,
+        ),
       )
       .orderBy(desc(rawEvents.occurredAt))
       .limit(limit);
@@ -213,7 +226,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         AND created_at >= ${cutoffDate.toISOString()}
     `);
 
-    const stats = insightsStats[0] || {};
+    const stats = (insightsStats[0] as Record<string, unknown>) ?? {};
 
     // Get job status for email intelligence jobs
     const recentJobs = await db
@@ -230,8 +243,8 @@ export async function GET(request: NextRequest): Promise<Response> {
         and(
           eq(jobs.userId, userId),
           sql`${jobs.kind} LIKE 'email_intelligence%'`,
-          sql`${jobs.createdAt} >= ${cutoffDate.toISOString()}`
-        )
+          sql`${jobs.createdAt} >= ${cutoffDate.toISOString()}`,
+        ),
       )
       .orderBy(desc(jobs.createdAt))
       .limit(10);
@@ -241,11 +254,11 @@ export async function GET(request: NextRequest): Promise<Response> {
       data: {
         statistics: {
           totalGmailEvents: recentGmailEvents.length,
-          totalInsights: Number(stats["total_insights"] || 0),
-          clientEmails: Number(stats["client_emails"] || 0),
-          businessEmails: Number(stats["business_emails"] || 0),
-          avgBusinessRelevance: Number(stats["avg_business_relevance"] || 0),
-          matchedContacts: Number(stats["matched_contacts"] || 0),
+          totalInsights: Number(stats["total_insights"] ?? 0),
+          clientEmails: Number(stats["client_emails"] ?? 0),
+          businessEmails: Number(stats["business_emails"] ?? 0),
+          avgBusinessRelevance: Number(stats["avg_business_relevance"] ?? 0),
+          matchedContacts: Number(stats["matched_contacts"] ?? 0),
           timeframe: {
             startDate: cutoffDate.toISOString(),
             endDate: new Date().toISOString(),
@@ -257,7 +270,8 @@ export async function GET(request: NextRequest): Promise<Response> {
       },
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to get email intelligence statistics";
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to get email intelligence statistics";
     return err(500, errorMessage);
   }
 }

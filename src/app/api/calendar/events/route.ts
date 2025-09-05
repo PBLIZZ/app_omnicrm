@@ -1,45 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
+import { ok, err } from "@/lib/api/http";
 import { getServerUserId } from "@/server/auth/user";
 import { getGoogleClients } from "@/server/google/client";
 
 // GET: Return all calendar events for business intelligence
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
   } catch (error) {
     console.error("Calendar events GET - auth error:", error);
-    return new NextResponse(
-      JSON.stringify({
-        error: "unauthorized",
-        details: error instanceof Error ? error.message : "Authentication failed",
-      }),
-      {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return err(401, "unauthorized", {
+      details: error instanceof Error ? error.message : "Authentication failed",
+    });
   }
 
   try {
     // Check if user has Google Calendar integration
     try {
       await getGoogleClients(userId);
-    } catch (error: any) {
-      if (error?.status === 401 || error?.message === "google_not_connected") {
-        return NextResponse.json({
+    } catch (error: unknown) {
+      const err_obj = error as { status?: number; message?: string };
+      if (err_obj?.status === 401 || err_obj?.message === "google_not_connected") {
+        return ok({
           isConnected: false,
           events: [],
-        }, { status: 200 });
+        });
       }
       throw error;
     }
 
     // Get all calendar events from database for BI analysis
     try {
-      const { listCalendarEventsService } = await import(
-        "@/server/services/calendar.service"
-      );
+      const { listCalendarEventsService } = await import("@/server/services/calendar.service");
 
       // Get events from a wider range for BI analysis (last 30 days to next 90 days)
       const startDate = new Date();
@@ -53,7 +45,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         toDate: endDate,
       });
 
-      return NextResponse.json({
+      return ok({
         isConnected: true,
         events: eventsResult.items.map((event) => ({
           id: event.id,
@@ -69,16 +61,16 @@ export async function GET(req: NextRequest): Promise<Response> {
       });
     } catch (serviceError) {
       console.error("Calendar events GET - database error:", serviceError);
-      
+
       // Return empty data for service errors
-      return NextResponse.json({
+      return ok({
         isConnected: true,
         events: [],
         totalCount: 0,
       });
     }
   } catch (error) {
-    console.log("Calendar events GET - database error:", error);
-    return new NextResponse("database_error", { status: 500 });
+    console.error("Calendar events GET - database error:", error);
+    return err(500, "database_error");
   }
 }

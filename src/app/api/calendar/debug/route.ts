@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { ok, err } from "@/lib/api/http";
 import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 
 // GET: Debug Google Calendar integration status
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   try {
     const userId = await getServerUserId();
     const db = await getDb();
@@ -26,35 +26,32 @@ export async function GET(req: NextRequest): Promise<Response> {
       AND service = 'calendar'
     `);
 
-    const rows = (integration as unknown as { rows: any[] }).rows;
-    
+    const rows = (integration as unknown as { rows: Array<Record<string, unknown>> }).rows;
+
     // Check if tokens are expired
     const now = new Date();
     const integrationData = rows[0];
-    let tokenStatus = 'not_found';
-    
+    let tokenStatus = "not_found";
+
     if (integrationData) {
-      if (integrationData.expiry_date && new Date(integrationData.expiry_date) < now) {
-        tokenStatus = 'expired';
+      if (
+        integrationData["expiry_date"] &&
+        new Date(integrationData["expiry_date"] as string) < now
+      ) {
+        tokenStatus = "expired";
       } else {
-        tokenStatus = 'valid';
+        tokenStatus = "valid";
       }
     }
 
-    return NextResponse.json({
-      ok: true,
-      data: {
-        hasIntegration: !!integrationData,
-        tokenStatus,
-        integration: integrationData || null,
-        currentTime: now.toISOString(),
-      },
+    return ok({
+      hasIntegration: !!integrationData,
+      tokenStatus,
+      integration: integrationData ?? null,
+      currentTime: now.toISOString(),
     });
   } catch (error) {
     console.error("Debug endpoint error:", error);
-    return NextResponse.json({
-      ok: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    }, { status: 500 });
+    return err(500, error instanceof Error ? error.message : "Unknown error");
   }
 }

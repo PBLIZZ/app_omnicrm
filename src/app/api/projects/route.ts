@@ -26,7 +26,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   const { searchParams } = new URL(req.url);
-  const workspaceId = searchParams.get("workspaceId") || undefined;
+  const workspaceId = searchParams.get("workspaceId") ?? undefined;
 
   try {
     const projects = await momentumStorage.getMomentumProjects(userId, workspaceId);

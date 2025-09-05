@@ -1,9 +1,8 @@
-import { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { getSql } from "@/server/db/client";
 import { err, ok } from "@/lib/api/http";
 
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   try {
     const userId = await getServerUserId();
     const sql = getSql();
@@ -50,7 +49,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     return ok({
       success: true,
       message: "Direct SQL insert successful",
-      insertedId: result[0]?.["id"],
+      insertedId: (result[0] as Record<string, unknown>)?.["id"] as string,
       userId,
     });
   } catch (error) {

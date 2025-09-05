@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/lib/api/http";
@@ -12,25 +11,25 @@ const CreateThreadSchema = z.object({
 
 function generateThreadTitle(message?: string): string {
   if (!message) return "New Chat";
-  
+
   // Clean and truncate the message to create a meaningful title
-  const cleaned = message.trim().replace(/\n+/g, ' ').replace(/\s+/g, ' ');
+  const cleaned = message.trim().replace(/\n+/g, " ").replace(/\s+/g, " ");
   if (cleaned.length <= 40) {
     return cleaned;
   }
-  
+
   // Try to break at a word boundary
   const truncated = cleaned.substring(0, 40);
-  const lastSpace = truncated.lastIndexOf(' ');
-  
+  const lastSpace = truncated.lastIndexOf(" ");
+
   if (lastSpace > 20) {
-    return truncated.substring(0, lastSpace) + '...';
+    return truncated.substring(0, lastSpace) + "...";
   }
-  
-  return truncated + '...';
+
+  return truncated + "...";
 }
 
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -48,7 +47,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 }
 
-export async function POST(req: NextRequest): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -57,14 +56,14 @@ export async function POST(req: NextRequest): Promise<Response> {
     return err(error?.status ?? 401, error?.message ?? "unauthorized");
   }
 
-  const body = (await safeJson<unknown>(req)) ?? {};
+  const body = (await safeJson<unknown>(request)) ?? {};
   const parsed = CreateThreadSchema.safeParse(body);
   if (!parsed.success) {
     return err(400, "invalid_body", parsed.error.flatten());
   }
 
   try {
-    const title = parsed.data.title || generateThreadTitle(parsed.data.message);
+    const title = parsed.data.title ?? generateThreadTitle(parsed.data.message);
     const thread = await chatStorage.createThread(userId, title);
     return ok({ thread });
   } catch (error) {

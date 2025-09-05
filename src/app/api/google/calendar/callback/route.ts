@@ -69,7 +69,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
-    const accessToken = tokens.access_token!;
+    const accessToken = tokens.access_token;
+    if (!accessToken) {
+      throw new Error("Google OAuth did not return an access token");
+    }
     const refreshToken = tokens.refresh_token ?? null;
     const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
 

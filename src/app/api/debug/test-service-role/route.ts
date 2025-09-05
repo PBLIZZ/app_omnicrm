@@ -1,9 +1,8 @@
-import { NextRequest } from "next/server";
 import { supaAdminGuard } from "@/lib/supabase/admin";
 import { getServerUserId } from "@/server/auth/user";
 import { err, ok } from "@/lib/api/http";
 
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   try {
     const userId = await getServerUserId();
 
@@ -38,7 +37,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 }
 
-export async function DELETE(req: NextRequest): Promise<Response> {
+export async function DELETE(): Promise<Response> {
   try {
     const userId = await getServerUserId();
 

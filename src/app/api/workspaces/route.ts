@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import "@/lib/zod-error-map";
 import { getServerUserId } from "@/server/auth/user";
 import { ok, err, safeJson } from "@/lib/api/http";
@@ -12,7 +11,7 @@ const CreateWorkspaceSchema = z.object({
   isDefault: z.boolean().default(false),
 });
 
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -30,7 +29,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 }
 
-export async function POST(req: NextRequest): Promise<Response> {
+export async function POST(req: Request): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   try {
     const workspace = await momentumStorage.createMomentumWorkspace(userId, {
       name: parsed.data.name,
-      description: parsed.data.description || null,
+      description: parsed.data.description ?? null,
       color: parsed.data.color,
       isDefault: parsed.data.isDefault,
     });

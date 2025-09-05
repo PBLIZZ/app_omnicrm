@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { CalendarEmbeddingService } from "@/server/services/calendar-embedding.service";
 import { err, ok } from "@/lib/api/http";
@@ -8,16 +7,17 @@ type Provider = "calendar" | "gmail" | "both";
 type Timeframe = "week" | "month" | "quarter";
 
 // GET: Get AI insights from Google data (calendar, gmail, or both)
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
-  } catch (error: unknown) {
+  } catch (authError: unknown) {
+    console.error("Google insights GET - auth error:", authError);
     return err(401, "Unauthorized");
   }
 
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const provider = (searchParams.get("provider") as Provider) || "both";
     const timeframe = (searchParams.get("timeframe") as Timeframe) || "month";
 
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       "google_insights_started",
     );
 
-    const insights: any = {
+    const insights: Record<string, unknown> = {
       provider,
       timeframe,
       generatedAt: new Date().toISOString(),

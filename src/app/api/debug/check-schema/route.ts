@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { err, ok } from "@/lib/api/http";
@@ -10,7 +9,7 @@ type ColumnInfoRow = {
   is_nullable: "YES" | "NO";
 };
 
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   try {
     const userId = await getServerUserId();
     const db = await getDb();
@@ -40,7 +39,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 }
 
-export async function POST(req: NextRequest): Promise<Response> {
+export async function POST(): Promise<Response> {
   try {
     const userId = await getServerUserId();
     const db = await getDb();

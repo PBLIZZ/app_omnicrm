@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { CalendarEmbeddingService } from "@/server/services/calendar-embedding.service";
 import { err, ok } from "@/lib/api/http";
@@ -11,17 +10,22 @@ interface EmbedOptions {
 }
 
 // POST: Generate embeddings for Google data (calendar, gmail, or both)
-export async function POST(req: NextRequest): Promise<Response> {
+export async function POST(req: Request): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
-  } catch (error: unknown) {
+  } catch (authError: unknown) {
+    console.error("Google embed POST - auth error:", authError);
     return err(401, "Unauthorized");
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const { provider = "both", regenerate = false, limit = 100 }: EmbedOptions = body;
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const {
+      provider = "both",
+      regenerate = false,
+      limit = 100,
+    }: EmbedOptions = body as EmbedOptions;
 
     log.info(
       {
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
 
     let totalProcessedEvents = 0;
-    let errors: string[] = [];
+    const errors: string[] = [];
 
     // Process calendar embeddings
     if (provider === "calendar" || provider === "both") {

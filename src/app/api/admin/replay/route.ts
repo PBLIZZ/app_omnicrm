@@ -1,55 +1,53 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/server/db/client';
-import { sql } from 'drizzle-orm';
-import { QueueManager } from '@/server/jobs/queue-manager';
-import { supabaseServerAdmin } from '@/lib/supabase/server';
+import { NextRequest } from "next/server";
+import { ok, err } from "@/lib/api/http";
+import { getDb } from "@/server/db/client";
+import { sql } from "drizzle-orm";
+import { QueueManager } from "@/server/jobs/queue-manager";
+import { supabaseServerAdmin } from "@/lib/supabase/server";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<Response> {
   try {
     // Get authenticated user using admin client
     if (!supabaseServerAdmin) {
-      return NextResponse.json({ error: 'Admin client not configured' }, { status: 500 });
+      return err(500, "Admin client not configured");
     }
-    
-    const { data: { user }, error: authError } = await supabaseServerAdmin.auth.getUser();
-    
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseServerAdmin.auth.getUser();
+
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return err(401, "Unauthorized");
     }
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
-    const provider = searchParams.get('provider') || 'gmail,google_calendar';
-    const days = parseInt(searchParams.get('days') || '30', 10);
-    const batchSize = parseInt(searchParams.get('batchSize') || '50', 10);
-    const dryRun = searchParams.get('dryRun') === 'true';
+    const provider = searchParams.get("provider") ?? "gmail,google_calendar";
+    const days = parseInt(searchParams.get("days") ?? "30", 10);
+    const batchSize = parseInt(searchParams.get("batchSize") ?? "50", 10);
+    const dryRun = searchParams.get("dryRun") === "true";
 
     // Validate parameters
     if (days > 90 || days < 1) {
-      return NextResponse.json({ 
-        error: 'Days must be between 1 and 90' 
-      }, { status: 400 });
+      return err(400, "Days must be between 1 and 90");
     }
 
     if (batchSize > 200 || batchSize < 1) {
-      return NextResponse.json({ 
-        error: 'Batch size must be between 1 and 200' 
-      }, { status: 400 });
+      return err(400, "Batch size must be between 1 and 200");
     }
 
-    const providers = provider.split(',').map(p => p.trim());
-    const validProviders = ['gmail', 'google_calendar', 'twilio'];
-    const invalidProviders = providers.filter(p => !validProviders.includes(p));
-    
+    const providers = provider.split(",").map((p) => p.trim());
+    const validProviders = ["gmail", "google_calendar", "twilio"];
+    const invalidProviders = providers.filter((p) => !validProviders.includes(p));
+
     if (invalidProviders.length > 0) {
-      return NextResponse.json({ 
-        error: `Invalid providers: ${invalidProviders.join(', ')}` 
-      }, { status: 400 });
+      return err(400, `Invalid providers: ${invalidProviders.join(", ")}`);
     }
 
     // Get unprocessed raw events
     const db = await getDb();
-    
+
     const rawEvents = await db.execute(sql`
       SELECT id, provider, created_at
       FROM raw_events
@@ -61,50 +59,54 @@ export async function POST(request: NextRequest) {
     `);
 
     if (rawEvents.length === 0) {
-      return NextResponse.json({
-        message: 'No events found to replay',
+      return ok({
+        message: "No events found to replay",
         stats: {
           found: 0,
           queued: 0,
           batchId: null,
-        }
+        },
       });
     }
 
     // If dry run, just return what would be processed
     if (dryRun) {
-      const providerStats = providers.reduce((stats, p) => {
-        stats[p] = rawEvents.filter(e => (e as any).provider === p).length;
-        return stats;
-      }, {} as Record<string, number>);
+      const providerStats = providers.reduce(
+        (stats, p) => {
+          stats[p] = rawEvents.filter(
+            (e) => (e as Record<string, unknown>)["provider"] === p,
+          ).length;
+          return stats;
+        },
+        {} as Record<string, number>,
+      );
 
-      return NextResponse.json({
-        message: 'Dry run completed',
+      return ok({
+        message: "Dry run completed",
         stats: {
           found: rawEvents.length,
           queued: 0,
           providers: providerStats,
           batchId: null,
-        }
+        },
       });
     }
 
     // Enqueue processing jobs in batches
     const queueManager = new QueueManager();
-    const batchJobs: Array<{ payload: any; options?: any }> = [];
+    const batchJobs: Array<{
+      payload: Record<string, unknown>;
+      options?: Record<string, unknown>;
+    }> = [];
 
     for (const rawEvent of rawEvents.slice(0, batchSize)) {
       batchJobs.push({
-        payload: { rawEventId: (rawEvent as any).id },
-        options: { priority: 'medium' }
+        payload: { rawEventId: (rawEvent as Record<string, unknown>)["id"] },
+        options: { priority: "medium" },
       });
     }
 
-    const jobIds = await queueManager.enqueueBatchJob(
-      user.id,
-      'normalize',
-      batchJobs
-    );
+    const jobIds = await queueManager.enqueueBatchJob(user.id, "normalize", batchJobs);
 
     // Log the replay operation
     await db.execute(sql`
@@ -118,46 +120,47 @@ export async function POST(request: NextRequest) {
           days,
           batchSize,
           eventsQueued: jobIds.length,
-          batchId: jobIds.length > 0 ? jobIds[0]?.split('_')[0] || null : null
+          batchId: jobIds.length > 0 ? (jobIds[0]?.split("_")[0] ?? null) : null,
         })}
       )
     `);
 
-    return NextResponse.json({
+    return ok({
       message: `Successfully queued ${jobIds.length} events for replay`,
       stats: {
         found: rawEvents.length,
         queued: jobIds.length,
-        batchId: jobIds.length > 0 ? jobIds[0]?.split('_')[0] || null : null,
+        batchId: jobIds.length > 0 ? (jobIds[0]?.split("_")[0] ?? null) : null,
         jobIds: jobIds.slice(0, 10), // Return first 10 job IDs
-      }
+      },
     });
-
   } catch (error) {
-    console.error('Replay API error:', error);
-    return NextResponse.json({
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    console.error("Replay API error:", error);
+    return err(500, "Internal server error", {
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<Response> {
   try {
     // Get authenticated user using admin client
     if (!supabaseServerAdmin) {
-      return NextResponse.json({ error: 'Admin client not configured' }, { status: 500 });
+      return err(500, "Admin client not configured");
     }
-    
-    const { data: { user }, error: authError } = await supabaseServerAdmin.auth.getUser();
-    
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseServerAdmin.auth.getUser();
+
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return err(401, "Unauthorized");
     }
 
     // Get replay status and statistics
     const { searchParams } = new URL(request.url);
-    const batchId = searchParams.get('batchId');
+    const batchId = searchParams.get("batchId");
 
     const db = await getDb();
 
@@ -193,26 +196,30 @@ export async function GET(request: NextRequest) {
       batchStatus = await queueManager.getBatchStatus(batchId);
     }
 
-    return NextResponse.json({
-      providerStats: overallStats.map(row => ({
-        provider: (row as any).provider,
-        totalEvents: parseInt((row as any).total_events, 10),
-        oldestEvent: (row as any).oldest_event,
-        newestEvent: (row as any).newest_event,
-      })),
-      recentReplays: recentReplays.map(row => ({
-        createdAt: (row as any).created_at,
-        action: (row as any).action,
-        payload: (row as any).payload,
-      })),
+    return ok({
+      providerStats: overallStats.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          provider: r["provider"] as string,
+          totalEvents: parseInt(r["total_events"] as string, 10),
+          oldestEvent: r["oldest_event"] as string,
+          newestEvent: r["newest_event"] as string,
+        };
+      }),
+      recentReplays: recentReplays.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          createdAt: r["created_at"] as string,
+          action: r["action"] as string,
+          payload: r["payload"] as Record<string, unknown>,
+        };
+      }),
       batchStatus,
     });
-
   } catch (error) {
-    console.error('Replay status API error:', error);
-    return NextResponse.json({
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    console.error("Replay status API error:", error);
+    return err(500, "Internal server error", {
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 }

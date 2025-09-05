@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { ok, err } from "@/lib/api/http";
 import { eq, and } from "drizzle-orm";
 import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
@@ -10,16 +10,9 @@ export async function GET(): Promise<Response> {
   try {
     userId = await getServerUserId();
   } catch (error) {
-    return new NextResponse(
-      JSON.stringify({
-        error: "unauthorized",
-        details: error instanceof Error ? error.message : "Authentication failed",
-      }),
-      {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return err(401, "unauthorized", {
+      details: error instanceof Error ? error.message : "Authentication failed",
+    });
   }
 
   try {
@@ -38,19 +31,12 @@ export async function GET(): Promise<Response> {
       )
       .limit(1);
 
-    return NextResponse.json({
+    return ok({
       isConnected: !!integration[0],
     });
   } catch (error) {
-    return new NextResponse(
-      JSON.stringify({
-        error: "database_error",
-        details: error instanceof Error ? error.message : "Database error",
-      }),
-      { 
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return err(500, "database_error", {
+      details: error instanceof Error ? error.message : "Database error",
+    });
   }
 }

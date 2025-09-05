@@ -7,6 +7,7 @@ import { getDb } from "@/server/db/client";
 import { momentumWorkspaces } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { logger } from "@/lib/observability/unified-logger";
 
 const CreateMomentumSchema = z.object({
   title: z.string().min(1, "Momentum title is required"),
@@ -44,14 +45,22 @@ export async function GET(req: NextRequest): Promise<Response> {
     parentMomentumId?: string | null;
   } = {};
 
-  if (searchParams.get("workspaceId")) filters.workspaceId = searchParams.get("workspaceId")!;
-  if (searchParams.get("projectId")) filters.projectId = searchParams.get("projectId")!;
-  if (searchParams.get("status")) filters.status = searchParams.get("status")!;
-  if (searchParams.get("assignee")) filters.assignee = searchParams.get("assignee")!;
-  if (searchParams.get("approvalStatus"))
-    filters.approvalStatus = searchParams.get("approvalStatus")!;
+  const workspaceId = searchParams.get("workspaceId");
+  if (workspaceId) filters.workspaceId = workspaceId;
+
+  const projectId = searchParams.get("projectId");
+  if (projectId) filters.projectId = projectId;
+
+  const status = searchParams.get("status");
+  if (status) filters.status = status;
+
+  const assignee = searchParams.get("assignee");
+  if (assignee) filters.assignee = assignee;
+
+  const approvalStatus = searchParams.get("approvalStatus");
+  if (approvalStatus) filters.approvalStatus = approvalStatus;
   if (searchParams.has("parentMomentumId")) {
-    filters.parentMomentumId = searchParams.get("parentMomentumId") || null;
+    filters.parentMomentumId = searchParams.get("parentMomentumId") ?? null;
   }
 
   const withContacts = searchParams.get("withContacts") === "true";
@@ -106,34 +115,34 @@ export async function POST(req: NextRequest): Promise<Response> {
             isDefault: true,
           })
           .returning();
-        defaultWorkspace = newWorkspace[0] || undefined;
+        defaultWorkspace = newWorkspace[0] ?? undefined;
       }
 
       workspaceId = defaultWorkspace?.id;
     }
 
-    console.log("Creating momentum with data:", {
+    logger.info("Creating momentum", {
+      operation: "create_momentum",
       workspaceId,
-      projectId: parsed.data.projectId || null,
-      title: parsed.data.title,
-      description: parsed.data.description || null,
+      projectId: parsed.data.projectId ?? null,
+      title: parsed.data.title.substring(0, 50), // Truncate for logs
     });
 
     const momentum = await momentumStorage.createMomentum(userId, {
       momentumWorkspaceId: workspaceId,
-      momentumProjectId: parsed.data.projectId || null,
-      parentMomentumId: parsed.data.parentMomentumId || null,
+      momentumProjectId: parsed.data.projectId ?? null,
+      parentMomentumId: parsed.data.parentMomentumId ?? null,
       title: parsed.data.title,
-      description: parsed.data.description || null,
+      description: parsed.data.description ?? null,
       status: parsed.data.status,
       priority: parsed.data.priority,
       assignee: parsed.data.assignee,
       source: parsed.data.source,
       approvalStatus: parsed.data.approvalStatus,
-      taggedContacts: parsed.data.taggedContacts || null,
+      taggedContacts: parsed.data.taggedContacts ?? null,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      estimatedMinutes: parsed.data.estimatedMinutes || null,
-      aiContext: parsed.data.aiContext || null,
+      estimatedMinutes: parsed.data.estimatedMinutes ?? null,
+      aiContext: parsed.data.aiContext ?? null,
     });
     return ok({ momentum });
   } catch (error) {

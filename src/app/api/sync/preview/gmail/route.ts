@@ -1,6 +1,5 @@
 /** POST /api/sync/preview/gmail — compute Gmail preview (auth required). Errors: 404 not_found, 401 Unauthorized, 500 preview_failed */
 // no NextResponse usage; responses via helpers
-import { NextRequest } from "next/server";
 import { getDb } from "@/server/db/client";
 import { userSyncPrefs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
@@ -11,6 +10,7 @@ import { err, ok } from "@/lib/api/http";
 import { z } from "zod";
 import { toApiError } from "@/server/jobs/types";
 import { log } from "@/lib/log";
+import { logger } from "@/lib/logger";
 
 const previewBodySchema = z
   .object({
@@ -18,7 +18,7 @@ const previewBodySchema = z
   })
   .strict();
 
-export async function POST(req: NextRequest): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   let userId: string;
   try {
     userId = await getServerUserId();
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         .from(userSyncPrefs)
         .where(eq(userSyncPrefs.userId, userId))
         .limit(1);
-      const prefsData = prefsRow[0] || null;
+      const prefsData = prefsRow[0] ?? null;
       prefs = prefsData
         ? {
             gmailQuery:
@@ -71,10 +71,10 @@ export async function POST(req: NextRequest): Promise<Response> {
         gmailLabelExcludes: ["Promotions", "Social", "Forums", "Updates"],
       };
     }
-    const raw: unknown = await req.json().catch(() => ({}));
+    const raw: unknown = await request.json().catch(() => ({}));
     previewBodySchema.parse(raw ?? {});
 
-    console.log(`Gmail preview: Starting for user ${userId} with prefs:`, {
+    logger.info(`Gmail preview: Starting for user ${userId} with prefs:`, {
       gmailQuery: prefs.gmailQuery,
       gmailLabelIncludes: prefs.gmailLabelIncludes,
       gmailLabelExcludes: prefs.gmailLabelExcludes,
@@ -98,11 +98,15 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
     // Safe property access for preview result logging
     const previewObj = preview as unknown as Record<string, unknown>;
-    const countByLabel = 'countByLabel' in previewObj ? previewObj['countByLabel'] : undefined;
-    const sampleSubjects = 'sampleSubjects' in previewObj && Array.isArray(previewObj['sampleSubjects']) 
-      ? previewObj['sampleSubjects'] as unknown[] : [];
-    
-    console.log(`Gmail preview: Final response being sent:`, {
+    const countByLabel = "countByLabel" in previewObj ? previewObj["countByLabel"] : undefined;
+    const sampleSubjects =
+      "sampleSubjects" in previewObj && Array.isArray(previewObj["sampleSubjects"])
+        ? (previewObj["sampleSubjects"] as unknown[])
+        : [];
+
+    logger.warn("Gmail preview metrics:", { pages, itemsFiltered, durationMs });
+
+    logger.warn(`Gmail preview: Final response being sent:`, {
       countByLabel,
       sampleSubjectsCount: sampleSubjects.length,
       sampleSubjects: sampleSubjects.slice(0, 3),

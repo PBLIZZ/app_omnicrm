@@ -20,9 +20,7 @@ export interface EmailIntelligenceJobPayload {
 /**
  * Process email intelligence for a single raw Gmail event
  */
-export async function runEmailIntelligence(
-  job: JobRecord<"email_intelligence">
-): Promise<void> {
+export async function runEmailIntelligence(job: JobRecord<"email_intelligence">): Promise<void> {
   const startTime = Date.now();
   const { rawEventId } = job.payload;
 
@@ -78,7 +76,7 @@ export async function runEmailIntelligence(
  * Batch process multiple raw events for email intelligence
  */
 export async function runEmailIntelligenceBatch(
-  job: JobRecord<"email_intelligence_batch">
+  job: JobRecord<"email_intelligence_batch">,
 ): Promise<void> {
   const startTime = Date.now();
   const { batchId, maxItems = 50 } = job.payload;
@@ -109,8 +107,8 @@ export async function runEmailIntelligenceBatch(
         and(
           eq(rawEvents.userId, job.userId),
           eq(rawEvents.provider, "gmail"),
-          ...(batchId ? [eq(rawEvents.batchId, batchId)] : [])
-        )
+          ...(batchId ? [eq(rawEvents.batchId, batchId)] : []),
+        ),
       )
       .limit(maxItems);
 
@@ -119,7 +117,7 @@ export async function runEmailIntelligenceBatch(
     const processedEventIds = new Set();
 
     if (unprocessedEvents.length > 0) {
-      const eventIds = unprocessedEvents.map(e => e.id);
+      const eventIds = unprocessedEvents.map((e) => e.id);
       const existingInsights = await db
         .select({ subjectId: aiInsights.subjectId })
         .from(aiInsights)
@@ -127,20 +125,18 @@ export async function runEmailIntelligenceBatch(
           and(
             eq(aiInsights.userId, job.userId),
             eq(aiInsights.kind, "email_intelligence"),
-            sql`${aiInsights.subjectId} = ANY(${eventIds})`
-          )
+            sql`${aiInsights.subjectId} = ANY(${eventIds})`,
+          ),
         );
 
-      existingInsights.forEach(insight => {
+      existingInsights.forEach((insight) => {
         if (insight.subjectId) {
           processedEventIds.add(insight.subjectId);
         }
       });
     }
 
-    const eventsToProcess = unprocessedEvents.filter(
-      event => !processedEventIds.has(event.id)
-    );
+    const eventsToProcess = unprocessedEvents.filter((event) => !processedEventIds.has(event.id));
 
     if (eventsToProcess.length === 0) {
       log.info(
@@ -170,18 +166,18 @@ export async function runEmailIntelligenceBatch(
       try {
         const intelligence = await processEmailIntelligence(job.userId, event.id);
         await storeEmailIntelligence(job.userId, event.id, intelligence);
-        
+
         results.push({
           eventId: event.id,
           success: true,
           category: intelligence.classification.primaryCategory,
           businessRelevance: intelligence.classification.businessRelevance,
         });
-        
+
         processedCount++;
 
         // Small delay to be respectful to LLM APIs
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         results.push({
@@ -189,9 +185,9 @@ export async function runEmailIntelligenceBatch(
           success: false,
           error: errorMessage,
         });
-        
+
         errorCount++;
-        
+
         log.warn(
           {
             op: "email_intelligence_batch.event_error",
@@ -224,14 +220,17 @@ export async function runEmailIntelligenceBatch(
 
     // Log summary of results
     const categoryStats = results
-      .filter(r => r.success && r.category)
-      .reduce((acc, r) => {
-        acc[r.category!] = (acc[r.category!] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      .filter((r) => r.success && r.category)
+      .reduce(
+        (acc, r) => {
+          acc[r.category!] = (acc[r.category!] ?? 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
 
     const avgBusinessRelevance = results
-      .filter(r => r.success && r.businessRelevance !== undefined)
+      .filter((r) => r.success && r.businessRelevance !== undefined)
       .reduce((sum, r, _, arr) => sum + r.businessRelevance! / arr.length, 0);
 
     log.info(
@@ -243,7 +242,6 @@ export async function runEmailIntelligenceBatch(
       },
       "Batch processing summary",
     );
-
   } catch (error) {
     const duration = Date.now() - startTime;
     log.error(
@@ -266,7 +264,7 @@ export async function runEmailIntelligenceBatch(
  * Keeps recent insights and high-value business intelligence
  */
 export async function runEmailIntelligenceCleanup(
-  job: JobRecord<"email_intelligence_cleanup">
+  job: JobRecord<"email_intelligence_cleanup">,
 ): Promise<void> {
   const startTime = Date.now();
   const { retentionDays = 90, keepHighValue = true } = job.payload;

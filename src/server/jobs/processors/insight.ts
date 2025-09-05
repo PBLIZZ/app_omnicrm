@@ -49,7 +49,6 @@ export interface InsightGenerationTask {
   context?: Record<string, unknown> | undefined;
 }
 
-
 /**
  * InsightWriter class - handles all insight generation and management
  * Merged functionality from insight-writer.ts
@@ -249,12 +248,12 @@ export class InsightWriter {
             }>)
           : [];
         return {
-          title: String(result["title"] || `${task.kind} insight`),
-          summary: String(result["summary"] || result["content"] || "Generated insight"),
-          confidence: Number(result["confidence"] || 0.7),
+          title: String(result["title"] ?? `${task.kind} insight`),
+          summary: String(result["summary"] ?? result["content"] ?? "Generated insight"),
+          confidence: Number(result["confidence"] ?? 0.7),
           tags: Array.isArray(result["tags"]) ? (result["tags"] as string[]) : [task.kind],
-          priority: (result["priority"] as "low" | "medium" | "high" | "critical") || "medium",
-          props: (result["props"] as Record<string, unknown>) || result,
+          priority: (result["priority"] as "low" | "medium" | "high" | "critical") ?? "medium",
+          props: (result["props"] as Record<string, unknown>) ?? result,
           actions,
         };
       }
@@ -344,10 +343,17 @@ export class InsightWriter {
 
     const hasRecentActivity = recentInteractions.length > 0;
     const lastInteractionDays = hasRecentActivity
-      ? Math.floor(
-          (Date.now() - new Date(recentInteractions[0]!.occurredAt).getTime()) /
-            (1000 * 60 * 60 * 24),
-        )
+      ? (() => {
+          const firstInteraction = recentInteractions[0];
+          if (!firstInteraction) {
+            throw new Error(
+              "Unexpected: recentInteractions has length > 0 but first element is undefined",
+            );
+          }
+          return Math.floor(
+            (Date.now() - new Date(firstInteraction.occurredAt).getTime()) / (1000 * 60 * 60 * 24),
+          );
+        })()
       : 999;
 
     let suggestion = "Follow up with contact";
@@ -365,7 +371,7 @@ export class InsightWriter {
       title: suggestion,
       summary: `Contact has ${recentInteractions.length} recent interactions. Last activity: ${lastInteractionDays} days ago.`,
       confidence: 0.7,
-      tags: ["follow-up", "engagement", contact.stage || "unknown"],
+      tags: ["follow-up", "engagement", contact.stage ?? "unknown"],
       priority,
       props: {
         contactName: contact.displayName,
@@ -456,7 +462,7 @@ export class InsightWriter {
         },
         breakdown: weeklyInteractions.reduce(
           (acc, i) => {
-            acc[i.type] = (acc[i.type] || 0) + 1;
+            acc[i.type] = (acc[i.type] ?? 0) + 1;
             return acc;
           },
           {} as Record<string, number>,
@@ -566,7 +572,7 @@ export class InsightWriter {
       persona: "openrouter/auto",
     };
 
-    return modelMappings[kind] || "gpt-5";
+    return modelMappings[kind] ?? "gpt-5";
   }
 
   private async storeInsight(insight: NewAiInsight): Promise<string> {
@@ -609,7 +615,7 @@ export class InsightWriter {
         ${options.subjectId ? sql`AND subject_id = ${options.subjectId}` : sql``}
         ${options.kinds?.length ? sql`AND kind = ANY(${options.kinds})` : sql``}
       ORDER BY created_at DESC
-      LIMIT ${options.limit || 20}
+      LIMIT ${options.limit ?? 20}
     `);
 
     return result as Array<Record<string, unknown>>;

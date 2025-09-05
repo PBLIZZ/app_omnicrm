@@ -4,6 +4,25 @@ import { InteractionsRepository } from "../../repositories/interactions.repo";
 import { getDb } from "../../db/client";
 import { sql } from "drizzle-orm";
 
+// Database row types for query results
+interface UserIdRow {
+  user_id: string;
+}
+
+interface ContactIdRow {
+  contact_id: string;
+}
+
+interface CountRow {
+  count: string;
+}
+
+interface ErrorStatsRow {
+  success_rate: string;
+  total_jobs: string;
+  error_rate: string;
+}
+
 export class RecentInteractionsProcessor {
   private timelineWriter: TimelineWriter;
   private insightWriter: InsightWriter;
@@ -157,7 +176,7 @@ export class RecentInteractionsProcessor {
       ORDER BY user_id
     `);
 
-    return result.map((row) => (row as any).user_id);
+    return (result as UserIdRow[]).map((row) => row.user_id);
   }
 
   /**
@@ -175,7 +194,7 @@ export class RecentInteractionsProcessor {
       ORDER BY contact_id
     `);
 
-    return result.map((row) => (row as any).contact_id);
+    return (result as ContactIdRow[]).map((row) => row.contact_id);
   }
 
   /**
@@ -203,7 +222,7 @@ export class RecentInteractionsProcessor {
           AND created_at > now() - interval '1 hour'
       `);
 
-      metrics["recentJobs"] = parseInt((recentJobs[0] as any)?.count || "0", 10);
+      metrics["recentJobs"] = parseInt((recentJobs[0] as CountRow)?.count || "0", 10);
       checks["recentActivity"] = metrics["recentJobs"] > 0;
 
       // Check error rates
@@ -216,9 +235,9 @@ export class RecentInteractionsProcessor {
           AND created_at > now() - interval '24 hours'
       `);
 
-      const errorStats = errorRate[0] as any;
-      const failedJobs = parseInt(errorStats?.failed || "0", 10);
-      const totalJobs = parseInt(errorStats?.total || "0", 10);
+      const errorStats = errorRate[0] as ErrorStatsRow;
+      const failedJobs = parseInt(errorStats?.failed ?? "0", 10);
+      const totalJobs = parseInt(errorStats?.total ?? "0", 10);
 
       metrics["errorRate"] = totalJobs > 0 ? failedJobs / totalJobs : 0;
       checks["lowErrorRate"] = metrics["errorRate"] < 0.1; // Less than 10% error rate

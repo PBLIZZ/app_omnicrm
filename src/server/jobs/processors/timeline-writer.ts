@@ -4,6 +4,21 @@ import { interactions, contactTimeline } from "@/server/db/schema";
 import { log } from "@/lib/log";
 import type { JobRecord } from "../types";
 
+// Type definitions for interactions used in timeline processing
+interface InteractionData {
+  id: string;
+  userId: string;
+  contactId: string;
+  type: string;
+  subject?: string | null;
+  bodyText?: string | null;
+  bodyRaw?: unknown;
+  occurredAt: string | Date;
+  source?: string | null;
+  sourceId?: string | null;
+  sourceMeta?: Record<string, unknown> | null;
+}
+
 // Type definitions
 export interface TimelineEvent {
   userId: string;
@@ -40,9 +55,9 @@ export async function runTimeline(job: JobRecord): Promise<void> {
       {
         op: "timeline.start",
         userId: job.userId,
-        mode: payload.mode || "batch",
+        mode: payload.mode ?? "batch",
         interactionId: payload.interactionId,
-        batchId: payload.batchId || job.batchId,
+        batchId: payload.batchId ?? job.batchId,
         jobId: job.id,
       },
       "Starting timeline generation",
@@ -149,7 +164,7 @@ async function processBatchInteractions(
     .select()
     .from(interactions)
     .where(and(...conditions))
-    .limit(payload.maxItems || 1000);
+    .limit(payload.maxItems ?? 1000);
 
   // Process each interaction
   for (const interaction of linkedInteractions) {
@@ -178,7 +193,7 @@ async function processBatchInteractions(
 }
 
 // Utility functions (moved from class methods)
-function mapInteractionToTimeline(interaction: any): TimelineEvent | null {
+function mapInteractionToTimeline(interaction: InteractionData): TimelineEvent | null {
   const eventTypeMapping = getEventTypeMapping();
   const timelineEventType = eventTypeMapping[interaction.type];
 
@@ -214,26 +229,26 @@ function getEventTypeMapping(): Record<string, string> {
   };
 }
 
-function generateTitle(interaction: any): string {
+function generateTitle(interaction: InteractionData): string {
   const titleMappings: Record<string, string> = {
-    email_received: `Email received: ${interaction.subject || "No subject"}`,
-    email_sent: `Email sent: ${interaction.subject || "No subject"}`,
+    email_received: `Email received: ${interaction.subject ?? "No subject"}`,
+    email_sent: `Email sent: ${interaction.subject ?? "No subject"}`,
     sms_received: "SMS message received",
     sms_sent: "SMS message sent",
     dm_received: "Direct message received",
     dm_sent: "Direct message sent",
-    meeting_created: `Meeting scheduled: ${interaction.subject || "Untitled meeting"}`,
-    meeting_attended: `Attended: ${interaction.subject || "Meeting"}`,
-    call_logged: `Call: ${interaction.subject || "Phone call"}`,
-    note_added: `Note: ${interaction.subject || "Added note"}`,
+    meeting_created: `Meeting scheduled: ${interaction.subject ?? "Untitled meeting"}`,
+    meeting_attended: `Attended: ${interaction.subject ?? "Meeting"}`,
+    call_logged: `Call: ${interaction.subject ?? "Phone call"}`,
+    note_added: `Note: ${interaction.subject ?? "Added note"}`,
     form_submission: "Form submission received",
     web_chat: "Web chat conversation",
   };
 
-  return titleMappings[interaction.type] || `Activity: ${interaction.type}`;
+  return titleMappings[interaction.type] ?? `Activity: ${interaction.type}`;
 }
 
-function generateDescription(interaction: any): string | null {
+function generateDescription(interaction: InteractionData): string | null {
   const descriptions: Record<string, string> = {
     email_received: "Email received via Gmail sync",
     email_sent: "Email sent via Gmail sync",
@@ -249,10 +264,10 @@ function generateDescription(interaction: any): string | null {
     web_chat: "Web chat conversation initiated",
   };
 
-  return descriptions[interaction.type] || null;
+  return descriptions[interaction.type] ?? null;
 }
 
-function extractEventData(interaction: any): Record<string, unknown> | null {
+function extractEventData(interaction: InteractionData): Record<string, unknown> | null {
   const baseEventData = {
     provider: interaction.source,
     source_id: interaction.sourceId,
@@ -290,7 +305,7 @@ function extractEventData(interaction: any): Record<string, unknown> | null {
       return {
         ...baseEventData,
         direction: interaction.type === "sms_sent" ? "outbound" : "inbound",
-        phone_number: interaction.sourceMeta?.["from"] || interaction.sourceMeta?.["to"],
+        phone_number: interaction.sourceMeta?.["from"] ?? interaction.sourceMeta?.["to"],
         channel: "sms",
       };
 
@@ -317,7 +332,7 @@ async function insertTimelineEvent(event: TimelineEvent): Promise<void> {
     eventType: event.eventType,
     title: event.title,
     description: event.description,
-    eventData: event.eventData || {},
+    eventData: event.eventData ?? {},
     occurredAt: new Date(event.occurredAt),
   });
 }
@@ -330,7 +345,7 @@ export class TimelineWriter {
   /**
    * Create timeline event from interaction
    */
-  async createFromInteraction(interaction: any): Promise<void> {
+  async createFromInteraction(interaction: InteractionData): Promise<void> {
     if (!interaction.contactId) {
       return;
     }
@@ -344,7 +359,7 @@ export class TimelineWriter {
   /**
    * Bulk create timeline events from interactions
    */
-  async createFromInteractions(interactions: any[]): Promise<void> {
+  async createFromInteractions(interactions: InteractionData[]): Promise<void> {
     const linkedInteractions = interactions.filter((i) => i.contactId);
 
     for (const interaction of linkedInteractions) {

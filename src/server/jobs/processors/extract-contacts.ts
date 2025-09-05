@@ -21,6 +21,48 @@ interface ContactResolutionResult {
   newIdentities?: CandidateIdentity[];
 }
 
+// Type definitions for interaction source metadata
+interface GmailSourceMeta {
+  from?: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject?: string;
+  threadId?: string;
+  messageId?: string;
+}
+
+interface CalendarSourceMeta {
+  attendees?: Array<{
+    email: string;
+    name?: string;
+    responseStatus?: string;
+  }>;
+  organizer?: {
+    email: string;
+    name?: string;
+  };
+  eventId?: string;
+  calendarId?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  startTime?: string;
+  endTime?: string;
+  isAllDay?: boolean;
+  recurring?: boolean;
+  status?: string;
+}
+
+interface InteractionWithMeta {
+  id: string;
+  source: string;
+  source_id: string;
+  source_meta: GmailSourceMeta | CalendarSourceMeta | Record<string, unknown>;
+  body_text: string | null;
+  subject: string | null;
+}
+
 /**
  * Contact extraction processor - extracts and links contacts from interactions.
  * Migrated from contact-resolver.ts to follow the new job processing pattern.
@@ -107,8 +149,8 @@ export async function runExtractContacts(job: JobRecord<"extract_contacts">): Pr
         VALUES (
           ${job.userId},
           'embed',
-          ${'{"batchId": "' + (payload.batchId || job.batchId || '') + '", "ownerType": "interaction", "source": "extract_contacts"}'},
-          ${payload.batchId || job.batchId || null},
+          ${'{"batchId": "' + (payload.batchId ?? job.batchId ?? "") + '", "ownerType": "interaction", "source": "extract_contacts"}'},
+          ${payload.batchId ?? job.batchId ?? null},
           'queued'
         )
       `);
@@ -118,12 +160,11 @@ export async function runExtractContacts(job: JobRecord<"extract_contacts">): Pr
           op: "extract_contacts.embed_enqueued",
           jobId: job.id,
           userId: job.userId,
-          batchId: payload.batchId || job.batchId || null,
+          batchId: payload.batchId ?? job.batchId ?? null,
         },
         "Embed job enqueued after contact extraction",
       );
     }
-
   } catch (error) {
     const durationMs = Date.now() - startedAt;
     log.error(
@@ -162,14 +203,7 @@ async function processInteraction(
       return { success: false, error: "Interaction not found or already linked" };
     }
 
-    const interaction = interactionResult[0] as {
-      id: string;
-      source: string;
-      source_id: string;
-      source_meta: any;
-      body_text: string | null;
-      subject: string | null;
-    };
+    const interaction = interactionResult[0] as InteractionWithMeta;
 
     // Extract candidate identities from interaction
     const candidateIdentities = extractCandidateIdentities(interaction);
@@ -222,12 +256,12 @@ async function processInteraction(
 /**
  * Extract candidate identities from interaction data
  */
-function extractCandidateIdentities(interaction: any): CandidateIdentity[] {
+function extractCandidateIdentities(interaction: InteractionWithMeta): CandidateIdentity[] {
   const identities: CandidateIdentity[] = [];
 
   // Extract from Gmail source_meta
   if (interaction.source === "gmail" && interaction.source_meta) {
-    const meta = interaction.source_meta;
+    const meta = interaction.source_meta as GmailSourceMeta;
 
     if (meta.from) {
       identities.push({ kind: "email", value: meta.from.toLowerCase(), provider: "gmail" });
@@ -242,10 +276,10 @@ function extractCandidateIdentities(interaction: any): CandidateIdentity[] {
 
   // Extract from Calendar source_meta
   if (interaction.source === "google_calendar" && interaction.source_meta) {
-    const meta = interaction.source_meta;
+    const meta = interaction.source_meta as CalendarSourceMeta;
 
     if (meta.attendees && Array.isArray(meta.attendees)) {
-      meta.attendees.forEach((attendee: any) => {
+      meta.attendees.forEach((attendee) => {
         if (attendee.email) {
           identities.push({
             kind: "email",
@@ -256,7 +290,7 @@ function extractCandidateIdentities(interaction: any): CandidateIdentity[] {
       });
     }
 
-    if (meta.organizer && meta.organizer.email) {
+    if (meta.organizer?.email) {
       identities.push({
         kind: "email",
         value: meta.organizer.email.toLowerCase(),
@@ -334,7 +368,7 @@ async function findContactByIdentity(
     WHERE user_id = ${userId}
       AND kind = ${identity.kind}
       AND value = ${identity.value}
-      AND coalesce(provider, '') = ${identity.provider || ""}
+      AND coalesce(provider, '') = ${identity.provider ?? ""}
     LIMIT 1
   `);
 
@@ -411,7 +445,7 @@ async function storeCandidateIdentities(
   for (const identity of identities) {
     await db.execute(sql`
       INSERT INTO contact_identities (user_id, contact_id, kind, value, provider)
-      VALUES (${userId}, ${contactId}, ${identity.kind}, ${identity.value}, ${identity.provider || null})
+      VALUES (${userId}, ${contactId}, ${identity.kind}, ${identity.value}, ${identity.provider ?? null})
       ON CONFLICT (user_id, kind, value, coalesce(provider, ''))
       DO NOTHING
     `);
@@ -448,61 +482,67 @@ async function getUnlinkedInteractions(
 async function createCalendarTimelineEntry(
   userId: string,
   contactId: string,
-  interaction: any,
+  interaction: InteractionWithMeta,
 ): Promise<void> {
   const db = await getDb();
-  
+
   // Extract event details from source_meta
-  const sourceMeta = interaction.source_meta || {};
-  const calendarId = sourceMeta.calendarId || null;
-  const eventId = sourceMeta.eventId || interaction.source_id;
-  const startTime = sourceMeta.startTime || null;
-  const endTime = sourceMeta.endTime || null;
-  const isAllDay = sourceMeta.isAllDay || false;
-  const recurring = sourceMeta.recurring || false;
-  const status = sourceMeta.status || "confirmed";
-  
+  const sourceMeta = interaction.source_meta as CalendarSourceMeta;
+  const calendarId = sourceMeta.calendarId ?? null;
+  const eventId = sourceMeta.eventId ?? interaction.source_id;
+  const startTime = sourceMeta.startTime ?? null;
+  const endTime = sourceMeta.endTime ?? null;
+  const isAllDay = sourceMeta.isAllDay ?? false;
+  const recurring = sourceMeta.recurring ?? false;
+  const status = sourceMeta.status ?? "confirmed";
+
   // Determine event type based on event metadata
   let eventType = "appointment_scheduled";
-  const subject = interaction.subject?.toLowerCase() || "";
-  
+  const subject = interaction.subject?.toLowerCase() ?? "";
+
   if (subject.includes("meeting") || subject.includes("call")) {
     eventType = "meeting_attended";
-  } else if (subject.includes("workshop") || subject.includes("class") || subject.includes("training")) {
+  } else if (
+    subject.includes("workshop") ||
+    subject.includes("class") ||
+    subject.includes("training")
+  ) {
     eventType = "class_attended";
   } else if (subject.includes("consultation") || subject.includes("session")) {
     eventType = "consultation_completed";
   }
-  
+
   // Build event data
   const eventData = {
     googleEventId: eventId,
     calendarId: calendarId,
     interactionId: interaction.id,
-    location: sourceMeta.location || null,
+    location: sourceMeta.location ?? null,
     startTime: startTime,
     endTime: endTime,
     duration: calculateDuration(startTime, endTime),
     isAllDay: isAllDay,
     recurring: recurring,
     status: status,
-    attendees: sourceMeta.attendees || [],
+    attendees: sourceMeta.attendees ?? [],
   };
-  
+
   // Create timeline entry with proper conflict handling
   try {
     await db.insert(contactTimeline).values({
       userId: userId,
       contactId: contactId,
       eventType: eventType,
-      title: interaction.subject || "Calendar Event",
-      description: interaction.body_text || `${eventType.replace(/_/g, ' ').charAt(0).toUpperCase() + eventType.replace(/_/g, ' ').slice(1)}`,
+      title: interaction.subject ?? "Calendar Event",
+      description:
+        interaction.body_text ??
+        `${eventType.replace(/_/g, " ").charAt(0).toUpperCase() + eventType.replace(/_/g, " ").slice(1)}`,
       eventData: eventData,
       occurredAt: startTime ? new Date(startTime) : new Date(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If it's a unique constraint violation, that's fine - the timeline entry already exists
-    if (error?.code !== "23505") {
+    if ((error as { code?: string }).code !== "23505") {
       throw error; // Re-throw if it's not a unique constraint violation
     }
   }
@@ -513,7 +553,7 @@ async function createCalendarTimelineEntry(
  */
 function calculateDuration(startTime: string | null, endTime: string | null): number | null {
   if (!startTime || !endTime) return null;
-  
+
   try {
     const start = new Date(startTime);
     const end = new Date(endTime);

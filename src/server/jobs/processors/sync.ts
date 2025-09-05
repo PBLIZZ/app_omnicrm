@@ -103,9 +103,7 @@ export async function runGmailSync(
 
   // Safe cast after type guard validation
   const typedJob = job as MinimalJob;
-  console.log(
-    `✅ GMAIL SYNC: Job validated, ID: ${typedJob.id}, Batch: ${typedJob.payload?.batchId}`,
-  );
+  // Job validated successfully
   const dbo = await getDb();
   // console.log(`🔄 GMAIL SYNC: Got database connection`);
 
@@ -120,10 +118,7 @@ export async function runGmailSync(
     .where(eq(userSyncPrefs.userId, userId))
     .limit(1);
   const prefs = prefsRow[0];
-  console.log(`✅ GMAIL SYNC: Preferences loaded:`, {
-    hasPrefs: !!prefs,
-    query: prefs?.gmailQuery,
-  });
+  // Preferences loaded successfully
 
   // console.log(`🔄 GMAIL SYNC: Getting last event timestamp...`);
   const since = await lastEventTimestamp(userId, "gmail");
@@ -278,7 +273,7 @@ export async function runGmailSync(
         const labelIds = msg.labelIds ?? [];
 
         // Debug logging - no filtering applied
-        console.log(`📧 Processing email ${msg.id} - NO FILTERING APPLIED`);
+        // Processing email without filtering
 
         // Parse email timestamp (Gmail API filtering should handle this, but keep as backup)
         const internalMs = Number(msg.internalDate ?? 0);
@@ -326,7 +321,7 @@ export async function runGmailSync(
             : { message: String(apiError) };
 
         // Enhanced error logging for debugging
-        console.error(`❌ Gmail API Error fetching message ${messageId}:`, errorDetails);
+        // Gmail API Error logged below
 
         log.warn(
           {
@@ -483,57 +478,69 @@ export async function runCalendarSync(
     const toInsert: Array<{ ev: calendar_v3.Schema$Event; occurredAt: Date }> = [];
     for (const e of slice) {
       if (!e) {
-        log.debug({
-          ...debugContext,
-          op: "calendar.sync.skipped_null_event",
-        }, "Skipped null event");
+        log.debug(
+          {
+            ...debugContext,
+            op: "calendar.sync.skipped_null_event",
+          },
+          "Skipped null event",
+        );
         continue;
       }
-      
+
       if (
         prefs?.calendarIncludeOrganizerSelf === true &&
         e.organizer &&
         e.organizer.self === false
       ) {
         itemsFiltered += 1;
-        log.info({
-          ...debugContext,
-          op: "calendar.sync.filtered_organizer",
-          eventId: e.id,
-          eventTitle: e.summary,
-          organizerEmail: e.organizer?.email,
-          organizerSelf: e.organizer?.self,
-          calendarIncludeOrganizerSelf: prefs?.calendarIncludeOrganizerSelf,
-        }, "Filtered out event: not organizer self");
+        log.info(
+          {
+            ...debugContext,
+            op: "calendar.sync.filtered_organizer",
+            eventId: e.id,
+            eventTitle: e.summary,
+            organizerEmail: e.organizer?.email,
+            organizerSelf: e.organizer?.self,
+            calendarIncludeOrganizerSelf: prefs?.calendarIncludeOrganizerSelf,
+          },
+          "Filtered out event: not organizer self",
+        );
         continue;
       }
-      
+
       if (prefs?.calendarIncludePrivate === false && e.visibility === "private") {
         itemsFiltered += 1;
-        log.info({
-          ...debugContext,
-          op: "calendar.sync.filtered_private",
-          eventId: e.id,
-          eventTitle: e.summary,
-          visibility: e.visibility,
-          calendarIncludePrivate: prefs?.calendarIncludePrivate,
-        }, "Filtered out event: private visibility");
+        log.info(
+          {
+            ...debugContext,
+            op: "calendar.sync.filtered_private",
+            eventId: e.id,
+            eventTitle: e.summary,
+            visibility: e.visibility,
+            calendarIncludePrivate: prefs?.calendarIncludePrivate,
+          },
+          "Filtered out event: private visibility",
+        );
         continue;
       }
-      
+
       const startStr = e.start?.dateTime ?? e.start?.date;
       if (!startStr) {
-        log.info({
-          ...debugContext,
-          op: "calendar.sync.skipped_no_start_time",
-          eventId: e.id,
-          eventTitle: e.summary,
-          startDateTime: e.start?.dateTime,
-          startDate: e.start?.date,
-        }, "Skipped event: no start time");
+        log.info(
+          {
+            ...debugContext,
+            op: "calendar.sync.skipped_no_start_time",
+            eventId: e.id,
+            eventTitle: e.summary,
+            startDateTime: e.start?.dateTime,
+            startDate: e.start?.date,
+          },
+          "Skipped event: no start time",
+        );
         continue;
       }
-      
+
       const occurredAt = new Date(startStr);
       toInsert.push({ ev: e, occurredAt });
     }
@@ -559,13 +566,16 @@ export async function runCalendarSync(
         if (error.includes("23505") || error.includes("duplicate")) {
           // Duplicate is expected, just count as processed but not new
           itemsFetched += 1;
-          log.info({
-            ...debugContext,
-            op: "calendar.sync.duplicate_skipped",
-            eventId: eventForDebug?.id,
-            eventTitle: eventForDebug?.summary,
-            sourceId: eventForDebug?.id,
-          }, "Skipped event: already exists in database (duplicate)");
+          log.info(
+            {
+              ...debugContext,
+              op: "calendar.sync.duplicate_skipped",
+              eventId: eventForDebug?.id,
+              eventTitle: eventForDebug?.summary,
+              sourceId: eventForDebug?.id,
+            },
+            "Skipped event: already exists in database (duplicate)",
+          );
         } else {
           // Actual error
           log.warn(

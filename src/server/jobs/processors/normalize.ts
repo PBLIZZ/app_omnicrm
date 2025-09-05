@@ -154,17 +154,17 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
 
 // Enhanced extraction functions from gmail-normalizer.ts
 function extractMessageId(message: GmailPayload): string {
-  return message.id || "";
+  return message.id ?? "";
 }
 
 function extractThreadId(message: GmailPayload): string | null {
-  return message.threadId || null;
+  return message.threadId ?? null;
 }
 
 function extractFromEmail(message: GmailPayload): string | null {
-  const headers = message.payload?.headers || message.headers || [];
+  const headers = message.payload?.headers ?? message.headers ?? [];
   const fromHeader = headers.find((h) => h.name && h.name.toLowerCase() === "from");
-  if (!fromHeader || !fromHeader.value) return null;
+  if (!fromHeader?.value) return null;
 
   // Extract email from "Name <email>" format
   const emailMatch = fromHeader.value.match(/<([^>]+)>/);
@@ -172,9 +172,9 @@ function extractFromEmail(message: GmailPayload): string | null {
 }
 
 function extractToEmails(message: GmailPayload): string[] {
-  const headers = message.payload?.headers || message.headers || [];
+  const headers = message.payload?.headers ?? message.headers ?? [];
   const toHeader = headers.find((h) => h.name && h.name.toLowerCase() === "to");
-  if (!toHeader || !toHeader.value) return [];
+  if (!toHeader?.value) return [];
 
   // Parse comma-separated emails, handling "Name <email>" format
   return toHeader.value
@@ -188,17 +188,17 @@ function extractToEmails(message: GmailPayload): string[] {
 }
 
 function extractSubject(message: GmailPayload): string | null {
-  const headers = message.payload?.headers || message.headers || [];
+  const headers = message.payload?.headers ?? message.headers ?? [];
   const subjectHeader = headers.find((h) => h.name && h.name.toLowerCase() === "subject");
   return subjectHeader?.value ?? null;
 }
 
 function extractBodyText(message: GmailPayload): string | null {
   // Start with snippet as fallback
-  let bodyText = message.snippet || "";
+  let bodyText = message.snippet ?? "";
 
   // Extract from message parts if available
-  const parts = message.payload?.parts || [];
+  const parts = message.payload?.parts ?? [];
   const textParts = extractTextFromParts(parts);
 
   if (textParts.length > 0) {
@@ -216,7 +216,7 @@ interface EmailPart {
 }
 
 function isEmailPart(part: unknown): part is EmailPart {
-  return typeof part === 'object' && part !== null;
+  return typeof part === "object" && part !== null;
 }
 
 function extractTextFromParts(parts: unknown[]): string[] {
@@ -224,7 +224,7 @@ function extractTextFromParts(parts: unknown[]): string[] {
 
   for (const part of parts) {
     if (!isEmailPart(part)) continue;
-    
+
     // Handle nested parts (multipart messages)
     if (part.parts && Array.isArray(part.parts)) {
       textParts.push(...extractTextFromParts(part.parts));
@@ -247,12 +247,12 @@ function extractTextFromParts(parts: unknown[]): string[] {
 }
 
 function extractLabels(message: GmailPayload): string[] {
-  return message.labelIds || [];
+  return message.labelIds ?? [];
 }
 
 function isOutboundMessage(message: GmailPayload): boolean {
   // Check if message is in sent folder or has outbound labels
-  const labels = message.labelIds || [];
+  const labels = message.labelIds ?? [];
 
   // Gmail standard labels for sent items
   const sentLabels = ["SENT", "DRAFT"];
@@ -260,7 +260,7 @@ function isOutboundMessage(message: GmailPayload): boolean {
 }
 
 function extractHistoryId(message: GmailPayload): string | null {
-  return message.historyId || null;
+  return message.historyId ?? null;
 }
 
 export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
@@ -315,7 +315,7 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
     try {
       // Simple calendar event normalization
       const payload = row.payload as Record<string, unknown>;
-      if (!payload || !payload['id']) {
+      if (!payload?.["id"]) {
         itemsSkipped++;
         continue;
       }
@@ -324,10 +324,10 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
       const enrichedSourceMeta = {
         ...(row.sourceMeta as Record<string, unknown>),
         // Add additional event details for timeline creation
-        attendees: payload['attendees'] || [],
-        location: payload['location'] || null,
-        organizer: payload['organizer'] || null,
-        timeZone: (payload['start'] as Record<string, unknown>)?.['timeZone'] || null,
+        attendees: payload["attendees"] ?? [],
+        location: payload["location"] ?? null,
+        organizer: payload["organizer"] ?? null,
+        timeZone: (payload["start"] as Record<string, unknown>)?.["timeZone"] ?? null,
       };
 
       // Create interaction record
@@ -335,12 +335,16 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         userId: job.userId,
         contactId: null,
         type: "calendar_event",
-        subject: (payload['summary'] as string) || (payload['title'] as string) || "Untitled Event",
-        bodyText: (payload['description'] as string) || null,
+        subject: (payload["summary"] as string) || (payload["title"] as string) || "Untitled Event",
+        bodyText: (payload["description"] as string) || null,
         bodyRaw: null,
-        occurredAt: new Date((payload['start'] as Record<string, unknown>)?.['dateTime'] as string || (payload['start'] as Record<string, unknown>)?.['date'] as string || row.occurredAt),
+        occurredAt: new Date(
+          ((payload["start"] as Record<string, unknown>)?.["dateTime"] as string) ||
+            ((payload["start"] as Record<string, unknown>)?.["date"] as string) ||
+            row.occurredAt,
+        ),
         source: "google_calendar",
-        sourceId: payload['id'] as string,
+        sourceId: payload["id"] as string,
         sourceMeta: enrichedSourceMeta,
         batchId: row.batchId,
       });
@@ -351,33 +355,50 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         .insert(calendarEvents)
         .values({
           userId: job.userId,
-          googleEventId: payload['id'] as string,
-          title: (payload['summary'] as string) || (payload['title'] as string) || "Untitled Event",
-          description: (payload['description'] as string) || null,
-          startTime: new Date((payload['start'] as Record<string, unknown>)?.['dateTime'] as string || (payload['start'] as Record<string, unknown>)?.['date'] as string || row.occurredAt),
-          endTime: new Date((payload['end'] as Record<string, unknown>)?.['dateTime'] as string || (payload['end'] as Record<string, unknown>)?.['date'] as string || row.occurredAt),
-          attendees: payload['attendees'] || null,
-          location: (payload['location'] as string) || null,
-          status: (payload['status'] as string) || null,
-          timeZone: (payload['start'] as Record<string, unknown>)?.['timeZone'] as string || null,
-          isAllDay: !(payload['start'] as Record<string, unknown>)?.['dateTime'], // All-day if no dateTime, just date
-          visibility: (payload['visibility'] as string) || null,
+          googleEventId: payload["id"] as string,
+          title: (payload["summary"] as string) || (payload["title"] as string) || "Untitled Event",
+          description: (payload["description"] as string) || null,
+          startTime: new Date(
+            ((payload["start"] as Record<string, unknown>)?.["dateTime"] as string) ||
+              ((payload["start"] as Record<string, unknown>)?.["date"] as string) ||
+              row.occurredAt,
+          ),
+          endTime: new Date(
+            ((payload["end"] as Record<string, unknown>)?.["dateTime"] as string) ||
+              ((payload["end"] as Record<string, unknown>)?.["date"] as string) ||
+              row.occurredAt,
+          ),
+          attendees: payload["attendees"] ?? null,
+          location: (payload["location"] as string) || null,
+          status: (payload["status"] as string) || null,
+          timeZone: ((payload["start"] as Record<string, unknown>)?.["timeZone"] as string) || null,
+          isAllDay: !(payload["start"] as Record<string, unknown>)?.["dateTime"], // All-day if no dateTime, just date
+          visibility: (payload["visibility"] as string) || null,
           eventType: null, // Can be populated later by AI
           businessCategory: null, // Can be populated later by AI
           keywords: null, // Can be populated later by AI
-          googleUpdated: payload['updated'] ? new Date(payload['updated'] as string) : null,
+          googleUpdated: payload["updated"] ? new Date(payload["updated"] as string) : null,
           lastSynced: new Date(),
         })
         .onConflictDoUpdate({
           target: [calendarEvents.userId, calendarEvents.googleEventId],
           set: {
-            title: (payload['summary'] as string) || (payload['title'] as string) || "Untitled Event",
-            description: (payload['description'] as string) || null,
-            startTime: new Date((payload['start'] as Record<string, unknown>)?.['dateTime'] as string || (payload['start'] as Record<string, unknown>)?.['date'] as string || row.occurredAt),
-            endTime: new Date((payload['end'] as Record<string, unknown>)?.['dateTime'] as string || (payload['end'] as Record<string, unknown>)?.['date'] as string || row.occurredAt),
-            attendees: payload['attendees'] || null,
-            location: (payload['location'] as string) || null,
-            status: (payload['status'] as string) || null,
+            title:
+              (payload["summary"] as string) || (payload["title"] as string) || "Untitled Event",
+            description: (payload["description"] as string) || null,
+            startTime: new Date(
+              ((payload["start"] as Record<string, unknown>)?.["dateTime"] as string) ||
+                ((payload["start"] as Record<string, unknown>)?.["date"] as string) ||
+                row.occurredAt,
+            ),
+            endTime: new Date(
+              ((payload["end"] as Record<string, unknown>)?.["dateTime"] as string) ||
+                ((payload["end"] as Record<string, unknown>)?.["date"] as string) ||
+                row.occurredAt,
+            ),
+            attendees: payload["attendees"] ?? null,
+            location: (payload["location"] as string) || null,
+            status: (payload["status"] as string) || null,
             lastSynced: new Date(),
           },
         });

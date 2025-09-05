@@ -41,6 +41,14 @@ export interface ContactInsightsWithNote extends ContactInsights {
   noteContent: string;
 }
 
+// Interface for the contact intelligence JSON response from OpenAI
+interface AIContactIntelligenceResponse {
+  notes?: string;
+  stage?: string;
+  tags?: string[];
+  confidenceScore?: number;
+}
+
 export type ClientStage =
   | "Prospect"
   | "New Client"
@@ -213,11 +221,13 @@ export class ContactIntelligenceService {
     // console.log(`🏷️ Business categories: [${[...new Set(businessCategories)].join(', ')}]`);
 
     const firstEventDate =
-      events.length > 0 && events[events.length - 1]?.start_time
-        ? new Date(events[events.length - 1]!.start_time)
+      events.length > 0
+        ? events[events.length - 1]?.start_time
+          ? new Date(events[events.length - 1].start_time)
+          : null
         : null;
     const lastEventDate =
-      events.length > 0 && events[0]?.start_time ? new Date(events[0]!.start_time) : null;
+      events.length > 0 ? (events[0]?.start_time ? new Date(events[0].start_time) : null) : null;
 
     const relationshipDays =
       firstEventDate && lastEventDate
@@ -247,11 +257,11 @@ export class ContactIntelligenceService {
     // Enhanced event analysis for richer insights
     const eventDetails = events.map((e) => ({
       title: e.title,
-      description: e.description || "",
+      description: e.description ?? "",
       date: new Date(e.start_time),
       type: this.extractEventType(e.title, e.description),
       category: this.extractBusinessCategory(e.title, e.description),
-      location: e.location || "",
+      location: e.location ?? "",
     }));
 
     // Analyze time patterns
@@ -333,13 +343,21 @@ Generate insights that show you understand this individual's wellness journey an
       });
 
       const messageContent = response.choices?.[0]?.message?.content;
-      const result = messageContent ? JSON.parse(messageContent) : {};
+      const result = messageContent
+        ? (JSON.parse(messageContent) as AIContactIntelligenceResponse)
+        : {};
+
+      const noteContent =
+        result.notes ?? `Contact with ${patterns.totalEvents} wellness interactions`;
+      const stage = this.validateStage(result.stage);
+      const tags = this.validateTags(result.tags ?? []);
+      const confidenceScore = Math.min(1.0, Math.max(0.0, result.confidenceScore ?? 0.5));
 
       return {
-        noteContent: result.notes || `Contact with ${patterns.totalEvents} wellness interactions`,
-        stage: this.validateStage(result.stage),
-        tags: this.validateTags(result.tags || []),
-        confidenceScore: Math.min(1.0, Math.max(0.0, result.confidenceScore || 0.5)),
+        noteContent,
+        stage,
+        tags,
+        confidenceScore,
       };
     } catch (error) {
       console.error("❌ OpenAI analysis error:", error);
@@ -476,11 +494,11 @@ Generate insights that show you understand this individual's wellness journey an
     // Categorize times
     const timeCategories: { [key: string]: number } = {};
     times.forEach((hour) => {
-      if (hour < 10) timeCategories["Early Morning"] = (timeCategories["Early Morning"] || 0) + 1;
+      if (hour < 10) timeCategories["Early Morning"] = (timeCategories["Early Morning"] ?? 0) + 1;
       else if (hour < 12)
-        timeCategories["Late Morning"] = (timeCategories["Late Morning"] || 0) + 1;
-      else if (hour < 17) timeCategories["Afternoon"] = (timeCategories["Afternoon"] || 0) + 1;
-      else timeCategories["Evening"] = (timeCategories["Evening"] || 0) + 1;
+        timeCategories["Late Morning"] = (timeCategories["Late Morning"] ?? 0) + 1;
+      else if (hour < 17) timeCategories["Afternoon"] = (timeCategories["Afternoon"] ?? 0) + 1;
+      else timeCategories["Evening"] = (timeCategories["Evening"] ?? 0) + 1;
     });
 
     // Get preferred times
@@ -523,10 +541,10 @@ Generate insights that show you understand this individual's wellness journey an
 
     events.forEach((e) => {
       const category = e.category;
-      serviceCounts[category] = (serviceCounts[category] || 0) + 1;
+      serviceCounts[category] = (serviceCounts[category] ?? 0) + 1;
 
       if (e.location) {
-        locationCounts[e.location] = (locationCounts[e.location] || 0) + 1;
+        locationCounts[e.location] = (locationCounts[e.location] ?? 0) + 1;
       }
     });
 
@@ -550,7 +568,7 @@ Generate insights that show you understand this individual's wellness journey an
    * Extract event type from title and description
    */
   private static extractEventType(title: string, description?: string | null): string {
-    const text = `${title} ${description || ""}`.toLowerCase();
+    const text = `${title} ${description ?? ""}`.toLowerCase();
 
     // Event type patterns
     if (/\b(class|lesson|session)\b/.test(text)) return "class";
@@ -566,7 +584,7 @@ Generate insights that show you understand this individual's wellness journey an
    * Extract business category from title and description
    */
   private static extractBusinessCategory(title: string, description?: string | null): string {
-    const text = `${title} ${description || ""}`.toLowerCase();
+    const text = `${title} ${description ?? ""}`.toLowerCase();
 
     // Business category patterns
     if (/\b(yoga|asana|vinyasa|hatha|bikram|yin|power yoga)\b/.test(text)) return "yoga";

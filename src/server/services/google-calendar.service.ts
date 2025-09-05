@@ -34,10 +34,10 @@ export class GoogleAuthError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly shouldRetry: boolean = false
+    public readonly shouldRetry: boolean = false,
   ) {
     super(message);
-    this.name = 'GoogleAuthError';
+    this.name = "GoogleAuthError";
   }
 }
 
@@ -68,11 +68,7 @@ export class GoogleCalendarService {
       .limit(1);
 
     if (!result[0]) {
-      throw new GoogleAuthError(
-        "Google Calendar not connected for user", 
-        "not_connected", 
-        false
-      );
+      throw new GoogleAuthError("Google Calendar not connected for user", "not_connected", false);
     }
 
     const integration = result[0];
@@ -85,11 +81,7 @@ export class GoogleCalendarService {
 
     // Type guard to ensure we have the required fields
     if (!integration.accessToken) {
-      throw new GoogleAuthError(
-        "Invalid access token in database", 
-        "invalid_token", 
-        false
-      );
+      throw new GoogleAuthError("Invalid access token in database", "invalid_token", false);
     }
 
     const refreshToken = integration.refreshToken ? decryptString(integration.refreshToken) : null;
@@ -107,18 +99,21 @@ export class GoogleCalendarService {
     // Check if token is near expiry and refresh if needed
     const now = Date.now();
     const tokenExpiresIn = expiryDate ? expiryDate - now : 0;
-    
+
     // Refresh if token expires within 5 minutes (300000ms)
     if (tokenExpiresIn < 300000 && refreshToken) {
       try {
-        log.info({
-          op: "google_calendar.token_refresh",
-          userId,
-          expiresIn: tokenExpiresIn,
-        }, "Refreshing Google Calendar token");
+        log.info(
+          {
+            op: "google_calendar.token_refresh",
+            userId,
+            expiresIn: tokenExpiresIn,
+          },
+          "Refreshing Google Calendar token",
+        );
 
         const { credentials } = await oauth2Client.refreshAccessToken();
-        
+
         if (credentials.access_token) {
           // Update database with new tokens
           await db
@@ -137,36 +132,42 @@ export class GoogleCalendarService {
             );
 
           oauth2Client.setCredentials(credentials);
-          
-          log.info({
-            op: "google_calendar.token_refreshed",
-            userId,
-          }, "Successfully refreshed Google Calendar token");
+
+          log.info(
+            {
+              op: "google_calendar.token_refreshed",
+              userId,
+            },
+            "Successfully refreshed Google Calendar token",
+          );
         }
       } catch (refreshError: unknown) {
-        const refreshMsg = refreshError instanceof Error ? refreshError.message : String(refreshError);
-        log.error({
-          op: "google_calendar.token_refresh_failed",
-          userId,
-          error: refreshMsg,
-        }, "Failed to refresh Google Calendar token");
+        const refreshMsg =
+          refreshError instanceof Error ? refreshError.message : String(refreshError);
+        log.error(
+          {
+            op: "google_calendar.token_refresh_failed",
+            userId,
+            error: refreshMsg,
+          },
+          "Failed to refresh Google Calendar token",
+        );
 
         // Check for specific auth errors
-        if (refreshMsg.includes('invalid_grant') || 
-            refreshMsg.includes('refresh_token_expired')) {
+        if (refreshMsg.includes("invalid_grant") || refreshMsg.includes("refresh_token_expired")) {
           // Clear invalid tokens
           await this.clearInvalidTokens(userId);
           throw new GoogleAuthError(
             "Google Calendar authentication expired. Please reconnect your calendar.",
             "invalid_grant",
-            false
+            false,
           );
         }
-        
+
         throw new GoogleAuthError(
           "Failed to refresh Google Calendar token",
           "token_refresh_failed",
-          true
+          true,
         );
       }
     }
@@ -180,24 +181,25 @@ export class GoogleCalendarService {
   private static isAuthError(error: unknown): boolean {
     if (!error) return false;
     const anyErr = error as Record<string, unknown>;
-    const messageVal = anyErr && typeof anyErr['message'] === 'string' ? (anyErr['message'] as string) : '';
+    const messageVal =
+      anyErr && typeof anyErr["message"] === "string" ? (anyErr["message"] as string) : "";
     const message = messageVal.toLowerCase();
-    const code = (anyErr && (anyErr['code'] as string | number | undefined)) ?? '';
-    
+    const code = (anyErr && (anyErr["code"] as string | number | undefined)) ?? "";
+
     // Check for common auth error patterns
     const authErrorPatterns = [
-      'invalid_grant',
-      'invalid_credentials', 
-      'token_expired',
-      'unauthorized',
-      'authentication',
-      'access_denied',
-      'refresh_token_expired'
+      "invalid_grant",
+      "invalid_credentials",
+      "token_expired",
+      "unauthorized",
+      "authentication",
+      "access_denied",
+      "refresh_token_expired",
     ];
-    
-    const hasAuthMessage = authErrorPatterns.some(pattern => message.includes(pattern));
+
+    const hasAuthMessage = authErrorPatterns.some((pattern) => message.includes(pattern));
     const hasAuthCode = [401, 403].includes(Number(code));
-    
+
     return hasAuthMessage || hasAuthCode;
   }
 
@@ -206,7 +208,7 @@ export class GoogleCalendarService {
    */
   private static async clearInvalidTokens(userId: string): Promise<void> {
     const db = await getDb();
-    
+
     try {
       await db
         .delete(userIntegrations)
@@ -217,17 +219,23 @@ export class GoogleCalendarService {
             eq(userIntegrations.service, "calendar"),
           ),
         );
-        
-      log.info({
-        op: "google_calendar.tokens_cleared",
-        userId,
-      }, "Cleared invalid Google Calendar tokens");
+
+      log.info(
+        {
+          op: "google_calendar.tokens_cleared",
+          userId,
+        },
+        "Cleared invalid Google Calendar tokens",
+      );
     } catch (error) {
-      log.error({
-        op: "google_calendar.clear_tokens_failed",
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-      }, "Failed to clear invalid tokens");
+      log.error(
+        {
+          op: "google_calendar.clear_tokens_failed",
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Failed to clear invalid tokens",
+      );
     }
   }
 
@@ -253,7 +261,7 @@ export class GoogleCalendarService {
 
       // Get list of calendars
       const calendarsResponse = await calendar.calendarList.list();
-      const calendars = calendarsResponse.data.items || [];
+      const calendars = calendarsResponse.data.items ?? [];
 
       let totalSyncedEvents = 0;
 
@@ -265,13 +273,16 @@ export class GoogleCalendarService {
           const events = await this.syncCalendarEvents(userId, cal.id, calendar, options);
           totalSyncedEvents += events;
         } catch (error: unknown) {
-          log.error({
-            op: "google_calendar.calendar_sync_error",
-            userId,
-            calendarId: cal.id,
-            error: error instanceof Error ? error.message : String(error),
-          }, `Error syncing calendar ${cal.id}`);
-          
+          log.error(
+            {
+              op: "google_calendar.calendar_sync_error",
+              userId,
+              calendarId: cal.id,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            `Error syncing calendar ${cal.id}`,
+          );
+
           // Check for auth errors in individual calendar sync
           if (this.isAuthError(error)) {
             throw error; // Re-throw auth errors to be handled at the top level
@@ -285,12 +296,15 @@ export class GoogleCalendarService {
         syncedEvents: totalSyncedEvents,
       };
     } catch (error: unknown) {
-      log.error({
-        op: "google_calendar.sync_failed",
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-        errorCode: error instanceof GoogleAuthError ? error.code : 'unknown',
-      }, "Calendar sync failed");
+      log.error(
+        {
+          op: "google_calendar.sync_failed",
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+          errorCode: error instanceof GoogleAuthError ? error.code : "unknown",
+        },
+        "Calendar sync failed",
+      );
 
       // Handle specific auth errors
       if (error instanceof GoogleAuthError) {
@@ -335,9 +349,9 @@ export class GoogleCalendarService {
     } = {},
   ): Promise<number> {
     // Configurable sync range - defaults to larger window for comprehensive data
-    const daysPast = options.daysPast || 180; // 6 months back
-    const daysFuture = options.daysFuture || 365; // 1 year ahead
-    const maxResults = options.maxResults || 2500; // Google's max
+    const daysPast = options.daysPast ?? 180; // 6 months back
+    const daysFuture = options.daysFuture ?? 365; // 1 year ahead
+    const maxResults = options.maxResults ?? 2500; // Google's max
 
     const timeMin = new Date();
     timeMin.setDate(timeMin.getDate() - daysPast);
@@ -356,7 +370,7 @@ export class GoogleCalendarService {
       maxResults,
     });
 
-    const events = eventsResponse.data.items || [];
+    const events = eventsResponse.data.items ?? [];
     let syncedCount = 0;
 
     for (const event of events) {
@@ -421,7 +435,8 @@ export class GoogleCalendarService {
       });
     } catch (error: unknown) {
       // If unique constraint violation, update existing record
-      if ((error as any)?.code === "23505") {
+      const pgError = error as { code?: string };
+      if (pgError?.code === "23505") {
         // PostgreSQL unique violation error code
         await db
           .update(rawEvents)
@@ -485,8 +500,8 @@ export class GoogleCalendarService {
       visibility: event.visibility,
       eventType: event.eventType,
       businessCategory: event.businessCategory,
-      lastSynced: event.lastSynced || event.updatedAt,
-      googleUpdated: event.googleUpdated || event.updatedAt,
+      lastSynced: event.lastSynced ?? event.updatedAt,
+      googleUpdated: event.googleUpdated ?? event.updatedAt,
     })) as CalendarEvent[];
   }
 
@@ -533,8 +548,8 @@ export class GoogleCalendarService {
       visibility: event.visibility,
       eventType: event.eventType,
       businessCategory: event.businessCategory,
-      lastSynced: event.lastSynced || event.updatedAt,
-      googleUpdated: event.googleUpdated || event.updatedAt,
+      lastSynced: event.lastSynced ?? event.updatedAt,
+      googleUpdated: event.googleUpdated ?? event.updatedAt,
     })) as CalendarEvent[];
   }
 }

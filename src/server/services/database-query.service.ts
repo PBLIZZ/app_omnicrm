@@ -65,7 +65,7 @@ export interface ContactCountData {
 }
 
 // Union type for all possible data types
-export type DatabaseQueryData = 
+export type DatabaseQueryData =
   | ContactsSummaryData
   | SearchContactsData
   | NotesInfoData
@@ -94,7 +94,7 @@ export class DatabaseQueryService {
           message: `You have ${contacts.length} contact${contacts.length === 1 ? "" : "s"} in your CRM.`,
         },
       };
-    } catch (error) {
+    } catch {
       return {
         success: false,
         error: "Failed to fetch contacts count",
@@ -129,7 +129,7 @@ export class DatabaseQueryService {
         success: true,
         data: summary,
       };
-    } catch (error) {
+    } catch {
       return {
         success: false,
         error: "Failed to fetch contacts summary",
@@ -147,9 +147,9 @@ export class DatabaseQueryService {
 
       const matchingContacts = contacts.filter(
         (contact) =>
-          contact.displayName.toLowerCase().includes(searchTerm) ||
-          (contact.primaryEmail && contact.primaryEmail.toLowerCase().includes(searchTerm)) ||
-          (contact.primaryPhone && contact.primaryPhone.includes(searchTerm)),
+          contact.displayName.toLowerCase().includes(searchTerm) ??
+          contact.primaryEmail?.toLowerCase().includes(searchTerm) ??
+          contact.primaryPhone?.includes(searchTerm),
       );
 
       return {
@@ -163,7 +163,7 @@ export class DatabaseQueryService {
           })),
         },
       };
-    } catch (error) {
+    } catch {
       return {
         success: false,
         error: "Failed to search contacts",
@@ -184,7 +184,11 @@ export class DatabaseQueryService {
             contactId,
             notesCount: notes.length,
             notes: notes.map((n) => ({
-              content: (typeof n.content === 'string' ? n.content : String(n.content || '')).substring(0, 100) + (n.content && n.content.length > 100 ? "..." : ""),
+              content:
+                (typeof n.content === "string" ? n.content : String(n.content ?? "")).substring(
+                  0,
+                  100,
+                ) + (n.content && n.content.length > 100 ? "..." : ""),
               createdAt: n.createdAt,
             })),
           },
@@ -207,7 +211,7 @@ export class DatabaseQueryService {
           },
         };
       }
-    } catch (error) {
+    } catch {
       return {
         success: false,
         error: "Failed to fetch notes information",
@@ -262,7 +266,7 @@ export class DatabaseQueryService {
       }
 
       // Pattern: "contacts without email"
-      else if (normalizedQuery.includes("without email") || normalizedQuery.includes("no email")) {
+      else if (normalizedQuery.includes("without email") ?? normalizedQuery.includes("no email")) {
         filteredContacts = contacts.filter(
           (contact) => !contact.primaryEmail || contact.primaryEmail.trim() === "",
         );
@@ -270,7 +274,7 @@ export class DatabaseQueryService {
       }
 
       // Pattern: "contacts without phone"
-      else if (normalizedQuery.includes("without phone") || normalizedQuery.includes("no phone")) {
+      else if (normalizedQuery.includes("without phone") ?? normalizedQuery.includes("no phone")) {
         filteredContacts = contacts.filter(
           (contact) => !contact.primaryPhone || contact.primaryPhone.trim() === "",
         );
@@ -312,7 +316,7 @@ export class DatabaseQueryService {
 
       // Fallback to general search
       return this.searchContacts(userId, query);
-    } catch (error) {
+    } catch {
       return {
         success: false,
         error: "Failed to filter contacts",
@@ -338,7 +342,7 @@ export class DatabaseQueryService {
           message: `Here are your ${contacts.length} contacts:\n\n${contacts.map((c) => `• ${c.displayName}${c.primaryEmail ? ` (${c.primaryEmail})` : ""}${c.primaryPhone ? ` - ${c.primaryPhone}` : ""}`).join("\n")}`,
         },
       };
-    } catch (error) {
+    } catch {
       return {
         success: false,
         error: "Failed to fetch contact names",
@@ -359,8 +363,8 @@ export class DatabaseQueryService {
 
       const matchingContact = contacts.find(
         (contact) =>
-          contact.displayName.toLowerCase().includes(searchTerm) ||
-          (contact.primaryEmail && contact.primaryEmail.toLowerCase().includes(searchTerm)),
+          contact.displayName.toLowerCase().includes(searchTerm) ??
+          contact.primaryEmail?.toLowerCase().includes(searchTerm),
       );
 
       if (!matchingContact) {
@@ -398,17 +402,19 @@ export class DatabaseQueryService {
       // Wellness tags
       if (matchingContact.tags) {
         try {
-          let tags = [];
+          let tags: string[] = [];
           if (typeof matchingContact.tags === "string") {
-            tags = JSON.parse(matchingContact.tags);
+            const parsed = JSON.parse(matchingContact.tags) as unknown;
+            tags =
+              Array.isArray(parsed) && parsed.every((tag) => typeof tag === "string") ? parsed : [];
           } else if (Array.isArray(matchingContact.tags)) {
-            tags = matchingContact.tags;
+            tags = matchingContact.tags.filter((tag): tag is string => typeof tag === "string");
           }
 
           if (tags.length > 0) {
             contactInfo += `🏷️ **Wellness Tags:** ${tags.join(", ")}\n\n`;
           }
-        } catch (e) {
+        } catch {
           // Ignore parsing errors
         }
       }
@@ -432,7 +438,7 @@ export class DatabaseQueryService {
           contact: matchingContact,
         },
       };
-    } catch (error) {
+    } catch {
       return {
         success: false,
         error: "Failed to get contact details",

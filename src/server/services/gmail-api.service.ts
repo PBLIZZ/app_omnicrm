@@ -70,10 +70,10 @@ export class GmailApiService {
 
       if (samples.length === 0 && Array.isArray(data.sampleSubjects)) {
         samples = data.sampleSubjects.slice(0, 5).map((emailObj, index: number) => ({
-          id: emailObj.id || `email-${index}`,
-          subject: emailObj.subject || `Email ${index + 1}`,
-          from: emailObj.from || "Sample Sender",
-          date: emailObj.date || new Date(Date.now() - index * 24 * 60 * 60 * 1000).toISOString(),
+          id: emailObj.id ?? `email-${index}`,
+          subject: emailObj.subject ?? `Email ${index + 1}`,
+          from: emailObj.from ?? "Sample Sender",
+          date: emailObj.date ?? new Date(Date.now() - index * 24 * 60 * 60 * 1000).toISOString(),
           snippet: `This is a preview of email ${index + 1}...`,
           hasAttachments: false,
           labels: ["INBOX"],

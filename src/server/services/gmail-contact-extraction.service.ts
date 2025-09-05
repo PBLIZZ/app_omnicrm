@@ -8,10 +8,7 @@ export class GmailContactExtractionService {
   /**
    * Process raw Gmail events to extract and enhance contact information
    */
-  static async processGmailContacts(
-    userId: string,
-    batchId?: string,
-  ): Promise<{
+  static async processGmailContacts(): Promise<{
     success: boolean;
     contactsProcessed: number;
     contactsEnhanced: number;

@@ -49,8 +49,26 @@ function isOpenRouterChatResponse(data: unknown): data is OpenRouterChatResponse
 
 // Email Intelligence Types
 export interface EmailClassification {
-  primaryCategory: "client_communication" | "business_intelligence" | "personal" | "educational" | "administrative" | "marketing" | "spam";
-  subCategory: "marketing" | "thought_leadership" | "course_content" | "client_inquiry" | "appointment_related" | "invoice_payment" | "general_business" | "newsletter" | "promotion" | "personal_note" | "spam_likely";
+  primaryCategory:
+    | "client_communication"
+    | "business_intelligence"
+    | "personal"
+    | "educational"
+    | "administrative"
+    | "marketing"
+    | "spam";
+  subCategory:
+    | "marketing"
+    | "thought_leadership"
+    | "course_content"
+    | "client_inquiry"
+    | "appointment_related"
+    | "invoice_payment"
+    | "general_business"
+    | "newsletter"
+    | "promotion"
+    | "personal_note"
+    | "spam_likely";
   confidence: number; // 0.0 to 1.0
   businessRelevance: number; // 0.0 to 1.0 - relevance to wellness practice
   reasoning: string;
@@ -253,7 +271,7 @@ export async function categorizeEmail(
   },
 ): Promise<EmailClassification> {
   const { subject = "", bodyText = "", senderEmail = "", senderName = "" } = emailData;
-  
+
   // Extract sender domain for metadata
   const senderDomain = senderEmail.includes("@") ? senderEmail.split("@")[1] : undefined;
 
@@ -316,7 +334,7 @@ Analyze the content, sender, and context to provide accurate categorization and 
   ];
 
   const response = await callOpenRouter<EmailClassification>(userId, messages, {});
-  
+
   // Ensure extracted metadata includes sender domain
   const enrichedData: EmailClassification = {
     ...response.data,
@@ -415,17 +433,18 @@ export async function matchToContacts(
     const exactMatch = await db
       .select()
       .from(contacts)
-      .where(
-        and(
-          eq(contacts.userId, userId),
-          eq(contacts.primaryEmail, senderEmail.toLowerCase())
-        )
-      )
+      .where(and(eq(contacts.userId, userId), eq(contacts.primaryEmail, senderEmail.toLowerCase())))
       .limit(1);
 
     if (exactMatch.length > 0) {
+      const firstMatch = exactMatch[0];
+      if (!firstMatch) {
+        throw new Error(
+          "Unexpected: exactMatch array has length > 0 but first element is undefined",
+        );
+      }
       return {
-        contactId: exactMatch[0]!.id,
+        contactId: firstMatch.id,
         confidence: 0.95,
         matchingFactors: ["exact_email_match"],
       };
@@ -434,8 +453,11 @@ export async function matchToContacts(
 
   // Try partial name matching if no exact email match
   if (senderName && senderName.length > 2) {
-    const nameWords = senderName.toLowerCase().split(/\s+/).filter(word => word.length > 2);
-    
+    const nameWords = senderName
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((word) => word.length > 2);
+
     if (nameWords.length > 0) {
       // Use fuzzy matching for contact names
       const fuzzyMatches = await db
@@ -446,15 +468,16 @@ export async function matchToContacts(
 
       for (const contact of fuzzyMatches) {
         const contactNameWords = contact.displayName.toLowerCase().split(/\s+/);
-        const matchingWords = nameWords.filter(word => 
-          contactNameWords.some(contactWord => 
-            contactWord.includes(word) || word.includes(contactWord)
-          )
+        const matchingWords = nameWords.filter((word) =>
+          contactNameWords.some(
+            (contactWord) => contactWord.includes(word) || word.includes(contactWord),
+          ),
         );
 
         if (matchingWords.length >= Math.min(nameWords.length, 2)) {
-          const confidence = matchingWords.length / Math.max(nameWords.length, contactNameWords.length);
-          
+          const confidence =
+            matchingWords.length / Math.max(nameWords.length, contactNameWords.length);
+
           if (confidence > 0.6) {
             return {
               contactId: contact.id,
@@ -546,7 +569,7 @@ export async function processEmailIntelligence(
   rawEventId: string,
 ): Promise<EmailIntelligence> {
   const db = await getDb();
-  
+
   // Fetch the raw event
   const rawEvent = await db
     .select()
@@ -558,7 +581,10 @@ export async function processEmailIntelligence(
     throw new Error(`Raw event not found: ${rawEventId}`);
   }
 
-  const event = rawEvent[0]!;
+  const event = rawEvent[0];
+  if (!event) {
+    throw new Error(`Unexpected: rawEvent array has length > 0 but first element is undefined`);
+  }
   // Type guard for Gmail payload structure
   interface GmailPayload {
     subject?: string;
@@ -574,7 +600,7 @@ export async function processEmailIntelligence(
   }
 
   const isGmailPayload = (payload: unknown): payload is GmailPayload => {
-    return payload !== null && typeof payload === 'object';
+    return payload !== null && typeof payload === "object";
   };
 
   if (!isGmailPayload(event.payload)) {
@@ -585,11 +611,12 @@ export async function processEmailIntelligence(
 
   // Extract email data from Gmail payload
   const emailData = {
-    subject: payload.subject || "",
-    bodyText: payload.bodyText || payload.snippet || "",
-    senderEmail: payload.from?.email || payload.senderEmail || "",
-    senderName: payload.from?.name || payload.senderName || "",
-    recipientEmails: payload.to?.map((t) => t.email).filter((email): email is string => Boolean(email)) || [],
+    subject: payload.subject ?? "",
+    bodyText: payload.bodyText ?? payload.snippet ?? "",
+    senderEmail: payload.from?.email ?? payload.senderEmail ?? "",
+    senderName: payload.from?.name ?? payload.senderName ?? "",
+    recipientEmails:
+      payload.to?.map((t) => t.email).filter((email): email is string => Boolean(email)) ?? [],
     occurredAt: event.occurredAt,
   };
 
@@ -653,9 +680,9 @@ export async function generateWeeklyDigest(
   } = {},
 ): Promise<WeeklyDigestInsight> {
   const db = await getDb();
-  
-  const endDate = options.endDate || new Date();
-  const startDate = options.startDate || new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const endDate = options.endDate ?? new Date();
+  const startDate = options.startDate ?? new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   // Fetch email interactions from the past week
   const emailInteractions = await db
@@ -666,8 +693,8 @@ export async function generateWeeklyDigest(
         eq(interactions.userId, userId),
         eq(interactions.type, "email"),
         sql`${interactions.occurredAt} >= ${startDate}`,
-        sql`${interactions.occurredAt} <= ${endDate}`
-      )
+        sql`${interactions.occurredAt} <= ${endDate}`,
+      ),
     )
     .orderBy(desc(interactions.occurredAt));
 
@@ -680,8 +707,8 @@ export async function generateWeeklyDigest(
         eq(aiInsights.userId, userId),
         eq(aiInsights.subjectType, "inbox"),
         sql`${aiInsights.createdAt} >= ${startDate}`,
-        sql`${aiInsights.createdAt} <= ${endDate}`
-      )
+        sql`${aiInsights.createdAt} <= ${endDate}`,
+      ),
     );
 
   // Type for email interaction summary
@@ -694,9 +721,9 @@ export async function generateWeeklyDigest(
 
   const emailSummary: EmailSummary[] = emailInteractions
     .map((interaction) => ({
-      subject: interaction.subject || "No subject",
-      bodyText: (interaction.bodyText?.substring(0, 200)) || "",
-      source: interaction.source || "unknown",
+      subject: interaction.subject ?? "No subject",
+      bodyText: interaction.bodyText?.substring(0, 200) ?? "",
+      source: interaction.source ?? "unknown",
       occurredAt: interaction.occurredAt,
     }))
     .slice(0, 30); // Limit to prevent token overflow
@@ -748,7 +775,7 @@ ${emailSummary
     (email, idx: number) =>
       `${idx + 1}. [${email.occurredAt.toDateString()}] ${email.subject}
    ${email.bodyText}
-   Source: ${email.source}`
+   Source: ${email.source}`,
   )
   .join("\n\n")}
 
@@ -756,7 +783,11 @@ Provide comprehensive business intelligence and actionable recommendations.`,
     },
   ];
 
-  const response = await callOpenRouter<Omit<WeeklyDigestInsight, "timeframe">>(userId, messages, {});
+  const response = await callOpenRouter<Omit<WeeklyDigestInsight, "timeframe">>(
+    userId,
+    messages,
+    {},
+  );
 
   return {
     timeframe: {

@@ -7,24 +7,65 @@ import {
   Insights,
 } from "../../app/(authorisedRoute)/omni-connect/_components/omni-connect-types";
 
+// Type definitions for API responses
+interface SyncPreviewResponse {
+  countByLabel?: Record<string, number>;
+  sampleSubjects?: EmailSample[];
+}
+
+interface EmailSample {
+  id?: string;
+  subject?: string;
+  from?: string;
+  date?: string;
+}
+
+interface SyncStatusResponse {
+  lastSync?: { gmail?: string };
+  serviceTokens?: { gmail?: boolean };
+}
+
+interface RawEventsResponse {
+  total: number;
+}
+
+interface ContactSuggestionsResponse {
+  suggestions: unknown[];
+}
+
+interface SyncApproveResponse {
+  message: string;
+}
+
+interface EmbeddingsResponse {
+  message: string;
+}
+
+interface SearchResponse {
+  results: SearchResult[];
+}
+
+interface InsightsResponse {
+  insights: Insights | null;
+}
+
 export class OmniConnectApiService {
   static async fetchGmailStats(): Promise<GmailStats> {
     // Get sync status using the API utility
-    const syncData = await fetchGet<{
-      lastSync?: { gmail?: string };
-      serviceTokens?: { gmail?: boolean };
-    }>("/api/settings/sync/status", { showErrorToast: false });
+    const syncData = await fetchGet<SyncStatusResponse>("/api/settings/sync/status", {
+      showErrorToast: false,
+    });
 
     // Get raw events count for emails processed
     const eventsUrl = buildUrl("/api/google/gmail/raw-events", {
       provider: "gmail",
       pageSize: 1,
     });
-    const eventsData = await fetchGet<{ total: number }>(eventsUrl, { showErrorToast: false });
+    const eventsData = await fetchGet<RawEventsResponse>(eventsUrl, { showErrorToast: false });
     const emailsProcessed = eventsData.total || 0;
 
     // Get contacts suggestions for suggested contacts count
-    const contactsData = await fetchPost<{ suggestions: unknown[] }>(
+    const contactsData = await fetchPost<ContactSuggestionsResponse>(
       "/api/contacts-new/suggestions",
       {},
       { showErrorToast: false },
@@ -43,19 +84,18 @@ export class OmniConnectApiService {
 
   static async syncGmail(): Promise<{ message: string }> {
     // First preview the sync
-    const preview = await fetchPost<{
-      countByLabel?: Record<string, number>;
-      sampleSubjects?: any[];
-    }>("/api/sync/preview/gmail", {});
+    const preview = await fetchPost<SyncPreviewResponse>("/api/sync/preview/gmail", {});
 
     // Calculate total emails from countByLabel
     const totalEmails = Object.values(preview?.countByLabel ?? {}).reduce(
-      (sum: number, count: any) => sum + (typeof count === "number" ? count : 0),
+      (sum: number, count: unknown) => {
+        return sum + (typeof count === "number" ? count : 0);
+      },
       0,
     );
 
     // Show preview to user and ask for confirmation
-    const sampleCount = preview?.sampleSubjects?.length || 0;
+    const sampleCount = preview?.sampleSubjects?.length ?? 0;
     const confirmed = window.confirm(
       `Gmail Sync Preview:\n\n` +
         `• Total emails found: ${totalEmails}\n` +
@@ -69,17 +109,17 @@ export class OmniConnectApiService {
     }
 
     // Proceed with sync
-    const result = await fetchPost<{ message: string }>("/api/sync/approve/gmail", {});
+    const result = await fetchPost<SyncApproveResponse>("/api/sync/approve/gmail", {});
     return { message: result.message || "Gmail sync approved and processing started" };
   }
 
   static async generateEmbeddings(): Promise<{ message: string }> {
-    const data = await fetchPost<{ message: string }>("/api/gmail/embed", { regenerate: false });
+    const data = await fetchPost<EmbeddingsResponse>("/api/gmail/embed", { regenerate: false });
     return { message: data.message || "Embeddings generated successfully" };
   }
 
   static async searchGmail(query: string, limit: number = 5): Promise<SearchResult[]> {
-    const data = await fetchPost<{ results: SearchResult[] }>("/api/gmail/search", {
+    const data = await fetchPost<SearchResponse>("/api/gmail/search", {
       query,
       limit,
     });
@@ -87,7 +127,7 @@ export class OmniConnectApiService {
   }
 
   static async loadInsights(): Promise<Insights | null> {
-    const data = await fetchGet<{ insights: Insights | null }>("/api/gmail/insights");
+    const data = await fetchGet<InsightsResponse>("/api/gmail/insights");
     return data.insights;
   }
 
@@ -96,9 +136,7 @@ export class OmniConnectApiService {
   }
 
   static async fetchRecentEmails(): Promise<EmailPreview[]> {
-    const data = await fetchPost<{
-      sampleSubjects?: any[];
-    }>("/api/sync/preview/gmail", {});
+    const data = await fetchPost<SyncPreviewResponse>("/api/sync/preview/gmail", {});
 
     // Extract sample subjects from the preview data
     if (
@@ -106,7 +144,7 @@ export class OmniConnectApiService {
       Array.isArray(data.sampleSubjects) &&
       data.sampleSubjects.length > 0
     ) {
-      return data.sampleSubjects.slice(0, 5).map((emailObj: any, index: number) => ({
+      return data.sampleSubjects.slice(0, 5).map((emailObj: EmailSample, index: number) => ({
         id: emailObj.id ?? `email-${index}`,
         subject: emailObj.subject ?? `Email ${index + 1}`,
         from: emailObj.from ?? "Sample Sender",

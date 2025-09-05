@@ -2,6 +2,53 @@ import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import OpenAI from "openai";
 
+// Type definitions for calendar event data
+interface CalendarEventData {
+  id: string;
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  startTime?: Date | string;
+  endTime?: Date | string;
+  eventType?: string | null;
+  businessCategory?: string | null;
+  attendees?: unknown[];
+  keywords?: string[];
+}
+
+interface EventRow {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+}
+
+interface AttendeeData {
+  displayName?: string;
+  email?: string;
+}
+
+interface SearchResultRow {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_time: string;
+  end_time: string;
+  event_type: string | null;
+  business_category: string | null;
+  attendees: unknown;
+  keywords: unknown;
+  meta: { textContent?: string };
+  distance: number;
+}
+
+interface AnalyticsEventRow {
+  event_type: string | null;
+  start_time: string;
+  attendees: unknown;
+}
+
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env["OPENAI_API_KEY"] });
 
@@ -32,16 +79,7 @@ export class CalendarEmbeddingService {
       `);
 
       // Type-safe access to database results
-      const eventRows = (
-        eventsToEmbed as unknown as {
-          rows: Array<{
-            id: string;
-            title: string;
-            description: string | null;
-            location: string | null;
-          }>;
-        }
-      ).rows;
+      const eventRows = eventsToEmbed as EventRow[];
       // console.log(`📊 Found ${eventRows.length} events to embed`);
 
       let processedCount = 0;
@@ -87,7 +125,7 @@ export class CalendarEmbeddingService {
   /**
    * Generate embedding for a single calendar event
    */
-  private static async embedSingleEvent(event: any, userId?: string) {
+  private static async embedSingleEvent(event: CalendarEventData, userId?: string): Promise<void> {
     // Extract meaningful text from the event
     const textContent = this.extractEventText(event);
 
@@ -124,7 +162,7 @@ export class CalendarEmbeddingService {
   /**
    * Extract searchable text content from a calendar event
    */
-  private static extractEventText(event: any): string {
+  private static extractEventText(event: CalendarEventData): string {
     const parts = [];
 
     // Event title (most important)
@@ -154,7 +192,10 @@ export class CalendarEmbeddingService {
     // Attendee information (names only for privacy)
     if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
       const attendeeNames = event.attendees
-        .map((a: any) => a.displayName || a.email?.split("@")[0])
+        .map((a: unknown) => {
+          const attendee = a as AttendeeData;
+          return attendee.displayName ?? attendee.email?.split("@")[0];
+        })
         .filter(Boolean)
         .join(", ");
 
@@ -202,9 +243,7 @@ export class CalendarEmbeddingService {
     // Convert to pgvector format: [1.0, 2.0, 3.0]
     const vectorString = JSON.stringify(embeddingArray);
 
-    console.log(
-      `🔧 Generated embedding array of length ${embeddingArray.length}, format: ${vectorString.substring(0, 50)}...`,
-    );
+    // Generated embedding array successfully
 
     return vectorString;
   }
@@ -218,7 +257,7 @@ export class CalendarEmbeddingService {
     limit: number = 10,
   ): Promise<
     Array<{
-      event: any;
+      event: CalendarEventData;
       similarity: number;
       textContent: string;
     }>
@@ -242,8 +281,8 @@ export class CalendarEmbeddingService {
       `);
 
       // Type-safe access to database results
-      const resultRows = (results as unknown as { rows: any[] }).rows;
-      return resultRows.map((row: any) => ({
+      const resultRows = results as SearchResultRow[];
+      return resultRows.map((row: SearchResultRow) => ({
         event: {
           id: row.id,
           title: row.title,
@@ -257,7 +296,7 @@ export class CalendarEmbeddingService {
           keywords: row.keywords,
         },
         similarity: 1 - row.distance, // Convert distance to similarity
-        textContent: row.meta?.textContent || "",
+        textContent: row.meta?.textContent ?? "",
       }));
     } catch (error) {
       console.error("❌ Vector search error:", error);
@@ -296,7 +335,7 @@ export class CalendarEmbeddingService {
       `);
 
       // Type-safe access to database results
-      const eventRows = (eventsWithEmbeddings as unknown as { rows: any[] }).rows;
+      const eventRows = eventsWithEmbeddings as AnalyticsEventRow[];
       // Analyze patterns using event data
       const insights = this.analyzeEventPatterns(eventRows);
 
@@ -315,7 +354,7 @@ export class CalendarEmbeddingService {
   /**
    * Analyze patterns in calendar events
    */
-  private static analyzeEventPatterns(events: any[]): {
+  private static analyzeEventPatterns(events: AnalyticsEventRow[]): {
     patterns: string[];
     busyTimes: string[];
     recommendations: string[];
@@ -334,18 +373,18 @@ export class CalendarEmbeddingService {
     events.forEach((event) => {
       // Count event types
       if (event.event_type) {
-        eventTypeCounts[event.event_type] = (eventTypeCounts[event.event_type] || 0) + 1;
+        eventTypeCounts[event.event_type] = (eventTypeCounts[event.event_type] ?? 0) + 1;
       }
 
       // Count days of week
       if (event.start_time) {
         const date = new Date(event.start_time);
         const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-        dayOfWeekCounts[dayOfWeek] = (dayOfWeekCounts[dayOfWeek] || 0) + 1;
+        dayOfWeekCounts[dayOfWeek] = (dayOfWeekCounts[dayOfWeek] ?? 0) + 1;
 
         // Count hours
         const hour = date.getHours();
-        hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+        hourCounts[hour] = (hourCounts[hour] ?? 0) + 1;
       }
     });
 

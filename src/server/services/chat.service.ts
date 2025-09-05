@@ -12,13 +12,13 @@ export type ChatServiceResult =
   | { data: { text: string }; creditsLeft: number }
   | { error: "rate_limited_minute" | "rate_limited_daily_cost" | "rate_limited_monthly" };
 
-export async function chatService(userId: string, prompt: string): Promise<ChatServiceResult> {
+export async function createThread(userId: string): Promise<ChatServiceResult> {
   // Feature gating: if provider not configured (e.g., in dev), short-circuit with a safe fallback
   if (!isOpenRouterConfigured()) {
     logger.warn("OpenRouter not configured; returning fallback response", {}, "chat.service");
     // Do NOT spend credits in fallback path
     return {
-      data: { text: `AI is disabled. Echo: ${prompt}` },
+      data: { text: `AI is disabled. Echo: ` },
       // No quota spend, so return a sentinel -1 to indicate unchanged credits to the caller
       // The route ignores creditsLeft if not using guardrails; however, keep shape consistent.
       creditsLeft: -1,
@@ -93,18 +93,23 @@ async function safeJson<T>(res: Response): Promise<T | null> {
 /**
  * Streaming version of chatService that returns a ReadableStream
  */
-export async function streamingChatService(userId: string, prompt: string, threadId?: string): Promise<ReadableStream> {
+export async function streamingChatService(
+  userId: string,
+  prompt: string,
+): Promise<ReadableStream> {
   // Feature gating: if provider not configured (e.g., in dev), short-circuit with a safe fallback
   if (!isOpenRouterConfigured()) {
     const encoder = new TextEncoder();
     const fallbackMessage = "AI is disabled. Echo: " + prompt;
-    
+
     return new ReadableStream({
       start(controller) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: fallbackMessage })}\n\n`));
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ content: fallbackMessage })}\n\n`),
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
-      }
+      },
     });
   }
 
@@ -123,7 +128,7 @@ export async function streamingChatService(userId: string, prompt: string, threa
   } satisfies Record<string, unknown>;
 
   const encoder = new TextEncoder();
-  
+
   return new ReadableStream({
     async start(controller) {
       try {
@@ -136,16 +141,20 @@ export async function streamingChatService(userId: string, prompt: string, threa
         if (!res.ok) {
           const errJson = await safeJson<{ error?: unknown }>(res);
           const message = typeof errJson?.error === "string" ? errJson.error : "provider_error";
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "Error: " + message })}\n\n`));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ content: "Error: " + message })}\n\n`),
+          );
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
           return;
         }
 
         const reader = res.body?.getReader();
         if (!reader) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "No response body" })}\n\n`));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ content: "No response body" })}\n\n`),
+          );
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
           return;
         }
@@ -154,19 +163,21 @@ export async function streamingChatService(userId: string, prompt: string, threa
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
+
           const chunk = new TextDecoder().decode(value);
           controller.enqueue(encoder.encode(chunk));
         }
 
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (error) {
         console.error("Streaming chat error:", error);
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "Internal server error" })}\n\n`));
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ content: "Internal server error" })}\n\n`),
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       }
-    }
+    },
   });
 }

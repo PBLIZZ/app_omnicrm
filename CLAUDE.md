@@ -424,14 +424,44 @@ The skipped e2e test requires both Supabase authentication AND Google OAuth toke
 
 ### Coding Standards
 
+#### TypeScript Safety (Zero Tolerance Policy)
+
 - **Never use `any`** - Always provide proper TypeScript types
+- **Never use non-null assertions (`!`)** - Replace with explicit null checks and error handling
+- **Never use type assertions (`as`)** - Implement proper type guards instead
+- **Never use ESLint disables** - Fix the underlying issue, not the warning
+- **Never use underscore prefixes** - Remove unused code instead of hiding it
 - **Fix root causes** - When encountering lint errors, resolve the underlying issue. Do not use comments, config changes, ignore lists, underscores, or other short-term fixes. Do not accrue technical debt.
-- **Avoid type assertions** - Using `as` avoids TypeScript rules and is not permitted
 - **Strict TypeScript** - Configuration enforces strict typing with `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noPropertyAccessFromIndexSignature`
-- **Proper logging** - Console logs should be replaced with toast notifications for user messages and proper logging to log.txt for debugging
-- **No TODO comments** - Do not leave comments for outstanding work. Instead raise GitHub issues and add them to the project board.
-- **Component architecture** - Ensure separation of concerns, prefer composable components over monolithic ones, and incorporate error boundaries throughout the codebase
+
+#### Proper TypeScript Patterns
+
+```typescript
+// ❌ NEVER - Dangerous workarounds
+const data = response.data!; // Runtime crash risk
+const user = obj as User; // Type safety bypass
+// eslint-disable-next-line rule-name  // Hiding real issues
+
+// ✅ ALWAYS - Safe, explicit patterns
+const data = response.data;
+if (!data) {
+  throw new Error("Expected data but received null/undefined");
+}
+
+function isUser(obj: unknown): obj is User {
+  return typeof obj === "object" && obj !== null && "id" in obj;
+}
+if (!isUser(obj)) {
+  throw new Error("Invalid user object structure");
+}
+```
+
+#### Component Architecture
+
+- **Separation of concerns** - Prefer composable components over monolithic ones
+- **Error boundaries** - Comprehensive error handling with fallback UI at App, Page, and Component levels
 - **Package management** - Use pnpm for all development, build, and test commands
+- **No TODO comments** - Raise GitHub issues instead
 
 ### UI/UX Patterns
 
@@ -609,3 +639,13 @@ fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
 - Loading States: Skeleton components and loading indicators
 - pnpm typecheck and pnpm lint are the preferred commands
 ```
+
+- // User-facing progress/status
+  toast.info("Generating AI insights...");
+
+// User-facing errors (they initiated the action)
+toast.error("Failed to generate insights");
+console.error("AI insights error:", error); // Still log for debugging
+
+// Technical/background errors (they didn't initiate)
+logger.debug("Failed to decode message part", error); // Dev console only

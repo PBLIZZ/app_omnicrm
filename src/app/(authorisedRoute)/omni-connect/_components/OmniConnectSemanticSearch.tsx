@@ -39,8 +39,8 @@ export function OmniConnectSemanticSearch({
           Semantic Gmail Search
         </CardTitle>
         <CardDescription>
-          Search your emails using natural language (e.g., "project updates from John",
-          "meeting notes")
+          Search your emails using natural language (e.g., &quot;project updates from John&quot;,
+          &quot;meeting notes&quot;)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -66,9 +66,7 @@ export function OmniConnectSemanticSearch({
               <div key={index} className="border rounded-lg p-3 space-y-2">
                 <div className="flex items-start justify-between">
                   <h5 className="font-medium">{result.subject}</h5>
-                  <Badge variant="secondary">
-                    {Math.round(result.similarity * 100)}% match
-                  </Badge>
+                  <Badge variant="secondary">{Math.round(result.similarity * 100)}% match</Badge>
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {format(new Date(result.date), "MMM d, yyyy")}

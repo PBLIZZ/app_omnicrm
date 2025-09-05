@@ -39,7 +39,10 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
 }
 
-export function ContactsTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>): JSX.Element {
+export function ContactsTable<TData, TValue>({
+  columns,
+  data,
+}: DataTableProps<TData, TValue>): JSX.Element {
   const bulkDeleteContacts = useBulkDeleteContacts();
   const [sorting, setSorting] = useState<SortingState>([]);
   // Initialize column visibility from localStorage
@@ -48,7 +51,7 @@ export function ContactsTable<TData, TValue>({ columns, data }: DataTableProps<T
       const saved = localStorage.getItem("contacts-column-visibility");
       if (saved) {
         try {
-          return JSON.parse(saved);
+          return JSON.parse(saved) as VisibilityState;
         } catch (e) {
           console.warn("Failed to parse saved column visibility:", e);
         }

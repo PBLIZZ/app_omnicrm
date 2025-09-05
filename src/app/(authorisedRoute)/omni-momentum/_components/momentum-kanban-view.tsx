@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -23,13 +23,9 @@ import {
   useSensors,
   closestCenter,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { 
+import {
   MoreHorizontal,
   Edit,
   Trash2,
@@ -48,7 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Momentum } from "@/server/db/schema";
 
 interface MomentumKanbanViewProps {
-  momentums: Array<Momentum & { taggedContactsData?: Array<{ id: string; displayName: string; }> }>;
+  momentums: Array<Momentum & { taggedContactsData?: Array<{ id: string; displayName: string }> }>;
   isLoading: boolean;
 }
 
@@ -63,36 +59,30 @@ const statusColumns = [
 const getPriorityColor = (priority: string): string => {
   const colors = {
     low: "text-green-600 dark:text-green-400 border-green-200 dark:border-green-800",
-    medium: "text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800", 
+    medium: "text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
     high: "text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800",
     urgent: "text-red-600 dark:text-red-400 border-red-200 dark:border-red-800",
   } as const;
-  
-  return colors[priority as keyof typeof colors] || colors.medium;
+
+  return colors[priority as keyof typeof colors] ?? colors.medium;
 };
 
 // Draggable Task Card Component
-function TaskCard({ 
-  task, 
-  isDragging = false 
-}: { 
-  task: Momentum & { taggedContactsData?: Array<{ id: string; displayName: string; }> };
+function TaskCard({
+  task,
+  isDragging = false,
+}: {
+  task: Momentum & { taggedContactsData?: Array<{ id: string; displayName: string }> };
   isDragging?: boolean;
 }): JSX.Element {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: task.id });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
 
-  const contacts = task.taggedContactsData || [];
+  const contacts = task.taggedContactsData ?? [];
   const isOverdue = task.dueDate && new Date() > new Date(task.dueDate);
 
   return (
@@ -104,22 +94,22 @@ function TaskCard({
       className={`cursor-grab active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
       data-testid={`task-card-${task.id}`}
     >
-      <Card className={`mb-3 hover:shadow-md transition-shadow border-l-4 ${getPriorityColor(task.priority)}`}>
+      <Card
+        className={`mb-3 hover:shadow-md transition-shadow border-l-4 ${getPriorityColor(task.priority)}`}
+      >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-2 flex-1">
               {task.source === "ai_generated" && (
                 <Bot className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
               )}
-              <CardTitle className="text-sm font-medium leading-tight">
-                {task.title}
-              </CardTitle>
+              <CardTitle className="text-sm font-medium leading-tight">{task.title}</CardTitle>
             </div>
-            
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                   data-testid={`button-task-actions-${task.id}`}
                 >
@@ -139,14 +129,12 @@ function TaskCard({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          
+
           {task.description && (
-            <p className="text-xs text-muted-foreground mt-2 line-clamp-3">
-              {task.description}
-            </p>
+            <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{task.description}</p>
           )}
         </CardHeader>
-        
+
         <CardContent className="pt-0 space-y-3">
           {/* Priority and Assignee */}
           <div className="flex items-center justify-between">
@@ -154,7 +142,7 @@ function TaskCard({
               <Flag className={`h-3 w-3 ${getPriorityColor(task.priority)}`} />
               <span className="text-xs capitalize">{task.priority}</span>
             </div>
-            
+
             <div className="flex items-center gap-1">
               {task.assignee === "ai" ? (
                 <>
@@ -172,10 +160,16 @@ function TaskCard({
 
           {/* Due Date */}
           {task.dueDate && (
-            <div className={`flex items-center gap-1 text-xs ${isOverdue ? 'text-red-600' : 'text-muted-foreground'}`}>
+            <div
+              className={`flex items-center gap-1 text-xs ${isOverdue ? "text-red-600" : "text-muted-foreground"}`}
+            >
               <Calendar className="h-3 w-3" />
               {format(new Date(task.dueDate), "MMM dd")}
-              {isOverdue && <Badge variant="destructive" className="text-xs ml-1">Overdue</Badge>}
+              {isOverdue && (
+                <Badge variant="destructive" className="text-xs ml-1">
+                  Overdue
+                </Badge>
+              )}
             </div>
           )}
 
@@ -183,10 +177,9 @@ function TaskCard({
           {task.estimatedMinutes && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              {task.estimatedMinutes < 60 
+              {task.estimatedMinutes < 60
                 ? `${task.estimatedMinutes}m`
-                : `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}m`
-              }
+                : `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}m`}
             </div>
           )}
 
@@ -196,7 +189,11 @@ function TaskCard({
               {contacts.slice(0, 3).map((contact) => (
                 <Avatar key={contact.id} className="h-5 w-5">
                   <AvatarFallback className="text-xs text-[10px]">
-                    {contact.displayName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    {contact.displayName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
               ))}
@@ -214,19 +211,19 @@ function TaskCard({
 }
 
 // Kanban Column Component
-function KanbanColumn({ 
-  column, 
-  tasks, 
-  isLoading 
-}: { 
-  column: typeof statusColumns[0];
-  tasks: Array<Momentum & { taggedContactsData?: Array<{ id: string; displayName: string; }> }>;
+function KanbanColumn({
+  column,
+  tasks,
+  isLoading,
+}: {
+  column: (typeof statusColumns)[0];
+  tasks: Array<Momentum & { taggedContactsData?: Array<{ id: string; displayName: string }> }>;
   isLoading: boolean;
 }): JSX.Element {
-  const columnTasks = tasks.filter(task => task.status === column.id);
+  const columnTasks = tasks.filter((task) => task.status === column.id);
 
   return (
-    <div 
+    <div
       className={`flex-1 min-w-80 rounded-lg p-4 ${column.color}`}
       data-testid={`kanban-column-${column.id}`}
     >
@@ -237,10 +234,10 @@ function KanbanColumn({
             {columnTasks.length}
           </Badge>
         </div>
-        
-        <Button 
-          variant="ghost" 
-          size="sm" 
+
+        <Button
+          variant="ghost"
+          size="sm"
           className="h-6 w-6 p-0 hover:bg-background/50"
           data-testid={`button-add-task-${column.id}`}
         >
@@ -256,7 +253,10 @@ function KanbanColumn({
             ))}
           </div>
         ) : (
-          <SortableContext items={columnTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext
+            items={columnTasks.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
             <div className="group">
               {columnTasks.map((task) => (
                 <TaskCard key={task.id} task={task} />
@@ -264,7 +264,7 @@ function KanbanColumn({
             </div>
           </SortableContext>
         )}
-        
+
         {!isLoading && columnTasks.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             <CheckSquare className="mx-auto h-8 w-8 mb-2 opacity-50" />
@@ -283,19 +283,19 @@ export function MomentumKanbanView({ momentums, isLoading }: MomentumKanbanViewP
       activationConstraint: {
         distance: 8,
       },
-    })
+    }),
   );
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, data }: { taskId: string; data: { status: string } }) => {
       return apiRequest(`/api/tasks/${taskId}`, {
         method: "PUT",
         body: JSON.stringify(data),
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
     },
@@ -322,23 +322,23 @@ export function MomentumKanbanView({ momentums, isLoading }: MomentumKanbanViewP
 
   function handleDragEnd(event: DragEndEvent): void {
     const { active, over } = event;
-    
+
     if (!over) {
       setActiveId(null);
       return;
     }
 
     // Find the task that was dragged
-    const draggedTask = momentums.find(t => t.id === active.id);
+    const draggedTask = momentums.find((t) => t.id === active.id);
     if (!draggedTask) {
       setActiveId(null);
       return;
     }
 
     // Determine the new status based on which column it was dropped in
-    const overColumn = statusColumns.find(col => {
-      const columnTasks = momentums.filter(task => task.status === col.id);
-      return columnTasks.some(task => task.id === over.id) || over.id === col.id;
+    const overColumn = statusColumns.find((col) => {
+      const columnTasks = momentums.filter((task) => task.status === col.id);
+      return columnTasks.some((task) => task.id === over.id) || over.id === col.id;
     });
 
     // If dropped in a different column, update the task status
@@ -352,7 +352,7 @@ export function MomentumKanbanView({ momentums, isLoading }: MomentumKanbanViewP
     setActiveId(null);
   }
 
-  const draggedTask = activeId ? momentums.find(t => t.id === activeId) : null;
+  const draggedTask = activeId ? momentums.find((t) => t.id === activeId) : null;
 
   return (
     <DndContext
@@ -363,25 +363,17 @@ export function MomentumKanbanView({ momentums, isLoading }: MomentumKanbanViewP
     >
       <div className="flex gap-6 overflow-x-auto pb-4" data-testid="kanban-board">
         {statusColumns.map((column) => (
-          <SortableContext 
-            key={column.id} 
-            items={momentums.filter(t => t.status === column.id).map(t => t.id)}
+          <SortableContext
+            key={column.id}
+            items={momentums.filter((t) => t.status === column.id).map((t) => t.id)}
             strategy={verticalListSortingStrategy}
           >
-            <KanbanColumn 
-              column={column} 
-              tasks={momentums} 
-              isLoading={isLoading}
-            />
+            <KanbanColumn column={column} tasks={momentums} isLoading={isLoading} />
           </SortableContext>
         ))}
       </div>
 
-      <DragOverlay>
-        {draggedTask ? (
-          <TaskCard task={draggedTask} isDragging />
-        ) : null}
-      </DragOverlay>
+      <DragOverlay>{draggedTask ? <TaskCard task={draggedTask} isDragging /> : null}</DragOverlay>
     </DndContext>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,7 +24,10 @@ interface GmailSettingsPanelProps {
   onClose: () => void;
 }
 
-export function GmailSettingsPanel({ isOpen, onClose }: GmailSettingsPanelProps): JSX.Element | null {
+export function GmailSettingsPanel({
+  isOpen,
+  onClose,
+}: GmailSettingsPanelProps): JSX.Element | null {
   const [settings, setSettings] = useState<GmailSettings>({
     gmailQuery: "category:primary -in:chats -in:drafts newer_than:30d",
     gmailLabelIncludes: [],
@@ -36,28 +39,28 @@ export function GmailSettingsPanel({ isOpen, onClose }: GmailSettingsPanelProps)
   const [newLabelInclude, setNewLabelInclude] = useState("");
   const [newLabelExclude, setNewLabelExclude] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      loadSettings().catch((error) => {
-        console.error("Failed to load Gmail settings:", error);
-      });
-    }
-  }, [isOpen]);
-
-  const loadSettings = async (): Promise<void> => {
+  const loadSettings = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch("/api/settings/sync/prefs");
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as {
+          gmailQuery?: string;
+          gmailLabelIncludes?: unknown;
+          gmailLabelExcludes?: unknown;
+        };
         if (data.gmailQuery || data.gmailLabelIncludes || data.gmailLabelExcludes) {
           setSettings({
-            gmailQuery: data.gmailQuery || settings.gmailQuery,
-            gmailLabelIncludes: Array.isArray(data.gmailLabelIncludes)
-              ? data.gmailLabelIncludes
-              : [],
-            gmailLabelExcludes: Array.isArray(data.gmailLabelExcludes)
-              ? data.gmailLabelExcludes
-              : settings.gmailLabelExcludes,
+            gmailQuery: data.gmailQuery ?? settings.gmailQuery,
+            gmailLabelIncludes:
+              Array.isArray(data.gmailLabelIncludes) &&
+              data.gmailLabelIncludes.every((item): item is string => typeof item === "string")
+                ? data.gmailLabelIncludes
+                : [],
+            gmailLabelExcludes:
+              Array.isArray(data.gmailLabelExcludes) &&
+              data.gmailLabelExcludes.every((item): item is string => typeof item === "string")
+                ? data.gmailLabelExcludes
+                : settings.gmailLabelExcludes,
             maxEmailsPerSync: settings.maxEmailsPerSync,
             dateRangeDays: settings.dateRangeDays,
           });
@@ -66,7 +69,15 @@ export function GmailSettingsPanel({ isOpen, onClose }: GmailSettingsPanelProps)
     } catch (error) {
       console.error("Error loading Gmail settings:", error);
     }
-  };
+  }, [settings, setSettings]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadSettings().catch((error) => {
+        console.error("Failed to load Gmail settings:", error);
+      });
+    }
+  }, [isOpen, loadSettings]);
 
   const saveSettings = async (): Promise<void> => {
     setIsSaving(true);

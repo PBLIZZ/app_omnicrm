@@ -200,7 +200,7 @@ function AddNoteForm({
   const [isExpanded, setIsExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
     if (content.trim()) {
       onSubmit(content.trim());
@@ -209,7 +209,7 @@ function AddNoteForm({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (content.trim()) {
@@ -288,7 +288,7 @@ export function NotesHoverCard({
   notesCount,
   lastNote,
   className,
-}: NotesHoverCardProps) {
+}: NotesHoverCardProps): JSX.Element {
   const {
     notes,
     isLoading,
@@ -301,15 +301,15 @@ export function NotesHoverCard({
     isDeleting,
   } = useNotes({ contactId });
 
-  const handleCreateNote = (content: string) => {
+  const handleCreateNote = (content: string): void => {
     createNote({ content });
   };
 
-  const handleEditNote = (noteId: string, content: string) => {
+  const handleEditNote = (noteId: string, content: string): void => {
     updateNote({ noteId, content });
   };
 
-  const handleDeleteNote = (noteId: string) => {
+  const handleDeleteNote = (noteId: string): void => {
     deleteNote({ noteId });
   };
 
@@ -352,7 +352,7 @@ export function NotesHoverCard({
 
             {isLoading ? (
               <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
+                {Array.from({ length: 3 }, (_, i) => (
                   <div key={i} className="space-y-2">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-16 w-full" />

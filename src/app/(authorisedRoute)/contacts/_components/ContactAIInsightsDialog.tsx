@@ -6,12 +6,12 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Brain, Lightbulb, ArrowRight, Target, Loader2 } from 'lucide-react';
-import { ContactAIInsightResponse } from '@/hooks/use-contact-ai-actions';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Brain, Lightbulb, ArrowRight, Target, Loader2 } from "lucide-react";
+import { ContactAIInsightResponse } from "@/hooks/use-contact-ai-actions";
 
 interface ContactAIInsightsDialogProps {
   open: boolean;
@@ -27,7 +27,7 @@ export function ContactAIInsightsDialog({
   insights,
   isLoading,
   contactName,
-}: ContactAIInsightsDialogProps) {
+}: ContactAIInsightsDialogProps): JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -44,9 +44,7 @@ export function ContactAIInsightsDialog({
         {isLoading && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <span className="ml-2 text-sm text-muted-foreground">
-              Analyzing contact data...
-            </span>
+            <span className="ml-2 text-sm text-muted-foreground">Analyzing contact data...</span>
           </div>
         )}
 
@@ -132,9 +130,7 @@ export function ContactAIInsightsDialog({
                       <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0">
                         {index + 1}
                       </div>
-                      <span className="text-sm text-green-900 dark:text-green-100">
-                        {step}
-                      </span>
+                      <span className="text-sm text-green-900 dark:text-green-100">{step}</span>
                     </div>
                   ))}
                 </div>

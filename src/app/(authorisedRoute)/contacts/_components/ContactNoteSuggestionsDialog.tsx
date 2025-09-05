@@ -30,23 +30,26 @@ export function ContactNoteSuggestionsDialog({
   isLoading,
   contactId,
   contactName,
-}: ContactNoteSuggestionsDialogProps) {
+}: ContactNoteSuggestionsDialogProps): JSX.Element {
   const [createdNotes, setCreatedNotes] = useState<Set<number>>(new Set());
   const createNoteMutation = useCreateNoteFromSuggestion();
 
-  const handleCreateNote = async (suggestion: ContactNoteSuggestion, index: number) => {
+  const handleCreateNote = async (
+    suggestion: ContactNoteSuggestion,
+    index: number,
+  ): Promise<void> => {
     try {
       await createNoteMutation.mutateAsync({
         contactId,
         content: suggestion.content,
       });
       setCreatedNotes((prev) => new Set(prev).add(index));
-    } catch (error) {
+    } catch {
       // Error is handled by the mutation
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string): string => {
     switch (priority) {
       case "high":
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
@@ -59,7 +62,7 @@ export function ContactNoteSuggestionsDialog({
     }
   };
 
-  const getCategoryColor = (category: string) => {
+  const getCategoryColor = (category: string): string => {
     switch (category) {
       case "interaction":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";

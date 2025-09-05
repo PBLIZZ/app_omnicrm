@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Plus, Clock, Loader2, CheckCircle } from 'lucide-react';
-import { ContactTaskSuggestion, useCreateTaskFromSuggestion } from '@/hooks/use-contact-ai-actions';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Plus, Clock, Loader2, CheckCircle } from "lucide-react";
+import { ContactTaskSuggestion, useCreateTaskFromSuggestion } from "@/hooks/use-contact-ai-actions";
 
 interface ContactTaskSuggestionsDialogProps {
   open: boolean;
@@ -30,11 +30,14 @@ export function ContactTaskSuggestionsDialog({
   isLoading,
   contactId,
   contactName,
-}: ContactTaskSuggestionsDialogProps) {
+}: ContactTaskSuggestionsDialogProps): JSX.Element {
   const [createdTasks, setCreatedTasks] = useState<Set<number>>(new Set());
   const createTaskMutation = useCreateTaskFromSuggestion();
 
-  const handleCreateTask = async (suggestion: ContactTaskSuggestion, index: number) => {
+  const handleCreateTask = async (
+    suggestion: ContactTaskSuggestion,
+    index: number,
+  ): Promise<void> => {
     try {
       await createTaskMutation.mutateAsync({
         contactId,
@@ -43,33 +46,43 @@ export function ContactTaskSuggestionsDialog({
         priority: suggestion.priority,
         estimatedMinutes: suggestion.estimatedMinutes,
       });
-      setCreatedTasks(prev => new Set(prev).add(index));
-    } catch (error) {
+      setCreatedTasks((prev) => new Set(prev).add(index));
+    } catch {
       // Error is handled by the mutation
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string): string => {
     switch (priority) {
-      case 'urgent': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-      case 'high': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+      case "urgent":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
+      case "high":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
+      case "low":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
     }
   };
 
-  const getCategoryColor = (category: string) => {
+  const getCategoryColor = (category: string): string => {
     switch (category) {
-      case 'follow-up': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'outreach': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
-      case 'service': return 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300';
-      case 'admin': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+      case "follow-up":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
+      case "outreach":
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300";
+      case "service":
+        return "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300";
+      case "admin":
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
     }
   };
 
-  const formatEstimatedTime = (minutes: number) => {
+  const formatEstimatedTime = (minutes: number): string => {
     if (minutes < 60) {
       return `${minutes}m`;
     }
@@ -103,32 +116,27 @@ export function ContactTaskSuggestionsDialog({
         {suggestions && !isLoading && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Here are AI-generated task suggestions to improve the relationship with this contact. 
-              Click "Create Task" to add any suggestion to your task list.
+              Here are AI-generated task suggestions to improve the relationship with this contact.
+              Click &quot;Create Task&quot; to add any suggestion to your task list.
             </p>
-            
+
             <Separator />
 
             <div className="space-y-4">
               {suggestions.map((suggestion, index) => {
                 const isCreated = createdTasks.has(index);
                 const isCreating = createTaskMutation.isPending;
-                
+
                 return (
-                  <div
-                    key={index}
-                    className="border rounded-lg p-4 space-y-3"
-                  >
+                  <div key={index} className="border rounded-lg p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 space-y-2">
-                        <h4 className="font-medium text-sm">
-                          {suggestion.title}
-                        </h4>
-                        
+                        <h4 className="font-medium text-sm">{suggestion.title}</h4>
+
                         <p className="text-sm text-muted-foreground leading-relaxed">
                           {suggestion.description}
                         </p>
-                        
+
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge className={`text-xs ${getPriorityColor(suggestion.priority)}`}>
                             {suggestion.priority} priority
@@ -144,15 +152,10 @@ export function ContactTaskSuggestionsDialog({
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="flex-shrink-0">
                         {isCreated ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled
-                            className="text-green-600"
-                          >
+                          <Button variant="outline" size="sm" disabled className="text-green-600">
                             <CheckCircle className="h-4 w-4 mr-1" />
                             Created
                           </Button>

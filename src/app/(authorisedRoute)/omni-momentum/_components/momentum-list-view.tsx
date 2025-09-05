@@ -69,8 +69,8 @@ const getStatusBadge = (status: string): JSX.Element => {
   } as const;
 
   return (
-    <Badge variant={statusVariants[status as keyof typeof statusVariants] || "secondary"}>
-      {labels[status as keyof typeof labels] || status}
+    <Badge variant={statusVariants[status as keyof typeof statusVariants] ?? "secondary"}>
+      {labels[status as keyof typeof labels] ?? status}
     </Badge>
   );
 };
@@ -85,7 +85,7 @@ const getPriorityBadge = (priority: string): JSX.Element => {
 
   return (
     <div className="flex items-center gap-2">
-      <Flag className={`h-3 w-3 ${colors[priority as keyof typeof colors] || ""}`} />
+      <Flag className={`h-3 w-3 ${colors[priority as keyof typeof colors] ?? ""}`} />
       <span className="capitalize">{priority}</span>
     </div>
   );
@@ -217,7 +217,7 @@ export function MomentumListView({ momentums, isLoading }: MomentumListViewProps
       accessorKey: "taggedContacts",
       header: "Contacts",
       cell: ({ row }) => {
-        const contacts = row.original.taggedContactsData || [];
+        const contacts = row.original.taggedContactsData ?? [];
         if (contacts.length === 0) return <span className="text-muted-foreground">—</span>;
 
         return (

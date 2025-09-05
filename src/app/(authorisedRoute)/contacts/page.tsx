@@ -53,34 +53,39 @@ export default function ContactsPage(): JSX.Element {
   const { toast } = useToast();
 
   // Enhanced System Queries (useQuery-backed hooks)
-  const { data: enhancedContactsData, isLoading: enhancedLoading } = useEnhancedContacts(
-    searchQuery,
+  const { data: enhancedContactsData, isLoading: enhancedLoading } =
+    useEnhancedContacts(searchQuery);
+
+  const enhancedContacts: ContactWithNotes[] = useMemo(
+    () => enhancedContactsData?.contacts ?? [],
+    [enhancedContactsData?.contacts],
   );
 
-  const enhancedContacts: ContactWithNotes[] = enhancedContactsData?.contacts || [];
   const filteredContacts = useMemo((): ContactWithNotes[] => {
     if (!searchQuery.trim()) return enhancedContacts;
     const query = searchQuery.toLowerCase();
     return enhancedContacts.filter(
       (contact) =>
         contact.displayName?.toLowerCase().includes(query) ||
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         contact.primaryEmail?.toLowerCase().includes(query) ||
         contact.primaryPhone?.toLowerCase().includes(query),
     );
   }, [enhancedContacts, searchQuery]);
 
   // Contact suggestions query (useQuery-backed hook)
-  const { data: suggestionsData, isLoading: suggestionsLoading } = useContactSuggestions(
-    showSuggestions,
-  );
+  const { data: suggestionsData, isLoading: suggestionsLoading } =
+    useContactSuggestions(showSuggestions);
 
-  const suggestions: ContactSuggestion[] = suggestionsData?.suggestions || [];
+  const suggestions: ContactSuggestion[] = suggestionsData?.suggestions ?? [];
 
   // Streaming enrichment hook
   const streamingEnrichment = useStreamingEnrichment();
 
   const createContactsMutation = useMutation({
-    mutationFn: async (suggestionIds: string[]): Promise<{
+    mutationFn: async (
+      suggestionIds: string[],
+    ): Promise<{
       success: boolean;
       createdCount: number;
       errors: string[];
@@ -133,7 +138,7 @@ export default function ContactsPage(): JSX.Element {
         title: "Success",
         description: "Contact created successfully",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to create contact",
@@ -210,7 +215,7 @@ export default function ContactsPage(): JSX.Element {
         title: "Success",
         description: `Exported ${filteredContacts.length} contacts to CSV`,
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to export contacts",

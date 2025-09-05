@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mail, RefreshCw, Paperclip } from "lucide-react";
@@ -10,7 +11,11 @@ interface GmailEmailPreviewProps {
   previewRange: { from: string; to: string } | null;
 }
 
-export function GmailEmailPreview({ emails, isLoading, previewRange }: GmailEmailPreviewProps) {
+export function GmailEmailPreview({
+  emails,
+  isLoading,
+  previewRange,
+}: GmailEmailPreviewProps): JSX.Element {
   return (
     <Card>
       <CardHeader>
@@ -78,7 +83,7 @@ export function GmailEmailPreview({ emails, isLoading, previewRange }: GmailEmai
             <div className="text-center py-8 text-muted-foreground">
               <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-sm">No emails available</p>
-              <p className="text-xs">Click "Sync Now" to preview your recent emails</p>
+              <p className="text-xs">Click &quot;Sync Now&quot; to preview your recent emails</p>
             </div>
           )}
         </div>

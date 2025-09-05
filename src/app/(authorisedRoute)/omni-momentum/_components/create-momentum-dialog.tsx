@@ -51,11 +51,11 @@ interface CreateTaskDialogProps {
   projects: MomentumProject[];
 }
 
-export function CreateMomentumDialog({ 
-  open, 
-  onOpenChange, 
-  workspaces, 
-  projects 
+export function CreateMomentumDialog({
+  open,
+  onOpenChange,
+  workspaces,
+  projects,
 }: CreateTaskDialogProps): JSX.Element {
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
   const [contactSearch, setContactSearch] = useState("");
@@ -72,7 +72,7 @@ export function CreateMomentumDialog({
     },
   });
 
-interface ContactsResponse {
+  interface ContactsResponse {
     contacts: Contact[];
   }
 
@@ -81,26 +81,27 @@ interface ContactsResponse {
     queryFn: async (): Promise<ContactsResponse> => {
       const response = await fetch("/api/contacts");
       if (!response.ok) throw new Error("Failed to fetch contacts");
-      const data = await response.json() as ContactsResponse;
+      const data = (await response.json()) as ContactsResponse;
       return data;
     },
   });
 
-  const contacts = contactsData?.contacts || [];
-  
-  const filteredContacts = contacts.filter((contact: Contact) =>
-    contact.displayName.toLowerCase().includes(contactSearch.toLowerCase()) ||
-    contact.primaryEmail?.toLowerCase().includes(contactSearch.toLowerCase())
+  const contacts = contactsData?.contacts ?? [];
+
+  const filteredContacts = contacts.filter(
+    (contact: Contact) =>
+      contact.displayName.toLowerCase().includes(contactSearch.toLowerCase()) ??
+      contact.primaryEmail?.toLowerCase().includes(contactSearch.toLowerCase()),
   );
 
   const createTaskMutation = useMutation({
     mutationFn: async (data: CreateTaskFormData) => {
       return fetchPost("/api/tasks", {
         ...data,
-        workspaceId: data.workspaceId || undefined,
-        projectId: data.projectId || undefined,
-        taggedContacts: selectedContacts.map(c => c.id),
-        estimatedMinutes: data.estimatedMinutes || undefined,
+        workspaceId: data.workspaceId ?? undefined,
+        projectId: data.projectId ?? undefined,
+        taggedContacts: selectedContacts.map((c) => c.id),
+        estimatedMinutes: data.estimatedMinutes ?? undefined,
       });
     },
     onSuccess: () => {
@@ -121,7 +122,7 @@ interface ContactsResponse {
     },
   });
 
-  const handleSubmit = (data: CreateTaskFormData) => {
+  const handleSubmit = (data: CreateTaskFormData): void => {
     createTaskMutation.mutate({
       ...data,
       workspaceId: data.workspaceId === "none" ? undefined : data.workspaceId,
@@ -129,7 +130,7 @@ interface ContactsResponse {
     });
   };
 
-  const handleClose = () => {
+  const handleClose = (): void => {
     form.reset();
     setSelectedContacts([]);
     setContactSearch("");
@@ -137,16 +138,16 @@ interface ContactsResponse {
     onOpenChange(false);
   };
 
-  const addContact = (contact: Contact) => {
-    if (!selectedContacts.find(c => c.id === contact.id)) {
+  const addContact = (contact: Contact): void => {
+    if (!selectedContacts.find((c) => c.id === contact.id)) {
       setSelectedContacts([...selectedContacts, contact]);
     }
     setContactSearch("");
     setShowContactSearch(false);
   };
 
-  const removeContact = (contactId: string) => {
-    setSelectedContacts(selectedContacts.filter(c => c.id !== contactId));
+  const removeContact = (contactId: string): void => {
+    setSelectedContacts(selectedContacts.filter((c) => c.id !== contactId));
   };
 
   return (
@@ -163,8 +164,10 @@ interface ContactsResponse {
           <div className="space-y-2">
             <Label htmlFor="workspace">Workspace (Optional)</Label>
             <Select
-              value={form.watch("workspaceId") || ""}
-              onValueChange={(value) => form.setValue("workspaceId", value === "none" ? undefined : value)}
+              value={form.watch("workspaceId") ?? ""}
+              onValueChange={(value) =>
+                form.setValue("workspaceId", value === "none" ? undefined : value)
+              }
             >
               <SelectTrigger data-testid="select-workspace">
                 <SelectValue placeholder="No workspace selected" />
@@ -183,8 +186,10 @@ interface ContactsResponse {
           <div className="space-y-2">
             <Label htmlFor="project">Project (Optional)</Label>
             <Select
-              value={form.watch("projectId") || ""}
-              onValueChange={(value) => form.setValue("projectId", value === "none" ? undefined : value)}
+              value={form.watch("projectId") ?? ""}
+              onValueChange={(value) =>
+                form.setValue("projectId", value === "none" ? undefined : value)
+              }
             >
               <SelectTrigger data-testid="select-project">
                 <SelectValue placeholder="Select project" />
@@ -209,9 +214,7 @@ interface ContactsResponse {
               data-testid="input-task-title"
             />
             {form.formState.errors.title && (
-              <p className="text-sm text-red-600">
-                {form.formState.errors.title.message}
-              </p>
+              <p className="text-sm text-red-600">{form.formState.errors.title.message}</p>
             )}
           </div>
 
@@ -231,7 +234,9 @@ interface ContactsResponse {
               <Label htmlFor="priority">Priority</Label>
               <Select
                 value={form.watch("priority")}
-                onValueChange={(value) => form.setValue("priority", value as "low" | "medium" | "high" | "urgent")}
+                onValueChange={(value) =>
+                  form.setValue("priority", value as "low" | "medium" | "high" | "urgent")
+                }
               >
                 <SelectTrigger data-testid="select-priority">
                   <SelectValue />
@@ -263,7 +268,7 @@ interface ContactsResponse {
               id="dueDate"
               type="date"
               {...form.register("dueDate", {
-                setValueAs: (value) => value ? new Date(value) : undefined
+                setValueAs: (value) => (value ? new Date(value) : undefined),
               })}
               data-testid="input-due-date"
             />
@@ -278,7 +283,11 @@ interface ContactsResponse {
                     <Badge key={contact.id} variant="secondary" className="flex items-center gap-1">
                       <Avatar className="h-4 w-4">
                         <AvatarFallback className="text-xs">
-                          {contact.displayName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                          {contact.displayName
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
                       {contact.displayName}
@@ -293,7 +302,7 @@ interface ContactsResponse {
                   ))}
                 </div>
               )}
-              
+
               <div className="relative">
                 <Button
                   type="button"
@@ -305,7 +314,7 @@ interface ContactsResponse {
                   <Search className="mr-2 h-4 w-4" />
                   Add contacts...
                 </Button>
-                
+
                 {showContactSearch && (
                   <div className="absolute top-full left-0 w-full mt-1 border rounded-md bg-popover shadow-md z-50">
                     <div className="p-2">
@@ -326,13 +335,19 @@ interface ContactsResponse {
                         >
                           <Avatar className="h-6 w-6">
                             <AvatarFallback className="text-xs">
-                              {contact.displayName.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                              {contact.displayName
+                                .split(" ")
+                                .map((n: string) => n[0])
+                                .join("")
+                                .slice(0, 2)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
                             <div className="font-medium text-sm">{contact.displayName}</div>
                             {contact.primaryEmail && (
-                              <div className="text-xs text-muted-foreground">{contact.primaryEmail}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {contact.primaryEmail}
+                              </div>
                             )}
                           </div>
                         </button>
@@ -358,8 +373,8 @@ interface ContactsResponse {
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={createTaskMutation.isPending}
               data-testid="button-create-task"
             >

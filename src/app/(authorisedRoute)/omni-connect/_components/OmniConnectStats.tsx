@@ -59,20 +59,18 @@ export function OmniConnectStats({
           <CheckCircle className="h-5 w-5 text-green-600" />
           Gmail Connected
         </CardTitle>
-        <CardDescription>
-          Your Gmail is synced for client communication tracking
-        </CardDescription>
+        <CardDescription>Your Gmail is synced for client communication tracking</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Emails Processed</span>
-              <Badge variant="secondary">{stats?.emailsProcessed || 0}</Badge>
+              <Badge variant="secondary">{stats?.emailsProcessed ?? 0}</Badge>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Suggested Contacts</span>
-              <Badge variant="secondary">{stats?.suggestedContacts || 0}</Badge>
+              <Badge variant="secondary">{stats?.suggestedContacts ?? 0}</Badge>
             </div>
             {stats?.lastSync && (
               <div className="flex justify-between">
@@ -95,9 +93,7 @@ export function OmniConnectStats({
                   size="sm"
                   disabled={isLoadingJobStatus}
                 >
-                  <RefreshCw
-                    className={`h-3 w-3 ${isLoadingJobStatus ? "animate-spin" : ""}`}
-                  />
+                  <RefreshCw className={`h-3 w-3 ${isLoadingJobStatus ? "animate-spin" : ""}`} />
                 </Button>
               </div>
               {(() => {

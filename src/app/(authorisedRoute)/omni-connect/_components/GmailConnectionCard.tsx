@@ -26,8 +26,15 @@ export function GmailConnectionCard({
 }: GmailConnectionCardProps): JSX.Element {
   // Use shared hooks
   const { status, connect, isConnecting } = useGmailConnection(refreshTrigger);
-  const { jobStatus, isLoadingJobStatus, refreshJobStatus, runJobProcessor } = useGmailJobStatus(status.isConnected, refreshTrigger);
-  const { emails, previewRange, isLoading: isLoadingEmails } = useGmailEmails(status.isConnected, refreshTrigger);
+  const { jobStatus, isLoadingJobStatus, refreshJobStatus, runJobProcessor } = useGmailJobStatus(
+    status.isConnected,
+    refreshTrigger,
+  );
+  const {
+    emails,
+    previewRange,
+    isLoading: isLoadingEmails,
+  } = useGmailEmails(status.isConnected, refreshTrigger);
   // REMOVED: useGmailSync() hook - now using props from parent
   // Modal state and sync functions now come from parent component
   const {
@@ -41,28 +48,23 @@ export function GmailConnectionCard({
     loadInsights,
   } = useGmailAI();
 
-  const handleSyncStart = () => {
+  const handleSyncStart = (): void => {
     // The actual sync start now happens via parent's hook
     onSyncStart?.();
   };
 
-  const handleSyncApprove = () => {
+  const handleSyncApprove = (): void => {
     // Use the approve function from parent's hook
     onApproveSync();
   };
 
-  const handleProcessContacts = () => {
+  const handleProcessContacts = (): void => {
     onProcessContacts();
   };
 
   // Show connection prompt if not connected
   if (!status.isConnected) {
-    return (
-      <GmailConnectionPrompt
-        onConnect={connect}
-        isConnecting={isConnecting}
-      />
-    );
+    return <GmailConnectionPrompt onConnect={connect} isConnecting={isConnecting} />;
   }
 
   return (

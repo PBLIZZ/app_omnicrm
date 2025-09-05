@@ -1,13 +1,8 @@
+import type { JSX } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  CheckCircle,
-  AlertCircle,
-  RefreshCw,
-  Mail,
-  Settings,
-} from "lucide-react";
+import { CheckCircle, AlertCircle, RefreshCw, Mail, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { GmailConnectionStatus as StatusType, JobStatus } from "./types";
 
@@ -30,16 +25,14 @@ export function GmailConnectionStatus({
   status,
   jobStatus,
   isLoadingJobStatus,
-  isSyncing,
   isProcessingContacts,
-  isEmbedding,
-  onSync,
-  onRunJobProcessor,
   onProcessContacts,
-  onGenerateEmbeddings,
   onSettings,
   onRefreshJobStatus,
-}: GmailConnectionStatusProps) {
+}: Omit<
+  GmailConnectionStatusProps,
+  "isSyncing" | "isEmbedding" | "onSync" | "onRunJobProcessor" | "onGenerateEmbeddings"
+>): JSX.Element {
   return (
     <Card>
       <CardHeader>
@@ -74,11 +67,11 @@ export function GmailConnectionStatus({
           <div className="grid grid-cols-2 gap-4">
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Emails Processed</span>
-              <Badge variant="secondary">{status.emailCount || 0}</Badge>
+              <Badge variant="secondary">{status.emailCount ?? 0}</Badge>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Contacts Found</span>
-              <Badge variant="secondary">{status.contactCount || 0}</Badge>
+              <Badge variant="secondary">{status.contactCount ?? 0}</Badge>
             </div>
           </div>
 
@@ -99,8 +92,8 @@ export function GmailConnectionStatus({
               {jobStatus.jobs?.length ? (
                 <div className="space-y-1">
                   {jobStatus.jobs.slice(0, 3).map((job, index) => (
-                    <div key={job?.id || index} className="flex justify-between text-xs">
-                      <span className="truncate">{job?.kind || "Unknown"}</span>
+                    <div key={job?.id ?? index} className="flex justify-between text-xs">
+                      <span className="truncate">{job?.kind ?? "Unknown"}</span>
                       <Badge
                         variant={
                           job?.status === "completed"
@@ -111,7 +104,7 @@ export function GmailConnectionStatus({
                         }
                         className="text-xs"
                       >
-                        {job?.status || "unknown"}
+                        {job?.status ?? "unknown"}
                       </Badge>
                     </div>
                   ))}

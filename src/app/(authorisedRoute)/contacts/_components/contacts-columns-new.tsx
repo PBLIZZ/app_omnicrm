@@ -93,7 +93,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
       setAiInsightsOpen(true);
       const insights = await askAIMutation.mutateAsync(contact.id);
       setAiInsights(insights);
-    } catch (error) {
+    } catch {
       // Error handled by mutation
       setAiInsightsOpen(false);
     }
@@ -111,7 +111,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
         contactId: contact.id,
       });
       setEmailSuggestion(suggestion);
-    } catch (error) {
+    } catch {
       // Error handled by mutation
       setEmailDialogOpen(false);
     }
@@ -122,7 +122,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
       setNoteDialogOpen(true);
       const suggestions = await generateNotesMutation.mutateAsync(contact.id);
       setNoteSuggestions(suggestions);
-    } catch (error) {
+    } catch {
       // Error handled by mutation
       setNoteDialogOpen(false);
     }
@@ -141,7 +141,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
       });
       setAddNoteDialogOpen(false);
       setNewNoteContent("");
-    } catch (error) {
+    } catch {
       // Error handled by mutation
     }
   };
@@ -397,16 +397,16 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     accessorKey: "tags",
     header: "Tags",
     cell: ({ row }) => {
-      const tagsData = row.getValue("tags");
-      let tags = [];
+      const tagsData = row.getValue("tags") as string[] | string | null;
+      let tags: string[] = [];
 
       // Tags come as array from API, not string
       if (Array.isArray(tagsData)) {
         tags = tagsData;
       } else if (typeof tagsData === "string" && tagsData) {
         try {
-          tags = JSON.parse(tagsData);
-        } catch (e) {
+          tags = JSON.parse(tagsData) as string[];
+        } catch {
           tags = [];
         }
       }
@@ -607,72 +607,75 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     id: "actions",
     cell: ({ row }) => {
       const contact = row.original;
-
-      const handleEditContact = (contact: ContactWithNotes): void => {
-        toast.info(`Edit contact functionality for ${contact.displayName} - Coming soon!`);
-        // TODO: Open edit contact dialog/form
-      };
-
-      const deleteContact = useDeleteContact();
-
-      const handleDeleteContact = (contact: ContactWithNotes): void => {
-        if (
-          confirm(
-            `Are you sure you want to delete ${contact.displayName}? This action cannot be undone.`,
-          )
-        ) {
-          deleteContact.mutate(contact.id);
-        }
-      };
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              data-testid={`contact-actions-${contact.id}`}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              data-testid={`edit-contact-${contact.id}`}
-              onClick={() => handleEditContact(contact)}
-            >
-              <Edit className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
-              Edit Contact
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              data-testid={`add-note-${contact.id}`}
-              onClick={() => {
-                // This should open the add note dialog for this specific contact
-                // Since this is outside the ContactAIActions component, we'll need to implement this differently
-                toast.info(
-                  `Add note for ${contact.displayName} - Use the note icon in the Actions column`,
-                );
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Note
-            </DropdownMenuItem>
-            <DropdownMenuItem data-testid={`view-notes-${contact.id}`}>
-              <MessageSquare className="h-4 w-4 mr-2" />
-              View Notes
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              data-testid={`delete-contact-${contact.id}`}
-              onClick={() => handleDeleteContact(contact)}
-            >
-              <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+      return <ContactActionsCell contact={contact} />;
     },
   },
 ];
+
+function ContactActionsCell({ contact }: { contact: ContactWithNotes }): JSX.Element {
+  const deleteContact = useDeleteContact();
+
+  const handleEditContact = (contact: ContactWithNotes): void => {
+    toast.info(`Edit contact functionality for ${contact.displayName} - Coming soon!`);
+    // TODO: Open edit contact dialog/form
+  };
+
+  const handleDeleteContact = (contact: ContactWithNotes): void => {
+    if (
+      confirm(
+        `Are you sure you want to delete ${contact.displayName}? This action cannot be undone.`,
+      )
+    ) {
+      deleteContact.mutate(contact.id);
+    }
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-8 w-8 p-0"
+          data-testid={`contact-actions-${contact.id}`}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+          <span className="sr-only">Open menu</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          data-testid={`edit-contact-${contact.id}`}
+          onClick={() => handleEditContact(contact)}
+        >
+          <Edit className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
+          Edit Contact
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid={`add-note-${contact.id}`}
+          onClick={() => {
+            // This should open the add note dialog for this specific contact
+            // Since this is outside the ContactAIActions component, we'll need to implement this differently
+            toast.info(
+              `Add note for ${contact.displayName} - Use the note icon in the Actions column`,
+            );
+          }}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Note
+        </DropdownMenuItem>
+        <DropdownMenuItem data-testid={`view-notes-${contact.id}`}>
+          <MessageSquare className="h-4 w-4 mr-2" />
+          View Notes
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          data-testid={`delete-contact-${contact.id}`}
+          onClick={() => handleDeleteContact(contact)}
+        >
+          <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

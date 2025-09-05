@@ -119,7 +119,7 @@ export default function SettingsPage(): JSX.Element {
           </Alert>
         )}
 
-        <Tabs defaultValue={searchParams.get("tab") || "integrations"} className="w-full">
+        <Tabs defaultValue={searchParams.get("tab") ?? "integrations"} className="w-full">
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
             <TabsTrigger value="sync">Sync Settings</TabsTrigger>

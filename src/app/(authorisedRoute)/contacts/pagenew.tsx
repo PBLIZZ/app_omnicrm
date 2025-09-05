@@ -8,7 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, Users, Sparkles, Calendar, Mail, Brain } from "lucide-react";
 import { ContactsTable } from "./_components/contacts-table-new";
 import { contactsColumns, ContactWithNotes } from "./_components/contacts-columns-new";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
@@ -23,8 +29,8 @@ interface ContactSuggestion {
   eventCount: number;
   lastEventDate: string;
   eventTitles: string[];
-  confidence: 'high' | 'medium' | 'low';
-  source: 'calendar_attendee';
+  confidence: "high" | "medium" | "low";
+  source: "calendar_attendee";
 }
 
 export default function ContactsPage(): JSX.Element {
@@ -40,32 +46,35 @@ export default function ContactsPage(): JSX.Element {
 
   const { data: contactsData, isLoading } = useQuery({
     queryKey: ["/api/contacts-new"],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ contacts: ContactWithNotes[] }> => {
       const response = await fetch("/api/contacts-new");
       if (!response.ok) throw new Error("Failed to fetch contacts");
-      return response.json();
+      return response.json() as Promise<{ contacts: ContactWithNotes[] }>;
     },
   });
 
-  const contacts: ContactWithNotes[] = contactsData?.contacts || [];
+  const contacts: ContactWithNotes[] = contactsData?.contacts ?? [];
 
   // Contact suggestions query
   const { data: suggestionsData, isLoading: suggestionsLoading } = useQuery({
     queryKey: ["/api/contacts-new/suggestions"],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ suggestions: ContactSuggestion[] }> => {
       const response = await fetch("/api/contacts-new/suggestions");
       if (!response.ok) throw new Error("Failed to fetch suggestions");
-      return response.json();
+      return response.json() as Promise<{ suggestions: ContactSuggestion[] }>;
     },
     enabled: showSuggestions,
   });
 
-  const suggestions: ContactSuggestion[] = suggestionsData?.suggestions || [];
+  const suggestions: ContactSuggestion[] = suggestionsData?.suggestions ?? [];
 
   // Enrich existing contacts mutation
   const enrichContactsMutation = useMutation({
     mutationFn: async () => {
-      return await fetchPost<{ enrichedCount: number; errors?: string[] }>("/api/contacts-new/enrich", {});
+      return await fetchPost<{ enrichedCount: number; errors?: string[] }>(
+        "/api/contacts-new/enrich",
+        {},
+      );
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -77,7 +86,7 @@ export default function ContactsPage(): JSX.Element {
         console.warn("Some contacts failed to enrich:", data.errors);
       }
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "Error",
         description: "Failed to enrich contacts with AI insights",
@@ -89,7 +98,10 @@ export default function ContactsPage(): JSX.Element {
   // Create contacts from suggestions mutation
   const createContactsMutation = useMutation({
     mutationFn: async (suggestionIds: string[]) => {
-      return await fetchPost<{ createdCount: number; errors?: string[] }>("/api/contacts/suggestions", { suggestionIds });
+      return await fetchPost<{ createdCount: number; errors?: string[] }>(
+        "/api/contacts/suggestions",
+        { suggestionIds },
+      );
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -103,7 +115,7 @@ export default function ContactsPage(): JSX.Element {
         console.warn("Some contacts failed to create:", data.errors);
       }
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "Error",
         description: "Failed to create contacts from suggestions",
@@ -131,7 +143,7 @@ export default function ContactsPage(): JSX.Element {
         title: "Success",
         description: "Contact created successfully",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to create contact",
@@ -153,11 +165,11 @@ export default function ContactsPage(): JSX.Element {
     createContactsMutation.mutate(selectedSuggestions);
   };
 
-  const getConfidenceBadge = (confidence: string) => {
+  const getConfidenceBadge = (confidence: string): string => {
     const variants = {
       high: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-      medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300", 
-      low: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+      medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+      low: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
     };
     return variants[confidence as keyof typeof variants] || variants.low;
   };
@@ -171,14 +183,12 @@ export default function ContactsPage(): JSX.Element {
             <Users className="h-6 w-6" />
             Contacts
           </h1>
-          <p className="text-muted-foreground">
-            Manage your contacts and relationships
-          </p>
+          <p className="text-muted-foreground">Manage your contacts and relationships</p>
         </div>
-        
+
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => enrichContactsMutation.mutate()}
             disabled={enrichContactsMutation.isPending}
             data-testid="enrich-contacts-button"
@@ -186,16 +196,16 @@ export default function ContactsPage(): JSX.Element {
             <Brain className="h-4 w-4 mr-2" />
             {enrichContactsMutation.isPending ? "Enriching..." : "AI Enrich All"}
           </Button>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             onClick={() => setShowSuggestions(!showSuggestions)}
             data-testid="smart-suggestions-button"
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Smart Suggestions
           </Button>
-          
+
           <Dialog open={isAddingContact} onOpenChange={setIsAddingContact}>
             <DialogTrigger asChild>
               <Button data-testid="add-contact-button">
@@ -203,57 +213,63 @@ export default function ContactsPage(): JSX.Element {
                 Add Contact
               </Button>
             </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Contact</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
-                <Input
-                  id="name"
-                  placeholder="Enter contact name"
-                  value={newContact.displayName}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, displayName: e.target.value }))}
-                  data-testid="contact-name-input"
-                />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Contact</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name *</Label>
+                  <Input
+                    id="name"
+                    placeholder="Enter contact name"
+                    value={newContact.displayName}
+                    onChange={(e) =>
+                      setNewContact((prev) => ({ ...prev, displayName: e.target.value }))
+                    }
+                    data-testid="contact-name-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter email address"
+                    value={newContact.primaryEmail}
+                    onChange={(e) =>
+                      setNewContact((prev) => ({ ...prev, primaryEmail: e.target.value }))
+                    }
+                    data-testid="contact-email-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    placeholder="Enter phone number"
+                    value={newContact.primaryPhone}
+                    onChange={(e) =>
+                      setNewContact((prev) => ({ ...prev, primaryPhone: e.target.value }))
+                    }
+                    data-testid="contact-phone-input"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsAddingContact(false)}
+                    data-testid="cancel-add-contact"
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddContact} data-testid="save-contact">
+                    Add Contact
+                  </Button>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter email address"
-                  value={newContact.primaryEmail}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, primaryEmail: e.target.value }))}
-                  data-testid="contact-email-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  placeholder="Enter phone number"
-                  value={newContact.primaryPhone}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, primaryPhone: e.target.value }))}
-                  data-testid="contact-phone-input"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsAddingContact(false)}
-                  data-testid="cancel-add-contact"
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleAddContact} data-testid="save-contact">
-                  Add Contact
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -289,7 +305,7 @@ export default function ContactsPage(): JSX.Element {
                       checked={selectedSuggestions.length === suggestions.length}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          setSelectedSuggestions(suggestions.map(s => s.id));
+                          setSelectedSuggestions(suggestions.map((s) => s.id));
                         } else {
                           setSelectedSuggestions([]);
                         }
@@ -300,14 +316,16 @@ export default function ContactsPage(): JSX.Element {
                       Select All ({suggestions.length} suggestions)
                     </span>
                   </div>
-                  
+
                   {selectedSuggestions.length > 0 && (
-                    <Button 
+                    <Button
                       onClick={handleCreateSuggested}
                       disabled={createContactsMutation.isPending}
                       data-testid="create-selected-contacts"
                     >
-                      {createContactsMutation.isPending ? "Creating..." : `Create ${selectedSuggestions.length} Contacts`}
+                      {createContactsMutation.isPending
+                        ? "Creating..."
+                        : `Create ${selectedSuggestions.length} Contacts`}
                     </Button>
                   )}
                 </div>
@@ -315,7 +333,7 @@ export default function ContactsPage(): JSX.Element {
                 {/* Suggestion Cards */}
                 <div className="grid gap-3 max-h-96 overflow-y-auto">
                   {suggestions.map((suggestion) => (
-                    <div 
+                    <div
                       key={suggestion.id}
                       className="flex items-start gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                       data-testid={`suggestion-${suggestion.id}`}
@@ -324,25 +342,27 @@ export default function ContactsPage(): JSX.Element {
                         checked={selectedSuggestions.includes(suggestion.id)}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedSuggestions(prev => [...prev, suggestion.id]);
+                            setSelectedSuggestions((prev) => [...prev, suggestion.id]);
                           } else {
-                            setSelectedSuggestions(prev => prev.filter(id => id !== suggestion.id));
+                            setSelectedSuggestions((prev) =>
+                              prev.filter((id) => id !== suggestion.id),
+                            );
                           }
                         }}
                         data-testid={`checkbox-${suggestion.id}`}
                       />
-                      
+
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-medium truncate">{suggestion.displayName}</h4>
-                          <Badge 
-                            variant="secondary" 
+                          <Badge
+                            variant="secondary"
                             className={getConfidenceBadge(suggestion.confidence)}
                           >
                             {suggestion.confidence} confidence
                           </Badge>
                         </div>
-                        
+
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                           <div className="flex items-center gap-1">
                             <Mail className="h-4 w-4" />
@@ -353,7 +373,7 @@ export default function ContactsPage(): JSX.Element {
                             <span>{suggestion.eventCount} events</span>
                           </div>
                         </div>
-                        
+
                         {suggestion.eventTitles.length > 0 && (
                           <div className="text-xs text-muted-foreground">
                             <span>Recent events: </span>
@@ -377,11 +397,7 @@ export default function ContactsPage(): JSX.Element {
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search contacts..."
-            className="pl-10"
-            data-testid="search-contacts"
-          />
+          <Input placeholder="Search contacts..." className="pl-10" data-testid="search-contacts" />
         </div>
         <Button variant="outline" size="sm">
           Filter
@@ -398,10 +414,7 @@ export default function ContactsPage(): JSX.Element {
             <div className="text-muted-foreground">Loading contacts...</div>
           </div>
         ) : (
-          <ContactsTable 
-            columns={contactsColumns} 
-            data={contacts}
-          />
+          <ContactsTable columns={contactsColumns} data={contacts} />
         )}
       </div>
 

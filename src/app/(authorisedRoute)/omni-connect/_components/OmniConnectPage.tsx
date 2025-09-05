@@ -20,16 +20,16 @@ export function OmniConnectPage(): JSX.Element {
   // Use shared hooks - status not needed since GmailConnectionCard handles connection state
   useGmailConnection(refreshTrigger);
   // SINGLE SOURCE OF TRUTH: Get all Gmail sync state from one hook instance
-  const { 
-    isSyncing, 
-    isEmbedding, 
+  const {
+    isSyncing,
+    isEmbedding,
     isProcessingContacts,
-    startSync, 
-    approveSync, 
+    startSync,
+    approveSync,
     generateEmbeddings,
     processContacts,
     showSyncPreview,
-    setShowSyncPreview 
+    setShowSyncPreview,
   } = useGmailSync();
   const { loadInsights } = useGmailAI();
 
@@ -44,27 +44,27 @@ export function OmniConnectPage(): JSX.Element {
     }
   }, [searchParams]);
 
-  const handleSyncStart = () => {
+  const handleSyncStart = (): void => {
     startSync();
   };
 
-  const handleApproveSync = () => {
+  const handleApproveSync = (): void => {
     approveSync();
   };
 
-  const handleGenerateEmbeddings = () => {
+  const handleGenerateEmbeddings = (): void => {
     generateEmbeddings();
   };
 
-  const handleProcessContacts = () => {
+  const handleProcessContacts = (): void => {
     processContacts();
   };
 
-  const handleLoadInsights = () => {
-    loadInsights();
+  const handleLoadInsights = (): void => {
+    void loadInsights();
   };
 
-  const handleSettingsClick = () => {
+  const handleSettingsClick = (): void => {
     setShowSettings(true);
   };
 
@@ -79,7 +79,6 @@ export function OmniConnectPage(): JSX.Element {
       />
 
       <OmniConnectErrorBanner error={error} />
-
 
       <GmailConnectionCard
         onSyncStart={handleSyncStart}

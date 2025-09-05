@@ -31,6 +31,33 @@ import { MomentumKanbanView } from "./momentum-kanban-view";
 import { CreateMomentumDialog } from "./create-momentum-dialog";
 import { ApprovalQueue } from "./approval-queue";
 
+// Type definitions
+interface Workspace {
+  id: string;
+  name: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  workspaceId?: string;
+}
+
+interface Momentum {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  source?: string;
+  assignee?: string;
+  workspaceId?: string;
+  projectId?: string;
+}
+
+interface ApiResponse<T> {
+  [key: string]: T[];
+}
+
 export default function MomentumClientWrapper(): JSX.Element {
   const [view, setView] = useState<"list" | "kanban">("list");
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>("all");
@@ -44,24 +71,24 @@ export default function MomentumClientWrapper(): JSX.Element {
   // Fetch workspaces
   const { data: workspacesData } = useQuery({
     queryKey: ["/api/workspaces"],
-    queryFn: async () => {
+    queryFn: async (): Promise<ApiResponse<Workspace>> => {
       const response = await fetch("/api/workspaces");
       if (!response.ok) throw new Error("Failed to fetch workspaces");
-      return response.json();
+      return response.json() as Promise<ApiResponse<Workspace>>;
     },
   });
 
   // Fetch projects (filtered by workspace)
   const { data: projectsData } = useQuery({
     queryKey: ["/api/projects", selectedWorkspace !== "all" ? selectedWorkspace : undefined],
-    queryFn: async () => {
+    queryFn: async (): Promise<ApiResponse<Project>> => {
       const url =
         selectedWorkspace !== "all"
           ? `/api/projects?workspaceId=${selectedWorkspace}`
           : "/api/projects";
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch projects");
-      return response.json();
+      return response.json() as Promise<ApiResponse<Project>>;
     },
     enabled: selectedWorkspace !== "all",
   });
@@ -78,7 +105,7 @@ export default function MomentumClientWrapper(): JSX.Element {
         withContacts: true,
       },
     ],
-    queryFn: async () => {
+    queryFn: async (): Promise<ApiResponse<Momentum>> => {
       const params = new URLSearchParams();
       if (selectedWorkspace !== "all") params.append("workspaceId", selectedWorkspace);
       if (selectedProject !== "all") params.append("projectId", selectedProject);
@@ -88,30 +115,31 @@ export default function MomentumClientWrapper(): JSX.Element {
 
       const response = await fetch(`/api/omni-momentum?${params}`);
       if (!response.ok) throw new Error("Failed to fetch momentums");
-      return response.json();
+      return response.json() as Promise<ApiResponse<Momentum>>;
     },
   });
 
   // Fetch pending approval momentums
   const { data: pendingMomentumsData } = useQuery({
     queryKey: ["/api/omni-momentum/pending-approval"],
-    queryFn: async () => {
+    queryFn: async (): Promise<ApiResponse<Momentum>> => {
       const response = await fetch("/api/omni-momentum/pending-approval");
       if (!response.ok) throw new Error("Failed to fetch pending momentums");
-      return response.json();
+      return response.json() as Promise<ApiResponse<Momentum>>;
     },
   });
 
-  const workspaces = workspacesData?.workspaces || [];
-  const projects = projectsData?.projects || [];
-  const momentums = momentumsData?.momentums || [];
-  const pendingMomentums = pendingMomentumsData?.momentums || [];
+  const workspaces = workspacesData?.workspaces ?? [];
+  const projects = projectsData?.projects ?? [];
+  const momentums = momentumsData?.momentums ?? [];
+  const pendingMomentums = pendingMomentumsData?.momentums ?? [];
 
   // Filter momentums by search query
   const filteredMomentums = momentums.filter(
-    (momentum: any) =>
-      momentum.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      momentum.description?.toLowerCase().includes(searchQuery.toLowerCase()),
+    (momentum: Momentum) =>
+      momentum.title?.toLowerCase().includes(searchQuery.toLowerCase()) ??
+      momentum.description?.toLowerCase().includes(searchQuery.toLowerCase()) ??
+      false,
   );
 
   const statusOptions = [
@@ -183,7 +211,7 @@ export default function MomentumClientWrapper(): JSX.Element {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {momentums.filter((m: any) => m.status === "in_progress").length}
+                {momentums.filter((m: Momentum) => m.status === "in_progress").length}
               </div>
               <p className="text-xs text-muted-foreground">Currently active</p>
             </CardContent>
@@ -196,7 +224,7 @@ export default function MomentumClientWrapper(): JSX.Element {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {momentums.filter((m: any) => m.source === "ai_generated").length}
+                {momentums.filter((m: Momentum) => m.source === "ai_generated").length}
               </div>
               <p className="text-xs text-muted-foreground">Approved suggestions</p>
             </CardContent>
@@ -237,7 +265,7 @@ export default function MomentumClientWrapper(): JSX.Element {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Workspaces</SelectItem>
-                {workspaces.map((workspace: any) => (
+                {workspaces.map((workspace: Workspace) => (
                   <SelectItem key={workspace.id} value={workspace.id}>
                     {workspace.name}
                   </SelectItem>
@@ -253,7 +281,7 @@ export default function MomentumClientWrapper(): JSX.Element {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
-                  {projects.map((project: any) => (
+                  {projects.map((project: Project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
                     </SelectItem>
@@ -298,7 +326,8 @@ export default function MomentumClientWrapper(): JSX.Element {
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">
                 {selectedWorkspace !== "all"
-                  ? workspaces.find((w: any) => w.id === selectedWorkspace)?.name || "Momentum"
+                  ? (workspaces.find((w: Workspace) => w.id === selectedWorkspace)?.name ??
+                    "Momentum")
                   : "All Momentum"}
               </CardTitle>
 

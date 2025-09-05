@@ -49,94 +49,107 @@ interface GmailSyncPreviewProps {
   isLoading?: boolean;
 }
 
-export function GmailSyncPreview({ isOpen, onClose, onApprove, isLoading }: GmailSyncPreviewProps): JSX.Element | null {
+export function GmailSyncPreview({
+  isOpen,
+  onClose,
+  onApprove,
+  isLoading,
+}: GmailSyncPreviewProps): JSX.Element | null {
   const [preview, setPreview] = useState<SyncPreview | null>(null);
   const [isApproving, setIsApproving] = useState(false);
-
 
   const loadPreview = useCallback(async (): Promise<void> => {
     try {
       const data = await fetchPost<{
         countByLabel?: Record<string, number>;
-        sampleEmails?: any[];
-        sampleSubjects?: any[];
+        sampleEmails?: unknown[];
+        sampleSubjects?: unknown[];
         dateRange?: { from: string; to: string };
       }>("/api/sync/preview/gmail", {});
       // console.log("GmailSyncPreview data:", data);
-        // Prefer richer preview data when available; fallback to subjects
-        if (
-          (Array.isArray(data?.sampleEmails) && data.sampleEmails.length > 0) ||
-          (Array.isArray(data?.sampleSubjects) && data.sampleSubjects.length > 0)
-        ) {
-          const totalEmails = Object.values(data.countByLabel || {}).reduce(
-            (sum: number, count: any) => sum + (typeof count === "number" ? count : 0),
-            0,
-          );
+      // Prefer richer preview data when available; fallback to subjects
+      if (
+        (Array.isArray(data?.sampleEmails) && data.sampleEmails.length > 0) ||
+        (Array.isArray(data?.sampleSubjects) && data.sampleSubjects.length > 0)
+      ) {
+        const totalEmails = Object.values(data.countByLabel ?? {}).reduce(
+          (sum: number, count: unknown) => sum + (typeof count === "number" ? count : 0),
+          0,
+        );
 
-          const richEmails = Array.isArray(data.sampleEmails) ? data.sampleEmails : [];
-          let sampleEmails: EmailPreview[] = richEmails.slice(0, 5).map((e: any, index: number) => ({
-            id: e?.id ?? `email-${index}`,
-            subject: e?.subject ?? `Email ${index + 1}`,
-            from: e?.from ?? "Unknown Sender",
-            to: [],
-            date: e?.date ?? new Date(Date.now() - index * 86400000).toISOString(),
-            snippet: e?.snippet ?? "",
-            hasAttachments: Boolean(e?.hasAttachments),
-            labels: Array.isArray(e?.labels) ? e.labels : [],
-          }));
-
-          if (sampleEmails.length === 0 && Array.isArray(data.sampleSubjects)) {
-            sampleEmails = data.sampleSubjects
-              .slice(0, 5)
-              .map((emailObj: SampleEmailData, index: number) => ({
-                id: emailObj.id ?? `email-${index}`,
-                subject: emailObj.subject ?? `Email ${index + 1}`,
-                from: emailObj.from ?? "Unknown Sender",
-                to: [],
-                date:
-                  emailObj.date ?? new Date(Date.now() - index * 86400000).toISOString(),
-                snippet: `Preview of email ${index + 1}...`,
-                hasAttachments: false,
-                labels: ["INBOX"],
-              }));
-          }
-
-          const rangeFrom =
-            data?.dateRange?.from ??
-            (sampleEmails.length > 0
-              ? new Date(
-                  Math.min(
-                    ...sampleEmails.map((e) => new Date(e.date).getTime() || Date.now()),
-                  ),
-                ).toISOString()
-              : new Date(Date.now() - 30 * 86400000).toISOString());
-
-          const rangeTo =
-            data?.dateRange?.to ??
-            (sampleEmails.length > 0
-              ? new Date(
-                  Math.max(
-                    ...sampleEmails.map((e) => new Date(e.date).getTime() || Date.now()),
-                  ),
-                ).toISOString()
-              : new Date().toISOString());
-
-          const previewData: SyncPreview = {
-            totalEmails,
-            estimatedContacts: Math.floor(sampleEmails.length * 0.3),
-            dateRange: { from: rangeFrom, to: rangeTo },
-            sampleEmails,
-            potentialContacts: [],
-          };
-
-          setPreview(previewData);
-          toast.success(`Preview loaded`, {
-            description: `Total ${totalEmails} emails • Showing ${sampleEmails.length} samples`,
+        const richEmails = Array.isArray(data.sampleEmails) ? data.sampleEmails : [];
+        let sampleEmails: EmailPreview[] = richEmails
+          .slice(0, 5)
+          .map((e: unknown, index: number) => {
+            const email = e as {
+              id?: string;
+              subject?: string;
+              from?: string;
+              date?: string;
+              snippet?: string;
+              hasAttachments?: boolean;
+              labels?: unknown;
+            };
+            return {
+              id: email.id ?? `email-${index}`,
+              subject: email.subject ?? `Email ${index + 1}`,
+              from: email.from ?? "Unknown Sender",
+              to: [],
+              date: email.date ?? new Date(Date.now() - index * 86400000).toISOString(),
+              snippet: email.snippet ?? "",
+              hasAttachments: Boolean(email.hasAttachments),
+              labels: Array.isArray(email.labels) ? email.labels : [],
+            };
           });
-        } else {
-          console.error("Invalid preview data format:", data);
-          toast.error("Failed to load Gmail preview");
+
+        if (sampleEmails.length === 0 && Array.isArray(data.sampleSubjects)) {
+          sampleEmails = data.sampleSubjects.slice(0, 5).map((emailObj: unknown, index: number) => {
+            const email = emailObj as SampleEmailData;
+            return {
+              id: email.id ?? `email-${index}`,
+              subject: email.subject ?? `Email ${index + 1}`,
+              from: email.from ?? "Unknown Sender",
+              to: [],
+              date: email.date ?? new Date(Date.now() - index * 86400000).toISOString(),
+              snippet: `Preview of email ${index + 1}...`,
+              hasAttachments: false,
+              labels: ["INBOX"],
+            };
+          });
         }
+
+        const rangeFrom =
+          data?.dateRange?.from ??
+          (sampleEmails.length > 0
+            ? new Date(
+                Math.min(...sampleEmails.map((e) => new Date(e.date).getTime() || Date.now())),
+              ).toISOString()
+            : new Date(Date.now() - 30 * 86400000).toISOString());
+
+        const rangeTo =
+          data?.dateRange?.to ??
+          (sampleEmails.length > 0
+            ? new Date(
+                Math.max(...sampleEmails.map((e) => new Date(e.date).getTime() || Date.now())),
+              ).toISOString()
+            : new Date().toISOString());
+
+        const previewData: SyncPreview = {
+          totalEmails,
+          estimatedContacts: Math.floor(sampleEmails.length * 0.3),
+          dateRange: { from: rangeFrom, to: rangeTo },
+          sampleEmails,
+          potentialContacts: [],
+        };
+
+        setPreview(previewData);
+        toast.success(`Preview loaded`, {
+          description: `Total ${totalEmails} emails • Showing ${sampleEmails.length} samples`,
+        });
+      } else {
+        console.error("Invalid preview data format:", data);
+        toast.error("Failed to load Gmail preview");
+      }
     } catch (error) {
       console.error("Error loading preview:", error);
       toast.error("Error loading Gmail preview");
@@ -291,22 +304,24 @@ export function GmailSyncPreview({ isOpen, onClose, onApprove, isLoading }: Gmai
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {preview.potentialContacts.slice(0, 10).map(
-                        (
-                          contact: { email: string; name?: string; frequency: number },
-                          index: number,
-                        ) => (
-                          <div key={index} className="flex items-center justify-between py-2">
-                            <div>
-                              <p className="font-medium text-sm">{contact.name ?? "Unknown"}</p>
-                              <p className="text-xs text-muted-foreground">{contact.email}</p>
+                      {preview.potentialContacts
+                        .slice(0, 10)
+                        .map(
+                          (
+                            contact: { email: string; name?: string; frequency: number },
+                            index: number,
+                          ) => (
+                            <div key={index} className="flex items-center justify-between py-2">
+                              <div>
+                                <p className="font-medium text-sm">{contact.name ?? "Unknown"}</p>
+                                <p className="text-xs text-muted-foreground">{contact.email}</p>
+                              </div>
+                              <Badge variant="secondary" className="text-xs">
+                                {contact.frequency} emails
+                              </Badge>
                             </div>
-                            <Badge variant="secondary" className="text-xs">
-                              {contact.frequency} emails
-                            </Badge>
-                          </div>
-                        ),
-                      )}
+                          ),
+                        )}
                       {preview.potentialContacts.length > 10 && (
                         <p className="text-xs text-muted-foreground text-center py-2">
                           ... and {preview.potentialContacts.length - 10} more contacts

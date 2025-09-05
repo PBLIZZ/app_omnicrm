@@ -63,7 +63,7 @@ export function OmniConnectRecentEmails({
               <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-sm">Recent emails will appear here after syncing</p>
               <p className="text-xs">
-                Use the "Sync Now" button to start importing your emails
+                Use the &quot;Sync Now&quot; button to start importing your emails
               </p>
             </div>
           )}

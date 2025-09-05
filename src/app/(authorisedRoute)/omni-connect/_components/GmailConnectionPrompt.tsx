@@ -1,18 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Mail,
-  Link,
-  BarChart3,
-  Clock,
-} from "lucide-react";
+import { Mail, Link, BarChart3, Clock } from "lucide-react";
 
 interface GmailConnectionPromptProps {
   onConnect: () => void;
   isConnecting: boolean;
 }
 
-export function GmailConnectionPrompt({ onConnect, isConnecting }: GmailConnectionPromptProps) {
+export function GmailConnectionPrompt({
+  onConnect,
+  isConnecting,
+}: GmailConnectionPromptProps): JSX.Element {
   return (
     <Card>
       <CardHeader className="text-center">

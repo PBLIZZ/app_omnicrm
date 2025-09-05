@@ -74,15 +74,24 @@ export const logDebugInfo = (): void => {
   // Skip in server environment
   if (typeof window === "undefined") return;
 
-  console.error("CodexCRM Debugging Information");
-  console.warn("App version:", process.env["NEXT_PUBLIC_APP_VERSION"] ?? "development");
-  console.warn(
-    "Next.js version:",
-    (window as { __NEXT_DATA__?: { buildId?: string } }).__NEXT_DATA__?.buildId ?? "Unknown",
-  );
-  console.warn("Component boundaries:", debugComponentBoundaries());
-  console.warn("tRPC setup:", debugTrpcSetup());
-  console.error("End of debugging information");
+  // Debug information - only in development
+  if (process.env.NODE_ENV === "development") {
+    // eslint-disable-next-line no-console
+    console.group("CodexCRM Debugging Information");
+    // eslint-disable-next-line no-console
+    console.log("App version:", process.env["NEXT_PUBLIC_APP_VERSION"] ?? "development");
+    // eslint-disable-next-line no-console
+    console.log(
+      "Next.js version:",
+      (window as { __NEXT_DATA__?: { buildId?: string } }).__NEXT_DATA__?.buildId ?? "Unknown",
+    );
+    // eslint-disable-next-line no-console
+    console.log("Component boundaries:", debugComponentBoundaries());
+    // eslint-disable-next-line no-console
+    console.log("tRPC setup:", debugTrpcSetup());
+    // eslint-disable-next-line no-console
+    console.groupEnd();
+  }
 };
 
 // Add this to a client component to debug issues

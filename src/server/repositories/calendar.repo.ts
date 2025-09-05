@@ -16,7 +16,7 @@ export type CalendarEventItem = {
   isAllDay: boolean | null;
   status: string | null;
   visibility: string | null;
-  attendees: any; // JSONB
+  attendees: unknown; // JSONB - attendee data from Google Calendar API
   eventType: string | null;
   businessCategory: string | null;
   lastSynced: Date | null;
@@ -40,14 +40,22 @@ export async function listCalendarEvents(
 
   // Add date filtering if provided
   if (params.fromDate) {
-    whereExpr = and(whereExpr, gte(calendarEvents.startTime, params.fromDate))!;
+    const newWhereExpr = and(whereExpr, gte(calendarEvents.startTime, params.fromDate));
+    if (!newWhereExpr) {
+      throw new Error("Failed to create WHERE expression with fromDate filter");
+    }
+    whereExpr = newWhereExpr;
   }
 
   if (params.toDate) {
-    whereExpr = and(whereExpr, lte(calendarEvents.startTime, params.toDate))!;
+    const newWhereExpr = and(whereExpr, lte(calendarEvents.startTime, params.toDate));
+    if (!newWhereExpr) {
+      throw new Error("Failed to create WHERE expression with toDate filter");
+    }
+    whereExpr = newWhereExpr;
   }
 
-  const limit = params.limit || 50;
+  const limit = params.limit ?? 50;
 
   // Get events ordered by start time (most recent first)
   const events = await dbo

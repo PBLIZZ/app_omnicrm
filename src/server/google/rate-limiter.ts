@@ -305,7 +305,13 @@ class GoogleApiRateLimiter {
       };
       this.state.buckets.set(bucketKey, bucket);
     }
-    return this.state.buckets.get(bucketKey)!;
+
+    const bucket = this.state.buckets.get(bucketKey);
+    if (!bucket) {
+      throw new Error(`Failed to retrieve bucket after creation: ${bucketKey}`);
+    }
+
+    return bucket;
   }
 
   private getServiceCapacity(service: string): number {
@@ -388,7 +394,13 @@ class GoogleApiRateLimiter {
       };
       this.state.backoffState.set(bucketKey, backoff);
     }
-    return this.state.backoffState.get(bucketKey)!;
+
+    const backoffState = this.state.backoffState.get(bucketKey);
+    if (!backoffState) {
+      throw new Error(`Failed to retrieve backoff state after creation: ${bucketKey}`);
+    }
+
+    return backoffState;
   }
 
   private resetBackoff(bucketKey: string): void {

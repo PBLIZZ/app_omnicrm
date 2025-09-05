@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import { toast } from "sonner";
 import { fetchPost } from "@/lib/api";
+import { handleAsyncError } from "@/lib/error-handler";
 
 interface Contact {
   id: string;
@@ -201,7 +202,11 @@ export function ContactSyncProvider({ children }: { children: React.ReactNode })
               console.warn("Unknown SSE event:", (data as SSEMessageBase).type);
           }
         } catch (error) {
-          console.error("Error parsing SSE message:", error);
+          handleAsyncError(error, {
+            operation: "parse SSE message",
+            component: "ContactSync",
+            additionalData: { eventData: event.data },
+          });
         }
       };
 
@@ -221,7 +226,11 @@ export function ContactSyncProvider({ children }: { children: React.ReactNode })
 
       setEventSource(es);
     } catch (error) {
-      console.error("Failed to initialize SSE connection:", error);
+      handleAsyncError(error, {
+        operation: "initialize SSE connection",
+        component: "ContactSync",
+      });
+
       setIsConnecting(false);
       setConnectionError("Failed to connect to live updates");
 
@@ -254,9 +263,9 @@ export function ContactSyncProvider({ children }: { children: React.ReactNode })
       setIsComplete(false);
       setProgress({ current: 0, total: 0, message: "Starting sync..." });
 
-      const result = await fetchPost<SyncResponse>("/api/contacts/sync", { 
-        source, 
-        mode: "full" 
+      const result = await fetchPost<SyncResponse>("/api/contacts/sync", {
+        source,
+        mode: "full",
       });
 
       toast.success("Contact sync started!", {
@@ -297,12 +306,14 @@ export function ContactSyncProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     initializeConnection();
 
+    // Cleanup function will close the current eventSource when the component unmounts
+    // or when initializeConnection changes
     return () => {
       if (eventSource) {
         eventSource.close();
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initializeConnection, eventSource]);
 
   const value: ContactSyncState = {
     isConnected,

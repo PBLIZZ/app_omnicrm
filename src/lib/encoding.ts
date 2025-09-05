@@ -28,7 +28,13 @@ export function hexToBytes(hex: string): Uint8Array {
 
 export function bytesToHex(bytes: Uint8Array): string {
   let s = "";
-  for (let i = 0; i < bytes.length; i++) s += bytes[i]!.toString(16).padStart(2, "0");
+  for (let i = 0; i < bytes.length; i++) {
+    const byte = bytes[i];
+    if (byte === undefined) {
+      throw new Error(`Invalid byte at index ${i}: undefined`);
+    }
+    s += byte.toString(16).padStart(2, "0");
+  }
   return s;
 }
 
@@ -40,7 +46,13 @@ export function bytesToBase64Url(bytes: Uint8Array): string {
     b64 = Buffer.from(bytes).toString("base64");
   } else {
     let binary = "";
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    for (let i = 0; i < bytes.length; i++) {
+      const byte = bytes[i];
+      if (byte === undefined) {
+        throw new Error(`Invalid byte at index ${i}: undefined`);
+      }
+      binary += String.fromCharCode(byte);
+    }
     // btoa expects binary string (Latin1)
     b64 = btoa(binary);
   }
@@ -57,7 +69,13 @@ export function base64UrlToBytes(s: string): Uint8Array {
   } else {
     const binary = atob(b64);
     const out = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)!;
+    for (let i = 0; i < binary.length; i++) {
+      const charCode = binary.charCodeAt(i);
+      if (isNaN(charCode)) {
+        throw new Error(`Invalid character code at index ${i}: NaN`);
+      }
+      out[i] = charCode;
+    }
     return out;
   }
 }

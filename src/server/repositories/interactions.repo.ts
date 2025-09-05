@@ -1,6 +1,47 @@
-import { getDb } from '@/server/db/client';
-import { sql } from 'drizzle-orm';
-import { NewInteraction } from '@/lib/schemas/interactions.dto';
+import { getDb } from "@/server/db/client";
+import { sql } from "drizzle-orm";
+import { NewInteraction } from "@/lib/schemas/interactions.dto";
+
+// Database row types for query results
+interface InteractionRow {
+  id: string;
+  user_id: string;
+  contact_id: string | null;
+  type: string;
+  subject: string | null;
+  body_text: string | null;
+  body_raw: unknown;
+  occurred_at: string;
+  source: string | null;
+  source_id: string | null;
+  source_meta: unknown;
+  batch_id: string | null;
+  created_at: string;
+}
+
+interface IdRow {
+  id: string;
+}
+
+interface EmbeddingRow {
+  id: string;
+  body_text: string | null;
+}
+
+interface TypeStatsRow {
+  type: string;
+  count: string;
+}
+
+interface LinkStatsRow {
+  linked: string;
+  unlinked: string;
+}
+
+interface SourceStatsRow {
+  source: string;
+  count: string;
+}
 
 export class InteractionsRepository {
   /**
@@ -33,7 +74,7 @@ export class InteractionsRepository {
       RETURNING id
     `);
 
-    return result.length > 0 ? (result[0] as any).id : null;
+    return result.length > 0 ? (result[0] as IdRow).id : null;
   }
 
   /**
@@ -53,7 +94,7 @@ export class InteractionsRepository {
   /**
    * Get interaction by ID
    */
-  async getById(interactionId: string): Promise<any | null> {
+  async getById(interactionId: string): Promise<InteractionRow | null> {
     const db = await getDb();
 
     const result = await db.execute(sql`
@@ -62,7 +103,7 @@ export class InteractionsRepository {
       LIMIT 1
     `);
 
-    return result.length > 0 ? result[0] : null;
+    return result.length > 0 ? (result[0] as InteractionRow) : null;
   }
 
   /**
@@ -75,8 +116,8 @@ export class InteractionsRepository {
       limit?: number;
       offset?: number;
       types?: string[];
-    } = {}
-  ): Promise<any[]> {
+    } = {},
+  ): Promise<InteractionRow[]> {
     const db = await getDb();
 
     const result = await db.execute(sql`
@@ -84,11 +125,11 @@ export class InteractionsRepository {
       WHERE user_id = ${userId} AND contact_id = ${contactId}
         ${options.types?.length ? sql`AND type = ANY(${options.types})` : sql``}
       ORDER BY occurred_at DESC
-      LIMIT ${options.limit || 50}
-      OFFSET ${options.offset || 0}
+      LIMIT ${options.limit ?? 50}
+      OFFSET ${options.offset ?? 0}
     `);
 
-    return result;
+    return result as InteractionRow[];
   }
 
   /**
@@ -100,11 +141,11 @@ export class InteractionsRepository {
       limit?: number;
       sources?: string[];
       daysSince?: number;
-    } = {}
-  ): Promise<any[]> {
+    } = {},
+  ): Promise<InteractionRow[]> {
     const db = await getDb();
 
-    const daysSince = options.daysSince || 7;
+    const daysSince = options.daysSince ?? 7;
 
     const result = await db.execute(sql`
       SELECT * FROM interactions
@@ -113,10 +154,10 @@ export class InteractionsRepository {
         AND created_at > now() - interval '${daysSince} days'
         ${options.sources?.length ? sql`AND source = ANY(${options.sources})` : sql``}
       ORDER BY created_at DESC
-      LIMIT ${options.limit || 100}
+      LIMIT ${options.limit ?? 100}
     `);
 
-    return result;
+    return result as InteractionRow[];
   }
 
   /**
@@ -141,24 +182,28 @@ export class InteractionsRepository {
       limit?: number;
       hoursBack?: number;
       hasContact?: boolean;
-    } = {}
-  ): Promise<any[]> {
+    } = {},
+  ): Promise<InteractionRow[]> {
     const db = await getDb();
 
-    const hoursBack = options.hoursBack || 24;
+    const hoursBack = options.hoursBack ?? 24;
 
     const result = await db.execute(sql`
       SELECT * FROM interactions
       WHERE user_id = ${userId}
         AND created_at > now() - interval '${hoursBack} hours'
-        ${options.hasContact !== undefined ? 
-          (options.hasContact ? sql`AND contact_id IS NOT NULL` : sql`AND contact_id IS NULL`) 
-          : sql``}
+        ${
+          options.hasContact !== undefined
+            ? options.hasContact
+              ? sql`AND contact_id IS NOT NULL`
+              : sql`AND contact_id IS NULL`
+            : sql``
+        }
       ORDER BY occurred_at DESC
-      LIMIT ${options.limit || 100}
+      LIMIT ${options.limit ?? 100}
     `);
 
-    return result;
+    return result as InteractionRow[];
   }
 
   /**
@@ -166,7 +211,7 @@ export class InteractionsRepository {
    */
   async getWithoutEmbeddings(
     userId: string,
-    limit = 50
+    limit = 50,
   ): Promise<Array<{ id: string; bodyText: string | null }>> {
     const db = await getDb();
 
@@ -182,16 +227,20 @@ export class InteractionsRepository {
       LIMIT ${limit}
     `);
 
-    return result.map(row => ({
-      id: (row as any).id,
-      bodyText: (row as any).body_text,
+    return (result as EmbeddingRow[]).map((row) => ({
+      id: row.id,
+      bodyText: row.body_text,
     }));
   }
 
   /**
    * Get interaction statistics
    */
-  async getStats(userId: string): Promise<Record<string, any>> {
+  async getStats(userId: string): Promise<{
+    byType: Record<string, number>;
+    linking: { linked: number; unlinked: number };
+    bySource: Record<string, number>;
+  }> {
     const db = await getDb();
 
     // Get counts by type
@@ -225,18 +274,24 @@ export class InteractionsRepository {
     `);
 
     return {
-      byType: typeStats.reduce((acc: any, row: any) => {
-        acc[row.type] = parseInt(row.count, 10);
-        return acc;
-      }, {}),
+      byType: (typeStats as TypeStatsRow[]).reduce(
+        (acc: Record<string, number>, row: TypeStatsRow) => {
+          acc[row.type] = parseInt(row.count, 10);
+          return acc;
+        },
+        {},
+      ),
       linking: {
-        linked: parseInt((linkStats[0] as any)?.linked || '0', 10),
-        unlinked: parseInt((linkStats[0] as any)?.unlinked || '0', 10),
+        linked: parseInt((linkStats[0] as LinkStatsRow)?.linked || "0", 10),
+        unlinked: parseInt((linkStats[0] as LinkStatsRow)?.unlinked || "0", 10),
       },
-      bySource: sourceStats.reduce((acc: any, row: any) => {
-        acc[row.source] = parseInt(row.count, 10);
-        return acc;
-      }, {}),
+      bySource: (sourceStats as SourceStatsRow[]).reduce(
+        (acc: Record<string, number>, row: SourceStatsRow) => {
+          acc[row.source] = parseInt(row.count, 10);
+          return acc;
+        },
+        {},
+      ),
     };
   }
 }

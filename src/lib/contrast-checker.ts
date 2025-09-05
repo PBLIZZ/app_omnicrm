@@ -8,22 +8,34 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   s /= 100;
   l /= 100;
   const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-  const m = l - c/2;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
   let r, g, b;
 
   if (0 <= h && h < 60) {
-    r = c; g = x; b = 0;
+    r = c;
+    g = x;
+    b = 0;
   } else if (60 <= h && h < 120) {
-    r = x; g = c; b = 0;
+    r = x;
+    g = c;
+    b = 0;
   } else if (120 <= h && h < 180) {
-    r = 0; g = c; b = x;
+    r = 0;
+    g = c;
+    b = x;
   } else if (180 <= h && h < 240) {
-    r = 0; g = x; b = c;
+    r = 0;
+    g = x;
+    b = c;
   } else if (240 <= h && h < 300) {
-    r = x; g = 0; b = c;
+    r = x;
+    g = 0;
+    b = c;
   } else if (300 <= h && h < 360) {
-    r = c; g = 0; b = x;
+    r = c;
+    g = 0;
+    b = x;
   } else {
     r = g = b = 0;
   }
@@ -46,7 +58,7 @@ export function getContrastRatio(color1: string, color2: string): number {
   const parseHSL = (hsl: string): [number, number, number] => {
     const match = hsl.match(/hsl\((\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%\)/);
     if (!match) throw new Error(`Invalid HSL format: ${hsl}`);
-    return [parseFloat(match[1] ?? '0'), parseFloat(match[2] ?? '0'), parseFloat(match[3] ?? '0')];
+    return [parseFloat(match[1] ?? "0"), parseFloat(match[2] ?? "0"), parseFloat(match[3] ?? "0")];
   };
 
   const [h1, s1, l1] = parseHSL(color1);
@@ -70,8 +82,26 @@ export function meetsWCAG_AA(bgColor: string, textColor: string): boolean {
   return ratio >= 4.5;
 }
 
+// Color theme interface
+interface ColorTheme {
+  background: string;
+  foreground: string;
+  primary: string;
+  primaryForeground: string;
+  secondary: string;
+  secondaryForeground: string;
+  muted: string;
+  mutedForeground: string;
+  accent: string;
+  accentForeground: string;
+  destructive: string;
+  destructiveForeground: string;
+  softSurface: string;
+  highlight: string;
+}
+
 // OmniCRM color definitions for validation
-export const omnicrmColors = {
+export const omnicrmColors: { light: ColorTheme; dark: ColorTheme } = {
   light: {
     background: "hsl(0 0% 100%)",
     foreground: "hsl(210 25% 7.8%)",
@@ -107,10 +137,15 @@ export const omnicrmColors = {
 };
 
 // Validate all color combinations
-export function validateAllContrasts(): { combination: string; ratio: number; passes: boolean; mode: string }[] {
+export function validateAllContrasts(): {
+  combination: string;
+  ratio: number;
+  passes: boolean;
+  mode: string;
+}[] {
   const results: { combination: string; ratio: number; passes: boolean; mode: string }[] = [];
 
-  const checkCombinations = (colors: any, mode: string) => {
+  const checkCombinations = (colors: ColorTheme, mode: string): void => {
     const combinations = [
       { bg: colors.primary, fg: colors.primaryForeground, name: "primary-badge" },
       { bg: colors.secondary, fg: colors.secondaryForeground, name: "secondary-badge" },
@@ -133,7 +168,8 @@ export function validateAllContrasts(): { combination: string; ratio: number; pa
   return results;
 }
 
-// Usage in development
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  console.table(validateAllContrasts());
+// Usage in development - accessibility debugging
+if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+  const results = validateAllContrasts();
+  console.error("Accessibility Contrast Validation:", results);
 }

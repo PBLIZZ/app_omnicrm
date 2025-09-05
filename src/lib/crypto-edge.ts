@@ -97,7 +97,14 @@ export async function hmacVerify(data: string, signatureB64Url: string): Promise
   const b = base64urlDecodeToBytes(signatureB64Url);
   if (a.length !== b.length) return false;
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
+  for (let i = 0; i < a.length; i++) {
+    const byteA = a[i];
+    const byteB = b[i];
+    if (byteA === undefined || byteB === undefined) {
+      throw new Error(`Invalid byte at index ${i}: a=${byteA}, b=${byteB}`);
+    }
+    diff |= byteA ^ byteB;
+  }
   return diff === 0;
 }
 

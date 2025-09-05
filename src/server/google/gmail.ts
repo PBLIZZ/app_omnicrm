@@ -135,7 +135,7 @@ export async function gmailPreview(
         "gmail.messages.get",
       );
 
-      const headers = msg.data.payload?.headers || [];
+      const headers = msg.data.payload?.headers ?? [];
       const subject = getHeader(headers, "Subject");
       const from = getHeader(headers, "From");
       const dateHeader = getHeader(headers, "Date");
@@ -157,8 +157,8 @@ export async function gmailPreview(
       if (subject) {
         sampleEmails.push({
           id,
-          subject: subject || "(no subject)",
-          from: from || "Unknown Sender",
+          subject: subject ?? "(no subject)",
+          from: from ?? "Unknown Sender",
           date: dateISO,
           snippet: msg.data.snippet ?? "",
           hasAttachments: payloadHasAttachments(msg.data.payload),

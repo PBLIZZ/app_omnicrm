@@ -1,11 +1,38 @@
-import { getDb } from '@/server/db/client';
-import { sql } from 'drizzle-orm';
+import { getDb } from "@/server/db/client";
+import { sql } from "drizzle-orm";
+
+// Database row types for query results
+interface ContactIdentityRow {
+  id: string;
+  user_id: string;
+  contact_id: string;
+  kind: string;
+  value: string;
+  provider: string | null;
+  created_at: string;
+}
+
+interface ContactIdRow {
+  contact_id: string;
+}
+
+interface DuplicateIdentityRow {
+  kind: string;
+  value: string;
+  provider: string | null;
+  contact_ids: string[];
+}
+
+interface IdentityStatsRow {
+  kind: string;
+  count: string;
+}
 
 export interface ContactIdentity {
   id: string;
   userId: string;
   contactId: string;
-  kind: 'email' | 'phone' | 'handle' | 'provider_id';
+  kind: "email" | "phone" | "handle" | "provider_id";
   value: string;
   provider?: string | null;
   createdAt: string;
@@ -23,7 +50,7 @@ export class IdentitiesRepository {
    * Add email identity for contact
    */
   async addEmail(userId: string, contactId: string, email: string): Promise<void> {
-    await this.addIdentity(userId, contactId, 'email', email.toLowerCase());
+    await this.addIdentity(userId, contactId, "email", email.toLowerCase());
   }
 
   /**
@@ -31,21 +58,31 @@ export class IdentitiesRepository {
    */
   async addPhone(userId: string, contactId: string, phone: string): Promise<void> {
     const normalizedPhone = this.normalizePhone(phone);
-    await this.addIdentity(userId, contactId, 'phone', normalizedPhone);
+    await this.addIdentity(userId, contactId, "phone", normalizedPhone);
   }
 
   /**
    * Add handle identity for contact (e.g., social media handle)
    */
-  async addHandle(userId: string, contactId: string, provider: string, handle: string): Promise<void> {
-    await this.addIdentity(userId, contactId, 'handle', handle.toLowerCase(), provider);
+  async addHandle(
+    userId: string,
+    contactId: string,
+    provider: string,
+    handle: string,
+  ): Promise<void> {
+    await this.addIdentity(userId, contactId, "handle", handle.toLowerCase(), provider);
   }
 
   /**
    * Add provider-specific ID for contact
    */
-  async addProviderId(userId: string, contactId: string, provider: string, providerId: string): Promise<void> {
-    await this.addIdentity(userId, contactId, 'provider_id', providerId, provider);
+  async addProviderId(
+    userId: string,
+    contactId: string,
+    provider: string,
+    providerId: string,
+  ): Promise<void> {
+    await this.addIdentity(userId, contactId, "provider_id", providerId, provider);
   }
 
   /**
@@ -83,7 +120,7 @@ export class IdentitiesRepository {
       ORDER BY created_at ASC
     `);
 
-    return result.map(this.mapToContactIdentity);
+    return (result as ContactIdentityRow[]).map(this.mapToContactIdentity);
   }
 
   /**
@@ -91,17 +128,18 @@ export class IdentitiesRepository {
    */
   async findContactsByIdentity(
     userId: string,
-    kind: ContactIdentity['kind'],
+    kind: ContactIdentity["kind"],
     value: string,
-    provider?: string
+    provider?: string,
   ): Promise<string[]> {
     const db = await getDb();
 
-    const normalizedValue = kind === 'email' || kind === 'handle' 
-      ? value.toLowerCase() 
-      : kind === 'phone' 
-      ? this.normalizePhone(value) 
-      : value;
+    const normalizedValue =
+      kind === "email" || kind === "handle"
+        ? value.toLowerCase()
+        : kind === "phone"
+          ? this.normalizePhone(value)
+          : value;
 
     const result = await db.execute(sql`
       SELECT DISTINCT contact_id
@@ -112,7 +150,7 @@ export class IdentitiesRepository {
         ${provider ? sql`AND provider = ${provider}` : sql`AND provider IS NULL`}
     `);
 
-    return result.map(row => (row as any).contact_id);
+    return (result as ContactIdRow[]).map((row) => row.contact_id);
   }
 
   /**
@@ -142,12 +180,14 @@ export class IdentitiesRepository {
   /**
    * Find duplicate identities (same value, different contacts)
    */
-  async findDuplicateIdentities(userId: string): Promise<Array<{
-    kind: string;
-    value: string;
-    provider?: string;
-    contactIds: string[];
-  }>> {
+  async findDuplicateIdentities(userId: string): Promise<
+    Array<{
+      kind: string;
+      value: string;
+      provider?: string;
+      contactIds: string[];
+    }>
+  > {
     const db = await getDb();
 
     const result = await db.execute(sql`
@@ -158,11 +198,11 @@ export class IdentitiesRepository {
       HAVING count(DISTINCT contact_id) > 1
     `);
 
-    return result.map(row => ({
-      kind: (row as any).kind,
-      value: (row as any).value,
-      provider: (row as any).provider,
-      contactIds: (row as any).contact_ids,
+    return (result as DuplicateIdentityRow[]).map((row) => ({
+      kind: row.kind,
+      value: row.value,
+      provider: row.provider,
+      contactIds: row.contact_ids,
     }));
   }
 
@@ -202,9 +242,8 @@ export class IdentitiesRepository {
     `);
 
     const stats: Record<string, number> = {};
-    for (const row of result) {
-      const { kind, count } = row as { kind: string; count: string };
-      stats[kind] = parseInt(count, 10);
+    for (const row of result as IdentityStatsRow[]) {
+      stats[row.kind] = parseInt(row.count, 10);
     }
 
     return stats;
@@ -213,15 +252,15 @@ export class IdentitiesRepository {
   private async addIdentity(
     userId: string,
     contactId: string,
-    kind: ContactIdentity['kind'],
+    kind: ContactIdentity["kind"],
     value: string,
-    provider?: string
+    provider?: string,
   ): Promise<void> {
     const db = await getDb();
 
     await db.execute(sql`
       INSERT INTO contact_identities (user_id, contact_id, kind, value, provider, created_at)
-      VALUES (${userId}, ${contactId}, ${kind}, ${value}, ${provider || null}, ${new Date().toISOString()})
+      VALUES (${userId}, ${contactId}, ${kind}, ${value}, ${provider ?? null}, ${new Date().toISOString()})
       ON CONFLICT (user_id, kind, value, coalesce(provider, ''))
       DO UPDATE SET contact_id = EXCLUDED.contact_id
     `);
@@ -239,7 +278,7 @@ export class IdentitiesRepository {
       LIMIT 1
     `);
 
-    return result.length > 0 ? (result[0] as any).contact_id : null;
+    return result.length > 0 ? (result[0] as ContactIdRow).contact_id : null;
   }
 
   private async findByPhone(userId: string, phone: string): Promise<string | null> {
@@ -255,10 +294,14 @@ export class IdentitiesRepository {
       LIMIT 1
     `);
 
-    return result.length > 0 ? (result[0] as any).contact_id : null;
+    return result.length > 0 ? (result[0] as ContactIdRow).contact_id : null;
   }
 
-  private async findByHandle(userId: string, provider: string, handle: string): Promise<string | null> {
+  private async findByHandle(
+    userId: string,
+    provider: string,
+    handle: string,
+  ): Promise<string | null> {
     const db = await getDb();
 
     const result = await db.execute(sql`
@@ -271,16 +314,16 @@ export class IdentitiesRepository {
       LIMIT 1
     `);
 
-    return result.length > 0 ? (result[0] as any).contact_id : null;
+    return result.length > 0 ? (result[0] as ContactIdRow).contact_id : null;
   }
 
   private normalizePhone(phone: string): string {
     // Basic phone normalization - remove non-digits
     // TODO: Implement proper E.164 formatting
-    return phone.replace(/\D/g, '');
+    return phone.replace(/\D/g, "");
   }
 
-  private mapToContactIdentity(row: any): ContactIdentity {
+  private mapToContactIdentity(row: ContactIdentityRow): ContactIdentity {
     return {
       id: row.id,
       userId: row.user_id,

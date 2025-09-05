@@ -40,7 +40,11 @@ export function createEventStreamResponse(userId: string): Response {
       if (!activeStreams.has(userId)) {
         activeStreams.set(userId, new Set());
       }
-      activeStreams.get(userId)!.add(controller);
+      const userStreams = activeStreams.get(userId);
+      if (!userStreams) {
+        throw new Error(`Failed to create or retrieve stream set for user: ${userId}`);
+      }
+      userStreams.add(controller);
 
       // Send initial connection event
       const connectEvent = {

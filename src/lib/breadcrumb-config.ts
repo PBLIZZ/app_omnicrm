@@ -106,7 +106,11 @@ export function generateBreadcrumbs(pathname: string): BreadcrumbItem[] {
       });
 
       if (possiblePaths.length > 0) {
-        currentPath = possiblePaths[0]!;
+        const firstPath = possiblePaths[0];
+        if (!firstPath) {
+          throw new Error("First path in possiblePaths is unexpectedly undefined");
+        }
+        currentPath = firstPath;
         break;
       }
     }

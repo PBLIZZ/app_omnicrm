@@ -104,45 +104,43 @@ export function useOmniRhythmData(): {
     queryKey: ["calendar", "events"],
     queryFn: async (): Promise<CalendarEvent[]> => {
       toast.info("Fetching calendar events...");
-      const response = await fetch("/api/calendar/events");
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Calendar events request failed: ${response.status} ${text}`);
+      const response = await fetchGet<{
+        events: CalendarEvent[];
+        isConnected: boolean;
+        totalCount: number;
+      }>("/api/calendar/events");
+      if (!response.isConnected) {
+        toast.info("Calendar not connected");
+        return [];
       }
-      const json: unknown = await response.json();
-      if (typeof json === "object" && json !== null) {
-        const rec = json as Record<string, unknown>;
-        const items = Array.isArray(rec["events"]) ? (rec["events"] as unknown[]) : [];
-        const mapEvent = (e: unknown): CalendarEvent => {
-          const r = typeof e === "object" && e !== null ? (e as Record<string, unknown>) : {};
-          const s = (k: string): string | undefined =>
-            typeof r[k] === "string" ? (r[k] as string) : undefined;
-          const attendees = Array.isArray(r["attendees"])
-            ? (r["attendees"] as unknown[]).map((a) => {
-                const ar =
-                  typeof a === "object" && a !== null ? (a as Record<string, unknown>) : {};
-                const email = typeof ar["email"] === "string" ? (ar["email"] as string) : "";
-                const name = typeof ar["name"] === "string" ? (ar["name"] as string) : undefined;
-                return name !== undefined ? { email, name } : { email };
-              })
-            : [];
-          const eventType = s("eventType");
-          const businessCategory = s("businessCategory");
-          const base: CalendarEvent = {
-            id: s("id") ?? `event-${Math.random()}`,
-            title: s("title") ?? "Untitled",
-            startTime: s("startTime") ?? new Date().toISOString(),
-            endTime: s("endTime") ?? new Date().toISOString(),
-            location: s("location") ?? "",
-            attendees,
-            ...(eventType !== undefined ? { eventType } : {}),
-            ...(businessCategory !== undefined ? { businessCategory } : {}),
-          };
-          return base;
+      const items = Array.isArray(response.events) ? response.events : [];
+      const mapEvent = (e: unknown): CalendarEvent => {
+        const r = typeof e === "object" && e !== null ? (e as Record<string, unknown>) : {};
+        const s = (k: string): string | undefined =>
+          typeof r[k] === "string" ? (r[k] as string) : undefined;
+        const attendees = Array.isArray(r["attendees"])
+          ? (r["attendees"] as unknown[]).map((a) => {
+              const ar = typeof a === "object" && a !== null ? (a as Record<string, unknown>) : {};
+              const email = typeof ar["email"] === "string" ? (ar["email"] as string) : "";
+              const name = typeof ar["name"] === "string" ? (ar["name"] as string) : undefined;
+              return name !== undefined ? { email, name } : { email };
+            })
+          : [];
+        const eventType = s("eventType");
+        const businessCategory = s("businessCategory");
+        const base: CalendarEvent = {
+          id: s("id") ?? `event-${Math.random()}`,
+          title: s("title") ?? "Untitled",
+          startTime: s("startTime") ?? new Date().toISOString(),
+          endTime: s("endTime") ?? new Date().toISOString(),
+          location: s("location") ?? "",
+          attendees,
+          ...(eventType !== undefined ? { eventType } : {}),
+          ...(businessCategory !== undefined ? { businessCategory } : {}),
         };
-        return items.map(mapEvent);
-      }
-      return [];
+        return base;
+      };
+      return items.map(mapEvent);
     },
     staleTime: 60_000,
   });
@@ -157,6 +155,9 @@ export function useOmniRhythmData(): {
   React.useEffect(() => {
     if (isEventsError) {
       console.error("Failed to fetch calendar events");
+      toast.error("Failed to load calendar events", {
+        description: "There was an error fetching your calendar data. Please try again.",
+      });
       setAllEvents([]);
     }
   }, [isEventsError]);

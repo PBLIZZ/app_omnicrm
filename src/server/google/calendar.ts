@@ -85,7 +85,7 @@ export async function listCalendarEvents(
     () => cal.calendarList.list(),
     "calendar.calendarList.list",
   );
-  const calendars = calendarsResponse.data.items || [];
+  const calendars = calendarsResponse.data.items ?? [];
 
   // Sync events from each calendar
   for (const calendar of calendars) {
@@ -93,7 +93,7 @@ export async function listCalendarEvents(
 
     let pageToken: string | undefined = undefined;
     let calendarPages = 0;
-    
+
     do {
       const params: calendar_v3.Params$Resource$Events$List = {
         calendarId: calendar.id, // Use each calendar ID instead of hardcoded "primary"
@@ -112,10 +112,10 @@ export async function listCalendarEvents(
       items.push(...(resp.data.items ?? []));
       pageToken = resp.data.nextPageToken ?? undefined;
     } while (pageToken);
-    
+
     totalPages += calendarPages;
   }
-  
+
   return { items, pages: totalPages };
 }
 

@@ -107,13 +107,22 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
   function selectServiceRowOrFallback(
     service: "gmail" | "calendar",
   ): typeof userIntegrations.$inferSelect {
+    if (rows.length === 0) {
+      throw new Error(`No Google integrations found for user ${userId}`);
+    }
+
     // Priority order: 1) unified (new), 2) specific service, 3) auth fallback, 4) any row
     const unified = rows.find((r) => r.service === "unified");
     const match =
       unified ??
       rows.find((r) => r.service === service) ??
       rows.find((r) => r.service === "auth") ??
-      rows[0]!;
+      rows[0];
+
+    if (!match) {
+      throw new Error(`Failed to select integration row for service: ${service}`);
+    }
+
     return match;
   }
 

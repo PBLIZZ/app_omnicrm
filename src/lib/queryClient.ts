@@ -9,10 +9,7 @@ export const queryClient = new QueryClient({
   },
 });
 
-export async function apiRequest<T = unknown>(
-  url: string,
-  options: RequestInit = {}
-): Promise<T> {
+export async function apiRequest<T = unknown>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     headers: {
       "Content-Type": "application/json",
@@ -25,5 +22,5 @@ export async function apiRequest<T = unknown>(
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }

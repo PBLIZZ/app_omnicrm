@@ -1,6 +1,30 @@
 // Service-role client for RLS-bypassing writes (raw_events, embeddings, ai_insights).
 import { createClient } from "@supabase/supabase-js";
 import { log } from "@/lib/log";
+
+// PostgreSQL/Supabase error interface
+interface PostgresError extends Error {
+  code?: string;
+  details?: string;
+  hint?: string;
+  schema?: string;
+  table?: string;
+  column?: string;
+  dataType?: string;
+  constraint?: string;
+}
+
+// Type guard to check if an error is a PostgreSQL error
+function isPostgresError(error: unknown): error is PostgresError {
+  if (!(error instanceof Error)) return false;
+
+  const errorObj = error as Record<string, unknown>;
+  return (
+    typeof errorObj.code === "string" ||
+    typeof errorObj.details === "string" ||
+    typeof errorObj.hint === "string"
+  );
+}
 import type {
   AiInsight,
   NewAiInsight,
@@ -115,9 +139,9 @@ export const supaAdminGuard = {
           op: "supa_admin_upsert",
           table,
           error: error instanceof Error ? error.message : String(error),
-          errorCode: (error as any)?.code,
-          errorDetails: (error as any)?.details,
-          errorHint: (error as any)?.hint,
+          errorCode: isPostgresError(error) ? error.code : undefined,
+          errorDetails: isPostgresError(error) ? error.details : undefined,
+          errorHint: isPostgresError(error) ? error.hint : undefined,
           fullError: error,
         },
         "admin_upsert_failed",

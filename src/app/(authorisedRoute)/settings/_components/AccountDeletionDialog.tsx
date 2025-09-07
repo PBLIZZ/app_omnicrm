@@ -16,7 +16,7 @@ import {
   AlertDescription,
   Checkbox,
 } from "@/components/ui";
-import { buildUrl, fetchGet } from "@/lib/api";
+import { buildUrl, fetchGet } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 
 interface AccountDeletionDialogProps {

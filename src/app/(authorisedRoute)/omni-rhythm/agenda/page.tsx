@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   description: "Daily agenda view of your wellness practice schedule",
 };
 
-export default function RhythmAgendaPage() {
+export default function RhythmAgendaPage(): JSX.Element {
   return (
     <div className="container mx-auto p-6 space-y-8">
       <div className="text-left space-y-4 mb-8">
@@ -16,7 +16,7 @@ export default function RhythmAgendaPage() {
           Daily agenda view of your wellness practice schedule
         </p>
       </div>
-      
+
       <div className="space-y-6">
         <div className="text-center py-12">
           <p className="text-lg text-muted-foreground">Rhythm Agenda view coming soon...</p>

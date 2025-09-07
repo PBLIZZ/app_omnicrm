@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail, Play, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchGet, fetchPost } from "@/lib/api";
+import { fetchGet, fetchPost } from "@/lib/api-client";
 
 // Job status tracking types
 interface JobStatus {
@@ -176,9 +176,10 @@ export function GmailSyncStatusPanel(): JSX.Element {
       },
       syncing_gmail: {
         phase: "syncing_gmail",
-        message: totalEmails > 0 
-          ? `Checking ${emailsProcessed}/${totalEmails} emails • ${newEmails} new found`
-          : `Checking for new Gmail messages...`,
+        message:
+          totalEmails > 0
+            ? `Checking ${emailsProcessed}/${totalEmails} emails • ${newEmails} new found`
+            : `Checking for new Gmail messages...`,
         progress: totalEmails > 0 ? Math.min((emailsProcessed / totalEmails) * 30, 30) + 10 : 15,
         isActive: true,
         isComplete: false,
@@ -210,9 +211,10 @@ export function GmailSyncStatusPanel(): JSX.Element {
       },
       completed: {
         phase: "completed",
-        message: newEmails > 0 
-          ? `Sync completed • ${newEmails} new emails processed`
-          : `Sync completed • No new emails found`,
+        message:
+          newEmails > 0
+            ? `Sync completed • ${newEmails} new emails processed`
+            : `Sync completed • No new emails found`,
         progress: 100,
         isActive: false,
         isComplete: true,
@@ -316,10 +318,9 @@ export function GmailSyncStatusPanel(): JSX.Element {
           <Alert className="border-green-200 text-green-800 bg-green-50">
             <CheckCircle className="h-4 w-4" />
             <AlertDescription>
-              {newEmails > 0 
+              {newEmails > 0
                 ? `Successfully processed ${newEmails} new emails. Your data is now available for AI analysis.`
-                : `Gmail sync completed. All your emails are up to date - no new messages found.`
-              }
+                : `Gmail sync completed. All your emails are up to date - no new messages found.`}
             </AlertDescription>
           </Alert>
         )}

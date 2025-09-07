@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CardFooter } from "@/components/ui";
-import type { AuthMode } from "@/lib/auth/auth-utils";
+import type { AuthMode } from "@/lib/utils/auth";
 
 interface AuthFooterProps {
   mode: AuthMode;

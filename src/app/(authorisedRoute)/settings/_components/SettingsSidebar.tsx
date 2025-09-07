@@ -15,7 +15,7 @@ import {
 
 // Icons for the settings navigation
 import { User, CreditCard, Bell, Mail, Calendar as CalendarIcon } from "lucide-react";
-import { getSyncStatus } from "@/lib/api/sync";
+import { getSyncStatus } from "@/lib/services/client/sync.service";
 
 // Navigation items for the settings section
 const settingsNavItems = [

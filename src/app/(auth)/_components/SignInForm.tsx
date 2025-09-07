@@ -1,6 +1,6 @@
 import { Button, Input } from "@/components/ui";
 import { PasswordInput } from "./PasswordInput";
-import type { AuthFormData } from "@/lib/auth/auth-utils";
+import type { AuthFormData } from "@/lib/utils/auth";
 
 interface SignInFormProps {
   formData: Pick<AuthFormData, "email" | "password">;

@@ -14,7 +14,8 @@ import {
   Textarea,
   DialogTitle,
 } from "@/components/ui";
-import { createContact, type CreateContactInput } from "@/lib/api/contacts";
+import { createContact } from "@/lib/services/client/contacts.service";
+import type { CreateContactInput } from "@/lib/validation/schemas/omniClients";
 
 export type NewContactInput = {
   displayName: string;

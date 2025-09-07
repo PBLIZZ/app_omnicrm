@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useFileUrl } from "@/lib/api/storage";
+import { useFileUrl } from "@/hooks/use-storage";
 
 interface ContactAvatarProps {
   profileImageUrl?: string | null;

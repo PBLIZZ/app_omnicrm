@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { fetchPost } from "@/lib/api";
+import { fetchPost } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -165,15 +165,18 @@ export default function CalendarPage(): JSX.Element {
     }
   };
 
-
   const syncCalendar = async (): Promise<void> => {
     setIsSyncing(true);
     setError(null);
 
     try {
-      await fetchPost<{ message: string }>("/api/calendar/sync", {}, {
-        showErrorToast: false
-      });
+      await fetchPost<{ message: string }>(
+        "/api/calendar/sync",
+        {},
+        {
+          showErrorToast: false,
+        },
+      );
       // Sync successful
       await checkCalendarStatus(); // Refresh stats
     } catch (error) {
@@ -190,14 +193,19 @@ export default function CalendarPage(): JSX.Element {
     setError(null);
 
     try {
-      const data = await fetchPost<{ processedEvents: number }>("/api/calendar/embed", {}, {
-        showErrorToast: false
-      });
+      const data = await fetchPost<{ processedEvents: number }>(
+        "/api/calendar/embed",
+        {},
+        {
+          showErrorToast: false,
+        },
+      );
       // Embeddings generation successful
       alert(`Successfully generated embeddings for ${data.processedEvents} events!`);
     } catch (error) {
       // Network error during embedding generation
-      const errorMessage = error instanceof Error ? error.message : "Network error during embedding generation";
+      const errorMessage =
+        error instanceof Error ? error.message : "Network error during embedding generation";
       setError(errorMessage);
     } finally {
       setIsEmbedding(false);
@@ -210,9 +218,13 @@ export default function CalendarPage(): JSX.Element {
     try {
       const data = await fetchPost<{
         results?: Array<{ event: CalendarEventData; similarity: number; preview: string }>;
-      }>("/api/calendar/search", { query: searchQuery, limit: 5 }, {
-        showErrorToast: false
-      });
+      }>(
+        "/api/calendar/search",
+        { query: searchQuery, limit: 5 },
+        {
+          showErrorToast: false,
+        },
+      );
       setSearchResults(data.results ?? []);
     } catch {
       // Search error - silently handle
@@ -612,7 +624,7 @@ export default function CalendarPage(): JSX.Element {
           {/* Today's Intelligence Panel */}
           <div className="lg:col-span-2">
             <TodayIntelligencePanel
-              appointments={biService.enhanceEvents(stats?.upcomingEvents || [])}
+              appointments={biService.enhanceEvents(stats?.upcomingEvents ?? [])}
               isLoading={false}
             />
           </div>
@@ -723,8 +735,8 @@ export default function CalendarPage(): JSX.Element {
 
         {/* Weekly Business Flow */}
         <WeeklyBusinessFlow
-          appointments={biService.enhanceEvents(stats?.upcomingEvents || [])}
-          weeklyStats={biService.calculateWeeklyStats(stats?.upcomingEvents || [])}
+          appointments={biService.enhanceEvents(stats?.upcomingEvents ?? [])}
+          weeklyStats={biService.calculateWeeklyStats(stats?.upcomingEvents ?? [])}
           isLoading={false}
         />
 

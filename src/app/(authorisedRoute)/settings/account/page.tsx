@@ -16,8 +16,12 @@ import {
   Label,
   Separator,
 } from "@/components/ui";
-import { fetchCurrentUser, updateUserPassword, mapAuthErrorMessage } from "@/lib/auth/service";
-import { signOut } from "@/lib/auth/auth-actions";
+import {
+  fetchCurrentUser,
+  updateUserPassword,
+  mapAuthErrorMessage,
+} from "@/lib/services/client/auth.service";
+import { signOut } from "@/lib/actions/auth";
 import { AccountDataManagement } from "../_components/AccountDataManagement";
 
 // Constants

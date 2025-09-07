@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui";
-import { useAuthActions } from "@/lib/auth/use-auth-actions";
+import { useAuthActions } from "@/hooks/use-auth-actions";
 import {
   validateSignInForm,
   validateSignUpForm,
@@ -11,7 +11,7 @@ import {
   getAuthModeDescription,
   type AuthMode,
   type AuthFormData,
-} from "@/lib/auth/auth-utils";
+} from "@/lib/utils/auth";
 
 // Components
 import { AuthHeader } from "@/app/(auth)/_components/AuthHeader";

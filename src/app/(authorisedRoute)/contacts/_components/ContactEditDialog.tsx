@@ -14,7 +14,7 @@ import { Input } from "@/components/ui";
 import { Label } from "@/components/ui";
 import { Textarea } from "@/components/ui";
 import { toast } from "sonner";
-import { updateContact } from "@/lib/api/contacts";
+import { updateContact } from "@/lib/services/client/contacts.service";
 
 export type EditableContact = {
   id: string;

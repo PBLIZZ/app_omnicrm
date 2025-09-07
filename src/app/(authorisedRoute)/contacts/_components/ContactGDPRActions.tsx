@@ -15,7 +15,7 @@ import {
   Alert,
   AlertDescription,
 } from "@/components/ui";
-import { fetchDelete } from "@/lib/api";
+import { fetchDelete } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 
 interface ContactGDPRActionsProps {

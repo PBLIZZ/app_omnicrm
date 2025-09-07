@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 interface Props {
   id: string;

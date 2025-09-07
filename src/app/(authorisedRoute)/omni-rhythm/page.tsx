@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "Intelligent insights about your wellness practice calendar and schedule",
 };
 
-const Header = () => (
+const Header = (): JSX.Element => (
   <div className="text-left space-y-4 mb-8">
     <h1 className="text-4xl font-bold tracking-tight text-teal-900 dark:text-teal-100">
       Omni Rhythm
@@ -17,7 +17,7 @@ const Header = () => (
   </div>
 );
 
-export default function Page() {
+export default function Page(): JSX.Element {
   return (
     <div className="container mx-auto p-6 space-y-8">
       <Header />

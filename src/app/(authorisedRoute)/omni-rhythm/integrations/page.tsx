@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   description: "Manage your calendar and wellness platform integrations",
 };
 
-export default function RhythmIntegrationsPage() {
+export default function RhythmIntegrationsPage(): JSX.Element {
   return (
     <div className="container mx-auto p-6 space-y-8">
       <div className="text-left space-y-4 mb-8">
@@ -16,7 +16,7 @@ export default function RhythmIntegrationsPage() {
           Manage your calendar and wellness platform integrations
         </p>
       </div>
-      
+
       <div className="space-y-6">
         <div className="text-center py-12">
           <p className="text-lg text-muted-foreground">Rhythm Integrations coming soon...</p>

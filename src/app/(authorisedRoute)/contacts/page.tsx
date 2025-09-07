@@ -24,7 +24,7 @@ import { ContactsTable } from "./_components/contacts-table-new";
 import { contactsColumns, ContactWithNotes } from "./_components/contacts-columns-new";
 
 import { queryClient } from "@/lib/queryClient";
-import { fetchPost } from "@/lib/api";
+import { fetchPost } from "@/lib/api-client";
 import { useEnhancedContacts, useContactSuggestions } from "@/hooks/use-contacts-new";
 
 interface ContactSuggestion {

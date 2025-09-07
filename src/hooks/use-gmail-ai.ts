@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchPost } from "@/lib/api";
+import { fetchPost } from "@/lib/api-client";
 
 interface SearchResult {
   subject: string;

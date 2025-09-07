@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchGet, buildUrl } from "@/lib/api";
+import { fetchGet, buildUrl } from "@/lib/api-client";
 
 interface GmailConnectionStatus {
   isConnected: boolean;

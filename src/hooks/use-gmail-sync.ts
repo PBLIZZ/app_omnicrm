@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchPost } from "@/lib/api";
+import { fetchPost } from "@/lib/api-client";
 
 interface SyncPreviewData {
   countByLabel?: Record<string, number>;

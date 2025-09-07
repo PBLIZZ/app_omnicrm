@@ -14,7 +14,7 @@ import {
 
 const mainNavItems = [
   { title: "Dashboard", href: "/" as const, icon: Home },
-  { title: "Contacts", href: "/contacts" as const, icon: Users },
+  { title: "OmniClients", href: "/omni-clients" as const, icon: Users },
   { title: "Tasks", href: "/tasks" as const, icon: CheckSquare },
   { title: "Calendar", href: "/calendar" as const, icon: Calendar },
   { title: "Messages", href: "/messages" as const, icon: MessageSquare },

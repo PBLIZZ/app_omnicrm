@@ -7,8 +7,8 @@
 
 import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import { toast } from "sonner";
-import { fetchPost } from "@/lib/api";
-import { handleAsyncError } from "@/lib/error-handler";
+import { fetchPost } from "@/lib/api-client";
+import { handleAsyncError } from "@/lib/utils/error-handler";
 
 interface Contact {
   id: string;

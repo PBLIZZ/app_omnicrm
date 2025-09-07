@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchContacts } from "@/lib/api/contacts";
+import { fetchContacts } from "@/lib/services/client/contacts.service";
 
 export function useContactCount(): number {
   const [count, setCount] = useState(0);

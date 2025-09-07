@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { fetchPost, fetchPut, fetchDelete } from "@/lib/api";
+import { fetchPost, fetchPut, fetchDelete } from "@/lib/api-client";
 import type { Note } from "@/server/db/schema";
 
 interface UseNotesOptions {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 interface SidebarNavLinkProps {
   href: string;

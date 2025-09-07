@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchPost } from "@/lib/api";
+import { fetchPost } from "@/lib/api-client";
 
 interface EmailPreview {
   id: string;

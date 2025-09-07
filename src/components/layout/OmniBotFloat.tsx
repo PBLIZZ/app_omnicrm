@@ -5,7 +5,7 @@ import { Button } from "@/components/ui";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
 import { Bot } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 /**
  * OmniBotFloat provides a global Floating Action Button (FAB) that opens

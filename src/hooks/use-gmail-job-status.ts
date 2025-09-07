@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchPost, fetchGet } from "@/lib/api";
+import { fetchPost, fetchGet } from "@/lib/api-client";
 import { toast } from "sonner";
 
 interface JobStatusResponse {

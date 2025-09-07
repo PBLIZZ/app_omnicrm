@@ -8,7 +8,7 @@ import type { Route } from "next";
 import { Button } from "@/components/ui";
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui";
 import { Menu, Home, Users, CheckSquare, Calendar, MessageSquare, BarChart } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 const mainNavItems = [
   { title: "Dashboard", href: "/dashboard", icon: Home },

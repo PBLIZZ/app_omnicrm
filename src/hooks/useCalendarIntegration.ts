@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchPost, fetchGet } from "@/lib/api";
+import { fetchPost, fetchGet } from "@/lib/api-client";
 
 interface CalendarEvent {
   id: string;

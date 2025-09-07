@@ -21,8 +21,10 @@ export interface EnrichmentState {
   isRunning: boolean;
   progress: number;
   currentContact: string | null;
+  currentClient: string | null; // Alias for UI compatibility
   enrichedCount: number;
   totalContacts: number;
+  totalClients: number; // Alias for UI compatibility
   errors: string[];
 }
 
@@ -39,8 +41,10 @@ export function useStreamingEnrichment(): EnrichmentState & {
     isRunning: false,
     progress: 0,
     currentContact: null,
+    currentClient: null, // Alias for UI compatibility
     enrichedCount: 0,
     totalContacts: 0,
+    totalClients: 0, // Alias for UI compatibility
     errors: [],
   });
 
@@ -49,8 +53,10 @@ export function useStreamingEnrichment(): EnrichmentState & {
       isRunning: true,
       progress: 0,
       currentContact: null,
+      currentClient: null, // Alias for UI compatibility
       enrichedCount: 0,
       totalContacts: 0,
+      totalClients: 0, // Alias for UI compatibility
       errors: [],
     });
 
@@ -101,12 +107,14 @@ export function useStreamingEnrichment(): EnrichmentState & {
                     return {
                       ...prev,
                       totalContacts: data.total ?? 0,
+                      totalClients: data.total ?? 0, // Alias for UI compatibility
                     };
 
                   case "progress":
                     return {
                       ...prev,
                       currentContact: data.contactName ?? null,
+                      currentClient: data.contactName ?? null, // Alias for UI compatibility
                       progress: data.total ? ((data.enrichedCount ?? 0) / data.total) * 100 : 0,
                     };
 

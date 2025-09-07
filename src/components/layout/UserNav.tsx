@@ -1,12 +1,14 @@
 "use client";
 
-import { useAuth } from "@/app/providers";
+import { useUser } from "@/components/providers/auth-provider";
 import { useRouter } from "next/navigation";
 
 // UI and Icon Imports
 import { ChevronsUpDown, Sparkles, Settings, HelpCircle, LogOut } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -14,15 +16,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui";
-import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar";
-import { Skeleton } from "@/components/ui";
-import { signOut } from "@/lib/auth/auth-actions";
+  Skeleton,
+} from "@/components/ui";
+import { signOut } from "@/lib/actions/auth";
 
 // Type for user metadata
 interface UserMetadata {
@@ -32,8 +32,8 @@ interface UserMetadata {
 }
 
 export function UserNav(): JSX.Element | null {
-  // 1. Fetch user data internally using the useAuth hook
-  const { user, isLoading } = useAuth();
+  // 1. Fetch user data internally using the useUser hook
+  const { user, isLoading } = useUser();
   const router = useRouter();
   const { isMobile } = useSidebar();
 

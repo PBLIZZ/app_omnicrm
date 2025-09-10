@@ -1,16 +1,49 @@
-// Optimized Contacts Repository with Query Caching and Performance Improvements
+// Optimized OmniClient Repository with Query Caching and Performance Improvements
 import { and, asc, desc, eq, gte, ilike, lte, or, sql, type SQL, inArray } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { contacts, notes } from "@/server/db/schema";
-import { queryCache, cacheKeys, cacheInvalidation } from "@/lib/cache";
-import { log } from "@/lib/log";
-import type { ContactListParams, ContactListItem } from "./contacts.repo";
+import { queryCache, cacheKeys, cacheInvalidation } from "@/server/lib/cache";
+import { logger } from "@/lib/observability";
+import { generateUniqueSlug } from "@/lib/utils/generate-unique-slug";
+// Types moved from contacts.repo.ts
+export type ContactListParams = {
+  search?: string;
+  sort?: "displayName" | "createdAt";
+  order?: "asc" | "desc";
+  page: number;
+  pageSize: number;
+  dateRange?: { from?: Date; to?: Date };
+};
+
+export type ContactListItem = {
+  id: string;
+  userId: string;
+  displayName: string;
+  primaryEmail: string | null;
+  primaryPhone: string | null;
+  source: string | null;
+  slug: string | null;
+  stage: string | null;
+  tags: unknown;
+  confidenceScore: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  notesCount: number;
+  lastNote: string | null;
+};
+
+export type CreateContactValues = {
+  displayName: string;
+  primaryEmail: string | null;
+  primaryPhone: string | null;
+  source: "manual" | "gmail_import" | "upload" | "calendar_import";
+};
 
 /**
  * Optimized contact listing with query result caching and improved performance
  * Addresses N+1 problems and implements intelligent caching strategies
  */
-export async function listContactsOptimized(
+export async function listContacts(
   userId: string,
   params: ContactListParams,
 ): Promise<{ items: ContactListItem[]; total: number }> {
@@ -84,6 +117,10 @@ export async function listContactsOptimized(
             primaryEmail: contacts.primaryEmail,
             primaryPhone: contacts.primaryPhone,
             source: contacts.source,
+            slug: contacts.slug,
+            stage: contacts.stage,
+            tags: contacts.tags,
+            confidenceScore: contacts.confidenceScore,
             createdAt: contacts.createdAt,
             updatedAt: contacts.updatedAt,
             notesCount: sql<number>`COALESCE((
@@ -123,8 +160,9 @@ export async function listContactsOptimized(
       const queryTime = Date.now() - startTime;
 
       // Log performance metrics
-      log.info(
-        {
+      await logger.info("Contacts list query executed", {
+        operation: "db_query",
+        additionalData: {
           op: "contacts.list_optimized",
           userId,
           search: !!params.search,
@@ -133,8 +171,7 @@ export async function listContactsOptimized(
           queryTime,
           cacheHit: false,
         },
-        "Contacts list query executed",
-      );
+      });
 
       const result = {
         items: items.map((r) => ({
@@ -144,6 +181,10 @@ export async function listContactsOptimized(
           primaryEmail: r.primaryEmail ?? null,
           primaryPhone: r.primaryPhone ?? null,
           source: r.source ?? null,
+          slug: r.slug ?? null,
+          stage: r.stage ?? null,
+          tags: r.tags ?? null,
+          confidenceScore: r.confidenceScore ?? null,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
           notesCount: r.notesCount ?? 0,
@@ -156,6 +197,63 @@ export async function listContactsOptimized(
     },
     300, // 5 minute TTL for paginated results
   );
+}
+
+/**
+ * Create a single contact with proper slug generation
+ */
+export async function createContact(
+  userId: string,
+  values: CreateContactValues,
+): Promise<ContactListItem | null> {
+  const dbo = await getDb();
+
+  // Generate unique slug for the new contact
+  const slug = await generateUniqueSlug(values.displayName, userId);
+
+  const [row] = await dbo
+    .insert(contacts)
+    .values({
+      userId,
+      displayName: values.displayName,
+      primaryEmail: values.primaryEmail,
+      primaryPhone: values.primaryPhone,
+      source: values.source,
+      slug,
+    })
+    .returning({
+      id: contacts.id,
+      userId: contacts.userId,
+      displayName: contacts.displayName,
+      primaryEmail: contacts.primaryEmail,
+      primaryPhone: contacts.primaryPhone,
+      source: contacts.source,
+      slug: contacts.slug,
+      stage: contacts.stage,
+      tags: contacts.tags,
+      confidenceScore: contacts.confidenceScore,
+      createdAt: contacts.createdAt,
+      updatedAt: contacts.updatedAt,
+    });
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    userId: row.userId,
+    displayName: row.displayName,
+    primaryEmail: row.primaryEmail ?? null,
+    primaryPhone: row.primaryPhone ?? null,
+    source: row.source ?? null,
+    slug: row.slug ?? null,
+    stage: row.stage ?? null,
+    tags: row.tags ?? null,
+    confidenceScore: row.confidenceScore ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    notesCount: 0, // New contact has no notes
+    lastNote: null, // New contact has no notes
+  };
 }
 
 /**
@@ -239,6 +337,10 @@ export async function createContactsBatch(
           primaryEmail: contacts.primaryEmail,
           primaryPhone: contacts.primaryPhone,
           source: contacts.source,
+          slug: contacts.slug,
+          stage: contacts.stage,
+          tags: contacts.tags,
+          confidenceScore: contacts.confidenceScore,
           createdAt: contacts.createdAt,
           updatedAt: contacts.updatedAt,
         });
@@ -251,6 +353,10 @@ export async function createContactsBatch(
         primaryEmail: row.primaryEmail ?? null,
         primaryPhone: row.primaryPhone ?? null,
         source: row.source ?? null,
+        slug: row.slug ?? null,
+        stage: row.stage ?? null,
+        tags: row.tags ?? null,
+        confidenceScore: row.confidenceScore ?? null,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         notesCount: 0, // New contacts have 0 notes
@@ -258,14 +364,18 @@ export async function createContactsBatch(
       }));
       created.push(...mappedContacts);
     } catch (error) {
-      log.error(
-        {
-          op: "contacts.batch_create_error",
-          userId,
-          chunkSize: chunk.length,
-          error: error instanceof Error ? error.message : String(error),
-        },
+      await logger.error(
         "Batch contact creation failed",
+        {
+          operation: "db_query",
+          additionalData: {
+            op: "contacts.batch_create_error",
+            userId,
+            chunkSize: chunk.length,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        },
+        error instanceof Error ? error : undefined,
       );
 
       errors += chunk.length;
@@ -277,8 +387,9 @@ export async function createContactsBatch(
 
   const duration = Date.now() - startTime;
 
-  log.info(
-    {
+  await logger.info("Batch contact creation completed", {
+    operation: "db_query",
+    additionalData: {
       op: "contacts.batch_create",
       userId,
       requested: contactsData.length,
@@ -287,8 +398,7 @@ export async function createContactsBatch(
       errors,
       duration,
     },
-    "Batch contact creation completed",
-  );
+  });
 
   return { created, duplicates, errors };
 }
@@ -321,6 +431,10 @@ export async function searchContactsOptimized(
           primaryEmail: contacts.primaryEmail,
           primaryPhone: contacts.primaryPhone,
           source: contacts.source,
+          slug: contacts.slug,
+          stage: contacts.stage,
+          tags: contacts.tags,
+          confidenceScore: contacts.confidenceScore,
           createdAt: contacts.createdAt,
           updatedAt: contacts.updatedAt,
           notesCount: sql<number>`COALESCE((
@@ -364,16 +478,16 @@ export async function searchContactsOptimized(
 
       const queryTime = Date.now() - startTime;
 
-      log.info(
-        {
+      await logger.info("Contact search executed", {
+        operation: "db_query",
+        additionalData: {
           op: "contacts.search_optimized",
           userId,
           query: query.slice(0, 50), // Log first 50 chars
           resultCount: results.length,
           queryTime,
         },
-        "Contact search executed",
-      );
+      });
 
       return results.map((r) => ({
         id: r.id,
@@ -382,6 +496,10 @@ export async function searchContactsOptimized(
         primaryEmail: r.primaryEmail ?? null,
         primaryPhone: r.primaryPhone ?? null,
         source: r.source ?? null,
+        slug: r.slug ?? null,
+        stage: r.stage ?? null,
+        tags: r.tags ?? null,
+        confidenceScore: r.confidenceScore ?? null,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
         notesCount: r.notesCount ?? 0,

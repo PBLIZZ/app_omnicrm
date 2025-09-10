@@ -120,7 +120,7 @@ export class IdentitiesRepository {
       ORDER BY created_at ASC
     `);
 
-    return (result as ContactIdentityRow[]).map(this.mapToContactIdentity);
+    return (result as unknown as ContactIdentityRow[]).map(this.mapToContactIdentity);
   }
 
   /**
@@ -150,7 +150,7 @@ export class IdentitiesRepository {
         ${provider ? sql`AND provider = ${provider}` : sql`AND provider IS NULL`}
     `);
 
-    return (result as ContactIdRow[]).map((row) => row.contact_id);
+    return (result as unknown as ContactIdRow[]).map((row) => row.contact_id);
   }
 
   /**
@@ -198,12 +198,24 @@ export class IdentitiesRepository {
       HAVING count(DISTINCT contact_id) > 1
     `);
 
-    return (result as DuplicateIdentityRow[]).map((row) => ({
-      kind: row.kind,
-      value: row.value,
-      provider: row.provider,
-      contactIds: row.contact_ids,
-    }));
+    return (result as unknown as DuplicateIdentityRow[]).map((row) => {
+      const mapped: {
+        kind: string;
+        value: string;
+        provider?: string;
+        contactIds: string[];
+      } = {
+        kind: row.kind,
+        value: row.value,
+        contactIds: row.contact_ids,
+      };
+
+      if (row.provider) {
+        mapped.provider = row.provider;
+      }
+
+      return mapped;
+    });
   }
 
   /**
@@ -242,7 +254,7 @@ export class IdentitiesRepository {
     `);
 
     const stats: Record<string, number> = {};
-    for (const row of result as IdentityStatsRow[]) {
+    for (const row of result as unknown as IdentityStatsRow[]) {
       stats[row.kind] = parseInt(row.count, 10);
     }
 
@@ -278,7 +290,7 @@ export class IdentitiesRepository {
       LIMIT 1
     `);
 
-    return result.length > 0 ? (result[0] as ContactIdRow).contact_id : null;
+    return result.length > 0 ? (result[0] as unknown as ContactIdRow).contact_id : null;
   }
 
   private async findByPhone(userId: string, phone: string): Promise<string | null> {
@@ -294,7 +306,7 @@ export class IdentitiesRepository {
       LIMIT 1
     `);
 
-    return result.length > 0 ? (result[0] as ContactIdRow).contact_id : null;
+    return result.length > 0 ? (result[0] as unknown as ContactIdRow).contact_id : null;
   }
 
   private async findByHandle(
@@ -314,7 +326,7 @@ export class IdentitiesRepository {
       LIMIT 1
     `);
 
-    return result.length > 0 ? (result[0] as ContactIdRow).contact_id : null;
+    return result.length > 0 ? (result[0] as unknown as ContactIdRow).contact_id : null;
   }
 
   private normalizePhone(phone: string): string {
@@ -328,7 +340,7 @@ export class IdentitiesRepository {
       id: row.id,
       userId: row.user_id,
       contactId: row.contact_id,
-      kind: row.kind,
+      kind: row.kind as ContactIdentity["kind"],
       value: row.value,
       provider: row.provider,
       createdAt: row.created_at,

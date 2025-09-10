@@ -5,9 +5,13 @@ import { createServerClient } from "@supabase/ssr";
 
 export async function getServerUserId(): Promise<string> {
   // E2E/dev: allow fixed user via env without requiring prior cookie roundtrip
-  if (process.env["NODE_ENV"] !== "production") {
+  if (process.env["NODE_ENV"] !== "production" && process.env["ENABLE_E2E_AUTH"] === "true") {
     const eid = process.env["E2E_USER_ID"];
-    if (eid && eid.length > 0) return eid;
+    if (eid && eid.length > 0) {
+      // Note: Using process.stderr for security logging in test mode to avoid no-console violations
+      process.stderr.write(`SECURITY: E2E AUTH BYPASS: ${eid} at ${new Date().toISOString()}\n`);
+      return eid;
+    }
   }
   // E2E/browser flows: allow a fixed user via cookie when not in production
   try {
@@ -35,9 +39,7 @@ export async function getServerUserId(): Promise<string> {
       },
       setAll(cookiesToSet) {
         try {
-          cookiesToSet.forEach(({ name, value, options }) => 
-            cookieStore.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
           // The `setAll` method was called from a Server Component.
           // This can be ignored if you have middleware refreshing

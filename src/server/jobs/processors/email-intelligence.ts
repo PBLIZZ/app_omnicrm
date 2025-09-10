@@ -4,12 +4,13 @@
 import { getDb } from "@/server/db/client";
 import { rawEvents, aiInsights } from "@/server/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
 import {
   processEmailIntelligence,
   storeEmailIntelligence,
 } from "@/server/services/email-intelligence.service";
+import { ensureError } from "@/lib/utils/error-handler";
 
 export interface EmailIntelligenceJobPayload {
   rawEventId: string;
@@ -25,15 +26,14 @@ export async function runEmailIntelligence(job: JobRecord<"email_intelligence">)
   const { rawEventId } = job.payload;
 
   try {
-    log.info(
-      {
-        op: "email_intelligence.start",
+    await logger.info("Starting email intelligence processing", {
+      operation: "email_intelligence",
+      additionalData: {
         userId: job.userId,
         rawEventId,
         jobId: job.id,
       },
-      "Starting email intelligence processing",
-    );
+    });
 
     // Process the email intelligence
     const intelligence = await processEmailIntelligence(job.userId, rawEventId);
@@ -42,9 +42,9 @@ export async function runEmailIntelligence(job: JobRecord<"email_intelligence">)
     await storeEmailIntelligence(job.userId, rawEventId, intelligence);
 
     const duration = Date.now() - startTime;
-    log.info(
-      {
-        op: "email_intelligence.complete",
+    await logger.info("Email intelligence processing completed", {
+      operation: "email_intelligence",
+      additionalData: {
         userId: job.userId,
         rawEventId,
         category: intelligence.classification.primaryCategory,
@@ -53,20 +53,21 @@ export async function runEmailIntelligence(job: JobRecord<"email_intelligence">)
         duration,
         jobId: job.id,
       },
-      "Email intelligence processing completed",
-    );
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error(
-      {
-        op: "email_intelligence.error",
-        userId: job.userId,
-        rawEventId,
-        error: error instanceof Error ? error.message : String(error),
-        duration,
-        jobId: job.id,
-      },
+    await logger.error(
       "Email intelligence processing failed",
+      {
+        operation: "email_intelligence",
+        additionalData: {
+          userId: job.userId,
+          rawEventId,
+          duration,
+          jobId: job.id,
+        },
+      },
+      ensureError(error),
     );
     throw error;
   }
@@ -82,16 +83,15 @@ export async function runEmailIntelligenceBatch(
   const { batchId, maxItems = 50 } = job.payload;
 
   try {
-    log.info(
-      {
-        op: "email_intelligence_batch.start",
+    await logger.info("Starting batch email intelligence processing", {
+      operation: "email_intelligence",
+      additionalData: {
         userId: job.userId,
         batchId,
         maxItems,
         jobId: job.id,
       },
-      "Starting batch email intelligence processing",
-    );
+    });
 
     const db = await getDb();
 
@@ -139,15 +139,14 @@ export async function runEmailIntelligenceBatch(
     const eventsToProcess = unprocessedEvents.filter((event) => !processedEventIds.has(event.id));
 
     if (eventsToProcess.length === 0) {
-      log.info(
-        {
-          op: "email_intelligence_batch.no_events",
+      await logger.info("No unprocessed email events found for intelligence extraction", {
+        operation: "email_intelligence",
+        additionalData: {
           userId: job.userId,
           batchId,
           totalFound: unprocessedEvents.length,
         },
-        "No unprocessed email events found for intelligence extraction",
-      );
+      });
       return;
     }
 
@@ -188,15 +187,13 @@ export async function runEmailIntelligenceBatch(
 
         errorCount++;
 
-        log.warn(
-          {
-            op: "email_intelligence_batch.event_error",
+        await logger.warn("Failed to process individual email for intelligence", {
+          operation: "email_intelligence",
+          additionalData: {
             userId: job.userId,
             eventId: event.id,
-            error: errorMessage,
           },
-          "Failed to process individual email for intelligence",
-        );
+        });
 
         // Continue processing other events even if one fails
         continue;
@@ -204,9 +201,9 @@ export async function runEmailIntelligenceBatch(
     }
 
     const duration = Date.now() - startTime;
-    log.info(
-      {
-        op: "email_intelligence_batch.complete",
+    await logger.info("Batch email intelligence processing completed", {
+      operation: "email_intelligence",
+      additionalData: {
         userId: job.userId,
         batchId,
         totalEvents: eventsToProcess.length,
@@ -215,8 +212,7 @@ export async function runEmailIntelligenceBatch(
         duration,
         jobId: job.id,
       },
-      "Batch email intelligence processing completed",
-    );
+    });
 
     // Log summary of results
     const categoryStats = results
@@ -233,27 +229,28 @@ export async function runEmailIntelligenceBatch(
       .filter((r) => r.success && r.businessRelevance !== undefined)
       .reduce((sum, r, _, arr) => sum + r.businessRelevance! / arr.length, 0);
 
-    log.info(
-      {
-        op: "email_intelligence_batch.summary",
+    await logger.info("Batch processing summary", {
+      operation: "email_intelligence",
+      additionalData: {
         userId: job.userId,
         categoryStats,
         avgBusinessRelevance: Math.round(avgBusinessRelevance * 100) / 100,
       },
-      "Batch processing summary",
-    );
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error(
-      {
-        op: "email_intelligence_batch.error",
-        userId: job.userId,
-        batchId,
-        error: error instanceof Error ? error.message : String(error),
-        duration,
-        jobId: job.id,
-      },
+    await logger.error(
       "Batch email intelligence processing failed",
+      {
+        operation: "email_intelligence",
+        additionalData: {
+          userId: job.userId,
+          batchId,
+          duration,
+          jobId: job.id,
+        },
+      },
+      ensureError(error),
     );
     throw error;
   }
@@ -270,16 +267,15 @@ export async function runEmailIntelligenceCleanup(
   const { retentionDays = 90, keepHighValue = true } = job.payload;
 
   try {
-    log.info(
-      {
-        op: "email_intelligence_cleanup.start",
+    await logger.info("Starting email intelligence cleanup", {
+      operation: "email_intelligence",
+      additionalData: {
         userId: job.userId,
         retentionDays,
         keepHighValue,
         jobId: job.id,
       },
-      "Starting email intelligence cleanup",
-    );
+    });
 
     const db = await getDb();
     const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
@@ -311,28 +307,29 @@ export async function runEmailIntelligenceCleanup(
     }
 
     const duration = Date.now() - startTime;
-    log.info(
-      {
-        op: "email_intelligence_cleanup.complete",
+    await logger.info("Email intelligence cleanup completed", {
+      operation: "email_intelligence",
+      additionalData: {
         userId: job.userId,
         deletedCount,
         retentionDays,
         duration,
         jobId: job.id,
       },
-      "Email intelligence cleanup completed",
-    );
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error(
-      {
-        op: "email_intelligence_cleanup.error",
-        userId: job.userId,
-        error: error instanceof Error ? error.message : String(error),
-        duration,
-        jobId: job.id,
-      },
+    await logger.error(
       "Email intelligence cleanup failed",
+      {
+        operation: "email_intelligence",
+        additionalData: {
+          userId: job.userId,
+          duration,
+          jobId: job.id,
+        },
+      },
+      ensureError(error),
     );
     throw error;
   }

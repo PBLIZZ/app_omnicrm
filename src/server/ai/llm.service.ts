@@ -5,7 +5,7 @@ import {
   openRouterHeaders,
 } from "@/server/providers/openrouter.provider";
 import { withGuardrails } from "@/server/ai/with-guardrails";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -141,15 +141,15 @@ async function callOpenRouter<T>(
       ...(responseSchema && { response_format: { type: "json_object" } }),
     };
 
-    log.info(
-      {
+    await logger.info("LLM request started", {
+      operation: "llm_call",
+      additionalData: {
         op: "llm.request",
         userId,
         model: config.summaryModel,
         messageCount: messages.length,
       },
-      "LLM request started",
-    );
+    });
 
     const response = await fetch(`${config.baseUrl}/chat/completions`, {
       method: "POST",
@@ -181,14 +181,18 @@ async function callOpenRouter<T>(
         parsedContent = content as unknown as T;
       }
     } catch (parseError) {
-      log.warn(
-        {
-          op: "llm.parse_error",
-          userId,
-          content,
-          error: parseError,
-        },
+      await logger.warn(
         "Failed to parse LLM response as JSON",
+        {
+          operation: "llm_call",
+          additionalData: {
+            op: "llm.parse_error",
+            userId,
+            content,
+            error: parseError,
+          },
+        },
+        parseError instanceof Error ? parseError : undefined,
       );
       // For non-JSON schema, return content as string type
       parsedContent = responseSchema ? ({} as T) : (content as unknown as T);
@@ -214,15 +218,15 @@ async function callOpenRouter<T>(
   const finalRawData = rawData as OpenRouterChatResponse;
   const finalParsedContent = parsedContent as T;
 
-  log.info(
-    {
+  await logger.info("LLM request completed successfully", {
+    operation: "llm_call",
+    additionalData: {
       op: "llm.success",
       userId,
       model: finalRawData.model,
       creditsLeft: result.creditsLeft,
     },
-    "LLM request completed successfully",
-  );
+  });
 
   return {
     data: finalParsedContent,
@@ -424,15 +428,15 @@ export async function generateEmbedding(userId: string, text: string): Promise<n
       input: text.trim(),
     };
 
-    log.info(
-      {
+    await logger.info("Embedding request started", {
+      operation: "llm_call",
+      additionalData: {
         op: "embedding.request",
         userId,
         model: config.embedModel,
         textLength: text.length,
       },
-      "Embedding request started",
-    );
+    });
 
     const response = await fetch(`${config.baseUrl}/embeddings`, {
       method: "POST",
@@ -477,16 +481,16 @@ export async function generateEmbedding(userId: string, text: string): Promise<n
   const finalRawData = rawData as OpenRouterEmbeddingResponse;
   const finalEmbedding = embedding as number[];
 
-  log.info(
-    {
+  await logger.info("Embedding request completed successfully", {
+    operation: "llm_call",
+    additionalData: {
       op: "embedding.success",
       userId,
       model: finalRawData.model,
       embeddingLength: finalEmbedding.length,
       creditsLeft: result.creditsLeft,
     },
-    "Embedding request completed successfully",
-  );
+  });
 
   return finalEmbedding;
 }

@@ -1,14 +1,15 @@
 import { getDb } from "@/server/db/client";
 import { and, eq, isNotNull, inArray } from "drizzle-orm";
 import { interactions, contactTimeline } from "@/server/db/schema";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
+import { ensureError } from "@/lib/utils/error-handler";
 
 // Type definitions for interactions used in timeline processing
 interface InteractionData {
   id: string;
   userId: string;
-  contactId: string;
+  contactId: string | null;
   type: string;
   subject?: string | null;
   bodyText?: string | null;
@@ -16,7 +17,7 @@ interface InteractionData {
   occurredAt: string | Date;
   source?: string | null;
   sourceId?: string | null;
-  sourceMeta?: Record<string, unknown> | null;
+  sourceMeta?: unknown;
 }
 
 // Type definitions
@@ -51,17 +52,16 @@ export async function runTimeline(job: JobRecord): Promise<void> {
   const payload = isTimelineJobPayload(job.payload) ? job.payload : {};
 
   try {
-    log.info(
-      {
-        op: "timeline.start",
+    await logger.info("Starting timeline generation", {
+      operation: "timeline_write",
+      additionalData: {
         userId: job.userId,
         mode: payload.mode ?? "batch",
         interactionId: payload.interactionId,
         batchId: payload.batchId ?? job.batchId,
         jobId: job.id,
       },
-      "Starting timeline generation",
-    );
+    });
 
     let processed = 0;
     let created = 0;
@@ -81,9 +81,9 @@ export async function runTimeline(job: JobRecord): Promise<void> {
     }
 
     const duration = Date.now() - startTime;
-    log.info(
-      {
-        op: "timeline.complete",
+    await logger.info("Timeline generation completed", {
+      operation: "timeline_write",
+      additionalData: {
         userId: job.userId,
         processed,
         created,
@@ -91,19 +91,20 @@ export async function runTimeline(job: JobRecord): Promise<void> {
         duration,
         jobId: job.id,
       },
-      "Timeline generation completed",
-    );
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error(
-      {
-        op: "timeline.error",
-        userId: job.userId,
-        error: error instanceof Error ? error.message : String(error),
-        duration,
-        jobId: job.id,
-      },
+    await logger.error(
       "Timeline generation failed",
+      {
+        operation: "timeline_write",
+        additionalData: {
+          userId: job.userId,
+          duration,
+          jobId: job.id,
+        },
+      },
+      ensureError(error),
     );
     throw error;
   }
@@ -177,14 +178,16 @@ async function processBatchInteractions(
       }
     } catch (error) {
       errors++;
-      log.error(
-        {
-          op: "timeline.interaction_error",
-          userId,
-          interactionId: interaction.id,
-          error: error instanceof Error ? error.message : String(error),
-        },
+      await logger.error(
         "Failed to create timeline event for interaction",
+        {
+          operation: "timeline_write",
+          additionalData: {
+            userId,
+            interactionId: interaction.id,
+          },
+        },
+        ensureError(error),
       );
     }
   }
@@ -201,6 +204,10 @@ function mapInteractionToTimeline(interaction: InteractionData): TimelineEvent |
     return null;
   }
 
+  if (!interaction.contactId) {
+    return null;
+  }
+
   return {
     userId: interaction.userId,
     contactId: interaction.contactId,
@@ -208,7 +215,10 @@ function mapInteractionToTimeline(interaction: InteractionData): TimelineEvent |
     title: generateTitle(interaction),
     description: generateDescription(interaction),
     eventData: extractEventData(interaction),
-    occurredAt: interaction.occurredAt,
+    occurredAt:
+      interaction.occurredAt instanceof Date
+        ? interaction.occurredAt.toISOString()
+        : interaction.occurredAt,
   };
 }
 
@@ -267,22 +277,33 @@ function generateDescription(interaction: InteractionData): string | null {
   return descriptions[interaction.type] ?? null;
 }
 
-function extractEventData(interaction: InteractionData): Record<string, unknown> | null {
+function extractEventData(interaction: InteractionData): Record<string, unknown> {
   const baseEventData = {
-    provider: interaction.source,
+    source: interaction.source,
     source_id: interaction.sourceId,
     interaction_id: interaction.id,
   };
 
-  // Add type-specific data
+  // Safe property access helper
+  const getMetaProperty = (key: string): unknown => {
+    if (
+      interaction.sourceMeta &&
+      typeof interaction.sourceMeta === "object" &&
+      interaction.sourceMeta !== null
+    ) {
+      return (interaction.sourceMeta as Record<string, unknown>)[key];
+    }
+    return undefined;
+  };
+
   switch (interaction.type) {
     case "email_received":
     case "email_sent":
       return {
         ...baseEventData,
         subject: interaction.subject,
-        thread_id: interaction.sourceMeta?.["threadId"],
-        message_id: interaction.sourceMeta?.["messageId"],
+        thread_id: getMetaProperty("threadId"),
+        message_id: getMetaProperty("messageId"),
         direction: interaction.type === "email_sent" ? "outbound" : "inbound",
         channel: "email",
       };
@@ -291,31 +312,27 @@ function extractEventData(interaction: InteractionData): Record<string, unknown>
       return {
         ...baseEventData,
         title: interaction.subject,
-        location: interaction.sourceMeta?.["location"],
-        start_time: interaction.sourceMeta?.["startTime"],
-        end_time: interaction.sourceMeta?.["endTime"],
-        duration_minutes: interaction.sourceMeta?.["duration"],
-        meeting_url: interaction.sourceMeta?.["meetUrl"],
-        is_all_day: interaction.sourceMeta?.["isAllDay"],
+        location: getMetaProperty("location"),
+        start_time: getMetaProperty("startTime"),
+        end_time: getMetaProperty("endTime"),
+        duration_minutes: getMetaProperty("duration"),
+        meet_url: getMetaProperty("meetUrl"),
+        is_all_day: getMetaProperty("isAllDay"),
         channel: "calendar",
       };
 
-    case "sms_received":
-    case "sms_sent":
+    case "call_received":
+    case "call_made":
+      const from = getMetaProperty("from");
+      const to = getMetaProperty("to");
       return {
         ...baseEventData,
-        direction: interaction.type === "sms_sent" ? "outbound" : "inbound",
-        phone_number: interaction.sourceMeta?.["from"] ?? interaction.sourceMeta?.["to"],
-        channel: "sms",
-      };
-
-    case "call_logged":
-      return {
-        ...baseEventData,
-        duration_minutes: interaction.sourceMeta?.["durationMinutes"],
-        phone_number: interaction.sourceMeta?.["phoneNumber"],
-        call_type: interaction.sourceMeta?.["callType"],
+        direction: interaction.type === "call_made" ? "outbound" : "inbound",
+        participants: from && to ? [from, to] : [],
         channel: "phone",
+        duration_minutes: getMetaProperty("durationMinutes"),
+        phone_number: getMetaProperty("phoneNumber"),
+        call_type: getMetaProperty("callType"),
       };
 
     default:
@@ -366,13 +383,15 @@ export class TimelineWriter {
       try {
         await this.createFromInteraction(interaction);
       } catch (error) {
-        log.error(
-          {
-            op: "timeline.legacy_error",
-            interactionId: interaction.id,
-            error: error instanceof Error ? error.message : String(error),
-          },
+        await logger.error(
           "Failed to create timeline event for interaction",
+          {
+            operation: "timeline_write",
+            additionalData: {
+              interactionId: interaction.id,
+            },
+          },
+          ensureError(error),
         );
       }
     }

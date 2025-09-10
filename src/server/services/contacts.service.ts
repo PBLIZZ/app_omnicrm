@@ -1,6 +1,6 @@
 // src/server/services/contacts.service.ts
-import type { ContactListItem, ContactListParams } from "@/server/repositories/contacts.repo";
-import { createContact, listContacts } from "@/server/repositories/contacts.repo";
+import type { ContactListItem, ContactListParams } from "@/server/repositories/omni-clients.repo";
+import { createContact, listContacts } from "@/server/repositories/omni-clients.repo";
 
 export async function listContactsService(
   userId: string,
@@ -13,7 +13,7 @@ export type CreateContactInput = {
   displayName: string;
   primaryEmail?: string | null | undefined;
   primaryPhone?: string | null | undefined;
-  source: "manual";
+  source: "manual" | "gmail_import" | "upload" | "calendar_import";
 };
 
 export async function createContactService(

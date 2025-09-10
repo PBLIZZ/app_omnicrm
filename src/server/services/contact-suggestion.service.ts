@@ -1,8 +1,9 @@
-import { getDb } from '@/server/db/client';
-import { contacts, notes } from '@/server/db/schema';
-import { eq } from 'drizzle-orm';
-import { calendarStorage } from '@/server/storage/calendar.storage';
-import { ContactIntelligenceService } from './contact-intelligence.service';
+import { getDb } from "@/server/db/client";
+import { contacts, notes } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+import { calendarStorage } from "@/server/storage/calendar.storage";
+import { ContactIntelligenceService } from "./contact-intelligence.service";
+import { logger } from "@/lib/observability";
 
 export interface ContactSuggestion {
   id: string;
@@ -11,8 +12,8 @@ export interface ContactSuggestion {
   eventCount: number;
   lastEventDate: string;
   eventTitles: string[];
-  confidence: 'high' | 'medium' | 'low';
-  source: 'calendar_attendee';
+  confidence: "high" | "medium" | "low";
+  source: "calendar_attendee";
 }
 
 export class ContactSuggestionService {
@@ -30,9 +31,7 @@ export class ContactSuggestionService {
         .from(contacts)
         .where(eq(contacts.userId, userId));
 
-      const existingEmails = existingContacts
-        .map(c => c.email)
-        .filter(Boolean) as string[];
+      const existingEmails = existingContacts.map((c) => c.email).filter(Boolean) as string[];
 
       // Analyze calendar attendees using the calendar storage layer
       const attendeeAnalysis = await calendarStorage.getAttendeeAnalysis(userId);
@@ -56,7 +55,7 @@ export class ContactSuggestionService {
         }
 
         // Skip if no proper display name or just email-like names
-        if (!displayName || displayName.trim() === '' || displayName === email) {
+        if (!displayName || displayName.trim() === "" || displayName === email) {
           continue;
         }
 
@@ -71,14 +70,20 @@ export class ContactSuggestionService {
           lastEventDate,
           eventTitles: eventTitles.slice(0, 5), // Limit to 5 titles
           confidence,
-          source: 'calendar_attendee',
+          source: "calendar_attendee",
         });
       }
 
       return suggestions.slice(0, 20); // Limit to top 20 suggestions
-
     } catch (error) {
-      console.error('❌ Error generating contact suggestions:', error);
+      await logger.error(
+        "Error generating contact suggestions",
+        {
+          operation: "contacts.suggestions.generate",
+          additionalData: { userId: userId.slice(0, 8) + "..." },
+        },
+        error instanceof Error ? error : undefined,
+      );
       return [];
     }
   }
@@ -87,8 +92,8 @@ export class ContactSuggestionService {
    * Create contacts from approved suggestions
    */
   static async createContactsFromSuggestions(
-    userId: string, 
-    suggestionIds: string[]
+    userId: string,
+    suggestionIds: string[],
   ): Promise<{
     success: boolean;
     createdCount: number;
@@ -99,44 +104,60 @@ export class ContactSuggestionService {
 
       // Get fresh suggestions to validate
       const allSuggestions = await this.getContactSuggestions(userId);
-      const validSuggestions = allSuggestions.filter(s => suggestionIds.includes(s.id));
+      const validSuggestions = allSuggestions.filter((s) => suggestionIds.includes(s.id));
 
       let createdCount = 0;
       const errors: string[] = [];
 
       // Generate AI insights for all suggestions
-      const emailsToAnalyze = validSuggestions.map(s => s.email);
-      const contactInsights = await ContactIntelligenceService.bulkGenerateInsights(userId, emailsToAnalyze);
+      const emailsToAnalyze = validSuggestions.map((s) => s.email);
+      const contactInsights = await ContactIntelligenceService.bulkGenerateInsights(
+        userId,
+        emailsToAnalyze,
+      );
 
       for (const suggestion of validSuggestions) {
         try {
           const insights = contactInsights.get(suggestion.email);
-          
+
           // Create the contact first
-          const [newContact] = await db.insert(contacts).values({
-            userId,
-            displayName: suggestion.displayName,
-            primaryEmail: suggestion.email,
-            source: 'calendar_import',
-            stage: insights?.stage,
-            tags: insights?.tags ? JSON.stringify(insights.tags) : null,
-            confidenceScore: insights?.confidenceScore?.toString(),
-          }).returning({ id: contacts.id });
+          const [newContact] = await db
+            .insert(contacts)
+            .values({
+              userId,
+              displayName: suggestion.displayName,
+              primaryEmail: suggestion.email,
+              source: "calendar_import",
+              stage: insights?.stage,
+              tags: insights?.tags ? JSON.stringify(insights.tags) : null,
+              confidenceScore: insights?.confidenceScore?.toString(),
+            })
+            .returning({ id: contacts.id });
 
           // Create a note separately if we have AI-generated content
           if (insights?.noteContent && newContact?.id) {
             await db.insert(notes).values({
               contactId: newContact.id,
               userId,
-              content: `[AI Generated] ${insights.noteContent}`,
+              content: `[OmniBot] ${insights.noteContent}`,
             });
           }
 
           createdCount++;
-
         } catch (error) {
-          const errorMsg = `Failed to create ${suggestion.displayName}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          console.error(`❌ ${errorMsg}`);
+          const errorMsg = `Failed to create ${suggestion.displayName}: ${error instanceof Error ? error.message : "Unknown error"}`;
+          await logger.error(
+            "Failed to create contact from suggestion",
+            {
+              operation: "contacts.suggestions.create",
+              additionalData: {
+                userId: userId.slice(0, 8) + "...",
+                suggestionEmail: suggestion.email,
+                suggestionName: suggestion.displayName,
+              },
+            },
+            error instanceof Error ? error : undefined,
+          );
           errors.push(errorMsg);
         }
       }
@@ -146,13 +167,22 @@ export class ContactSuggestionService {
         createdCount,
         errors,
       };
-
     } catch (error) {
-      console.error('❌ Error creating contacts from suggestions:', error);
+      await logger.error(
+        "Error creating contacts from suggestions",
+        {
+          operation: "contacts.suggestions.bulk_create",
+          additionalData: {
+            userId: userId.slice(0, 8) + "...",
+            suggestionCount: suggestionIds.length,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       return {
         success: false,
         createdCount: 0,
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
+        errors: [error instanceof Error ? error.message : "Unknown error"],
       };
     }
   }
@@ -167,7 +197,7 @@ export class ContactSuggestionService {
       /@group\.calendar\.google\.com$/,
       /@calendar\.google\.com$/,
       /@resource\.calendar\.google\.com$/,
-      
+
       // Common automated/service emails
       /noreply/i,
       /no-reply/i,
@@ -180,7 +210,7 @@ export class ContactSuggestionService {
       /@teams\.microsoft\.com$/i,
     ];
 
-    return systemPatterns.some(pattern => pattern.test(email));
+    return systemPatterns.some((pattern) => pattern.test(email));
   }
 
   /**
@@ -188,32 +218,32 @@ export class ContactSuggestionService {
    * Higher confidence for recent, frequent calendar interactions.
    */
   private static calculateConfidence(
-    eventCount: number, 
-    lastEventDate: string
-  ): 'high' | 'medium' | 'low' {
+    eventCount: number,
+    lastEventDate: string,
+  ): "high" | "medium" | "low" {
     const lastDate = new Date(lastEventDate);
     const daysSinceLastEvent = Math.floor(
-      (Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
+      (Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24),
     );
 
     // High confidence: Recent and frequent calendar activity
     if (eventCount >= 3 && daysSinceLastEvent <= 30) {
-      return 'high';
+      return "high";
     }
 
     // Medium confidence: Either recent OR frequent calendar presence
     if (eventCount >= 2 || daysSinceLastEvent <= 60) {
-      return 'medium';
+      return "medium";
     }
 
     // Low confidence: Infrequent or old calendar interactions
-    return 'low';
+    return "low";
   }
 
   /**
    * Generate a consistent ID for a suggestion
    */
   private static generateSuggestionId(email: string): string {
-    return `suggestion_${Buffer.from(email).toString('base64url')}`;
+    return `suggestion_${Buffer.from(email).toString("base64url")}`;
   }
 }

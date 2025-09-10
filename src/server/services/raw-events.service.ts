@@ -1,8 +1,5 @@
 // src/server/services/raw-events.service.ts
-import type {
-  RawEventListItem,
-  RawEventListParams,
-} from "@/server/repositories/raw-events.repo";
+import type { RawEventListItem, RawEventListParams } from "@/server/repositories/raw-events.repo";
 import { listRawEvents } from "@/server/repositories/raw-events.repo";
 
 export async function listRawEventsService(

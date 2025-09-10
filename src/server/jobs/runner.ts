@@ -3,7 +3,8 @@ import { eq, and, inArray, lt } from "drizzle-orm";
 import { jobs } from "@/server/db/schema";
 import type { JobRecord } from "./types";
 import { JobDispatcher } from "./dispatcher";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * JobRunner is responsible for processing queued jobs from the database.
@@ -57,24 +58,22 @@ export class JobRunner {
         .limit(batchSize);
 
       if (queuedJobs.length === 0) {
-        log.info(
-          {
-            op: "job_runner.no_jobs",
+        await logger.info("No queued jobs found", {
+          operation: "runner_execute",
+          additionalData: {
             batchSize,
           },
-          "No queued jobs found",
-        );
+        });
         return { processed: 0, succeeded: 0, failed: 0, errors: [] };
       }
 
-      log.info(
-        {
-          op: "job_runner.batch_start",
+      await logger.info(`Starting batch processing of ${queuedJobs.length} jobs`, {
+        operation: "runner_execute",
+        additionalData: {
           jobCount: queuedJobs.length,
           batchSize,
         },
-        `Starting batch processing of ${queuedJobs.length} jobs`,
-      );
+      });
 
       // Process jobs sequentially to avoid overwhelming external APIs
       for (const job of queuedJobs) {
@@ -93,28 +92,29 @@ export class JobRunner {
           const errorMessage = error instanceof Error ? error.message : String(error);
           errors.push(`Job ${job.id}: ${errorMessage}`);
 
-          log.error(
-            {
-              op: "job_runner.job_error",
-              jobId: job.id,
-              jobKind: job.kind,
-              error: errorMessage,
-            },
+          await logger.error(
             "Unexpected error processing job",
+            {
+              operation: "runner_execute",
+              additionalData: {
+                jobId: job.id,
+                jobKind: job.kind,
+              },
+            },
+            ensureError(error),
           );
         }
       }
 
-      log.info(
-        {
-          op: "job_runner.batch_complete",
+      await logger.info(`Batch processing complete: ${succeeded} succeeded, ${failed} failed`, {
+        operation: "runner_execute",
+        additionalData: {
           processed: queuedJobs.length,
           succeeded,
           failed,
           errorCount: errors.length,
         },
-        `Batch processing complete: ${succeeded} succeeded, ${failed} failed`,
-      );
+      });
 
       return {
         processed: queuedJobs.length,
@@ -123,13 +123,13 @@ export class JobRunner {
         errors,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log.error(
-        {
-          op: "job_runner.batch_error",
-          error: errorMessage,
-        },
+      await logger.error(
         "Failed to process job batch",
+        {
+          operation: "runner_execute",
+          additionalData: {},
+        },
+        ensureError(error),
       );
       throw error;
     }
@@ -152,16 +152,15 @@ export class JobRunner {
         })
         .where(eq(jobs.id, job.id));
 
-      log.info(
-        {
-          op: "job_runner.job_start",
+      await logger.info(`Starting job processing: ${job.kind}`, {
+        operation: "runner_execute",
+        additionalData: {
           jobId: job.id,
           jobKind: job.kind,
           userId: job.userId,
           attempts: job.attempts,
         },
-        `Starting job processing: ${job.kind}`,
-      );
+      });
 
       // Set up timeout for job processing
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -183,16 +182,15 @@ export class JobRunner {
         .where(eq(jobs.id, job.id));
 
       const duration = Date.now() - startTime;
-      log.info(
-        {
-          op: "job_runner.job_success",
+      await logger.info(`Job completed successfully in ${duration}ms`, {
+        operation: "runner_execute",
+        additionalData: {
           jobId: job.id,
           jobKind: job.kind,
           userId: job.userId,
           duration,
         },
-        `Job completed successfully in ${duration}ms`,
-      );
+      });
 
       return { success: true };
     } catch (error) {
@@ -200,17 +198,19 @@ export class JobRunner {
       const duration = Date.now() - startTime;
       const newAttempts = job.attempts + 1;
 
-      log.error(
-        {
-          op: "job_runner.job_failed",
-          jobId: job.id,
-          jobKind: job.kind,
-          userId: job.userId,
-          attempts: newAttempts,
-          duration,
-          error: errorMessage,
-        },
+      await logger.error(
         `Job failed after ${duration}ms`,
+        {
+          operation: "runner_execute",
+          additionalData: {
+            jobId: job.id,
+            jobKind: job.kind,
+            userId: job.userId,
+            attempts: newAttempts,
+            duration,
+          },
+        },
+        ensureError(error),
       );
 
       // Determine if we should retry or mark as failed
@@ -234,26 +234,27 @@ export class JobRunner {
         .where(eq(jobs.id, job.id));
 
       if (shouldRetry) {
-        log.info(
-          {
-            op: "job_runner.job_retry_scheduled",
-            jobId: job.id,
-            jobKind: job.kind,
-            attempts: newAttempts,
-            maxAttempts: JobRunner.MAX_RETRY_ATTEMPTS,
-          },
+        await logger.info(
           `Job scheduled for retry (attempt ${newAttempts}/${JobRunner.MAX_RETRY_ATTEMPTS})`,
+          {
+            operation: "runner_execute",
+            additionalData: {
+              jobId: job.id,
+              jobKind: job.kind,
+              attempts: newAttempts,
+              maxAttempts: JobRunner.MAX_RETRY_ATTEMPTS,
+            },
+          },
         );
       } else {
-        log.error(
-          {
-            op: "job_runner.job_max_retries",
+        await logger.error(`Job failed permanently after ${newAttempts} attempts`, {
+          operation: "runner_execute",
+          additionalData: {
             jobId: job.id,
             jobKind: job.kind,
             attempts: newAttempts,
           },
-          `Job failed permanently after ${newAttempts} attempts`,
-        );
+        });
       }
 
       return { success: false, error: errorMessage };
@@ -316,14 +317,15 @@ export class JobRunner {
         errors,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log.error(
-        {
-          op: "job_runner.user_jobs_error",
-          userId,
-          error: errorMessage,
-        },
+      await logger.error(
         "Failed to process user jobs",
+        {
+          operation: "runner_execute",
+          additionalData: {
+            userId,
+          },
+        },
+        ensureError(error),
       );
       throw error;
     }
@@ -343,24 +345,23 @@ export class JobRunner {
 
       const deletedCount = Array.isArray(result) ? result.length : 0;
 
-      log.info(
-        {
-          op: "job_runner.cleanup",
+      await logger.info(`Cleaned up ${deletedCount} old jobs`, {
+        operation: "runner_execute",
+        additionalData: {
           deletedCount,
           olderThanDays,
         },
-        `Cleaned up ${deletedCount} old jobs`,
-      );
+      });
 
       return deletedCount;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log.error(
-        {
-          op: "job_runner.cleanup_error",
-          error: errorMessage,
-        },
+      await logger.error(
         "Failed to cleanup old jobs",
+        {
+          operation: "runner_execute",
+          additionalData: {},
+        },
+        ensureError(error),
       );
       throw error;
     }
@@ -392,13 +393,13 @@ export class JobRunner {
         failed: failedCount.length,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log.error(
-        {
-          op: "job_runner.stats_error",
-          error: errorMessage,
-        },
+      await logger.error(
         "Failed to get job statistics",
+        {
+          operation: "runner_execute",
+          additionalData: {},
+        },
+        ensureError(error),
       );
       throw error;
     }

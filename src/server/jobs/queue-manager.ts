@@ -4,7 +4,8 @@ import { eq, and, inArray } from "drizzle-orm";
 import { enqueue } from "./enqueue";
 import type { JobKind, JobPayloadByKind } from "./types";
 import { v4 as uuidv4 } from "uuid";
-import { log } from "@/lib/log";
+import { ensureError } from "@/lib/utils/error-handler";
+import { logger } from "@/lib/observability";
 
 export interface BatchJobOptions {
   priority?: "low" | "medium" | "high";
@@ -58,28 +59,29 @@ export class QueueManager {
         jobIds.push(jobId);
       }
 
-      log.info(
-        {
-          op: "queue_manager.enqueue_batch",
+      await logger.info(`Enqueued batch of ${batchJobs.length} ${kind} jobs`, {
+        operation: "queue_manage",
+        additionalData: {
           batchId: generatedBatchId,
           jobKind: kind,
           jobCount: batchJobs.length,
           userId,
         },
-        `Enqueued batch of ${batchJobs.length} ${kind} jobs`,
-      );
+      });
 
       return jobIds;
     } catch (error) {
-      log.error(
-        {
-          op: "queue_manager.enqueue_batch_error",
-          batchId: generatedBatchId,
-          jobKind: kind,
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-        },
+      await logger.error(
         `Failed to enqueue batch jobs`,
+        {
+          operation: "queue_manage",
+          additionalData: {
+            batchId: generatedBatchId,
+            jobKind: kind,
+            userId,
+          },
+        },
+        ensureError(error),
       );
       throw error;
     }
@@ -135,13 +137,15 @@ export class QueueManager {
         updatedAt,
       };
     } catch (error) {
-      log.error(
-        {
-          op: "queue_manager.get_batch_status_error",
-          batchId,
-          error: error instanceof Error ? error.message : String(error),
-        },
+      await logger.error(
         `Failed to get batch status`,
+        {
+          operation: "queue_manage",
+          additionalData: {
+            batchId,
+          },
+        },
+        ensureError(error),
       );
       return null;
     }
@@ -165,26 +169,27 @@ export class QueueManager {
         );
 
       const cancelledCount = (result as { rowCount?: number }).rowCount ?? 0;
-      log.info(
-        {
-          op: "queue_manager.cancel_batch",
+      await logger.info(`Cancelled ${cancelledCount} jobs in batch`, {
+        operation: "queue_manage",
+        additionalData: {
           batchId,
           userId,
           cancelledCount,
         },
-        `Cancelled ${cancelledCount} jobs in batch`,
-      );
+      });
 
       return (result as { rowCount?: number }).rowCount ?? 0;
     } catch (error) {
-      log.error(
-        {
-          op: "queue_manager.cancel_batch_error",
-          batchId,
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-        },
+      await logger.error(
         `Failed to cancel batch`,
+        {
+          operation: "queue_manage",
+          additionalData: {
+            batchId,
+            userId,
+          },
+        },
+        ensureError(error),
       );
       throw error;
     }
@@ -213,13 +218,15 @@ export class QueueManager {
 
       return statCounts;
     } catch (error) {
-      log.error(
-        {
-          op: "queue_manager.get_job_stats_error",
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-        },
+      await logger.error(
         `Failed to get job stats`,
+        {
+          operation: "queue_manage",
+          additionalData: {
+            userId,
+          },
+        },
+        ensureError(error),
       );
       return {};
     }

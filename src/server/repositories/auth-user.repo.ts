@@ -39,8 +39,8 @@ export class AuthUserRepository {
       }
 
       return null;
-    } catch (error) {
-      console.warn("Failed to get user context:", error);
+    } catch (getUserContextError) {
+      console.error("Failed to fetch user context:", getUserContextError);
       return null;
     }
   }
@@ -64,8 +64,8 @@ export class AuthUserRepository {
       };
 
       return Boolean(resultsWithRows.rows && resultsWithRows.rows.length > 0);
-    } catch (error) {
-      console.warn("Failed to check user existence:", error);
+    } catch (checkUserError) {
+      console.warn("Failed to check user existence:", checkUserError);
       return false;
     }
   }
@@ -102,8 +102,8 @@ export class AuthUserRepository {
       }
 
       return null;
-    } catch (error) {
-      console.warn("Failed to get user info:", error);
+    } catch (getUserError) {
+      console.warn("Failed to get user info:", getUserError);
       return null;
     }
   }

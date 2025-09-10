@@ -6,9 +6,9 @@ export type GoogleJobKind =
   | "google_calendar_sync"
   | "normalize_google_email"
   | "normalize_google_event";
-export type EmailIntelligenceJobKind = 
-  | "email_intelligence" 
-  | "email_intelligence_batch" 
+export type EmailIntelligenceJobKind =
+  | "email_intelligence"
+  | "email_intelligence_batch"
   | "email_intelligence_cleanup";
 
 export type JobKind = GenericJobKind | GoogleJobKind | EmailIntelligenceJobKind;
@@ -38,7 +38,16 @@ export interface EmbedJobPayload {
 export interface InsightJobPayload {
   subjectType?: "contact" | "segment" | "inbox" | "workspace";
   subjectId?: string;
-  kind?: "summary" | "next_step" | "risk" | "persona" | "thread_summary" | "next_best_action" | "weekly_digest" | "lead_score" | "duplicate_contact_suspected";
+  kind?:
+    | "summary"
+    | "next_step"
+    | "risk"
+    | "persona"
+    | "thread_summary"
+    | "next_best_action"
+    | "weekly_digest"
+    | "lead_score"
+    | "duplicate_contact_suspected";
   batchId?: string;
   context?: Record<string, unknown>;
   interactionIds?: string[];
@@ -107,26 +116,4 @@ export interface JobError extends Error {
   status?: number;
   code?: string;
   details?: Record<string, unknown>;
-}
-
-// API Error utility function
-export function toApiError(error: unknown): { status: number; message: string } {
-  const fallback = { status: 401, message: "Unauthorized" };
-
-  if (error instanceof Error) {
-    const obj = error as unknown as Record<string, unknown>;
-    const status = typeof obj["status"] === "number" ? obj["status"] : fallback.status;
-    const message =
-      typeof obj["message"] === "string" ? obj["message"] : error.message || fallback.message;
-    return { status, message };
-  }
-
-  if (error && typeof error === "object") {
-    const obj = error as unknown as Record<string, unknown>;
-    const status = typeof obj["status"] === "number" ? obj["status"] : fallback.status;
-    const message = typeof obj["message"] === "string" ? obj["message"] : fallback.message;
-    return { status, message };
-  }
-
-  return fallback;
 }

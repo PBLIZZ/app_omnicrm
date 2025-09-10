@@ -1,4 +1,4 @@
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 
 // Shared retry with jitter for Google API calls
 export async function callWithRetry<T>(fn: () => Promise<T>, op: string, max = 3): Promise<T> {
@@ -13,6 +13,9 @@ export async function callWithRetry<T>(fn: () => Promise<T>, op: string, max = 3
     }
   }
   const error = lastErr as { message?: string };
-  log.warn({ op, error: String(error?.message ?? lastErr) }, "google_call_failed");
+  await logger.warn("google_call_failed", {
+    operation: "api_call",
+    additionalData: { op, error: String(error?.message ?? lastErr) },
+  });
   throw lastErr;
 }

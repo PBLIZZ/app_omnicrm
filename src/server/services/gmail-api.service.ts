@@ -1,4 +1,5 @@
-import { fetchGet, fetchPost } from "@/lib/api";
+import { apiClient } from "@/lib/api/client";
+import { logger } from "@/lib/observability";
 import {
   GmailConnectionStatus,
   EmailPreview,
@@ -6,6 +7,14 @@ import {
   SearchResult,
   GmailInsights,
 } from "../../app/(authorisedRoute)/omni-connect/_components/types";
+
+/**
+ * Gmail API Service with integrated rate limiting
+ *
+ * All Gmail API calls made through this service are automatically rate-limited
+ * at the server level via withRateLimit wrapper in the underlying Google API services.
+ * This ensures compliance with Gmail API quotas and prevents rate limit errors.
+ */
 
 interface SampleEmail {
   id?: string;
@@ -24,9 +33,13 @@ interface EmailPreviewData {
 }
 
 export class GmailApiService {
+  /**
+   * Rate-limited Gmail status check
+   * Server-side rate limiting applied to underlying Google API calls
+   */
   static async checkGmailStatus(): Promise<GmailConnectionStatus> {
     try {
-      const data = await fetchGet<{
+      const data = await apiClient.get<{
         serviceTokens?: { gmail?: boolean };
         lastSync?: { gmail?: string };
       }>("/api/settings/sync/status");
@@ -45,7 +58,16 @@ export class GmailApiService {
         return { isConnected: false };
       }
     } catch (error) {
-      console.error("Error checking Gmail status:", error);
+      await logger.error(
+        "Failed to check Gmail status",
+        {
+          operation: "gmail_api.check_status",
+          additionalData: {
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       return { isConnected: false, error: "Failed to check status" };
     }
   }
@@ -55,7 +77,7 @@ export class GmailApiService {
     dateRange: { from: string; to: string } | null;
   }> {
     try {
-      const data = await fetchPost<EmailPreviewData>("/api/sync/preview/gmail", {});
+      const data = await apiClient.post<EmailPreviewData>("/api/sync/preview/gmail", {});
 
       const richEmails: SampleEmail[] = Array.isArray(data.sampleEmails) ? data.sampleEmails : [];
       let samples = richEmails.slice(0, 5).map((e, index: number) => ({
@@ -97,7 +119,16 @@ export class GmailApiService {
 
       return { emails: samples, dateRange };
     } catch (error) {
-      console.error("Error fetching recent emails:", error);
+      await logger.error(
+        "Failed to fetch recent emails",
+        {
+          operation: "gmail_api.fetch_recent",
+          additionalData: {
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       throw error;
     }
   }
@@ -105,14 +136,14 @@ export class GmailApiService {
   static async updateProcessedCounts(): Promise<{ emailCount: number; contactCount: number }> {
     try {
       // Get email count
-      const eventsData = await fetchGet<{ total: number }>(
+      const eventsData = await apiClient.get<{ total: number }>(
         "/api/google/gmail/raw-events?provider=gmail&pageSize=1",
         { showErrorToast: false },
       );
       const emailCount = eventsData.total || 0;
 
       // Get contact count
-      const suggestionsData = await fetchPost<{ suggestions: SearchResult[] }>(
+      const suggestionsData = await apiClient.post<{ suggestions: SearchResult[] }>(
         "/api/contacts-new/suggestions",
         {},
         { showErrorToast: false },
@@ -123,7 +154,16 @@ export class GmailApiService {
 
       return { emailCount, contactCount };
     } catch (error) {
-      console.error("Failed to update processed counts:", error);
+      await logger.error(
+        "Failed to update processed counts",
+        {
+          operation: "gmail_api.update_counts",
+          additionalData: {
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       return { emailCount: 0, contactCount: 0 };
     }
   }
@@ -133,24 +173,33 @@ export class GmailApiService {
   }
 
   static async syncApprove(): Promise<void> {
-    await fetchPost<Record<string, unknown>>("/api/sync/approve/gmail", {});
+    await apiClient.post<Record<string, unknown>>("/api/sync/approve/gmail", {});
   }
 
   static async runJobProcessor(): Promise<void> {
-    await fetchPost<Record<string, unknown>>("/api/jobs/runner", {});
+    await apiClient.post<Record<string, unknown>>("/api/jobs/runner", {});
   }
 
   static async checkJobStatus(): Promise<JobStatus> {
     try {
-      return await fetchGet<JobStatus>("/api/jobs/status");
+      return await apiClient.get<JobStatus>("/api/jobs/status");
     } catch (error) {
-      console.error("Error checking job status:", error);
+      await logger.error(
+        "Failed to check job status",
+        {
+          operation: "gmail_api.check_job_status",
+          additionalData: {
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       return {};
     }
   }
 
   static async searchGmail(query: string, limit: number = 5): Promise<SearchResult[]> {
-    const data = await fetchPost<{ results: SearchResult[] }>("/api/gmail/search", {
+    const data = await apiClient.post<{ results: SearchResult[] }>("/api/gmail/search", {
       query,
       limit,
     });
@@ -158,15 +207,15 @@ export class GmailApiService {
   }
 
   static async loadInsights(): Promise<GmailInsights> {
-    const data = await fetchGet<{ insights: GmailInsights }>("/api/gmail/insights");
+    const data = await apiClient.get<{ insights: GmailInsights }>("/api/gmail/insights");
     return data.insights;
   }
 
   static async generateEmbeddings(): Promise<{ message: string }> {
-    return await fetchPost<{ message: string }>("/api/gmail/embed", { regenerate: false });
+    return await apiClient.post<{ message: string }>("/api/gmail/embed", { regenerate: false });
   }
 
   static async processContacts(): Promise<{ message: string }> {
-    return await fetchPost<{ message: string }>("/api/gmail/process-contacts", {});
+    return await apiClient.post<{ message: string }>("/api/gmail/process-contacts", {});
   }
 }

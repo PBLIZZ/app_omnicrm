@@ -80,6 +80,7 @@ export const contacts = pgTable("contacts", {
   stage: text("stage"), // Prospect | New Client | Core Client | Referring Client | VIP Client | Lost Client | At Risk Client
   tags: jsonb("tags"), // Wellness segmentation tags array
   confidenceScore: text("confidence_score"), // AI insight confidence stored as text
+  slug: text("slug").unique(), // SEO-friendly URL slug
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -374,7 +375,7 @@ export const momentums = pgTable("momentums", {
   userId: uuid("user_id").notNull(),
   momentumWorkspaceId: uuid("momentum_workspace_id").references(() => momentumWorkspaces.id), // nullable - momentums can exist without workspaces
   momentumProjectId: uuid("momentum_project_id").references(() => momentumProjects.id), // nullable - momentums can exist without projects
-  parentMomentumId: uuid("parent_momentum_id").references((): any => momentums.id), // for sub-momentums
+  parentMomentumId: uuid("parent_momentum_id"), // for sub-momentums - FK defined in SQL
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").default("todo").notNull(), // todo, in_progress, waiting, done, cancelled
@@ -397,9 +398,7 @@ export const momentumActions = pgTable("momentum_actions", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull(),
-  momentumId: uuid("momentum_id")
-    .references(() => momentums.id)
-    .notNull(),
+  momentumId: uuid("momentum_id").notNull(), // FK to momentums.id - defined in SQL
   action: text("action").notNull(), // approved, rejected, edited, completed, deleted
   previousData: jsonb("previous_data"), // momentum state before action
   newData: jsonb("new_data"), // momentum state after action

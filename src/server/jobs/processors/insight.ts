@@ -1,6 +1,9 @@
+import { JobRecord } from "@/server/jobs/types";
 import { getDb } from "@/server/db/client";
-import { interactions, contacts } from "@/server/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { contacts, interactions } from "@/server/db/schema";
+import { eq, desc, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { logger } from "@/lib/observability";
 import {
   generateContactSummary,
   generateNextSteps,
@@ -8,9 +11,8 @@ import {
   generatePersonaInsight,
   type InsightRequest,
 } from "@/server/ai/llm.service";
-import { log } from "@/lib/log";
-import type { JobRecord } from "../types";
 import { NewAiInsight } from "@/server/db/schema";
+import { ensureError } from "@/lib/utils/error-handler";
 
 // Extended insight types from insight-writer
 type InsightKind =
@@ -86,7 +88,17 @@ export class InsightWriter {
       const insightId = await this.storeInsight(aiInsight);
       return insightId;
     } catch (error) {
-      console.error(`Failed to generate insight for ${task.kind}:`, error);
+      await logger.error(
+        "Failed to generate insight",
+        {
+          operation: "jobs.insight.generate",
+          additionalData: {
+            taskKind: task.kind,
+            userId: task.userId?.slice(0, 8) + "..." || "unknown",
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       return null;
     }
   }
@@ -168,7 +180,10 @@ export class InsightWriter {
         return await this.generateLLMInsight(task);
 
       default:
-        console.warn(`Insight generation not implemented for kind: ${task.kind}`);
+        await logger.warn("Insight generation not implemented", {
+          operation: "jobs.insight.generate_by_kind",
+          additionalData: { taskKind: task.kind },
+        });
         return null;
     }
   }
@@ -649,17 +664,16 @@ export async function runInsight(job: JobRecord<"insight">): Promise<void> {
     const subjectId = payload.subjectId;
     const kind = payload.kind ?? "summary";
 
-    log.info(
-      {
-        op: "insight.start",
+    await logger.info("Starting insight generation", {
+      operation: "insight_generate",
+      additionalData: {
         userId: job.userId,
         subjectType,
         subjectId,
         kind,
         jobId: job.id,
       },
-      "Starting insight generation",
-    );
+    });
 
     // Create task for InsightWriter
     const task: InsightGenerationTask = {
@@ -678,9 +692,9 @@ export async function runInsight(job: JobRecord<"insight">): Promise<void> {
     }
 
     const duration = Date.now() - startTime;
-    log.info(
-      {
-        op: "insight.complete",
+    await logger.info("Insight generation completed", {
+      operation: "insight_generate",
+      additionalData: {
         userId: job.userId,
         subjectType,
         kind,
@@ -688,23 +702,21 @@ export async function runInsight(job: JobRecord<"insight">): Promise<void> {
         insightId,
         jobId: job.id,
       },
-      "Insight generation completed",
-    );
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error(
-      {
-        op: "insight.error",
-        userId: job.userId,
-        error: error instanceof Error ? error.message : String(error),
-        duration,
-        jobId: job.id,
-      },
+    await logger.error(
       "Insight generation failed",
+      {
+        operation: "insight_generate",
+        additionalData: {
+          userId: job.userId,
+          duration,
+          jobId: job.id,
+        },
+      },
+      ensureError(error),
     );
     throw error;
   }
 }
-
-// Legacy functions removed - now handled by InsightWriter class
-// All insight generation logic is consolidated in the InsightWriter class above

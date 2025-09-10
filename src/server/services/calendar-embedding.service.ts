@@ -1,6 +1,8 @@
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import OpenAI from "openai";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 // Type definitions for calendar event data
 interface CalendarEventData {
@@ -62,8 +64,6 @@ export class CalendarEmbeddingService {
     error?: string;
   }> {
     try {
-      // console.log("🔄 Starting calendar event embedding process...");
-
       const db = await getDb();
 
       // Get calendar events that don't have embeddings yet using raw SQL
@@ -79,8 +79,7 @@ export class CalendarEmbeddingService {
       `);
 
       // Type-safe access to database results
-      const eventRows = eventsToEmbed as EventRow[];
-      // console.log(`📊 Found ${eventRows.length} events to embed`);
+      const eventRows = eventsToEmbed as unknown as EventRow[];
 
       let processedCount = 0;
 
@@ -98,22 +97,43 @@ export class CalendarEmbeddingService {
           processedCount++;
 
           if (processedCount % 10 === 0) {
-            // console.log(`🔄 Processed ${processedCount}/${eventsToEmbed.rows.length} events`);
+            await logger.info("calendar_embedding_progress", {
+              operation: "embed_events",
+              additionalData: {
+                processedCount,
+                totalEvents: eventRows.length,
+              },
+            });
           }
         } catch (error) {
-          console.error(`❌ Error embedding event ${event.id}:`, error);
+          await logger.error(
+            "calendar_event_embedding_failed",
+            {
+              operation: "embed_single_event",
+              additionalData: {
+                eventId: event.id,
+                eventTitle: event.title,
+              },
+            },
+            ensureError(error),
+          );
           // Continue with other events
         }
       }
-
-      // console.log(`✅ Completed embedding ${processedCount} calendar events`);
 
       return {
         success: true,
         processedEvents: processedCount,
       };
     } catch (error) {
-      console.error("❌ Calendar embedding error:", error);
+      await logger.error(
+        "calendar_embedding_service_failed",
+        {
+          operation: "embed_all_events",
+          additionalData: { userId },
+        },
+        ensureError(error),
+      );
       return {
         success: false,
         processedEvents: 0,
@@ -130,7 +150,13 @@ export class CalendarEmbeddingService {
     const textContent = this.extractEventText(event);
 
     if (!textContent.trim()) {
-      // console.log(`⚠️ Skipping event ${event.id} - no meaningful text content`);
+      await logger.debug("calendar_event_skipped_no_content", {
+        operation: "embed_single_event",
+        additionalData: {
+          eventId: event.id,
+          eventTitle: event.title,
+        },
+      });
       return;
     }
 
@@ -155,8 +181,6 @@ export class CalendarEmbeddingService {
         ${new Date()}
       )
     `);
-
-    // console.log(`✅ Generated embedding for event: "${event.title.substring(0, 50)}..."`);
   }
 
   /**
@@ -281,7 +305,7 @@ export class CalendarEmbeddingService {
       `);
 
       // Type-safe access to database results
-      const resultRows = results as SearchResultRow[];
+      const resultRows = results as unknown as SearchResultRow[];
       return resultRows.map((row: SearchResultRow) => ({
         event: {
           id: row.id,
@@ -292,14 +316,25 @@ export class CalendarEmbeddingService {
           endTime: row.end_time,
           eventType: row.event_type,
           businessCategory: row.business_category,
-          attendees: row.attendees,
-          keywords: row.keywords,
+          attendees: Array.isArray(row.attendees) ? row.attendees : [],
+          keywords: Array.isArray(row.keywords) ? row.keywords : [],
         },
         similarity: 1 - row.distance, // Convert distance to similarity
         textContent: row.meta?.textContent ?? "",
       }));
     } catch (error) {
-      console.error("❌ Vector search error:", error);
+      await logger.error(
+        "calendar_vector_search_failed",
+        {
+          operation: "search_similar_events",
+          additionalData: {
+            userId,
+            query,
+            limit,
+          },
+        },
+        ensureError(error),
+      );
       return [];
     }
   }
@@ -335,13 +370,23 @@ export class CalendarEmbeddingService {
       `);
 
       // Type-safe access to database results
-      const eventRows = eventsWithEmbeddings as AnalyticsEventRow[];
+      const eventRows = eventsWithEmbeddings as unknown as AnalyticsEventRow[];
       // Analyze patterns using event data
       const insights = this.analyzeEventPatterns(eventRows);
 
       return insights;
     } catch (error) {
-      console.error("❌ Calendar insights error:", error);
+      await logger.error(
+        "calendar_insights_failed",
+        {
+          operation: "get_calendar_insights",
+          additionalData: {
+            userId,
+            timeframe,
+          },
+        },
+        ensureError(error),
+      );
       return {
         patterns: ["Unable to analyze patterns at this time"],
         busyTimes: [],
@@ -415,7 +460,7 @@ export class CalendarEmbeddingService {
       recommendations.push("Consider blocking similar time slots to create routine patterns");
     }
 
-    if (events.some((e) => e.attendees && e.attendees.length > 0)) {
+    if (events.some((e) => e.attendees && Array.isArray(e.attendees) && e.attendees.length > 0)) {
       clientEngagement.push("Regular client interactions detected - good engagement patterns");
     }
 

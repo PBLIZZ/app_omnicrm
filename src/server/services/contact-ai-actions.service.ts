@@ -8,7 +8,7 @@ import {
   type ContactTimeline,
 } from "@/server/db/schema";
 import OpenAI from "openai";
-import { logger } from "@/lib/observability/unified-logger";
+import { logger } from "@/lib/observability";
 
 // Type definitions for contact context data
 interface CalendarEventData {
@@ -99,8 +99,8 @@ export class ContactAIActionsService {
     contactId: string,
   ): Promise<ContactAIInsightResponse> {
     try {
-      logger.progress("Analyzing contact...", "Generating AI insights for contact");
-      logger.info("Generating AI insights for contact", {
+      void logger.progress("Analyzing contact...", "Generating AI insights for contact");
+      void logger.info("Generating AI insights for contact", {
         operation: "contact_ai_insights",
       });
 
@@ -114,14 +114,25 @@ export class ContactAIActionsService {
       // Generate AI analysis
       const aiResponse = await this.generateContactAnalysis(contactData);
 
-      logger.success(
+      void logger.success(
         "AI insights generated",
         `Successfully analyzed contact with ${aiResponse.insights?.length || 0} insights`,
       );
 
       return aiResponse;
     } catch (error) {
-      console.error("[ContactAIService] Failed to generate AI insights:", error);
+      await logger.error(
+        "Failed to generate AI insights",
+        {
+          operation: "contact_ai_actions.generate_insights",
+          additionalData: {
+            contactId: contactId.slice(0, 8) + "...",
+            userId: userId.slice(0, 8) + "...",
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       throw new Error(
         `Failed to generate AI insights: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -137,8 +148,8 @@ export class ContactAIActionsService {
     purpose?: string,
   ): Promise<ContactEmailSuggestion> {
     try {
-      logger.progress("Generating email suggestion...", "AI is drafting a personalized email");
-      logger.info("Generating email suggestion", { operation: "email_suggestion" });
+      void logger.progress("Generating email suggestion...", "AI is drafting a personalized email");
+      void logger.info("Generating email suggestion", { operation: "email_suggestion" });
 
       const contactData = await this.getContactWithContext(userId, contactId);
 
@@ -148,14 +159,25 @@ export class ContactAIActionsService {
 
       const emailSuggestion = await this.generateEmailContent(contactData, purpose);
 
-      logger.success(
+      void logger.success(
         "Email suggestion ready",
         `Generated personalized email (${emailSuggestion.content.length} characters)`,
       );
 
       return emailSuggestion;
     } catch (error) {
-      console.error("[ContactAIService] Failed to generate email suggestion:", error);
+      await logger.error(
+        "Failed to generate email suggestion",
+        {
+          operation: "contact_ai_actions.generate_email",
+          additionalData: {
+            contactId: contactId.slice(0, 8) + "...",
+            userId: userId.slice(0, 8) + "...",
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       throw error;
     }
   }
@@ -168,11 +190,11 @@ export class ContactAIActionsService {
     contactId: string,
   ): Promise<ContactNoteSuggestion[]> {
     try {
-      logger.progress(
+      void logger.progress(
         "Generating note suggestions...",
         "AI is analyzing contact for note opportunities",
       );
-      logger.info("Generating note suggestions", { operation: "note_suggestions" });
+      void logger.info("Generating note suggestions", { operation: "note_suggestions" });
 
       const contactData = await this.getContactWithContext(userId, contactId);
 
@@ -182,14 +204,25 @@ export class ContactAIActionsService {
 
       const noteSuggestions = await this.generateNoteContent(contactData);
 
-      logger.success(
+      void logger.success(
         "Note suggestions ready",
         `Generated ${noteSuggestions.length} note suggestions for contact`,
       );
 
       return noteSuggestions;
     } catch (error) {
-      console.error("[ContactAIService] Failed to generate note suggestions:", error);
+      await logger.error(
+        "Failed to generate note suggestions",
+        {
+          operation: "contact_ai_actions.generate_notes",
+          additionalData: {
+            contactId: contactId.slice(0, 8) + "...",
+            userId: userId.slice(0, 8) + "...",
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       throw error;
     }
   }
@@ -202,8 +235,8 @@ export class ContactAIActionsService {
     contactId: string,
   ): Promise<ContactTaskSuggestion[]> {
     try {
-      logger.progress("Generating task suggestions...", "AI is identifying actionable tasks");
-      logger.info("Generating task suggestions", { operation: "task_suggestions" });
+      void logger.progress("Generating task suggestions...", "AI is identifying actionable tasks");
+      void logger.info("Generating task suggestions", { operation: "task_suggestions" });
 
       const contactData = await this.getContactWithContext(userId, contactId);
 
@@ -213,14 +246,25 @@ export class ContactAIActionsService {
 
       const taskSuggestions = await this.generateTaskContent(contactData);
 
-      logger.success(
+      void logger.success(
         "Task suggestions ready",
         `Generated ${taskSuggestions.length} actionable tasks for contact`,
       );
 
       return taskSuggestions;
     } catch (error) {
-      console.error("[ContactAIService] Failed to generate task suggestions:", error);
+      await logger.error(
+        "Failed to generate task suggestions",
+        {
+          operation: "contact_ai_actions.generate_tasks",
+          additionalData: {
+            contactId: contactId.slice(0, 8) + "...",
+            userId: userId.slice(0, 8) + "...",
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
       throw error;
     }
   }
@@ -284,7 +328,7 @@ export class ContactAIActionsService {
       limit: 15,
     });
 
-    logger.info("Contact data loaded", {
+    void logger.info("Contact data loaded", {
       operation: "load_contact_context",
     });
 
@@ -374,7 +418,7 @@ Focus on:
         response_format: { type: "json_object" },
       });
 
-      logger.info("Calling OpenAI API for insights", {
+      void logger.info("Calling OpenAI API for insights", {
         operation: "openai_api_call",
       });
 
@@ -408,7 +452,14 @@ Focus on:
         confidence: Math.min(1.0, Math.max(0.0, result.confidence ?? 0.7)),
       };
     } catch (error) {
-      console.error("[ContactAIService] OpenAI analysis error:", error);
+      await logger.error(
+        "OpenAI analysis error",
+        {
+          operation: "contacts.ai_actions.analyze",
+          additionalData: { contactId: contact.id },
+        },
+        error instanceof Error ? error : undefined,
+      );
 
       // Fallback response
       return {
@@ -503,7 +554,14 @@ Guidelines:
         purpose: emailPurpose,
       };
     } catch (error) {
-      console.error("[ContactAIService] Email generation error:", error);
+      await logger.error(
+        "Email generation error",
+        {
+          operation: "contacts.ai_actions.generate_email",
+          additionalData: { contactId: contact.id },
+        },
+        error instanceof Error ? error : undefined,
+      );
 
       return {
         subject: `Following up with you, ${contact.displayName}`,
@@ -582,7 +640,14 @@ Categories:
         ]
       );
     } catch (error) {
-      console.error("[ContactAIService] Note generation error:", error);
+      await logger.error(
+        "Note generation error",
+        {
+          operation: "contacts.ai_actions.generate_notes",
+          additionalData: { contactId: contact.id },
+        },
+        error instanceof Error ? error : undefined,
+      );
 
       return [
         {
@@ -678,7 +743,14 @@ Categories:
         ]
       );
     } catch (error) {
-      console.error("[ContactAIService] Task generation error:", error);
+      await logger.error(
+        "Task generation error",
+        {
+          operation: "contacts.ai_actions.generate_tasks",
+          additionalData: { contactId: contact.id },
+        },
+        error instanceof Error ? error : undefined,
+      );
 
       const priority =
         daysSinceLastEvent > 60 ? "urgent" : daysSinceLastEvent > 30 ? "high" : "medium";

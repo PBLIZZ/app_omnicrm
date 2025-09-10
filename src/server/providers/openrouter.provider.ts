@@ -1,5 +1,5 @@
 // src/server/providers/openrouter.provider.ts
-import { env } from "@/lib/env";
+import { env } from "@/server/lib/env";
 import { getCurrentApiKey } from "@/server/ai/key-rotation";
 
 export type OpenRouterConfig = {
@@ -17,7 +17,7 @@ export function getOpenRouterConfig(): OpenRouterConfig {
     embedModel: env.AI_MODEL_EMBED as string,
     summaryModel: env.AI_MODEL_SUMMARY as string,
   };
-  
+
   // Use key rotation system for better reliability
   const currentKey = getCurrentApiKey();
   if (currentKey) {
@@ -25,7 +25,7 @@ export function getOpenRouterConfig(): OpenRouterConfig {
   } else if (env.OPENROUTER_API_KEY) {
     cfg.apiKey = env.OPENROUTER_API_KEY as string;
   }
-  
+
   return cfg;
 }
 
@@ -43,9 +43,9 @@ export function openRouterHeaders(): Record<string, string> {
   // Use key rotation system for better reliability
   const currentKey = getCurrentApiKey();
   const apiKey = currentKey || env.OPENROUTER_API_KEY;
-  
+
   if (!apiKey) return { "content-type": "application/json" };
-  
+
   return {
     Authorization: `Bearer ${apiKey}`,
     "content-type": "application/json",

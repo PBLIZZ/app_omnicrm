@@ -7,7 +7,7 @@ import {
   openRouterHeaders,
 } from "@/server/providers/openrouter.provider";
 import { withGuardrails } from "@/server/ai/with-guardrails";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 import { getDb } from "@/server/db/client";
 import { contacts, interactions, rawEvents, aiInsights } from "@/server/db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
@@ -165,15 +165,15 @@ async function callOpenRouter<T>(
       ...(responseSchema && { response_format: { type: "json_object" } }),
     };
 
-    log.info(
-      {
+    await logger.info("Email intelligence LLM request started", {
+      operation: "llm_call",
+      additionalData: {
         op: "email_intelligence.llm_request",
         userId,
         model: config.summaryModel,
         messageCount: messages.length,
       },
-      "Email intelligence LLM request started",
-    );
+    });
 
     const response = await fetch(`${config.baseUrl}/chat/completions`, {
       method: "POST",
@@ -205,14 +205,18 @@ async function callOpenRouter<T>(
         parsedContent = content as unknown as T;
       }
     } catch (parseError) {
-      log.warn(
-        {
-          op: "email_intelligence.parse_error",
-          userId,
-          content,
-          error: parseError,
-        },
+      await logger.warn(
         "Failed to parse email intelligence LLM response as JSON",
+        {
+          operation: "llm_call",
+          additionalData: {
+            op: "email_intelligence.parse_error",
+            userId,
+            content,
+            error: parseError,
+          },
+        },
+        parseError instanceof Error ? parseError : undefined,
       );
       parsedContent = responseSchema ? ({} as T) : (content as unknown as T);
     }
@@ -237,15 +241,15 @@ async function callOpenRouter<T>(
   const finalRawData = rawData as OpenRouterChatResponse;
   const finalParsedContent = parsedContent as T;
 
-  log.info(
-    {
+  await logger.info("Email intelligence LLM request completed successfully", {
+    operation: "llm_call",
+    additionalData: {
       op: "email_intelligence.llm_success",
       userId,
       model: finalRawData.model,
       creditsLeft: result.creditsLeft,
     },
-    "Email intelligence LLM request completed successfully",
-  );
+  });
 
   return {
     data: finalParsedContent,
@@ -541,15 +545,19 @@ ${bodyText.substring(0, 300)}`,
         suggestedNewContact: suggestionResponse.data,
       };
     } catch (error) {
-      log.warn(
-        {
-          op: "email_intelligence.contact_suggestion_failed",
-          userId,
-          error,
-          senderEmail,
-          senderName,
-        },
+      await logger.warn(
         "Failed to generate contact suggestion",
+        {
+          operation: "llm_call",
+          additionalData: {
+            op: "email_intelligence.contact_suggestion_failed",
+            userId,
+            error,
+            senderEmail,
+            senderName,
+          },
+        },
+        error instanceof Error ? error : undefined,
       );
     }
   }
@@ -620,15 +628,15 @@ export async function processEmailIntelligence(
     occurredAt: event.occurredAt,
   };
 
-  log.info(
-    {
+  await logger.info("Starting email intelligence processing", {
+    operation: "llm_call",
+    additionalData: {
       op: "email_intelligence.processing_start",
       userId,
       rawEventId,
       senderEmail: emailData.senderEmail,
     },
-    "Starting email intelligence processing",
-  );
+  });
 
   // Process in parallel for efficiency
   const [classification, contactMatch] = await Promise.all([
@@ -654,8 +662,9 @@ export async function processEmailIntelligence(
     },
   };
 
-  log.info(
-    {
+  await logger.info("Email intelligence processing completed", {
+    operation: "llm_call",
+    additionalData: {
       op: "email_intelligence.processing_complete",
       userId,
       rawEventId,
@@ -663,8 +672,7 @@ export async function processEmailIntelligence(
       businessRelevance: classification.businessRelevance,
       contactMatched: Boolean(contactMatch.contactId),
     },
-    "Email intelligence processing completed",
-  );
+  });
 
   return intelligence;
 }
@@ -819,13 +827,13 @@ export async function storeEmailIntelligence(
     fingerprint: `email_intel_${rawEventId}`,
   });
 
-  log.info(
-    {
+  await logger.info("Email intelligence stored successfully", {
+    operation: "llm_call",
+    additionalData: {
       op: "email_intelligence.stored",
       userId,
       rawEventId,
       category: intelligence.classification.primaryCategory,
     },
-    "Email intelligence stored successfully",
-  );
+  });
 }

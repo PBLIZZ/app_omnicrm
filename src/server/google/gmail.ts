@@ -4,6 +4,7 @@ import type { gmail as GmailFactory } from "googleapis/build/src/apis/gmail";
 import { getGoogleClients } from "./client";
 import { toLabelId } from "./constants";
 import { callWithRetry } from "./utils";
+import { withRateLimit } from "./rate-limiter";
 
 export type GmailClient = ReturnType<typeof GmailFactory>;
 
@@ -32,6 +33,7 @@ export interface GmailPreviewResult {
 export async function listGmailMessageIds(
   gmail: GmailClient,
   q: string,
+  userId: string,
 ): Promise<{ ids: string[]; pages: number }> {
   const ids: string[] = [];
   let pages = 0;
@@ -44,10 +46,12 @@ export async function listGmailMessageIds(
       ...(pageToken ? { pageToken } : {}),
     };
 
-    // conservative timeout + small retry budget per page
-    const res = await callWithRetry(
-      () => gmail.users.messages.list(params, { timeout: 10_000 }),
-      "gmail.messages.list",
+    // conservative timeout + small retry budget per page with rate limiting
+    const res = await withRateLimit(userId, "gmail_metadata", 1, () =>
+      callWithRetry(
+        () => gmail.users.messages.list(params, { timeout: 10_000 }),
+        "gmail.messages.list",
+      ),
     );
 
     pages += 1;
@@ -86,7 +90,7 @@ export async function gmailPreview(
   }
 
   // console.log(`Gmail preview: Using query "${query}" (no incremental filtering for preview)`);
-  const { ids: messageIds } = await listGmailMessageIds(gmail, query);
+  const { ids: messageIds } = await listGmailMessageIds(gmail, query, userId);
 
   // Helpers
   const getHeader = (
@@ -125,14 +129,16 @@ export async function gmailPreview(
 
   for (const id of sampleIds) {
     try {
-      const msg = await callWithRetry(
-        () =>
-          gmail.users.messages.get({
-            userId: "me",
-            id,
-            format: "full",
-          }),
-        "gmail.messages.get",
+      const msg = await withRateLimit(userId, "gmail_read", 1, () =>
+        callWithRetry(
+          () =>
+            gmail.users.messages.get({
+              userId: "me",
+              id,
+              format: "full",
+            }),
+          "gmail.messages.get",
+        ),
       );
 
       const headers = msg.data.payload?.headers ?? [];
@@ -191,14 +197,16 @@ export async function getGmailMessage(
   try {
     const { gmail } = await getGoogleClients(userId);
 
-    const res = await callWithRetry(
-      () =>
-        gmail.users.messages.get({
-          userId: "me",
-          id: messageId,
-          format: "full",
-        }),
-      "gmail.messages.get",
+    const res = await withRateLimit(userId, "gmail_read", 1, () =>
+      callWithRetry(
+        () =>
+          gmail.users.messages.get({
+            userId: "me",
+            id: messageId,
+            format: "full",
+          }),
+        "gmail.messages.get",
+      ),
     );
 
     return res.data;

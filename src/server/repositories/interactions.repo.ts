@@ -1,6 +1,6 @@
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
-import { NewInteraction } from "@/lib/schemas/interactions.dto";
+import type { NewInteraction } from "@/lib/validation/schemas/interactions.dto";
 
 // Database row types for query results
 interface InteractionRow {
@@ -74,7 +74,7 @@ export class InteractionsRepository {
       RETURNING id
     `);
 
-    return result.length > 0 ? (result[0] as IdRow).id : null;
+    return result.length > 0 ? (result[0] as unknown as IdRow).id : null;
   }
 
   /**
@@ -103,7 +103,7 @@ export class InteractionsRepository {
       LIMIT 1
     `);
 
-    return result.length > 0 ? (result[0] as InteractionRow) : null;
+    return result.length > 0 ? (result[0] as unknown as InteractionRow) : null;
   }
 
   /**
@@ -129,7 +129,7 @@ export class InteractionsRepository {
       OFFSET ${options.offset ?? 0}
     `);
 
-    return result as InteractionRow[];
+    return result as unknown as InteractionRow[];
   }
 
   /**
@@ -157,7 +157,7 @@ export class InteractionsRepository {
       LIMIT ${options.limit ?? 100}
     `);
 
-    return result as InteractionRow[];
+    return result as unknown as InteractionRow[];
   }
 
   /**
@@ -203,7 +203,7 @@ export class InteractionsRepository {
       LIMIT ${options.limit ?? 100}
     `);
 
-    return result as InteractionRow[];
+    return result as unknown as InteractionRow[];
   }
 
   /**
@@ -227,7 +227,7 @@ export class InteractionsRepository {
       LIMIT ${limit}
     `);
 
-    return (result as EmbeddingRow[]).map((row) => ({
+    return (result as unknown as EmbeddingRow[]).map((row) => ({
       id: row.id,
       bodyText: row.body_text,
     }));
@@ -274,7 +274,7 @@ export class InteractionsRepository {
     `);
 
     return {
-      byType: (typeStats as TypeStatsRow[]).reduce(
+      byType: (typeStats as unknown as TypeStatsRow[]).reduce(
         (acc: Record<string, number>, row: TypeStatsRow) => {
           acc[row.type] = parseInt(row.count, 10);
           return acc;
@@ -282,10 +282,10 @@ export class InteractionsRepository {
         {},
       ),
       linking: {
-        linked: parseInt((linkStats[0] as LinkStatsRow)?.linked || "0", 10),
-        unlinked: parseInt((linkStats[0] as LinkStatsRow)?.unlinked || "0", 10),
+        linked: parseInt((linkStats[0] as unknown as LinkStatsRow)?.linked ?? "0", 10),
+        unlinked: parseInt((linkStats[0] as unknown as LinkStatsRow)?.unlinked ?? "0", 10),
       },
-      bySource: (sourceStats as SourceStatsRow[]).reduce(
+      bySource: (sourceStats as unknown as SourceStatsRow[]).reduce(
         (acc: Record<string, number>, row: SourceStatsRow) => {
           acc[row.source] = parseInt(row.count, 10);
           return acc;

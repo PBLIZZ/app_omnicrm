@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
 import { userIntegrations } from "@/server/db/schema";
-import { decryptString, encryptString, isEncrypted } from "@/lib/crypto";
+import { decryptString, encryptString, isEncrypted } from "@/server/utils/crypto";
 import type { GmailClient } from "./gmail";
 import type { CalendarClient } from "./calendar";
 

@@ -1,6 +1,6 @@
 // Server-side admin database operations using Drizzle with service role permissions
 // This provides RLS-bypassing operations for system processes like sync jobs
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 import { getDb } from "./client";
 import { rawEvents, interactions, aiInsights, embeddings } from "./schema";
 
@@ -18,9 +18,9 @@ export type AdminAllowedTable = (typeof ADMIN_ALLOWED_TABLES)[number];
 // Table mapping for Drizzle operations
 const tableMap = {
   raw_events: rawEvents,
-  interactions: interactions,
+  interactions,
   ai_insights: aiInsights,
-  embeddings: embeddings,
+  embeddings,
 } as const;
 
 // Type mappings for insert/select operations with proper Drizzle constraint
@@ -65,28 +65,32 @@ export const drizzleAdminGuard = {
 
       const result = await db
         .insert(drizzleTable)
-        .values((valuesArray as unknown) as any[])
+        .values(valuesArray as never)
         .returning();
 
-      log.info(
-        {
+      await logger.info("admin_insert_success", {
+        operation: "db_query",
+        additionalData: {
           op: "drizzle_admin_insert",
           table,
           recordCount: result.length,
         },
-        "admin_insert_success",
-      );
+      });
 
       return result as Array<AdminSelectRow<T>>;
     } catch (error) {
-      log.warn(
-        {
-          op: "drizzle_admin_insert",
-          table,
-          error: error instanceof Error ? error.message : String(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
-        },
+      await logger.warn(
         "admin_insert_failed",
+        {
+          operation: "db_query",
+          additionalData: {
+            op: "drizzle_admin_insert",
+            table,
+            error: error instanceof Error ? error.message : String(error),
+            errorStack: error instanceof Error ? error.stack : undefined,
+          },
+        },
+        error instanceof Error ? error : undefined,
       );
       throw new Error(
         `admin_insert_failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -115,31 +119,35 @@ export const drizzleAdminGuard = {
       // Use onConflictDoNothing to gracefully handle duplicates
       const result = await db
         .insert(drizzleTable)
-        .values((valuesArray as unknown) as any[])
+        .values(valuesArray as never)
         .onConflictDoNothing()
         .returning();
 
-      log.info(
-        {
+      await logger.info("admin_upsert_success", {
+        operation: "db_query",
+        additionalData: {
           op: "drizzle_admin_upsert",
           table,
           inputCount: valuesArray.length,
           insertedCount: result.length,
           skippedCount: valuesArray.length - result.length,
         },
-        "admin_upsert_success",
-      );
+      });
 
       return result as Array<AdminSelectRow<T>>;
     } catch (error) {
-      log.warn(
-        {
-          op: "drizzle_admin_upsert",
-          table,
-          error: error instanceof Error ? error.message : String(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
-        },
+      await logger.warn(
         "admin_upsert_failed",
+        {
+          operation: "db_query",
+          additionalData: {
+            op: "drizzle_admin_upsert",
+            table,
+            error: error instanceof Error ? error.message : String(error),
+            errorStack: error instanceof Error ? error.stack : undefined,
+          },
+        },
+        error instanceof Error ? error : undefined,
       );
       throw new Error(
         `admin_upsert_failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -177,8 +185,9 @@ export const drizzleAdminGuard = {
         }
       }
 
-      log.info(
-        {
+      await logger.info("admin_batch_insert_success", {
+        operation: "db_query",
+        additionalData: {
           op: "drizzle_admin_batch_insert",
           table,
           totalInputs: values.length,
@@ -186,20 +195,23 @@ export const drizzleAdminGuard = {
           batchSize,
           batchCount: Math.ceil(values.length / batchSize),
         },
-        "admin_batch_insert_success",
-      );
+      });
 
       return results;
     } catch (error) {
-      log.warn(
-        {
-          op: "drizzle_admin_batch_insert",
-          table,
-          error: error instanceof Error ? error.message : String(error),
-          processedSoFar: results.length,
-          totalInputs: values.length,
-        },
+      await logger.warn(
         "admin_batch_insert_failed",
+        {
+          operation: "db_query",
+          additionalData: {
+            op: "drizzle_admin_batch_insert",
+            table,
+            error: error instanceof Error ? error.message : String(error),
+            processedSoFar: results.length,
+            totalInputs: values.length,
+          },
+        },
+        error instanceof Error ? error : undefined,
       );
       throw error;
     }

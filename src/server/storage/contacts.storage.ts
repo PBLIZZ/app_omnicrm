@@ -29,6 +29,7 @@ export class ContactsStorage {
         primaryEmail: contacts.primaryEmail,
         primaryPhone: contacts.primaryPhone,
         source: contacts.source,
+        slug: contacts.slug,
         stage: contacts.stage,
         tags: contacts.tags,
         confidenceScore: contacts.confidenceScore,

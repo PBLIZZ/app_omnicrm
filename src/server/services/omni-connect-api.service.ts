@@ -1,4 +1,4 @@
-import { fetchGet, fetchPost, buildUrl } from "@/lib/api";
+import { apiClient } from "@/lib/api/client";
 import {
   GmailStats,
   JobStatus,
@@ -6,6 +6,15 @@ import {
   SearchResult,
   Insights,
 } from "../../app/(authorisedRoute)/omni-connect/_components/omni-connect-types";
+
+/**
+ * OmniConnect API Service with integrated rate limiting
+ *
+ * All Google API operations (Gmail and Calendar) triggered through this service
+ * are automatically rate-limited at the server level via withRateLimit wrapper
+ * in the underlying Google API services. This ensures compliance with Google API
+ * quotas and prevents rate limit errors during sync and data processing operations.
+ */
 
 // Type definitions for API responses
 interface SyncPreviewResponse {
@@ -50,22 +59,25 @@ interface InsightsResponse {
 }
 
 export class OmniConnectApiService {
+  /**
+   * Fetch Gmail statistics with rate-limited Google API calls
+   */
   static async fetchGmailStats(): Promise<GmailStats> {
     // Get sync status using the API utility
-    const syncData = await fetchGet<SyncStatusResponse>("/api/settings/sync/status", {
+    const syncData = await apiClient.get<SyncStatusResponse>("/api/settings/sync/status", {
       showErrorToast: false,
     });
 
     // Get raw events count for emails processed
-    const eventsUrl = buildUrl("/api/google/gmail/raw-events", {
+    const eventsUrl = apiClient.buildUrl("/api/google/gmail/raw-events", {
       provider: "gmail",
       pageSize: 1,
     });
-    const eventsData = await fetchGet<RawEventsResponse>(eventsUrl, { showErrorToast: false });
+    const eventsData = await apiClient.get<RawEventsResponse>(eventsUrl, { showErrorToast: false });
     const emailsProcessed = eventsData.total || 0;
 
     // Get contacts suggestions for suggested contacts count
-    const contactsData = await fetchPost<ContactSuggestionsResponse>(
+    const contactsData = await apiClient.post<ContactSuggestionsResponse>(
       "/api/contacts-new/suggestions",
       {},
       { showErrorToast: false },
@@ -84,7 +96,7 @@ export class OmniConnectApiService {
 
   static async syncGmail(): Promise<{ message: string }> {
     // First preview the sync
-    const preview = await fetchPost<SyncPreviewResponse>("/api/sync/preview/gmail", {});
+    const preview = await apiClient.post<SyncPreviewResponse>("/api/sync/preview/gmail", {});
 
     // Calculate total emails from countByLabel
     const totalEmails = Object.values(preview?.countByLabel ?? {}).reduce(
@@ -109,17 +121,19 @@ export class OmniConnectApiService {
     }
 
     // Proceed with sync
-    const result = await fetchPost<SyncApproveResponse>("/api/sync/approve/gmail", {});
-    return { message: result.message || "Gmail sync approved and processing started" };
+    const result = await apiClient.post<SyncApproveResponse>("/api/sync/approve/gmail", {});
+    return { message: result.message ?? "Gmail sync approved and processing started" };
   }
 
   static async generateEmbeddings(): Promise<{ message: string }> {
-    const data = await fetchPost<EmbeddingsResponse>("/api/gmail/embed", { regenerate: false });
-    return { message: data.message || "Embeddings generated successfully" };
+    const data = await apiClient.post<EmbeddingsResponse>("/api/gmail/embed", {
+      regenerate: false,
+    });
+    return { message: data.message ?? "Embeddings generated successfully" };
   }
 
   static async searchGmail(query: string, limit: number = 5): Promise<SearchResult[]> {
-    const data = await fetchPost<SearchResponse>("/api/gmail/search", {
+    const data = await apiClient.post<SearchResponse>("/api/gmail/search", {
       query,
       limit,
     });
@@ -127,16 +141,16 @@ export class OmniConnectApiService {
   }
 
   static async loadInsights(): Promise<Insights | null> {
-    const data = await fetchGet<InsightsResponse>("/api/gmail/insights");
+    const data = await apiClient.get<InsightsResponse>("/api/gmail/insights");
     return data.insights;
   }
 
   static async fetchJobStatus(): Promise<JobStatus> {
-    return await fetchGet<JobStatus>("/api/jobs/status");
+    return await apiClient.get<JobStatus>("/api/jobs/status");
   }
 
   static async fetchRecentEmails(): Promise<EmailPreview[]> {
-    const data = await fetchPost<SyncPreviewResponse>("/api/sync/preview/gmail", {});
+    const data = await apiClient.post<SyncPreviewResponse>("/api/sync/preview/gmail", {});
 
     // Extract sample subjects from the preview data
     if (

@@ -1,4 +1,5 @@
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 // Environment-based configuration
 const PRIMARY_KEY = process.env["OPENROUTER_API_KEY"];
@@ -34,13 +35,15 @@ export class ApiKeyRotator {
     const allKeys = [PRIMARY_KEY, ...BACKUP_KEYS].filter((key): key is string => Boolean(key));
 
     if (allKeys.length === 0) {
-      log.warn(
-        {
-          op: "key_rotation.no_keys",
-          message: "No OpenRouter API keys configured",
-        },
-        "API key rotation disabled - no keys available",
-      );
+      void logger
+        .warn("API key rotation disabled - no keys available", {
+          operation: "key_rotation",
+          additionalData: {
+            op: "key_rotation.no_keys",
+            message: "No OpenRouter API keys configured",
+          },
+        })
+        .catch(console.error);
     }
 
     this.state = {
@@ -75,20 +78,22 @@ export class ApiKeyRotator {
     // Find first healthy backup key
     for (const [key, status] of this.state.keyStatuses) {
       if (status.isHealthy && key !== this.state.currentKey) {
-        this.rotateToKey(key);
+        void this.rotateToKey(key).catch(console.error);
         return key;
       }
     }
 
     // No healthy keys found - return current key and log error
-    log.error(
-      {
-        op: "key_rotation.no_healthy_keys",
-        currentKey: this.maskKey(this.state.currentKey),
-        availableKeys: Array.from(this.state.keyStatuses.keys()).map((k) => this.maskKey(k)),
-      },
-      "No healthy API keys available - using current key",
-    );
+    void logger
+      .error("No healthy API keys available - using current key", {
+        operation: "key_rotation",
+        additionalData: {
+          op: "key_rotation.no_healthy_keys",
+          currentKey: this.maskKey(this.state.currentKey),
+          availableKeys: Array.from(this.state.keyStatuses.keys()).map((k) => this.maskKey(k)),
+        },
+      })
+      .catch(console.error);
 
     return this.state.currentKey;
   }
@@ -123,16 +128,16 @@ export class ApiKeyRotator {
 
       this.state.keyStatuses.set(key, status);
 
-      log.info(
-        {
+      await logger.info("API key health check completed", {
+        operation: "key_rotation",
+        additionalData: {
           op: "key_rotation.health_check",
           keyMasked: this.maskKey(key),
           isHealthy,
           responseTimeMs,
           errorMessage: status.errorMessage,
         },
-        "API key health check completed",
-      );
+      });
 
       return status;
     } catch (error) {
@@ -149,15 +154,15 @@ export class ApiKeyRotator {
 
       this.state.keyStatuses.set(key, status);
 
-      log.warn(
-        {
+      await logger.warn("API key health check failed", {
+        operation: "key_rotation",
+        additionalData: {
           op: "key_rotation.health_check_failed",
           keyMasked: this.maskKey(key),
           error: errorMessage,
           responseTimeMs,
         },
-        "API key health check failed",
-      );
+      });
 
       return status;
     }
@@ -178,15 +183,15 @@ export class ApiKeyRotator {
   /**
    * Force rotation to a specific key
    */
-  public rotateToKey(newKey: string): boolean {
+  public async rotateToKey(newKey: string): Promise<boolean> {
     if (!this.state.keyStatuses.has(newKey)) {
-      log.error(
-        {
+      await logger.error("Attempted to rotate to unknown API key", {
+        operation: "key_rotation",
+        additionalData: {
           op: "key_rotation.invalid_key",
           keyMasked: this.maskKey(newKey),
         },
-        "Attempted to rotate to unknown API key",
-      );
+      });
       return false;
     }
 
@@ -194,15 +199,15 @@ export class ApiKeyRotator {
     this.state.currentKey = newKey;
     this.state.rotationCount++;
 
-    log.info(
-      {
+    await logger.info("API key rotation completed", {
+      operation: "key_rotation",
+      additionalData: {
         op: "key_rotation.rotated",
         previousKeyMasked: this.maskKey(previousKey),
         newKeyMasked: this.maskKey(newKey),
         rotationCount: this.state.rotationCount,
       },
-      "API key rotation completed",
-    );
+    });
 
     return true;
   }
@@ -248,46 +253,54 @@ export class ApiKeyRotator {
           // Find first healthy key to rotate to
           for (const [key, status] of this.state.keyStatuses) {
             if (status.isHealthy && key !== this.state.currentKey) {
-              this.rotateToKey(key);
+              await this.rotateToKey(key);
               break;
             }
           }
         }
       } catch (error) {
-        log.error(
-          {
-            op: "key_rotation.timer_error",
-            error: error instanceof Error ? error.message : String(error),
-          },
-          "Error in API key rotation timer",
-        );
+        void logger
+          .error(
+            "Error in API key rotation timer",
+            {
+              operation: "key_rotation",
+              additionalData: {
+                op: "key_rotation.timer_error",
+                error: error instanceof Error ? error.message : String(error),
+              },
+            },
+            error instanceof Error ? error : undefined,
+          )
+          .catch(console.error);
       }
     }, ROTATION_CHECK_INTERVAL);
 
-    log.info(
-      {
-        op: "key_rotation.timer_started",
-        intervalMinutes: ROTATION_CHECK_INTERVAL / (60 * 1000),
-        availableKeys: Array.from(this.state.keyStatuses.keys()).map((k) => this.maskKey(k)),
-      },
-      "API key rotation timer started",
-    );
+    void logger
+      .info("API key rotation timer started", {
+        operation: "key_rotation",
+        additionalData: {
+          op: "key_rotation.timer_started",
+          intervalMinutes: ROTATION_CHECK_INTERVAL / (60 * 1000),
+          availableKeys: Array.from(this.state.keyStatuses.keys()).map((k) => this.maskKey(k)),
+        },
+      })
+      .catch(console.error);
   }
 
   /**
    * Stop automatic health checking
    */
-  public stop(): void {
+  public async stop(): Promise<void> {
     if (this.rotationTimer) {
       clearInterval(this.rotationTimer);
       this.rotationTimer = null;
 
-      log.info(
-        {
+      await logger.info("API key rotation timer stopped", {
+        operation: "key_rotation",
+        additionalData: {
           op: "key_rotation.stopped",
         },
-        "API key rotation timer stopped",
-      );
+      });
     }
   }
 
@@ -337,7 +350,7 @@ export async function withKeyRotation<T>(apiCall: (apiKey: string) => Promise<T>
     const currentKey = rotator.getCurrentKey();
     return await apiCall(currentKey);
   } catch (error) {
-    lastError = error instanceof Error ? error : new Error(String(error));
+    lastError = ensureError(error);
 
     // If it's an auth error (401/403), mark current key as unhealthy
     if (
@@ -362,10 +375,10 @@ export async function withKeyRotation<T>(apiCall: (apiKey: string) => Promise<T>
 
     if (actualKey) {
       try {
-        rotator.rotateToKey(actualKey);
+        await rotator.rotateToKey(actualKey);
         return await apiCall(actualKey);
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = ensureError(error);
         continue;
       }
     }

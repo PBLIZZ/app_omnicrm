@@ -1,5 +1,5 @@
 import type { JobRecord, JobKind, JobHandler } from "./types";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 
 // Import all job processors
 import { runCalendarSync, runGmailSync } from "./processors/sync";
@@ -7,6 +7,7 @@ import { runNormalizeGoogleEmail, runNormalizeGoogleEvent } from "./processors/n
 import { runEmbed } from "./processors/embed";
 import { runInsight } from "./processors/insight";
 import { runExtractContacts } from "./processors/extract-contacts";
+import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * JobDispatcher handles routing jobs to their appropriate processors.
@@ -46,39 +47,39 @@ export class JobDispatcher {
       throw new Error(`No handler registered for job kind: ${job.kind}`);
     }
 
-    log.info(
-      {
-        op: "job_dispatcher.dispatch",
+    await logger.info(`Dispatching job ${job.kind}`, {
+      operation: "job_dispatch",
+      additionalData: {
         jobId: job.id,
         jobKind: job.kind,
         userId: job.userId,
         attempts: job.attempts,
       },
-      `Dispatching job ${job.kind}`,
-    );
+    });
 
     try {
       await handler(job);
 
-      log.info(
-        {
-          op: "job_dispatcher.dispatch_success",
+      await logger.info(`Successfully processed job ${job.kind}`, {
+        operation: "job_complete",
+        additionalData: {
           jobId: job.id,
           jobKind: job.kind,
           userId: job.userId,
         },
-        `Successfully processed job ${job.kind}`,
-      );
+      });
     } catch (error) {
-      log.error(
-        {
-          op: "job_dispatcher.dispatch_error",
-          jobId: job.id,
-          jobKind: job.kind,
-          userId: job.userId,
-          error: error instanceof Error ? error.message : String(error),
-        },
+      await logger.error(
         `Failed to process job ${job.kind}`,
+        {
+          operation: "job_failed",
+          additionalData: {
+            jobId: job.id,
+            jobKind: job.kind,
+            userId: job.userId,
+          },
+        },
+        ensureError(error),
       );
       throw error;
     }
@@ -87,15 +88,14 @@ export class JobDispatcher {
   /**
    * Register a new job handler (for extensibility)
    */
-  static registerHandler<K extends JobKind>(kind: K, handler: JobHandler<K>): void {
+  static async registerHandler<K extends JobKind>(kind: K, handler: JobHandler<K>): Promise<void> {
     this.handlers[kind] = handler as JobHandler;
-    log.info(
-      {
-        op: "job_dispatcher.register_handler",
+    await logger.info(`Registered handler for job kind: ${kind}`, {
+      operation: "job_register",
+      additionalData: {
         jobKind: kind,
       },
-      `Registered handler for job kind: ${kind}`,
-    );
+    });
   }
 
   /**

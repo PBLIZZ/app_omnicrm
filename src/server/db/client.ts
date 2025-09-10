@@ -1,8 +1,8 @@
 // src/server/db/client.ts
-import postgres from 'postgres';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import * as schema from './schema';
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import * as schema from "./schema";
 
 let dbInstance: PostgresJsDatabase<typeof schema> | null = null;
 let dbInitPromise: Promise<PostgresJsDatabase<typeof schema>> | null = null;
@@ -30,7 +30,7 @@ export function __setDbDriversForTest(overrides: TestOverrides): void {
 /**
  * Postgres.js configuration optimized for Supabase Transaction mode
  */
-function getPostgresConfig(databaseUrl: string): {
+function getPostgresConfig(): {
   prepare: boolean;
   max: number;
   idle_timeout: number;
@@ -66,14 +66,14 @@ export async function getDb(): Promise<PostgresJsDatabase<typeof schema>> {
   dbInitPromise = (async (): Promise<PostgresJsDatabase<typeof schema>> => {
     const postgresFn = testOverrides.postgresFn ?? postgres;
     const drizzleFn = testOverrides.drizzleFn ?? drizzle;
-    
-    const config = getPostgresConfig(databaseUrl);
+
+    const config = getPostgresConfig();
     const sql = postgresFn(databaseUrl, config);
     sqlInstance = sql;
-    
+
     // Test the connection
     await sql`SELECT 1`;
-    
+
     const instance = drizzleFn(sql, { schema });
     dbInstance = instance;
     return instance;
@@ -95,20 +95,23 @@ export async function getDb(): Promise<PostgresJsDatabase<typeof schema>> {
  * A lightweight proxy that defers method calls to the lazily initialized db.
  * Example: await db.execute(sql`select 1`)
  */
-export const db: PostgresJsDatabase<typeof schema> = new Proxy({} as PostgresJsDatabase<typeof schema>, {
-  get(_target, propertyKey: string | symbol) {
-    return (...args: unknown[]) =>
-      getDb().then((resolvedDb: PostgresJsDatabase<typeof schema>) => {
-        // Safe member access on resolved database instance
-        const memberRecord = resolvedDb as unknown as Record<string | symbol, unknown>;
-        const member = memberRecord[propertyKey];
-        if (typeof member === "function") {
-          return (member as (...args: unknown[]) => unknown).apply(resolvedDb, args);
-        }
-        return member;
-      });
+export const db: PostgresJsDatabase<typeof schema> = new Proxy(
+  {} as PostgresJsDatabase<typeof schema>,
+  {
+    get(_target, propertyKey: string | symbol) {
+      return (...args: unknown[]) =>
+        getDb().then((resolvedDb: PostgresJsDatabase<typeof schema>) => {
+          // Safe member access on resolved database instance
+          const memberRecord = resolvedDb as unknown as Record<string | symbol, unknown>;
+          const member = memberRecord[propertyKey];
+          if (typeof member === "function") {
+            return (member as (...args: unknown[]) => unknown).apply(resolvedDb, args);
+          }
+          return member;
+        });
+    },
   },
-});
+);
 
 /**
  * Get the underlying SQL instance for advanced operations

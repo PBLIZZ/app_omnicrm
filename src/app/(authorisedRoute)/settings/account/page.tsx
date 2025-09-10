@@ -28,7 +28,7 @@ import { AccountDataManagement } from "../_components/AccountDataManagement";
 const MIN_PASSWORD_LENGTH = 6;
 const ROUTES = {
   LogIn: "/log-in",
-  dashboard: "/dashboard",
+  dashboard: "/omni-flow",
 };
 
 // Message state management with useReducer

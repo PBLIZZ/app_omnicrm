@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import "@/lib/env"; // fail-fast env validation at edge import
-import { hmacSign, hmacVerify, randomNonce } from "@/lib/crypto-edge";
+import "@/server/lib/env"; // fail-fast env validation at edge import
+import { hmacSign, hmacVerify, randomNonce } from "@/server/utils/crypto-edge";
 
 // Configurable limits (env or sane defaults)
 const MAX_JSON_BYTES = Number(process.env["API_MAX_JSON_BYTES"] ?? 1_000_000); // 1MB
@@ -25,6 +25,13 @@ function allowRequest(key: string): boolean {
 }
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
+  // Handle /contacts -> /omni-clients redirect
+  if (req.nextUrl.pathname.startsWith("/contacts")) {
+    const newPathname = req.nextUrl.pathname.replace("/contacts", "/omni-clients");
+    const redirectUrl = new URL(newPathname + req.nextUrl.search, req.url);
+    return NextResponse.redirect(redirectUrl);
+  }
+
   // Generate a per-request nonce and forward it to the app via request headers
   const forwardHeaders = new Headers(req.headers);
   const cspNonce = randomNonce(18);

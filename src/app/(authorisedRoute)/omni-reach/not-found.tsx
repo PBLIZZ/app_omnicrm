@@ -30,7 +30,7 @@ export default function MarketingNotFound(): JSX.Element {
         </Button>
 
         <Button asChild variant="outline" className="min-w-[140px]">
-          <Link href="/dashboard">
+          <Link href="/omni-flow">
             <Home className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Link>
@@ -49,7 +49,7 @@ export default function MarketingNotFound(): JSX.Element {
         </Button>
 
         <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-          <Link href="/dashboard">
+          <Link href="/omni-flow">
             <Plus className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Link>

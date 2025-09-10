@@ -38,7 +38,7 @@ export function OmniConnectRecentEmails({
             </div>
           ) : recentEmails.length > 0 ? (
             recentEmails.map((email, index) => (
-              <div key={email.id || index} className="border rounded-lg p-3 space-y-2">
+              <div key={email.id ?? index} className="border rounded-lg p-3 space-y-2">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{email.subject}</p>

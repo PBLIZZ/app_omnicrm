@@ -293,7 +293,7 @@ export class CalendarBusinessIntelligence {
     const appointmentsByDay = weekEvents.reduce(
       (acc, event) => {
         const dayName = format(new Date(event.startTime), "EEEE");
-        acc[dayName] = (acc[dayName] || 0) + 1;
+        acc[dayName] = (acc[dayName] ?? 0) + 1;
         return acc;
       },
       {} as Record<string, number>,
@@ -356,7 +356,10 @@ export class CalendarBusinessIntelligence {
   /**
    * Get upcoming priority events (next N events)
    */
-  getUpcomingPriorityEvents(events: CalendarEvent[], limit: number = 5): BusinessIntelligenceEvent[] {
+  getUpcomingPriorityEvents(
+    events: CalendarEvent[],
+    limit: number = 5,
+  ): BusinessIntelligenceEvent[] {
     const now = new Date();
     const upcomingEvents = events
       .filter((event) => new Date(event.startTime) >= now)

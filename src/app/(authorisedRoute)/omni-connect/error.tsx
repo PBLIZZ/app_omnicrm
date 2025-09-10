@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, MessageSquare, RefreshCw, Wifi } from "lucide-react";
+import { AlertTriangle, MessageSquare, Wifi, RefreshCw } from "lucide-react";
+import { logger } from "@/lib/observability";
 
 export default function MessagesError({
   error,
@@ -12,7 +13,18 @@ export default function MessagesError({
   reset: () => void;
 }): JSX.Element {
   useEffect(() => {
-    console.error("Messages route error:", error);
+    void logger.error(
+      "omni_connect_route_error",
+      {
+        operation: "route_error",
+        additionalData: {
+          component: "OmniConnectErrorBoundary",
+          errorMessage: error.message,
+          errorStack: error.stack?.split("\n")[0],
+        },
+      },
+      error,
+    );
   }, [error]);
 
   return (
@@ -57,7 +69,7 @@ export default function MessagesError({
 
         <Button
           variant="outline"
-          onClick={() => (window.location.href = "/dashboard")}
+          onClick={() => (window.location.href = "/omni-flow")}
           className="min-w-[120px]"
         >
           Go to Dashboard

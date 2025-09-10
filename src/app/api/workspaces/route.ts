@@ -1,8 +1,9 @@
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { momentumStorage } from "@/server/storage/momentum.storage";
 import { z } from "zod";
+import { ensureError } from "@/lib/utils/error-handler";
 
 const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
@@ -11,49 +12,39 @@ const CreateWorkspaceSchema = z.object({
   isDefault: z.boolean().default(false),
 });
 
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "workspaces_list" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("workspaces_list", requestId);
 
   try {
     const workspaces = await momentumStorage.getMomentumWorkspaces(userId);
-    return ok({ workspaces });
+    return api.success({ workspaces });
   } catch (error) {
-    console.error("Error fetching workspaces:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to fetch workspaces", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function POST(req: Request): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = CreateWorkspaceSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "workspaces_create" },
+  validation: {
+    body: CreateWorkspaceSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("workspaces_create", requestId);
 
   try {
     const workspace = await momentumStorage.createMomentumWorkspace(userId, {
-      name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      color: parsed.data.color,
-      isDefault: parsed.data.isDefault,
+      name: validated.body.name,
+      description: validated.body.description ?? null,
+      color: validated.body.color,
+      isDefault: validated.body.isDefault,
     });
-    return ok({ workspace });
+
+    return api.success({ workspace });
   } catch (error) {
-    console.error("Error creating workspace:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to create workspace", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

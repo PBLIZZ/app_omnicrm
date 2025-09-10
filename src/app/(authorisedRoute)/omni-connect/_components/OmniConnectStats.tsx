@@ -102,7 +102,7 @@ export function OmniConnectStats({
                   return (
                     <div className="space-y-1">
                       {jobs!.slice(0, 3).map((job, index) => (
-                        <div key={job.id || index} className="flex justify-between text-xs">
+                        <div key={job.id ?? index} className="flex justify-between text-xs">
                           <span className="truncate">{job.kind ?? "Unknown"}</span>
                           <Badge
                             variant={

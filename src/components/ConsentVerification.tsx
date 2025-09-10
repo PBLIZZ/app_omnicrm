@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { updateUserConsent } from "@/lib/api/consent";
+import { updateUserConsent } from "@/lib/services/client/settings.service";
 import { useToast } from "@/hooks/use-toast";
 
 interface UserProfile {
@@ -17,7 +16,7 @@ interface ConsentVerificationProps {
   profile: UserProfile;
 }
 
-const ConsentVerification: React.FC<ConsentVerificationProps> = ({ profile }) => {
+const ConsentVerification = ({ profile }: ConsentVerificationProps): JSX.Element => {
   const { toast } = useToast();
 
   if (!profile) {
@@ -28,7 +27,7 @@ const ConsentVerification: React.FC<ConsentVerificationProps> = ({ profile }) =>
     );
   }
 
-  const hasConsent = profile.allowProfilePictureScraping || false;
+  const hasConsent = profile.allowProfilePictureScraping ?? false;
 
   const handleGrantConsent = async (): Promise<void> => {
     try {

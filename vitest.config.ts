@@ -19,6 +19,9 @@ export default defineConfig({
     globals: true,
     exclude: ["**/node_modules/**", "**/e2e/**", "**/*.spec.ts"],
     include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+    env: {
+      NODE_ENV: "test",
+    },
     envDir: ".",
   },
 });

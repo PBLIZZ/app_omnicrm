@@ -1,10 +1,17 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
- import { Check, Clock, X, BrainCircuit } from "lucide-react";
+import { Check, Clock, X, BrainCircuit } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface AiTaskPanelProps {
@@ -12,64 +19,65 @@ interface AiTaskPanelProps {
 }
 
 export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
-  const [activeTab, setActiveTab] = React.useState('pending');
-  
+  const [activeTab, setActiveTab] = useState("pending");
+
   // Mock AI tasks data (would come from the API in a real implementation)
   const aiTasks = [
     {
-      id: '1',
-      title: 'Follow up with Jane Smith',
-      description: 'Client has not responded to last 3 emails. Consider a phone call to re-engage.',
-      status: 'pending',
-      priority: 'high',
+      id: "1",
+      title: "Follow up with Jane Smith",
+      description: "Client has not responded to last 3 emails. Consider a phone call to re-engage.",
+      status: "pending",
+      priority: "high",
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
     },
     {
-      id: '2',
-      title: 'Schedule quarterly review with John Doe',
-      description: 'Client is due for quarterly wellness check-in to assess progress on goals.',
-      status: 'pending',
-      priority: 'medium',
+      id: "2",
+      title: "Schedule quarterly review with John Doe",
+      description: "Client is due for quarterly wellness check-in to assess progress on goals.",
+      status: "pending",
+      priority: "medium",
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
     },
     {
-      id: '3',
-      title: 'Create personalized meal plan for Sarah Johnson',
-      description: 'Based on recent session notes, client needs updated nutrition guidance.',
-      status: 'approved',
-      priority: 'medium',
+      id: "3",
+      title: "Create personalized meal plan for Sarah Johnson",
+      description: "Based on recent session notes, client needs updated nutrition guidance.",
+      status: "approved",
+      priority: "medium",
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
     },
     {
-      id: '4',
-      title: 'Send workshop invitation to at-risk clients',
-      description: 'Identify clients with low engagement and invite them to upcoming stress management workshop.',
-      status: 'rejected',
-      priority: 'low',
+      id: "4",
+      title: "Send workshop invitation to at-risk clients",
+      description:
+        "Identify clients with low engagement and invite them to upcoming stress management workshop.",
+      status: "rejected",
+      priority: "low",
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), // 3 days ago
     },
     {
-      id: '5',
-      title: 'Update client progress report for Michael Brown',
-      description: 'Client has reached several milestones. Update progress report and share achievements.',
-      status: 'approved',
-      priority: 'high',
+      id: "5",
+      title: "Update client progress report for Michael Brown",
+      description:
+        "Client has reached several milestones. Update progress report and share achievements.",
+      status: "approved",
+      priority: "high",
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString(), // 4 days ago
     },
   ];
-  
+
   // Task metrics (mocked for visual-only mode)
   const data = {
     totalActions: aiTasks.length,
-    pendingActions: aiTasks.filter(task => task.status === 'pending').length,
-    approvedActions: aiTasks.filter(task => task.status === 'approved').length,
-    rejectedActions: aiTasks.filter(task => task.status === 'rejected').length,
+    pendingActions: aiTasks.filter((task) => task.status === "pending").length,
+    approvedActions: aiTasks.filter((task) => task.status === "approved").length,
+    rejectedActions: aiTasks.filter((task) => task.status === "rejected").length,
   };
 
-  
   // Filter tasks based on active tab
-  const filteredTasks = aiTasks.filter(task => {
-    if (activeTab === 'all') return true;
+  const filteredTasks = aiTasks.filter((task) => {
+    if (activeTab === "all") return true;
     return task.status === activeTab;
   });
 
@@ -79,24 +87,36 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    
+
     if (diffHours < 24) {
-      return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+      return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
     } else {
       const diffDays = Math.floor(diffHours / 24);
-      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+      return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
     }
   };
 
   // Get status badge
   const getStatusBadge = (status: string): JSX.Element => {
     switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Pending</Badge>;
-      case 'approved':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
+      case "pending":
+        return (
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+            Pending
+          </Badge>
+        );
+      case "approved":
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            Approved
+          </Badge>
+        );
+      case "rejected":
+        return (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+            Rejected
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -105,11 +125,11 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
   // Get priority badge
   const getPriorityBadge = (priority: string): JSX.Element => {
     switch (priority) {
-      case 'high':
+      case "high":
         return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">High</Badge>;
-      case 'medium':
+      case "medium":
         return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Medium</Badge>;
-      case 'low':
+      case "low":
         return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">Low</Badge>;
       default:
         return <Badge>{priority}</Badge>;
@@ -134,7 +154,7 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
             <TabsTrigger value="approved">Approved</TabsTrigger>
             <TabsTrigger value="all">All Tasks</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value={activeTab} className="mt-4">
             {filteredTasks.length > 0 ? (
               <div className="space-y-4">
@@ -155,7 +175,7 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
                         <Clock className="h-3 w-3 mr-1" />
                         {formatDate(task.createdAt)}
                       </div>
-                      {task.status === 'pending' && (
+                      {task.status === "pending" && (
                         <div className="flex items-center space-x-2">
                           <Button size="sm" variant="outline" className="h-8 px-2 text-red-600">
                             <X className="h-4 w-4 mr-1" />
@@ -174,13 +194,15 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <BrainCircuit className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">No {activeTab !== 'all' ? activeTab : ''} tasks found</h3>
+                <h3 className="text-lg font-medium">
+                  No {activeTab !== "all" ? activeTab : ""} tasks found
+                </h3>
                 <p className="text-muted-foreground mt-1">
-                  {activeTab === 'pending' 
-                    ? 'No pending tasks requiring your approval.' 
-                    : activeTab === 'approved' 
-                      ? 'No approved tasks yet.' 
-                      : 'No AI tasks available.'}
+                  {activeTab === "pending"
+                    ? "No pending tasks requiring your approval."
+                    : activeTab === "approved"
+                      ? "No approved tasks yet."
+                      : "No AI tasks available."}
                 </p>
               </div>
             )}
@@ -189,7 +211,7 @@ export function AiTaskPanel({ className }: AiTaskPanelProps): JSX.Element {
       </CardContent>
       <CardFooter className="flex justify-between">
         <div className="text-sm text-muted-foreground">
-          {data?.totalActions || 0} total AI tasks
+          {data?.totalActions ?? 0} total AI tasks
         </div>
         <Button variant="outline" size="sm">
           View All Tasks

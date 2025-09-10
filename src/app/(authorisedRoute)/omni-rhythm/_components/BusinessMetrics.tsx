@@ -18,7 +18,7 @@ export function BusinessMetrics({
   busiestDay,
   utilizationRate,
   clientRetention,
-}: BusinessMetricsProps) {
+}: BusinessMetricsProps): JSX.Element {
   const isHighPerforming = totalSessions > 20;
   const hasGoodUtilization = utilizationRate > 60;
   const hasStrongRetention = clientRetention > 80;

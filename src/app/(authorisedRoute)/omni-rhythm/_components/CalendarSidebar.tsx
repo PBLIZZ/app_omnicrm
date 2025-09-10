@@ -31,7 +31,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
 
 // Mock data for calendar sources
 const calendarSources = [

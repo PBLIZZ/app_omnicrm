@@ -80,7 +80,7 @@ export default function ResetPasswordPage(): JSX.Element {
     setIsSubmitting(true);
     try {
       const { error } = await getSupabaseBrowser().auth.updateUser({
-        password: password,
+        password,
       });
 
       if (error) {

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui";
 import { AlertTriangle } from "lucide-react";
+import { logger } from "@/lib/observability";
 
 export default function Error({
   error,
@@ -12,7 +13,18 @@ export default function Error({
   reset: () => void;
 }): JSX.Element {
   useEffect(() => {
-    console.error("Route error:", error);
+    void logger.error(
+      "Route error occurred",
+      {
+        operation: "omni_reach_error_boundary",
+        additionalData: {
+          digest: error.digest,
+          errorName: error.name,
+          errorMessage: error.message,
+        },
+      },
+      error,
+    );
   }, [error]);
 
   return (

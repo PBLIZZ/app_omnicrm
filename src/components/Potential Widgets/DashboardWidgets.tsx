@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 
 /**
  * DashboardWidgets component displays a grid of widgets on the dashboard.
  * It combines all the individual widget components into a responsive layout.
  */
-export function DashboardWidgets() {
+export function DashboardWidgets(): JSX.Element {
   return (
     <div className="space-y-6">
       {/* Top Row - 3 equal widgets */}

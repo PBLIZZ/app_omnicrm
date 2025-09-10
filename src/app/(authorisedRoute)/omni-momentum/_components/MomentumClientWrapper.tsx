@@ -30,32 +30,23 @@ import { MomentumListView } from "./momentum-list-view";
 import { MomentumKanbanView } from "./momentum-kanban-view";
 import { CreateMomentumDialog } from "./create-momentum-dialog";
 import { ApprovalQueue } from "./approval-queue";
+import type { Momentum, MomentumWorkspace, MomentumProject } from "@/server/db/schema";
 
-// Type definitions
-interface Workspace {
-  id: string;
-  name: string;
+// Type definitions for API responses - using proper database schema types
+type Workspace = MomentumWorkspace;
+type Project = MomentumProject;
+
+// Specific API response interfaces for better type safety
+interface WorkspacesApiResponse {
+  workspaces: Workspace[];
 }
 
-interface Project {
-  id: string;
-  name: string;
-  workspaceId?: string;
+interface ProjectsApiResponse {
+  projects: Project[];
 }
 
-interface Momentum {
-  id: string;
-  title: string;
-  description?: string;
-  status: string;
-  source?: string;
-  assignee?: string;
-  workspaceId?: string;
-  projectId?: string;
-}
-
-interface ApiResponse<T> {
-  [key: string]: T[];
+interface MomentumsApiResponse {
+  momentums: Momentum[];
 }
 
 export default function MomentumClientWrapper(): JSX.Element {
@@ -71,24 +62,24 @@ export default function MomentumClientWrapper(): JSX.Element {
   // Fetch workspaces
   const { data: workspacesData } = useQuery({
     queryKey: ["/api/workspaces"],
-    queryFn: async (): Promise<ApiResponse<Workspace>> => {
+    queryFn: async (): Promise<WorkspacesApiResponse> => {
       const response = await fetch("/api/workspaces");
       if (!response.ok) throw new Error("Failed to fetch workspaces");
-      return response.json() as Promise<ApiResponse<Workspace>>;
+      return response.json() as Promise<WorkspacesApiResponse>;
     },
   });
 
   // Fetch projects (filtered by workspace)
   const { data: projectsData } = useQuery({
     queryKey: ["/api/projects", selectedWorkspace !== "all" ? selectedWorkspace : undefined],
-    queryFn: async (): Promise<ApiResponse<Project>> => {
+    queryFn: async (): Promise<ProjectsApiResponse> => {
       const url =
         selectedWorkspace !== "all"
           ? `/api/projects?workspaceId=${selectedWorkspace}`
           : "/api/projects";
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch projects");
-      return response.json() as Promise<ApiResponse<Project>>;
+      return response.json() as Promise<ProjectsApiResponse>;
     },
     enabled: selectedWorkspace !== "all",
   });
@@ -105,7 +96,7 @@ export default function MomentumClientWrapper(): JSX.Element {
         withContacts: true,
       },
     ],
-    queryFn: async (): Promise<ApiResponse<Momentum>> => {
+    queryFn: async (): Promise<MomentumsApiResponse> => {
       const params = new URLSearchParams();
       if (selectedWorkspace !== "all") params.append("workspaceId", selectedWorkspace);
       if (selectedProject !== "all") params.append("projectId", selectedProject);
@@ -115,17 +106,17 @@ export default function MomentumClientWrapper(): JSX.Element {
 
       const response = await fetch(`/api/omni-momentum?${params}`);
       if (!response.ok) throw new Error("Failed to fetch momentums");
-      return response.json() as Promise<ApiResponse<Momentum>>;
+      return response.json() as Promise<MomentumsApiResponse>;
     },
   });
 
   // Fetch pending approval momentums
   const { data: pendingMomentumsData } = useQuery({
     queryKey: ["/api/omni-momentum/pending-approval"],
-    queryFn: async (): Promise<ApiResponse<Momentum>> => {
+    queryFn: async (): Promise<MomentumsApiResponse> => {
       const response = await fetch("/api/omni-momentum/pending-approval");
       if (!response.ok) throw new Error("Failed to fetch pending momentums");
-      return response.json() as Promise<ApiResponse<Momentum>>;
+      return response.json() as Promise<MomentumsApiResponse>;
     },
   });
 

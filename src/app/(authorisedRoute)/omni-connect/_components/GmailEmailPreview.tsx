@@ -38,7 +38,7 @@ export function GmailEmailPreview({
             </div>
           ) : emails.length > 0 ? (
             emails.map((email, index) => (
-              <div key={email.id || index} className="border rounded-lg p-3 space-y-2">
+              <div key={email.id ?? index} className="border rounded-lg p-3 space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">

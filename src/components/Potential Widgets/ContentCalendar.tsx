@@ -14,7 +14,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 
-export function ContentCalendar() {
+export function ContentCalendar(): JSX.Element {
   const [contentTitle, setContentTitle] = useState("");
 
   return (

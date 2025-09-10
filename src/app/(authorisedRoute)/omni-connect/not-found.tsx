@@ -28,7 +28,7 @@ export default function MessagesNotFound(): JSX.Element {
         </Button>
 
         <Button asChild variant="outline" className="min-w-[140px]">
-          <Link href="/dashboard">
+          <Link href="/omni-flow">
             <Home className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Link>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
+import { logger } from "@/lib/observability";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Settings, Save, X, Plus, Info } from "lucide-react";
+import { ensureError } from "@/lib/utils/error-handler";
 
 interface GmailSettings {
   gmailQuery: string;
@@ -67,14 +69,32 @@ export function GmailSettingsPanel({
         }
       }
     } catch (error) {
-      console.error("Error loading Gmail settings:", error);
+      await logger.error(
+        "gmail_settings_load_failed",
+        {
+          operation: "load_gmail_settings",
+          additionalData: { component: "GmailSettingsPanel" },
+        },
+        ensureError(error),
+      );
     }
   }, [settings, setSettings]);
 
   useEffect(() => {
     if (isOpen) {
       loadSettings().catch((error) => {
-        console.error("Failed to load Gmail settings:", error);
+        logger
+          .error(
+            "gmail_settings_load_failed_on_open",
+            {
+              operation: "load_gmail_settings_on_open",
+              additionalData: { component: "GmailSettingsPanel" },
+            },
+            ensureError(error),
+          )
+          .catch(() => {
+            // Failed to log error - ignore silently to avoid cascading errors
+          });
       });
     }
   }, [isOpen, loadSettings]);
@@ -93,14 +113,28 @@ export function GmailSettingsPanel({
       });
 
       if (response.ok) {
-        toast.success("Gmail settings saved successfully");
+        toast({
+          title: "Success",
+          description: "Gmail settings saved successfully",
+        });
         onClose();
       } else {
         throw new Error("Failed to save settings");
       }
     } catch (error) {
-      console.error("Error saving Gmail settings:", error);
-      toast.error("Failed to save Gmail settings");
+      await logger.error(
+        "gmail_settings_save_failed",
+        {
+          operation: "save_gmail_settings",
+          additionalData: { component: "GmailSettingsPanel" },
+        },
+        ensureError(error),
+      );
+      toast({
+        title: "Error",
+        description: "Failed to save Gmail settings",
+        variant: "destructive",
+      });
     } finally {
       setIsSaving(false);
     }

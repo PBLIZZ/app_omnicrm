@@ -17,7 +17,7 @@ import {
   ArrowUp,
   ArrowDown,
   Sparkles,
-  PenTool,
+  NotebookPen,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -36,29 +36,27 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Contact } from "@/server/db/schema";
 import { formatDistanceToNow } from "date-fns";
-import { NotesHoverCard } from "@/app/(authorisedRoute)/contacts/_components/NotesHoverCard";
-import { ContactAIInsightsDialog } from "@/app/(authorisedRoute)/contacts/_components/ContactAIInsightsDialog";
-import { ContactEmailDialog } from "@/app/(authorisedRoute)/contacts/_components/ContactEmailDialog";
-import { ContactNoteSuggestionsDialog } from "@/app/(authorisedRoute)/contacts/_components/ContactNoteSuggestionsDialog";
+import { NotesHoverCard } from "./NotesHoverCard";
+import Link from "next/link";
+import { ClientAIInsightsDialog } from "./ClientAIInsightsDialog";
+import { ClientEmailDialog } from "./ClientEmailDialog";
+import { NoteComposerPopover } from "./NoteComposerPopover";
 import {
-  useAskAIAboutContact,
-  useGenerateEmailSuggestion,
-  useGenerateNoteSuggestions,
-  useCreateContactNote,
-  ContactAIInsightResponse,
-  ContactEmailSuggestion,
-  ContactNoteSuggestion,
-} from "@/hooks/use-contact-ai-actions";
-import { useDeleteContact } from "@/hooks/use-contact-delete";
+  useAskAIAboutOmniClient,
+  useGenerateOmniClientEmailSuggestion,
+  useCreateOmniClientNote,
+  useDeleteOmniClient,
+} from "@/hooks/use-omni-clients-bridge";
+import {
+  type ClientAIInsightsResponse,
+  type ClientEmailSuggestion,
+} from "@/lib/validation/schemas/omniClients";
+import { ClientWithNotes } from "@/hooks/use-omni-clients";
 import { toast } from "sonner";
 
-export interface ContactWithNotes extends Contact {
-  notesCount?: number;
-  lastNote?: string;
-  interactions?: number;
-}
+// Export ClientWithNotes for components
+export type { ClientWithNotes };
 
 // Helper function to generate initials from display name
 function getInitials(displayName: string): string {
@@ -72,26 +70,23 @@ function getInitials(displayName: string): string {
 }
 
 // AI Action Icons Component
-function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Element {
+function ClientAIActions({ client }: { client: ClientWithNotes }): JSX.Element {
   const [aiInsightsOpen, setAiInsightsOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [addNoteDialogOpen, setAddNoteDialogOpen] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState("");
 
-  const [aiInsights, setAiInsights] = useState<ContactAIInsightResponse | null>(null);
-  const [emailSuggestion, setEmailSuggestion] = useState<ContactEmailSuggestion | null>(null);
-  const [noteSuggestions, setNoteSuggestions] = useState<ContactNoteSuggestion[] | null>(null);
+  const [aiInsights, setAiInsights] = useState<ClientAIInsightsResponse | null>(null);
+  const [emailSuggestion, setEmailSuggestion] = useState<ClientEmailSuggestion | null>(null);
 
-  const askAIMutation = useAskAIAboutContact();
-  const generateEmailMutation = useGenerateEmailSuggestion();
-  const generateNotesMutation = useGenerateNoteSuggestions();
-  const createNoteMutation = useCreateContactNote();
+  const askAIMutation = useAskAIAboutOmniClient();
+  const generateEmailMutation = useGenerateOmniClientEmailSuggestion();
+  const createNoteMutation = useCreateOmniClientNote();
 
   const handleAskAI = async (): Promise<void> => {
     try {
       setAiInsightsOpen(true);
-      const insights = await askAIMutation.mutateAsync(contact.id);
+      const insights = await askAIMutation.mutateAsync(client.id);
       setAiInsights(insights);
     } catch {
       // Error handled by mutation
@@ -100,31 +95,20 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
   };
 
   const handleSendEmail = async (): Promise<void> => {
-    if (!contact.primaryEmail) {
-      toast.error("This contact has no email address");
+    if (!client.primaryEmail) {
+      toast.error("This client has no email address");
       return;
     }
 
     try {
       setEmailDialogOpen(true);
       const suggestion = await generateEmailMutation.mutateAsync({
-        contactId: contact.id,
+        contactId: client.id,
       });
       setEmailSuggestion(suggestion);
     } catch {
       // Error handled by mutation
       setEmailDialogOpen(false);
-    }
-  };
-
-  const handleTakeNote = async (): Promise<void> => {
-    try {
-      setNoteDialogOpen(true);
-      const suggestions = await generateNotesMutation.mutateAsync(contact.id);
-      setNoteSuggestions(suggestions);
-    } catch {
-      // Error handled by mutation
-      setNoteDialogOpen(false);
     }
   };
 
@@ -136,7 +120,7 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
 
     try {
       await createNoteMutation.mutateAsync({
-        contactId: contact.id,
+        contactId: client.id,
         content: newNoteContent.trim(),
       });
       setAddNoteDialogOpen(false);
@@ -155,14 +139,14 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
             size="sm"
             className="h-7 w-7 p-0 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950 dark:hover:text-violet-300"
             onClick={handleAskAI}
-            data-testid={`ask-ai-${contact.id}`}
+            data-testid={`ask-ai-${client.id}`}
           >
             <Sparkles className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
             <span className="sr-only">Ask AI</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Ask AI about this contact</p>
+          <p>Ask AI about this client</p>
         </TooltipContent>
       </Tooltip>
 
@@ -173,70 +157,62 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
             size="sm"
             className="h-7 w-7 p-0 hover:bg-sky-50 hover:text-sky-600 dark:hover:bg-sky-950 dark:hover:text-sky-300"
             onClick={handleSendEmail}
-            data-testid={`send-email-${contact.id}`}
-            disabled={!contact.primaryEmail}
+            data-testid={`send-email-${client.id}`}
+            disabled={!client.primaryEmail}
           >
             <Mail className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
             <span className="sr-only">Send Email</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{contact.primaryEmail ? "Send email" : "No email address"}</p>
+          <p>{client.primaryEmail ? "Send email" : "No email address"}</p>
         </TooltipContent>
       </Tooltip>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-950 dark:hover:text-teal-300"
-            onClick={handleTakeNote}
-            data-testid={`take-note-${contact.id}`}
-          >
-            <PenTool className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
-            <span className="sr-only">Take Note</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Take a note</p>
-        </TooltipContent>
-      </Tooltip>
+      <NoteComposerPopover clientId={client.id} clientName={client.displayName}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-950 dark:hover:text-teal-300"
+              data-testid={`take-note-${client.id}`}
+            >
+              <NotebookPen className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+              <span className="sr-only">Take Note</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Take a note</p>
+          </TooltipContent>
+        </Tooltip>
+      </NoteComposerPopover>
 
       {/* AI Dialogs */}
-      <ContactAIInsightsDialog
+      <ClientAIInsightsDialog
         open={aiInsightsOpen}
         onOpenChange={setAiInsightsOpen}
         insights={aiInsights}
         isLoading={askAIMutation.isPending}
-        contactName={contact.displayName}
+        clientName={client.displayName}
       />
 
-      <ContactEmailDialog
+      <ClientEmailDialog
         open={emailDialogOpen}
         onOpenChange={setEmailDialogOpen}
         emailSuggestion={emailSuggestion}
         isLoading={generateEmailMutation.isPending}
-        contactName={contact.displayName}
-        contactEmail={contact.primaryEmail}
-      />
-
-      <ContactNoteSuggestionsDialog
-        open={noteDialogOpen}
-        onOpenChange={setNoteDialogOpen}
-        suggestions={noteSuggestions}
-        isLoading={generateNotesMutation.isPending}
-        contactId={contact.id}
-        contactName={contact.displayName}
+        clientName={client.displayName}
+        clientEmail={client.primaryEmail ?? undefined}
       />
 
       {/* Add Note Dialog */}
       <Dialog open={addNoteDialogOpen} onOpenChange={setAddNoteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add Note to {contact.displayName}</DialogTitle>
+            <DialogTitle>Add Note to {client.displayName}</DialogTitle>
             <DialogDescription>
-              Add a new note to track interactions or observations about this contact.
+              Add a new note to track interactions or observations about this client.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -274,21 +250,21 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
   );
 }
 
-export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
+export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
   {
     id: "select",
     header: ({ table }) => (
       <Checkbox
         checked={table.getIsAllPageRowsSelected()}
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all contacts"
+        aria-label="Select all clients"
       />
     ),
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select contact"
+        aria-label="Select client"
       />
     ),
     enableSorting: false,
@@ -299,14 +275,14 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     id: "avatar",
     header: "",
     cell: ({ row }) => {
-      const contact = row.original;
-      const initials = getInitials(contact.displayName);
+      const client = row.original;
+      const initials = getInitials(client.displayName);
 
       return (
-        <Avatar className="size-8" data-testid={`contact-avatar-${contact.id}`}>
+        <Avatar className="size-8" data-testid={`client-avatar-${client.id}`}>
           <AvatarImage
-            src={`/api/contacts/${contact.id}/avatar`}
-            alt={`${contact.displayName} avatar`}
+            src={`/api/omni-clients/${client.id}/avatar`}
+            alt={`${client.displayName} avatar`}
           />
           <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-blue-100 to-purple-100 text-blue-700 dark:from-blue-900 dark:to-purple-900 dark:text-blue-300">
             {initials}
@@ -337,16 +313,25 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
       );
     },
     cell: ({ row }) => {
+      const client = row.original;
       const name = row.getValue("displayName") as string;
-      return <span className="font-medium">{name}</span>;
+      const href = client.slug ? `/omni-clients/${client.slug}` : `/omni-clients/${client.id}`;
+      return (
+        <Link
+          href={href}
+          className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+        >
+          {name}
+        </Link>
+      );
     },
   },
   {
     id: "aiActions",
     header: "Actions",
     cell: ({ row }) => {
-      const contact = row.original;
-      return <ContactAIActions contact={contact} />;
+      const client = row.original;
+      return <ClientAIActions client={client} />;
     },
     size: 140,
   },
@@ -375,21 +360,28 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     },
   },
   {
-    accessorKey: "notesCount",
+    accessorKey: "lastNote",
     header: "Notes",
     cell: ({ row }) => {
-      const count = (row.getValue("notesCount") as number) || 0;
       const lastNote = row.original.lastNote;
-      const contact = row.original;
+      const client = row.original;
 
       return (
-        <NotesHoverCard
-          contactId={contact.id}
-          contactName={contact.displayName}
-          notesCount={count}
-          lastNote={lastNote}
-          data-testid={`notes-hover-card-${contact.id}`}
-        />
+        <div className="max-w-[48ch] min-w-0">
+          <NotesHoverCard
+            clientId={client.id}
+            clientName={client.displayName}
+            data-testid={`notes-hover-card-${client.id}`}
+          >
+            <div className="line-clamp-2 text-sm text-muted-foreground leading-tight overflow-hidden text-ellipsis">
+              {lastNote ? (
+                <span className="whitespace-pre-wrap">{lastNote}</span>
+              ) : (
+                <span className="italic text-muted-foreground/60">No notes yet</span>
+              )}
+            </div>
+          </NotesHoverCard>
+        </div>
       );
     },
   },
@@ -513,7 +505,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
   },
   {
     accessorKey: "stage",
-    header: "Stage",
+    header: "Wellness Stage",
     cell: ({ row }) => {
       const stage = row.getValue("stage") as string;
       const getStageColor = (stage: string): string => {
@@ -539,26 +531,6 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
         <Badge className={`text-xs ${getStageColor(stage)}`}>{stage}</Badge>
       ) : (
         <span className="text-muted-foreground italic text-sm">No stage</span>
-      );
-    },
-  },
-  {
-    accessorKey: "notes",
-    header: "AI Insights",
-    cell: ({ row }) => {
-      const notes = row.getValue("notes") as string;
-      const confidence = row.original.confidenceScore;
-      return notes ? (
-        <div className="max-w-60">
-          <span className="text-sm text-muted-foreground truncate block">{notes}</span>
-          {confidence && (
-            <span className="text-xs text-muted-foreground">
-              Confidence: {Math.round(parseFloat(confidence) * 100)}%
-            </span>
-          )}
-        </div>
-      ) : (
-        <span className="text-muted-foreground italic text-sm">No insights</span>
       );
     },
   },
@@ -606,71 +578,67 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
   {
     id: "actions",
     cell: ({ row }) => {
-      const contact = row.original;
-      return <ContactActionsCell contact={contact} />;
+      const client = row.original;
+      return <ClientActionsCell client={client} />;
     },
   },
 ];
 
-function ContactActionsCell({ contact }: { contact: ContactWithNotes }): JSX.Element {
-  const deleteContact = useDeleteContact();
+function ClientActionsCell({ client }: { client: ClientWithNotes }): JSX.Element {
+  const deleteClient = useDeleteOmniClient();
 
-  const handleEditContact = (contact: ContactWithNotes): void => {
-    toast.info(`Edit contact functionality for ${contact.displayName} - Coming soon!`);
-    // TODO: Open edit contact dialog/form
+  const handleEditClient = (client: ClientWithNotes): void => {
+    toast.info(`Edit client functionality for ${client.displayName} - Coming soon!`);
+    // TODO: Open edit client dialog/form
   };
 
-  const handleDeleteContact = (contact: ContactWithNotes): void => {
+  const handleDeleteClient = (client: ClientWithNotes): void => {
     if (
       confirm(
-        `Are you sure you want to delete ${contact.displayName}? This action cannot be undone.`,
+        `Are you sure you want to delete ${client.displayName}? This action cannot be undone.`,
       )
     ) {
-      deleteContact.mutate(contact.id);
+      deleteClient.mutate(client.id);
     }
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="h-8 w-8 p-0"
-          data-testid={`contact-actions-${contact.id}`}
-        >
+        <Button variant="ghost" className="h-8 w-8 p-0" data-testid={`client-actions-${client.id}`}>
           <MoreHorizontal className="h-4 w-4" />
           <span className="sr-only">Open menu</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem
-          data-testid={`edit-contact-${contact.id}`}
-          onClick={() => handleEditContact(contact)}
+          data-testid={`edit-client-${client.id}`}
+          onClick={() => handleEditClient(client)}
         >
           <Edit className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
-          Edit Contact
+          Edit Client
         </DropdownMenuItem>
         <DropdownMenuItem
-          data-testid={`add-note-${contact.id}`}
+          data-testid={`add-note-${client.id}`}
           onClick={() => {
-            // This should open the add note dialog for this specific contact
-            // Since this is outside the ContactAIActions component, we'll need to implement this differently
+            // This should open the add note dialog for this specific client
+            // Since this is outside the ClientAIActions component, we'll need to implement this differently
             toast.info(
-              `Add note for ${contact.displayName} - Use the note icon in the Actions column`,
+              `Add note for ${client.displayName} - Use the note icon in the Actions column`,
             );
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Note
         </DropdownMenuItem>
-        <DropdownMenuItem data-testid={`view-notes-${contact.id}`}>
+        <DropdownMenuItem data-testid={`view-notes-${client.id}`}>
           <MessageSquare className="h-4 w-4 mr-2" />
           View Notes
         </DropdownMenuItem>
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"
-          data-testid={`delete-contact-${contact.id}`}
-          onClick={() => handleDeleteContact(contact)}
+          data-testid={`delete-client-${client.id}`}
+          onClick={() => handleDeleteClient(client)}
         >
           <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
           Delete

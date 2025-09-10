@@ -1,8 +1,8 @@
-import "@/lib/zod-error-map";
+import "@/lib/validation/zod-error-map";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
-import Providers from "@/components/Providers";
+import RootProviders from "@/components/providers/root-providers";
 import "@/app/globals.css";
 
 const geistSans = Geist({
@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OmniCRM · Omnipotency.ai",
+  title: "OmniCRM by Omnipotency.ai",
   description: "AI-first CRM for wellness solopreneurs",
 };
 
@@ -54,9 +54,9 @@ export default async function RootLayout({
         >
           Skip to main content
         </a>
-        <Providers>
+        <RootProviders>
           <main id="main-content">{children}</main>
-        </Providers>
+        </RootProviders>
       </body>
     </html>
   );

@@ -2,7 +2,18 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, RefreshCw, Link, CheckCircle, BookCheck, Zap, RefreshCcw, Play, AlertCircle, Unlink } from "lucide-react";
+import {
+  Calendar,
+  RefreshCw,
+  Link,
+  CheckCircle,
+  BookCheck,
+  Zap,
+  RefreshCcw,
+  Play,
+  AlertCircle,
+  Unlink,
+} from "lucide-react";
 import { format } from "date-fns";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -40,7 +51,7 @@ export function CalendarConnectionCard({
   onProcessJobs,
   onGenerateEmbeddings,
   onLoadInsights,
-}: CalendarConnectionCardProps) {
+}: CalendarConnectionCardProps): JSX.Element {
   if (!isConnected) {
     return (
       <Card>
@@ -127,7 +138,7 @@ export function CalendarConnectionCard({
               <span
                 className={`text-sm font-medium ${isSyncing ? "text-blue-600" : "text-green-600"}`}
               >
-                {syncStatus || (isSyncing ? "Syncing..." : "Ready")}
+                {syncStatus ?? (isSyncing ? "Syncing..." : "Ready")}
               </span>
             </div>
           </div>
@@ -147,13 +158,13 @@ export function CalendarConnectionCard({
         </div>
 
         {/* Error Alert */}
-        {error && (error.includes('authentication expired') || error.includes('invalid_grant')) && (
+        {error && (error.includes("authentication expired") ?? error.includes("invalid_grant")) && (
           <Alert className="mt-4" variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
               <span>Authentication error</span>
               <Button
-                onClick={onReconnect || onConnect}
+                onClick={onReconnect ?? onConnect}
                 size="sm"
                 variant="outline"
                 className="ml-2"
@@ -213,7 +224,7 @@ export function CalendarConnectionCard({
 
             {/* Always show reconnect button in connected state */}
             <Button
-              onClick={onReconnect || onConnect}
+              onClick={onReconnect ?? onConnect}
               variant="outline"
               className="w-full justify-start"
             >

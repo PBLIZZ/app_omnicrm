@@ -3,10 +3,10 @@ import { redirect } from "next/navigation";
 import { getServerUserId } from "@/server/auth/user";
 
 export const metadata: Metadata = {
-  title: "Contacts · OmniCRM",
+  title: "OmniClients · OmniCRM",
 };
 
-export default async function ContactsLayout({
+export default async function OmniClientsLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -14,7 +14,7 @@ export default async function ContactsLayout({
   try {
     await getServerUserId();
   } catch {
-    redirect("/login?next=/contacts");
+    redirect("/login?next=/omni-clients");
   }
   return children;
 }

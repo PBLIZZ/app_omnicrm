@@ -14,9 +14,10 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchContacts, type ContactDTO } from "@/lib/api/contacts";
+import { fetchContacts } from "@/lib/services/client/contacts.service";
+import type { ContactDTO } from "@/lib/validation/schemas/omniClients";
 import MonthlySessionsKpi from "./MonthlySessionsKpi";
-import { getSyncStatus } from "@/lib/api/sync";
+import { getSyncStatus } from "@/lib/services/client/sync.service";
 
 import {
   Alert,

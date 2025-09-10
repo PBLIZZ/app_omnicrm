@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { getSupabaseBrowser } from "@/lib/supabase/browser-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 
 function startOfMonth(d: Date): Date {

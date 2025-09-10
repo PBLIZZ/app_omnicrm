@@ -16,7 +16,7 @@ export function QuickActions({
   onGenerateInsights,
   onSendMessage,
   onViewHistory,
-}: QuickActionsProps) {
+}: QuickActionsProps): JSX.Element {
   const actions = [
     {
       icon: Users,

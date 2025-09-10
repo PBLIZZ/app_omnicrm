@@ -16,7 +16,7 @@ import {
   AlertDescription,
   Checkbox,
 } from "@/components/ui";
-import { buildUrl, fetchGet } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 import { useRouter } from "next/navigation";
 
 interface AccountDeletionDialogProps {
@@ -42,8 +42,8 @@ export function AccountDeletionDialog({
     try {
       setIsExporting(true);
       // Export contacts as a minimal dataset for now
-      const contacts = await fetchGet<{ items: unknown[]; total: number }>(
-        buildUrl("/api/contacts", { page: 1, pageSize: 1000 }),
+      const contacts = await apiClient.get<{ items: unknown[]; total: number }>(
+        apiClient.buildUrl("/api/contacts", { page: 1, pageSize: 1000 }),
       );
 
       const payload = {

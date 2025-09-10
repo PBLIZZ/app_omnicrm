@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { fetchPost } from "@/lib/api-client";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Users, Calendar, Eye, CheckCircle, Clock, User, Paperclip } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Mail, Calendar, Paperclip, CheckCircle, Eye, Users, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { apiClient } from "@/lib/api/client";
+import { logger } from "@/lib/observability";
 
 interface EmailPreview {
   id: string;
@@ -60,7 +61,7 @@ export function GmailSyncPreview({
 
   const loadPreview = useCallback(async (): Promise<void> => {
     try {
-      const data = await fetchPost<{
+      const data = await apiClient.post<{
         countByLabel?: Record<string, number>;
         sampleEmails?: unknown[];
         sampleSubjects?: unknown[];
@@ -147,12 +148,16 @@ export function GmailSyncPreview({
           description: `Total ${totalEmails} emails • Showing ${sampleEmails.length} samples`,
         });
       } else {
-        console.error("Invalid preview data format:", data);
-        toast.error("Failed to load Gmail preview");
+        logger.userError("Failed to load Gmail preview", new Error("Invalid Gmail preview data"), {
+          operation: "gmail_sync.preview_load",
+        });
       }
     } catch (error) {
-      console.error("Error loading preview:", error);
-      toast.error("Error loading Gmail preview");
+      logger.userError(
+        "Error loading Gmail preview",
+        error instanceof Error ? error : new Error("Gmail preview load failed"),
+        { operation: "gmail_sync.preview_load" },
+      );
     }
   }, []);
 
@@ -265,7 +270,7 @@ export function GmailSyncPreview({
                             <div className="flex-1">
                               <h4 className="font-medium text-sm">{email.subject}</h4>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                                <User className="h-3 w-3" />
+                                <Users className="h-3 w-3" />
                                 <span>From: {email.from}</span>
                                 <Clock className="h-3 w-3 ml-2" />
                                 <span>{format(new Date(email.date), "MMM d, HH:mm")}</span>

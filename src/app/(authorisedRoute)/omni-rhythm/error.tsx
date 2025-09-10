@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Calendar, RefreshCw } from "lucide-react";
+import { logger } from "@/lib/observability";
 
 export default function CalendarError({
   error,
@@ -12,7 +13,18 @@ export default function CalendarError({
   reset: () => void;
 }): JSX.Element {
   useEffect(() => {
-    console.error("Calendar route error:", error);
+    void logger.error(
+      "Calendar route error occurred",
+      {
+        operation: "omni_rhythm_error_boundary",
+        additionalData: {
+          digest: error.digest,
+          errorName: error.name,
+          errorMessage: error.message,
+        },
+      },
+      error,
+    );
   }, [error]);
 
   return (
@@ -52,7 +64,7 @@ export default function CalendarError({
 
         <Button
           variant="outline"
-          onClick={() => (window.location.href = "/dashboard")}
+          onClick={() => (window.location.href = "/omni-flow")}
           className="min-w-[120px]"
         >
           Go to Dashboard

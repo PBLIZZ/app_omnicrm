@@ -17,7 +17,7 @@ export default function RootProviders({ children }: { children: React.ReactNode 
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000, // 30 seconds
+            staleTime: 5 * 60 * 1000, // 5 minutes
             retry: 1,
           },
         },

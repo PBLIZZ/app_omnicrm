@@ -6,25 +6,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Mail, RefreshCw } from "lucide-react";
 import { GmailSyncPreview } from "./GmailSyncPreview";
+import { logger } from "@/lib/observability";
 
 export function GmailSyncTestCard(): JSX.Element {
   // Single useGmailSync hook instance - this should work correctly
   const { isSyncing, showSyncPreview, setShowSyncPreview, startSync, approveSync } = useGmailSync();
 
   const handleSyncClick = (): void => {
-    console.warn("🔥 TEST: Sync button clicked!");
-    console.warn("🔥 TEST: Current showSyncPreview:", showSyncPreview);
+    void logger.info("Gmail sync test initiated", { operation: "gmail_sync.test_click" });
     startSync();
-    console.warn("🔥 TEST: After startSync(), showSyncPreview should be:", true);
   };
 
   const handleApprove = (): void => {
-    console.warn("🔥 TEST: Modal approve clicked!");
+    void logger.success("Gmail sync approved", "User approved the sync operation");
     approveSync();
   };
 
   const handleClose = (): void => {
-    console.warn("🔥 TEST: Modal close clicked!");
+    void logger.info("Gmail sync modal closed", { operation: "gmail_sync.modal_close" });
     setShowSyncPreview(false);
   };
 

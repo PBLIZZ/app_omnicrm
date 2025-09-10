@@ -61,7 +61,7 @@ export function useStreamingEnrichment(): EnrichmentState & {
     });
 
     try {
-      const response = await fetch("/api/contacts-new/enrich?stream=true", {
+      const response = await fetch("/api/omni-clients/enrich?stream=true", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -162,11 +162,11 @@ export function useStreamingEnrichment(): EnrichmentState & {
                     });
 
                     if (data.errors?.length) {
-                      console.warn("Enrichment errors:", data.errors);
+                      // Errors will be displayed in UI
                     }
 
                     // Invalidate queries to refresh data
-                    void queryClient.invalidateQueries({ queryKey: ["/api/contacts-new"] });
+                    void queryClient.invalidateQueries({ queryKey: ["/api/omni-clients"] });
 
                     return {
                       ...prev,
@@ -181,14 +181,13 @@ export function useStreamingEnrichment(): EnrichmentState & {
                     return prev;
                 }
               });
-            } catch (error) {
-              console.error("Error parsing SSE data:", error);
+            } catch {
+              // Skip malformed SSE data
             }
           }
         }
       }
     } catch (error) {
-      console.error("Streaming enrichment error:", error);
       toast.error("Enrichment Failed", {
         description: error instanceof Error ? error.message : "Unknown error",
       });

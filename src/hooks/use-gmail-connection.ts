@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchGet, buildUrl } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 
 interface GmailConnectionStatus {
   isConnected: boolean;
@@ -38,18 +38,20 @@ export function useGmailConnection(refreshTrigger?: number): {
     queryKey: ["gmail-stats", refreshTrigger],
     queryFn: async (): Promise<GmailStats> => {
       // Get sync status
-      const syncData = await fetchGet<{
+      const syncData = await apiClient.get<{
         lastSync?: { gmail?: string };
         serviceTokens?: { gmail?: boolean };
       }>("/api/settings/sync/status", { showErrorToast: false });
 
       // Get raw events count for emails processed
-      const eventsUrl = buildUrl("/api/google/gmail/raw-events", {
+      const eventsUrl = apiClient.buildUrl("/api/google/gmail/raw-events", {
         provider: "gmail",
         pageSize: 1,
       });
-      const eventsData = await fetchGet<{ total: number }>(eventsUrl, { showErrorToast: false });
-      const emailsProcessed = eventsData.total || 0;
+      const eventsData = await apiClient.get<{ total: number }>(eventsUrl, {
+        showErrorToast: false,
+      });
+      const emailsProcessed = eventsData.total ?? 0;
 
       // Don't fetch suggested contacts - not needed for connection status
       const suggestedContacts = 0;

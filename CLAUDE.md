@@ -39,6 +39,19 @@ Always run these commands before committing:
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
+### Troubleshooting
+
+#### OmniClients Table Column Visibility
+
+If columns are missing from the OmniClients table (especially the Notes column), clear the localStorage cache:
+
+1. Open browser developer tools (F12)
+2. Go to Application tab > Local Storage
+3. Delete the key: `omni-clients-column-visibility`
+4. Refresh the page
+
+The table will reset to default column visibility with Notes column enabled.
+
 ## Architecture Overview
 
 ### Tech Stack

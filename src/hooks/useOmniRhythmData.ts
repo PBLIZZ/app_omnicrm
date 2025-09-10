@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchPost, fetchGet } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 import { CalendarBusinessIntelligence } from "../app/(authorisedRoute)/omni-rhythm/_components/CalendarBusinessIntelligence";
 
 export interface Client {
@@ -104,7 +104,7 @@ export function useOmniRhythmData(): {
     queryKey: ["calendar", "events"],
     queryFn: async (): Promise<CalendarEvent[]> => {
       toast.info("Fetching calendar events...");
-      const response = await fetchGet<{
+      const response = await apiClient.get<{
         events: CalendarEvent[];
         isConnected: boolean;
         totalCount: number;
@@ -145,16 +145,15 @@ export function useOmniRhythmData(): {
     staleTime: 60_000,
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (eventsData) {
       setAllEvents(eventsData);
       toast.info(`Loaded ${eventsData.length} calendar events`);
     }
   }, [eventsData]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isEventsError) {
-      console.error("Failed to fetch calendar events");
       toast.error("Failed to load calendar events", {
         description: "There was an error fetching your calendar data. Please try again.",
       });
@@ -263,7 +262,7 @@ export function useOmniRhythmData(): {
     staleTime: 60_000,
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (clientsData) {
       setClients(clientsData);
       biService.updateClientData(clientsData);
@@ -271,9 +270,8 @@ export function useOmniRhythmData(): {
     }
   }, [clientsData, biService]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isClientsError) {
-      console.error("Failed to fetch clients");
       setClients([]);
       setClientsLoading(false);
     }
@@ -288,26 +286,57 @@ export function useOmniRhythmData(): {
     data: calendarStatus,
     refetch: refetchCalendarStatus,
     isError: isCalendarStatusError,
-  } = useQuery<{ isConnected: boolean; upcomingEventsCount: number }>({
+  } = useQuery<{
+    isConnected: boolean;
+    upcomingEventsCount: number;
+    reason?: string;
+    hasRefreshToken?: boolean;
+  }>({
     queryKey: ["calendar", "status-detailed"],
-    queryFn: async (): Promise<{ isConnected: boolean; upcomingEventsCount: number }> => {
+    queryFn: async (): Promise<{
+      isConnected: boolean;
+      upcomingEventsCount: number;
+      reason?: string;
+      hasRefreshToken?: boolean;
+    }> => {
       toast.info("Checking calendar status...");
       const statusResponse = await fetch("/api/calendar/status");
       const statusJson: unknown = await statusResponse.json();
       if (!statusResponse.ok) {
-        return { isConnected: false, upcomingEventsCount: 0 };
+        return { isConnected: false, upcomingEventsCount: 0, reason: "api_error" };
       }
       const isRec = (v: unknown): v is Record<string, unknown> =>
         typeof v === "object" && v !== null;
       if (!isRec(statusJson)) {
-        return { isConnected: false, upcomingEventsCount: 0 };
+        return { isConnected: false, upcomingEventsCount: 0, reason: "invalid_response" };
       }
       if (statusJson["error"]) {
-        return { isConnected: false, upcomingEventsCount: 0 };
+        return { isConnected: false, upcomingEventsCount: 0, reason: "api_error" };
       }
+
       const connected = Boolean(statusJson["isConnected"]);
+      const reason = typeof statusJson["reason"] === "string" ? statusJson["reason"] : undefined;
+      const hasRefreshToken = Boolean(statusJson["hasRefreshToken"]);
+
       if (!connected) {
-        return { isConnected: false, upcomingEventsCount: 0 };
+        // Provide user feedback based on the reason
+        if (reason === "token_expired") {
+          toast.warning("Google Calendar token expired", {
+            description: hasRefreshToken
+              ? "Click 'Refresh Tokens' to renew your connection."
+              : "Please reconnect your Google Calendar.",
+          });
+        } else if (reason === "no_integration") {
+          toast.info("Google Calendar not connected", {
+            description: "Connect your calendar to sync events and get insights.",
+          });
+        }
+        return {
+          isConnected: false,
+          upcomingEventsCount: 0,
+          ...(reason ? { reason } : {}),
+          ...(hasRefreshToken ? { hasRefreshToken } : {}),
+        };
       }
 
       // If connected, get preview data for events count
@@ -319,17 +348,32 @@ export function useOmniRhythmData(): {
             typeof previewJson["upcomingEventsCount"] === "number"
               ? (previewJson["upcomingEventsCount"] as number)
               : 0;
-          return { isConnected: true, upcomingEventsCount: cnt };
+          return {
+            isConnected: true,
+            upcomingEventsCount: cnt,
+            ...(reason ? { reason } : {}),
+            ...(hasRefreshToken ? { hasRefreshToken } : {}),
+          };
         }
-        return { isConnected: true, upcomingEventsCount: 0 };
+        return {
+          isConnected: true,
+          upcomingEventsCount: 0,
+          ...(reason ? { reason } : {}),
+          ...(hasRefreshToken ? { hasRefreshToken } : {}),
+        };
       } catch {
-        return { isConnected: true, upcomingEventsCount: 0 };
+        return {
+          isConnected: true,
+          upcomingEventsCount: 0,
+          ...(reason ? { reason } : {}),
+          ...(hasRefreshToken ? { hasRefreshToken } : {}),
+        };
       }
     },
     staleTime: 15_000,
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (calendarStatus) {
       setIsConnected(calendarStatus.isConnected);
       setStats({
@@ -340,7 +384,7 @@ export function useOmniRhythmData(): {
     }
   }, [calendarStatus]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isCalendarStatusError) {
       setIsConnected(false);
       setStats(null);
@@ -367,7 +411,7 @@ export function useOmniRhythmData(): {
   const refreshTokens = useCallback(async () => {
     try {
       toast.info("Refreshing Google Calendar tokens...");
-      const response = await fetchPost<{ success: boolean; message?: string }>(
+      const response = await apiClient.post<{ success: boolean; message?: string }>(
         "/api/calendar/refresh",
         {},
       );
@@ -382,7 +426,6 @@ export function useOmniRhythmData(): {
         throw new Error(response.message ?? "Failed to refresh tokens");
       }
     } catch (err) {
-      console.error("Token refresh error:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to refresh tokens";
 
       if (
@@ -416,7 +459,7 @@ export function useOmniRhythmData(): {
 
       // Step 1: Initiate sync
       setSyncStatus("Connecting to Google Calendar...");
-      const syncResponse = await fetchPost<{
+      const syncResponse = await apiClient.post<{
         ok?: boolean;
         data?: {
           success?: boolean;
@@ -449,7 +492,7 @@ export function useOmniRhythmData(): {
         await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
 
         try {
-          const statusData = await fetchGet<{
+          const statusData = await apiClient.get<{
             batchId: string;
             status: string;
             summary?: {
@@ -516,8 +559,7 @@ export function useOmniRhythmData(): {
             lastStatus = statusData.status;
             toast.info(`Job status: ${statusData.status}`);
           }
-        } catch (statusError) {
-          console.warn("Failed to check job status:", statusError);
+        } catch {
           // Continue polling even if status check fails
         }
 
@@ -556,7 +598,6 @@ export function useOmniRhythmData(): {
         throw new Error("Sync timeout - the process is taking longer than expected");
       }
     } catch (err) {
-      console.error("❌ Error during sync:", err);
       setSyncStatus("Sync Failed");
       const errorMessage = err instanceof Error ? err.message : "An error occurred during sync";
       setError(errorMessage);
@@ -573,7 +614,7 @@ export function useOmniRhythmData(): {
   }, [fetchClients, fetchAllEvents, checkCalendarStatus]);
 
   // Initialize
-  React.useEffect(() => {
+  useEffect(() => {
     // Check for OAuth errors in URL params
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
@@ -581,7 +622,6 @@ export function useOmniRhythmData(): {
       const connected = urlParams.get("connected");
 
       if (error) {
-        console.error("OAuth error:", error);
         toast.error("Failed to connect Google Calendar", {
           description:
             error === "invalid_state"

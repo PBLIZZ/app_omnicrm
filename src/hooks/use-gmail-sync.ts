@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchPost } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 
 interface SyncPreviewData {
   countByLabel?: Record<string, number>;
@@ -38,7 +38,7 @@ export function useGmailSync(): UseGmailSyncReturn {
   const syncMutation = useMutation({
     mutationFn: async (): Promise<{ message: string }> => {
       // First preview the sync
-      const preview: SyncPreviewData = await fetchPost("/api/sync/preview/gmail", {});
+      const preview: SyncPreviewData = await apiClient.post("/api/sync/preview/gmail", {});
 
       // Calculate total emails from countByLabel
       const totalEmails = Object.values(preview?.countByLabel ?? {}).reduce(
@@ -61,7 +61,7 @@ export function useGmailSync(): UseGmailSyncReturn {
       }
 
       // Proceed with sync
-      const result = await fetchPost<{ message?: string }>("/api/sync/approve/gmail", {});
+      const result = await apiClient.post<{ message?: string }>("/api/sync/approve/gmail", {});
       return { message: result.message ?? "Gmail sync approved and processing started" };
     },
     onSuccess: (data) => {
@@ -79,7 +79,6 @@ export function useGmailSync(): UseGmailSyncReturn {
       if (error.message === "Sync cancelled by user") {
         return; // Don't show error for user cancellation
       }
-      console.error("Error syncing Gmail:", error);
       toast.error("Failed to sync Gmail");
     },
   });
@@ -87,17 +86,18 @@ export function useGmailSync(): UseGmailSyncReturn {
   // Generate embeddings mutation
   const embeddingsMutation = useMutation({
     mutationFn: async () => {
-      const data = await fetchPost<{ message: string }>("/api/gmail/embed", { regenerate: false });
+      const data = await apiClient.post<{ message: string }>("/api/gmail/embed", {
+        regenerate: false,
+      });
       return data;
     },
     onMutate: () => {
       setIsEmbedding(true);
     },
     onSuccess: (data) => {
-      toast.success(data.message || "Embeddings generated successfully");
+      toast.success(data.message ?? "Embeddings generated successfully");
     },
-    onError: (error) => {
-      console.error("Error generating embeddings:", error);
+    onError: () => {
       toast.error("Network error during embedding generation");
     },
     onSettled: () => {
@@ -108,7 +108,7 @@ export function useGmailSync(): UseGmailSyncReturn {
   // Process contacts mutation
   const processContactsMutation = useMutation({
     mutationFn: async () => {
-      const data = await fetchPost<{ message?: string }>("/api/gmail/process-contacts", {});
+      const data = await apiClient.post<{ message?: string }>("/api/gmail/process-contacts", {});
       return { message: data.message ?? "Contacts processed successfully" };
     },
     onMutate: () => {
@@ -121,8 +121,7 @@ export function useGmailSync(): UseGmailSyncReturn {
       void queryClient.invalidateQueries({ queryKey: ["gmail-emails"] });
       void queryClient.invalidateQueries({ queryKey: ["job-status"] });
     },
-    onError: (error: Error) => {
-      console.error("Contact processing error:", error);
+    onError: () => {
       toast.error("Failed to process contacts");
     },
     onSettled: () => {

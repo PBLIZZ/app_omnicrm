@@ -11,7 +11,7 @@ import { Menu, Home, Users, CheckSquare, Calendar, MessageSquare, BarChart } fro
 import { cn } from "@/lib/utils/cn";
 
 const mainNavItems = [
-  { title: "Dashboard", href: "/dashboard", icon: Home },
+  { title: "Dashboard", href: "/omni-flow", icon: Home },
   { title: "Contacts", href: "/contacts", icon: Users },
   { title: "Tasks", href: "/tasks", icon: CheckSquare },
   { title: "Calendar", href: "/calendar", icon: Calendar },

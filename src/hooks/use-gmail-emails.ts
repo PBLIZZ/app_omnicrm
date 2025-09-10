@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchPost } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 
 interface EmailPreview {
   id: string;
@@ -57,7 +57,7 @@ export function useGmailEmails(
   } = useQuery({
     queryKey: ["gmail-emails", refreshTrigger],
     queryFn: async (): Promise<{ emails: EmailPreview[]; previewRange: PreviewRange | null }> => {
-      const data = await fetchPost<GmailPreviewResponse>("/api/sync/preview/gmail", {});
+      const data = await apiClient.post<GmailPreviewResponse>("/api/sync/preview/gmail", {});
 
       let emails: EmailPreview[] = [];
       let previewRange: PreviewRange | null = null;

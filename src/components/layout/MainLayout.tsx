@@ -18,8 +18,8 @@ import { DynamicBreadcrumb } from "./DynamicBreadcrumb";
 import { SidebarBrandHeader } from "./SidebarBrandHeader";
 import { SidebarMainSectionNav } from "./SidebarMainSectionNav";
 import { Button } from "@/components/ui/button";
-import { Bot, Search } from "lucide-react";
-import { SearchModal } from "@/components/SearchModal";
+import { Bot } from "lucide-react";
+// import { SearchModal } from "@/components/SearchModal"; // Temporarily disabled
 import { toast } from "sonner";
 import { useHeaderControls } from "@/hooks/use-header-controls";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -44,9 +44,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     theme,
     setTheme,
     notificationCount,
-    isSearchOpen,
-    setIsSearchOpen,
-    handleSearch,
+    // handleSearch, // Temporarily disabled
   } = useHeaderControls();
   return (
     <SidebarProvider>
@@ -76,7 +74,8 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
             <div className="flex items-center gap-2"></div>
             {/* Right Side - Search, AI, Notifications, User */}
             <div className="flex items-center gap-2">
-              {/* Global Search */}
+              {/* Global Search - Temporarily disabled */}
+              {/* TODO: Implement unified search for clients, tasks, notes, etc.
               <Button
                 variant="outline"
                 size="sm"
@@ -90,10 +89,10 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
                 </kbd>
               </Button>
 
-              {/* Mobile Search */}
               <Button variant="ghost" size="sm" className="md:hidden" onClick={handleSearch}>
                 <Search className="h-5 w-5" />
               </Button>
+              */}
 
               {/* AI Assistant Toggle */}
               <Button
@@ -113,7 +112,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
               {/* Notifications */}
               <NotificationsMenu notificationCount={notificationCount} />
             </div>
-            <SearchModal open={isSearchOpen} onOpenChange={setIsSearchOpen} />
+            {/* <SearchModal open={isSearchOpen} onOpenChange={setIsSearchOpen} /> */}
           </header>
 
           <main className="flex flex-1 flex-col gap-4 p-4 min-h-0">{children}</main>

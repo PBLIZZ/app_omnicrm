@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { fetchPost, fetchPut, fetchDelete } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 import type { Note } from "@/server/db/schema";
 
 interface UseNotesOptions {
@@ -46,11 +46,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   const notesQuery = useQuery({
     queryKey: ["contacts", contactId, "notes"],
     queryFn: async (): Promise<Note[]> => {
-      const response = await fetch(`/api/contacts-new/${contactId}/notes`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch notes");
-      }
-      const data: NotesApiResponse = (await response.json()) as NotesApiResponse;
+      const data = await apiClient.get<NotesApiResponse>(`/api/contacts-new/${contactId}/notes`);
       return data.notes ?? [];
     },
     enabled: !!contactId,
@@ -59,7 +55,10 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   // Create new note
   const createNoteMutation = useMutation({
     mutationFn: async (data: CreateNoteData): Promise<Note> => {
-      const result = await fetchPost<{ note: Note }>(`/api/contacts-new/${contactId}/notes`, data);
+      const result = await apiClient.post<{ note: Note }>(
+        `/api/contacts-new/${contactId}/notes`,
+        data,
+      );
       return result.note;
     },
     onMutate: async (newNote) => {
@@ -116,7 +115,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   // Update existing note
   const updateNoteMutation = useMutation({
     mutationFn: async (data: UpdateNoteData): Promise<void> => {
-      await fetchPut(`/api/contacts-new/${contactId}/notes/${data.noteId}`, {
+      await apiClient.put(`/api/contacts-new/${contactId}/notes/${data.noteId}`, {
         content: data.content,
       });
     },
@@ -159,7 +158,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   // Delete note
   const deleteNoteMutation = useMutation({
     mutationFn: async (data: DeleteNoteData): Promise<void> => {
-      await fetchDelete(`/api/contacts-new/${contactId}/notes/${data.noteId}`);
+      await apiClient.delete(`/api/contacts-new/${contactId}/notes/${data.noteId}`);
     },
     onMutate: async (deletedNote) => {
       await queryClient.cancelQueries({ queryKey: ["contacts", contactId, "notes"] });

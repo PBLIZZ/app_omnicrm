@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchPost, fetchGet } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 
 interface CalendarEvent {
   id: string;
@@ -39,7 +40,7 @@ export function useCalendarIntegration(): {
     clientEngagement?: string[];
   } | null;
   upcomingEventsCount: number;
-  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  setSearchQuery: Dispatch<SetStateAction<string>>;
   connectCalendar: () => Promise<void>;
   syncCalendar: () => Promise<CalendarSyncResponse>;
   generateEmbeddings: () => Promise<{ processedEvents: number }>;
@@ -47,7 +48,7 @@ export function useCalendarIntegration(): {
   loadInsights: () => Promise<void>;
   checkCalendarStatus: () => Promise<{ isConnected: boolean; upcomingEventsCount: number } | null>;
   isFetchingInsights: boolean;
-  setIsConnected: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsConnected: Dispatch<SetStateAction<boolean>>;
 } {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -77,11 +78,10 @@ export function useCalendarIntegration(): {
     setIsSyncing(true);
 
     try {
-      const data = await fetchPost<CalendarSyncResponse>("/api/calendar/sync", {});
+      const data = await apiClient.post<CalendarSyncResponse>("/api/calendar/sync", {});
       toast.success("Calendar synced successfully");
       return data;
     } catch (error) {
-      console.error("Failed to sync calendar:", error);
       toast.error("Failed to sync calendar");
       throw error;
     } finally {
@@ -93,11 +93,10 @@ export function useCalendarIntegration(): {
     setIsEmbedding(true);
 
     try {
-      const data = await fetchPost<{ processedEvents: number }>("/api/calendar/embed", {});
+      const data = await apiClient.post<{ processedEvents: number }>("/api/calendar/embed", {});
       toast.success(`Successfully generated embeddings for ${data.processedEvents} events!`);
       return data;
     } catch (error) {
-      console.error("Failed to generate embeddings:", error);
       toast.error("Network error during embedding generation");
       throw error;
     } finally {
@@ -109,10 +108,13 @@ export function useCalendarIntegration(): {
     if (!searchQuery.trim()) return;
 
     try {
-      const data = await fetchPost<{ results?: CalendarSearchResult[] }>("/api/calendar/search", {
-        query: searchQuery,
-        limit: 5,
-      });
+      const data = await apiClient.post<{ results?: CalendarSearchResult[] }>(
+        "/api/calendar/search",
+        {
+          query: searchQuery,
+          limit: 5,
+        },
+      );
       setSearchResults(data.results ?? []);
     } catch {
       // Search error - silently handle
@@ -132,7 +134,7 @@ export function useCalendarIntegration(): {
   } | null>({
     queryKey: ["calendar", "insights"],
     queryFn: async () => {
-      const data = await fetchGet<{
+      const data = await apiClient.get<{
         insights?: {
           patterns?: string[];
           busyTimes?: string[];
@@ -145,7 +147,7 @@ export function useCalendarIntegration(): {
     staleTime: 60_000, // 1 minute
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     // keep previous API surface stable
     if (insightsData !== undefined) {
       setInsights(insightsData);
@@ -165,7 +167,7 @@ export function useCalendarIntegration(): {
     queryKey: ["calendar", "status"],
     queryFn: async (): Promise<{ isConnected: boolean; upcomingEventsCount: number }> => {
       // First check overall connection status
-      const status = await fetchGet<{ isConnected?: boolean; error?: string }>(
+      const status = await apiClient.get<{ isConnected?: boolean; error?: string }>(
         "/api/calendar/status",
       );
       if (!status.isConnected) {
@@ -174,7 +176,7 @@ export function useCalendarIntegration(): {
 
       // If connected, try to get upcoming events count via preview
       try {
-        const preview = await fetchGet<{ upcomingEventsCount?: number; error?: string }>(
+        const preview = await apiClient.get<{ upcomingEventsCount?: number; error?: string }>(
           "/api/calendar/preview",
         );
         return { isConnected: true, upcomingEventsCount: preview.upcomingEventsCount ?? 0 };
@@ -186,13 +188,13 @@ export function useCalendarIntegration(): {
     refetchOnWindowFocus: false,
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (calendarStatus) {
       setIsConnected(calendarStatus.isConnected);
     }
   }, [calendarStatus]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isStatusError) {
       setIsConnected(false);
     }

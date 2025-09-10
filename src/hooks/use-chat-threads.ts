@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/client";
 
 export interface ChatThread {
   id: string;
@@ -21,12 +22,7 @@ export function useChatThreads(): {
   const { data, isLoading, isFetching, isError, refetch } = useQuery<ChatThread[]>({
     queryKey: ["chat", "threads"],
     queryFn: async (): Promise<ChatThread[]> => {
-      const res = await fetch("/api/chat/threads");
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Failed to load threads: ${res.status} ${text}`);
-      }
-      const json: ThreadsResponse = (await res.json()) as ThreadsResponse;
+      const json = await apiClient.get<ThreadsResponse>("/api/chat/threads");
       return json.threads ?? [];
     },
     staleTime: 30_000,

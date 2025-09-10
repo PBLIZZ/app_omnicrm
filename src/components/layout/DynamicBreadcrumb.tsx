@@ -18,10 +18,10 @@ export function DynamicBreadcrumb(): JSX.Element {
 
   if (!pathname || pathname === "/") {
     return (
-      <Breadcrumb className="">
-        <BreadcrumbList className="">
-          <BreadcrumbItem className="">
-            <BreadcrumbPage className="">Dashboard</BreadcrumbPage>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbPage>Dashboard</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -31,10 +31,10 @@ export function DynamicBreadcrumb(): JSX.Element {
   const segments = pathname.split("/").filter(Boolean);
 
   return (
-    <Breadcrumb className="">
-      <BreadcrumbList className="">
-        <BreadcrumbItem className="">
-          <BreadcrumbLink href="/" className="" asChild={false}>
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink href="/" asChild={false}>
             Home
           </BreadcrumbLink>
         </BreadcrumbItem>
@@ -46,6 +46,8 @@ export function DynamicBreadcrumb(): JSX.Element {
           // Handle specific route patterns
           if (segment === "contacts") {
             label = "Contacts";
+          } else if (segment === "omni-clients") {
+            label = "Omni-Clients";
           } else if (segment === "edit") {
             label = "Edit Contact";
           } else if (segment === "new") {
@@ -57,12 +59,12 @@ export function DynamicBreadcrumb(): JSX.Element {
 
           return (
             <div key={segment} className="flex items-center">
-              <BreadcrumbSeparator className="" />
-              <BreadcrumbItem className="">
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
                 {isLast ? (
-                  <BreadcrumbPage className="">{label}</BreadcrumbPage>
+                  <BreadcrumbPage>{label}</BreadcrumbPage>
                 ) : (
-                  <BreadcrumbLink href={href} className="" asChild={false}>
+                  <BreadcrumbLink href={href} asChild={false}>
                     {label}
                   </BreadcrumbLink>
                 )}

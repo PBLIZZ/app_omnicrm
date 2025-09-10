@@ -12,14 +12,14 @@ import {
 } from "@/components/ui/sidebar";
 import { Home, Users, CheckSquare, Calendar1, Megaphone, Bot, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useContactCount } from "@/hooks/use-contact-count";
 import { useMomentumCount } from "@/hooks/use-momentum-count";
+import { useOmniClientCount } from "@/hooks/use-omni-client-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Only include sections that have a page.tsx under (authorisedRoute), excluding Settings
 const mainNavItems = [
   { title: "OmniFlow", href: "/omni-flow" as const, icon: Home },
-  { title: "Contacts", href: "/contacts" as const, icon: Users },
+  { title: "OmniClients", href: "/omni-clients" as const, icon: Users },
   { title: "OmniMomentum", href: "/omni-momentum" as const, icon: CheckSquare },
   { title: "OmniRhythm", href: "/omni-rhythm" as const, icon: Calendar1 },
   { title: "OmniConnect", href: "/omni-connect" as const, icon: Mail },
@@ -29,8 +29,8 @@ const mainNavItems = [
 
 export function SidebarMainSectionNav(): JSX.Element {
   const pathname = usePathname() ?? "/";
-  const contactCount = useContactCount();
   const momentumCount = useMomentumCount();
+  const omniClientCount = useOmniClientCount();
   const { state } = useSidebar();
 
   return (
@@ -41,8 +41,8 @@ export function SidebarMainSectionNav(): JSX.Element {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
           const count =
-            item.href === "/contacts"
-              ? contactCount
+            item.href === "/omni-clients"
+              ? omniClientCount
               : item.href === "/omni-momentum"
                 ? momentumCount
                 : 0;

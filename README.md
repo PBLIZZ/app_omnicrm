@@ -26,6 +26,7 @@ supabase/    # SQL files (source of truth for DB changes)
 - Docs index: docs/README.md
 - Security overview: SECURITY.md
 - API overview: docs/api/README.md
+- **Error handling & observability**: src/lib/observability/README.md
 - Ops/deploy: docs/ops/README.md
 - Database doctrine: docs/database/README.md
 - Roadmap: docs/roadmap/README.md

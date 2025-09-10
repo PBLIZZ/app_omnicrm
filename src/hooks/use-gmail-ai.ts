@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchPost } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 
 interface SearchResult {
   subject: string;
@@ -45,17 +45,16 @@ export function useGmailAI(): {
   // Search Gmail mutation
   const searchMutation = useMutation({
     mutationFn: async (query: string): Promise<SearchResult[]> => {
-      const data = await fetchPost<{ results: SearchResult[] }>("/api/gmail/search", {
+      const data = await apiClient.post<{ results: SearchResult[] }>("/api/gmail/search", {
         query,
         limit: 5,
       });
-      return data.results || [];
+      return data.results ?? [];
     },
     onSuccess: (results) => {
       setSearchResults(results);
     },
-    onError: (error) => {
-      console.error("Search error:", error);
+    onError: () => {
       toast.error("Search failed");
     },
   });
@@ -69,15 +68,9 @@ export function useGmailAI(): {
   const loadInsights = async (): Promise<void> => {
     setIsLoadingInsights(true);
     try {
-      const response = await fetch("/api/gmail/insights");
-      if (response.ok) {
-        const data: InsightsApiResponse = (await response.json()) as InsightsApiResponse;
-        setInsights(data.insights);
-      } else {
-        toast.error("Failed to load insights");
-      }
-    } catch (error) {
-      console.error("Insights error:", error);
+      const data = await apiClient.get<InsightsApiResponse>("/api/gmail/insights");
+      setInsights(data.insights);
+    } catch {
       toast.error("Failed to load insights");
     } finally {
       setIsLoadingInsights(false);

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchPost, fetchGet } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 
 interface JobStatusResponse {
@@ -44,7 +44,7 @@ export function useGmailJobStatus(
   } = useQuery({
     queryKey: ["job-status", refreshTrigger],
     queryFn: async (): Promise<JobStatus> => {
-      return await fetchGet<JobStatus>("/api/jobs/status");
+      return await apiClient.get<JobStatus>("/api/jobs/status");
     },
     enabled: isConnected,
     refetchInterval: 5000, // Poll every 5 seconds
@@ -55,7 +55,7 @@ export function useGmailJobStatus(
   // Run job processor mutation
   const runJobProcessor = async (): Promise<void> => {
     try {
-      await fetchPost("/api/jobs/runner", {});
+      await apiClient.post("/api/jobs/runner", {});
 
       // Refresh job status after running processor
       await refreshJobStatus();

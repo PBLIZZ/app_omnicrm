@@ -55,8 +55,7 @@ export function useBusinessIntelligence(
   const upcomingEvents = useMemo(() => {
     try {
       return biService.getUpcomingPriorityEvents(appointments, 5);
-    } catch (error) {
-      console.error("useBusinessIntelligence - Error getting upcoming events:", error);
+    } catch {
       return [];
     }
   }, [biService, appointments]);

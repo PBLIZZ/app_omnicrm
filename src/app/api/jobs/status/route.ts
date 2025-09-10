@@ -1,11 +1,10 @@
 /** GET /api/jobs/status — get current job status for polling (auth required). Errors: 401 Unauthorized */
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { jobs, rawEvents } from "@/server/db/schema";
-import { err, ok } from "@/lib/api/http";
-import { log } from "@/lib/log";
-import { toApiError } from "@/server/jobs/types";
+import { logger } from "@/lib/observability";
 
 interface JobStatusResponse {
   id: string;
@@ -24,14 +23,11 @@ interface JobStatusResponse {
   chunksProcessed?: number | undefined;
 }
 
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "jobs_status" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("jobs.status", requestId);
 
   try {
     const dbo = await getDb();
@@ -127,7 +123,7 @@ export async function GET(): Promise<Response> {
       };
     });
 
-    return ok({
+    return api.success({
       jobs: jobStatuses,
       currentBatch,
       totalEmails: totalEmails > 0 ? totalEmails : undefined,
@@ -135,8 +131,11 @@ export async function GET(): Promise<Response> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    log.warn({ op: "jobs.status.error", userId, error: msg });
+    await logger.warn("Job status query error", {
+      operation: "jobs.status.error",
+      additionalData: { userId, error: msg },
+    });
     // Return a safe, empty state so the UI does not break
-    return ok({ jobs: [], currentBatch: null });
+    return api.success({ jobs: [], currentBatch: null });
   }
-}
+});

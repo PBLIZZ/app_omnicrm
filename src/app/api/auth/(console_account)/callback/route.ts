@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { env } from "@/lib/env";
-import { logger } from "@/lib/logger";
+import { env } from "@/server/lib/env";
+import { logger } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -18,44 +18,39 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const isProd = env.NODE_ENV === "production";
     const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-    
-    if (typeof supabaseUrl !== 'string' || typeof supabaseKey !== 'string') {
-      throw new Error('Missing Supabase environment variables');
+
+    if (typeof supabaseUrl !== "string" || typeof supabaseKey !== "string") {
+      throw new Error("Missing Supabase environment variables");
     }
-    
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set(name: string, value: string, options: { [key: string]: unknown }) {
-            res.cookies.set(name, value, { ...options, secure: isProd });
-          },
-          remove(name: string, options: { [key: string]: unknown }) {
-            res.cookies.set(name, "", { ...options, maxAge: 0, secure: isProd });
-          },
+
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(name: string, value: string, options: { [key: string]: unknown }) {
+          res.cookies.set(name, value, { ...options, secure: isProd });
+        },
+        remove(name: string, options: { [key: string]: unknown }) {
+          res.cookies.set(name, "", { ...options, maxAge: 0, secure: isProd });
         },
       },
-    );
+    });
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (env.NODE_ENV !== "production") {
-      logger.debug(
-        "Auth callback completed",
-        {
+      void logger.debug("Auth callback completed", {
+        operation: "auth/callback/GET",
+        additionalData: {
           hasUser: !!data?.user,
           hasError: Boolean(error),
         },
-        "auth/callback/GET",
-      );
+      });
     }
 
     if (error) {
       if (env.NODE_ENV !== "production") {
-        logger.error("OAuth callback error", error, "auth/callback/GET");
+        void logger.error("OAuth callback error", { operation: "auth/callback/GET" }, error);
       }
       return NextResponse.redirect(`${origin}/login?error=oauth_failed`);
     }

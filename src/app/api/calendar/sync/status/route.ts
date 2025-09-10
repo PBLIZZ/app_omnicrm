@@ -1,32 +1,25 @@
-import { NextRequest } from "next/server";
-import { ok, err } from "@/lib/api/http";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { z } from "zod";
 import { getDb } from "@/server/db/client";
 import { jobs, syncAudit } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { ensureError } from "@/lib/utils/error-handler";
 
-// GET: Check the status of a sync job by batchId
-export async function GET(req: NextRequest): Promise<Response> {
-  let userId: string;
+const querySchema = z.object({
+  batchId: z.string(),
+});
+
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "calendar_sync_status" },
+  validation: {
+    query: querySchema,
+  },
+})(async ({ userId, requestId, validated }) => {
+  const api = new ApiResponseBuilder("calendar_sync_status", requestId);
   try {
-    userId = await getServerUserId();
-  } catch (error) {
-    console.error("Calendar sync status GET - auth error:", error);
-    return err(401, "unauthorized", {
-      details: error instanceof Error ? error.message : "Authentication failed",
-    });
-  }
-
-  const url = new URL(req.url);
-  const batchId = url.searchParams.get("batchId");
-
-  if (!batchId) {
-    return err(400, "missing_batch_id", {
-      message: "batchId parameter is required",
-    });
-  }
-
-  try {
+    const { batchId } = validated.query;
     const db = await getDb();
 
     // Get all jobs for this batch
@@ -37,7 +30,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       .orderBy(desc(jobs.createdAt));
 
     if (batchJobs.length === 0) {
-      return ok({
+      return api.success({
         batchId,
         status: "not_found",
         message: "No jobs found for this batch",
@@ -79,7 +72,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       .limit(1);
 
     const latestAudit = auditEntries[0];
-    const auditPayload = latestAudit?.payload as Record<string, unknown>;
+    const auditPayload = latestAudit?.payload as Record<string, unknown> | undefined;
 
     // Get details from individual job types
     const normalizeJob = batchJobs.find((job) => job.kind === "normalize");
@@ -91,15 +84,15 @@ export async function GET(req: NextRequest): Promise<Response> {
 
     if (normalizeJob?.payload) {
       const normalizePayload = normalizeJob.payload as Record<string, unknown>;
-      eventsProcessed = (normalizePayload.eventsNormalized as number) ?? 0;
+      eventsProcessed = (normalizePayload["eventsNormalized"] as number) ?? 0;
     }
 
     if (extractJob?.payload) {
       const extractPayload = extractJob.payload as Record<string, unknown>;
-      timelineEntriesCreated = (extractPayload.timelineEntriesCreated as number) ?? 0;
+      timelineEntriesCreated = (extractPayload["timelineEntriesCreated"] as number) ?? 0;
     }
 
-    return ok({
+    return api.success({
       batchId,
       status: overallStatus,
       jobs: batchJobs.map((job) => ({
@@ -122,18 +115,20 @@ export async function GET(req: NextRequest): Promise<Response> {
       },
       audit: auditPayload
         ? {
-            success: auditPayload.success,
-            timeMin: auditPayload.timeMin,
-            timeMax: auditPayload.timeMax,
-            isFirstSync: auditPayload.isFirstSync,
-            error: auditPayload.error,
+            success: auditPayload["success"],
+            timeMin: auditPayload["timeMin"],
+            timeMax: auditPayload["timeMax"],
+            isFirstSync: auditPayload["isFirstSync"],
+            error: auditPayload["error"],
           }
         : null,
     });
   } catch (error) {
-    console.error("Calendar sync status GET - database error:", error);
-    return err(500, "database_error", {
-      message: error instanceof Error ? error.message : "Failed to fetch job status",
-    });
+    return api.error(
+      "Failed to fetch calendar sync status",
+      "DATABASE_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

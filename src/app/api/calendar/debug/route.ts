@@ -1,12 +1,15 @@
-import { ok, err } from "@/lib/api/http";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
+import { ensureError } from "@/lib/utils/error-handler";
 
-// GET: Debug Google Calendar integration status
-export async function GET(): Promise<Response> {
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "calendar_debug" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("calendar_debug", requestId);
   try {
-    const userId = await getServerUserId();
     const db = await getDb();
 
     // Check for calendar integration
@@ -34,24 +37,26 @@ export async function GET(): Promise<Response> {
     let tokenStatus = "not_found";
 
     if (integrationData) {
-      if (
-        integrationData["expiry_date"] &&
-        new Date(integrationData["expiry_date"] as string) < now
-      ) {
+      const expiryDate = integrationData["expiry_date"];
+      if (expiryDate && new Date(expiryDate as string) < now) {
         tokenStatus = "expired";
       } else {
         tokenStatus = "valid";
       }
     }
 
-    return ok({
-      hasIntegration: !!integrationData,
+    return api.success({
+      hasIntegration: Boolean(integrationData),
       tokenStatus,
       integration: integrationData ?? null,
       currentTime: now.toISOString(),
     });
   } catch (error) {
-    console.error("Debug endpoint error:", error);
-    return err(500, error instanceof Error ? error.message : "Unknown error");
+    return api.error(
+      "Failed to debug calendar integration",
+      "DATABASE_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

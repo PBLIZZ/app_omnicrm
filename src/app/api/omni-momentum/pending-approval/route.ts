@@ -1,22 +1,24 @@
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { momentumStorage } from "@/server/storage/momentum.storage";
+import { ensureError } from "@/lib/utils/error-handler";
 
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "momentum_pending_approval_list" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("momentum_pending_approval_list", requestId);
 
   try {
     const momentums = await momentumStorage.getPendingApprovalMomentums(userId);
-    return ok({ momentums });
+    return api.success({ momentums });
   } catch (error) {
-    console.error("Error fetching pending approval momentums:", error);
-    return err(500, "internal_server_error");
+    return api.error(
+      "Failed to fetch pending approval momentums",
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

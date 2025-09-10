@@ -1,43 +1,28 @@
 // src/app/api/google/gmail/raw-events/route.ts
-import { NextRequest } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { err, ok } from "@/lib/api/http";
-import { GetRawEventsQuerySchema, type GetRawEventsQuery, toDateRange } from "@/lib/schemas";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { GetRawEventsQuerySchema } from "@/lib/validation/schemas";
+import { toDateRange, type CreatedAtFilter } from "@/lib/validation/schemas/omniClients";
 import { listRawEventsService } from "@/server/services/raw-events.service";
 
-export async function GET(req: NextRequest): Promise<Response> {
-  // 1) Auth
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "google_gmail_raw_events" },
+  validation: { query: GetRawEventsQuerySchema },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("google.gmail.raw_events", requestId);
 
-  // 2) Parse query
-  const sp = req.nextUrl.searchParams;
-  const raw: Record<string, string> = {};
-  for (const key of ["provider", "sort", "order", "page", "pageSize", "occurredAtFilter"]) {
-    const v = sp.get(key);
-    if (v !== null) raw[key] = v;
-  }
+  const parsed = validated.query;
 
-  let parsed: GetRawEventsQuery;
-  try {
-    parsed = GetRawEventsQuerySchema.parse(raw);
-  } catch {
-    return err(400, "invalid_query");
-  }
-
-  const page = parsed.page ?? 1;
-  const pageSize = parsed.pageSize ?? 25;
-  const sortKey = parsed.sort ?? "occurredAt";
-  const sortDir = parsed.order === "desc" ? "desc" : "asc";
-  const dateRange = toDateRange(parsed.occurredAtFilter);
+  const page: number = typeof parsed.page === "number" ? parsed.page : 1;
+  const pageSize: number = typeof parsed.pageSize === "number" ? parsed.pageSize : 25;
+  const sortKey =
+    parsed.sort === "occurredAt" || parsed.sort === "createdAt" ? parsed.sort : "occurredAt";
+  const sortDir = parsed.order === "desc" || parsed.order === "asc" ? parsed.order : "asc";
+  const dateRange = toDateRange(parsed.occurredAtFilter as CreatedAtFilter | undefined);
 
   const params: Parameters<typeof listRawEventsService>[1] = {
-    provider: parsed.provider ?? "gmail",
+    provider: typeof parsed.provider === "string" ? parsed.provider : "gmail",
     sort: sortKey,
     order: sortDir,
     page,
@@ -47,7 +32,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   const { items, total } = await listRawEventsService(userId, params);
 
-  return ok({
+  return api.success({
     items: items.map((r) => ({
       id: r.id,
       userId: r.userId,
@@ -62,4 +47,4 @@ export async function GET(req: NextRequest): Promise<Response> {
     })),
     total,
   });
-}
+});

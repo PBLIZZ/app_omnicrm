@@ -1,72 +1,34 @@
-import { getServerUserId } from "@/server/auth/user";
-import type { JobError } from "@/server/jobs/types";
-import { log } from "@/lib/log";
-import { ok, err } from "@/lib/api/http";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { logger } from "@/lib/observability";
 import { JobRunner } from "@/server/jobs/runner";
-import { RateLimiter } from "@/lib/rate-limiter";
+import { ensureError } from "@/lib/utils/error-handler";
 
-export async function POST(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const isJobError = (e: unknown): e is JobError => {
-      return typeof e === "object" && e !== null && ("status" in e || "message" in e);
-    };
-
-    if (isJobError(error)) {
-      const status = typeof error.status === "number" ? error.status : 401;
-      const message = typeof error.message === "string" ? error.message : "Unauthorized";
-      return err(status, message);
-    } else {
-      return err(401, "Unauthorized");
-    }
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "job_runner" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("job_runner", requestId);
 
   try {
-    // SECURITY: Apply rate limiting for job runner operations
-    const rateLimitResult = RateLimiter.checkRateLimit("job_runner", userId);
-    if (!rateLimitResult.allowed) {
-      log.warn(
-        {
-          op: "job_runner.rate_limited",
-          userId,
-          resetTime: rateLimitResult.resetTime,
-          reason: rateLimitResult.reason,
-        },
-        "Job runner request rate limited",
-      );
-
-      const response = err(
-        429,
-        `Rate limit exceeded. ${rateLimitResult.reason ?? "Try again later"}.`,
-      );
-      response.headers.set(
-        "Retry-After",
-        Math.ceil(((rateLimitResult.resetTime ?? Date.now()) - Date.now()) / 1000).toString(),
-      );
-      return response;
-    }
-
     // Use the new JobRunner to process queued jobs
     const jobRunner = new JobRunner();
 
     // Process jobs for the authenticated user
     const result = await jobRunner.processUserJobs(userId);
 
-    log.info(
-      {
-        op: "job_runner.complete",
+    await logger.info("Job runner processing completed", {
+      operation: "job_runner.complete",
+      additionalData: {
         userId,
         processed: result.processed,
         succeeded: result.succeeded,
         failed: result.failed,
         errorCount: result.errors.length,
       },
-      "Job runner processing completed",
-    );
+    });
 
-    return ok({
+    return api.success({
       message: `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
       runner: "job_runner",
       processed: result.processed,
@@ -76,16 +38,23 @@ export async function POST(): Promise<Response> {
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    log.error(
-      {
-        op: "job_runner.simple_failed",
-        userId,
-        error: errorMessage,
-      },
+    await logger.error(
       "Simple job processing failed",
+      {
+        operation: "job_runner.simple_failed",
+        additionalData: {
+          userId,
+        },
+      },
+      error instanceof Error ? error : new Error(errorMessage),
     );
 
     // SECURITY: Don't expose internal error details to client
-    return err(500, "Job processing failed due to internal error");
+    return api.error(
+      "Job processing failed due to internal error",
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

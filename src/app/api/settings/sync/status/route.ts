@@ -1,20 +1,15 @@
 /** GET /api/settings/sync/status — aggregated sync status (auth required). Errors: 401 Unauthorized */
-// NextResponse not used; using helpers
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
 import { getDb } from "@/server/db/client";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { jobs, rawEvents, syncAudit, userIntegrations } from "@/server/db/schema";
-import { err, ok } from "@/lib/api/http";
-import { toApiError } from "@/server/jobs/types";
+import { ApiResponseBuilder } from "@/server/api/response";
 
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "sync_status" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("settings.sync.status", requestId);
 
   const dbo = await getDb();
   // Connection status - check for both auth and service-specific tokens
@@ -69,7 +64,7 @@ export async function GET(): Promise<Response> {
     .limit(1);
 
   // Unified integration provides Gmail access, legacy gmail integration also works
-  const hasGmailToken = !!unifiedIntegration[0] || !!gmailIntegration[0];
+  const hasGmailToken = !!(unifiedIntegration[0] ?? gmailIntegration[0]);
   const hasCalendarToken = !!calendarIntegration[0];
 
   // Last sync per provider (based on latest created_at of raw_events)
@@ -166,7 +161,7 @@ export async function GET(): Promise<Response> {
     .orderBy(desc(jobs.createdAt))
     .limit(1);
 
-  return ok({
+  return api.success({
     googleConnected,
     serviceTokens: {
       google: googleConnected, // For backward compatibility
@@ -198,4 +193,4 @@ export async function GET(): Promise<Response> {
       error: embedError?.n ?? 0,
     },
   });
-}
+});

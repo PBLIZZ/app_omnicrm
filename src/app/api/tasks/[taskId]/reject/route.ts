@@ -1,42 +1,50 @@
-import { NextRequest } from "next/server";
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { MomentumStorage } from "@/server/storage/momentum.storage";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
+import { z } from "zod";
 
 const momentumStorage = new MomentumStorage();
-import { z } from "zod";
 
 const RejectTaskSchema = z.object({
   notes: z.string().optional(),
 });
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> }
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+const ParamsSchema = z.object({
+  taskId: z.string(),
+});
 
-  const { taskId } = await params;
-  
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = RejectTaskSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "tasks_reject" },
+  validation: {
+    body: RejectTaskSchema,
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const apiResponse = new ApiResponseBuilder("tasks.reject", requestId);
+
+  const { taskId } = validated.params;
 
   try {
-    await momentumStorage.rejectTask(taskId, userId, parsed.data.notes);
+    await momentumStorage.rejectTask(taskId, userId, validated.body.notes);
     const task = await momentumStorage.getMomentum(taskId, userId);
-    return ok({ task, message: "Task rejected successfully" });
+    return apiResponse.success({ task, message: "Task rejected successfully" });
   } catch (error) {
-    console.error("Error rejecting task:", error);
-    return err(500, "internal_server_error");
+    await logger.error(
+      "Task rejection failed",
+      {
+        operation: "api.tasks.reject",
+        additionalData: {
+          taskId: taskId.slice(0, 8) + "...",
+          userId: userId.slice(0, 8) + "...",
+          errorType: error instanceof Error ? error.constructor.name : typeof error,
+        },
+      },
+      ensureError(error),
+    );
+    return apiResponse.error("internal_server_error", "INTERNAL_ERROR");
   }
-}
+});

@@ -1,9 +1,10 @@
-import { NextRequest } from "next/server";
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { tasksStorage } from "@/server/storage/momentum.storage";
+import { logger } from "@/lib/observability";
 import { z } from "zod";
+import { ensureError } from "@/lib/utils/error-handler";
 
 const UpdateTaskSchema = z.object({
   title: z.string().min(1).optional(),
@@ -19,69 +20,70 @@ const UpdateTaskSchema = z.object({
   actualMinutes: z.number().int().min(0).optional(),
 });
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> },
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+const ParamsSchema = z.object({
+  taskId: z.string(),
+});
 
-  const { taskId } = await params;
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "tasks_get" },
+  validation: {
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const apiResponse = new ApiResponseBuilder("tasks.get", requestId);
+  const { taskId } = validated.params;
 
   try {
     const task = await tasksStorage.getTask(taskId, userId);
     if (!task) {
-      return err(404, "task_not_found");
+      return apiResponse.error("task_not_found", "NOT_FOUND");
     }
 
     // Get subtasks if any
     const subtasks = await tasksStorage.getSubtasks(taskId, userId);
 
-    return ok({ task, subtasks });
+    return apiResponse.success({ task, subtasks });
   } catch (error) {
-    console.error("Error fetching task:", error);
-    return err(500, "internal_server_error");
+    await logger.error(
+      "Error fetching task",
+      {
+        operation: "tasks.get",
+        additionalData: {
+          userId: userId.slice(0, 8) + "...",
+          taskId,
+        },
+      },
+      ensureError(error),
+    );
+    return apiResponse.error("internal_server_error", "INTERNAL_ERROR");
   }
-}
+});
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> },
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const { taskId } = await params;
-
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = UpdateTaskSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const PUT = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "tasks_update" },
+  validation: {
+    body: UpdateTaskSchema,
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const apiResponse = new ApiResponseBuilder("tasks.update", requestId);
+  const { taskId } = validated.params;
 
   try {
     // Get original task for tracking changes
     const originalTask = await tasksStorage.getTask(taskId, userId);
     if (!originalTask) {
-      return err(404, "task_not_found");
+      return apiResponse.error("task_not_found", "NOT_FOUND");
     }
 
-    const updateData: Record<string, unknown> = { ...parsed.data };
-    if (parsed.data["dueDate"]) {
-      updateData["dueDate"] = new Date(parsed.data["dueDate"]).toISOString();
+    const updateData: Record<string, unknown> = { ...validated.body };
+    if (validated.body.dueDate) {
+      updateData["dueDate"] = new Date(validated.body.dueDate).toISOString();
     }
-    if (parsed.data["completedAt"]) {
-      updateData["completedAt"] = new Date(parsed.data["completedAt"]).toISOString();
+    if (validated.body.completedAt) {
+      updateData["completedAt"] = new Date(validated.body.completedAt).toISOString();
     }
 
     await tasksStorage.updateTask(taskId, userId, updateData);
@@ -89,7 +91,7 @@ export async function PUT(
     // Record action for AI training if significant changes
     if (
       originalTask.approvalStatus === "pending_approval" &&
-      parsed.data.approvalStatus === "approved"
+      validated.body.approvalStatus === "approved"
     ) {
       await tasksStorage.createTaskAction(userId, {
         momentumId: taskId,
@@ -100,31 +102,37 @@ export async function PUT(
     }
 
     const task = await tasksStorage.getTask(taskId, userId);
-    return ok({ task });
+    return apiResponse.success({ task });
   } catch (error) {
-    console.error("Error updating task:", error);
-    return err(500, "internal_server_error");
+    await logger.error(
+      "Error updating task",
+      {
+        operation: "tasks.update",
+        additionalData: {
+          userId: userId.slice(0, 8) + "...",
+          taskId,
+        },
+      },
+      ensureError(error),
+    );
+    return apiResponse.error("internal_server_error", "INTERNAL_ERROR");
   }
-}
+});
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> },
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const { taskId } = await params;
+export const DELETE = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "tasks_delete" },
+  validation: {
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const apiResponse = new ApiResponseBuilder("tasks.delete", requestId);
+  const { taskId } = validated.params;
 
   try {
     const task = await tasksStorage.getTask(taskId, userId);
     if (!task) {
-      return err(404, "task_not_found");
+      return apiResponse.error("task_not_found", "NOT_FOUND");
     }
 
     // Record deletion action for AI training
@@ -136,9 +144,19 @@ export async function DELETE(
     });
 
     await tasksStorage.deleteTask(taskId, userId);
-    return ok({ success: true });
+    return apiResponse.success({ success: true });
   } catch (error) {
-    console.error("Error deleting task:", error);
-    return err(500, "internal_server_error");
+    await logger.error(
+      "Error deleting task",
+      {
+        operation: "tasks.delete",
+        additionalData: {
+          userId: userId.slice(0, 8) + "...",
+          taskId,
+        },
+      },
+      ensureError(error),
+    );
+    return apiResponse.error("internal_server_error", "INTERNAL_ERROR");
   }
-}
+});

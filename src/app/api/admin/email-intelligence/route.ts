@@ -1,51 +1,60 @@
 // Admin API endpoint for email intelligence processing
 // For testing and manual triggering of email intelligence jobs
 
-import { NextRequest } from "next/server";
 import { getDb } from "@/server/db/client";
 import { rawEvents, jobs } from "@/server/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { log } from "@/lib/log";
-import { getServerUserId } from "@/server/auth/user";
-import { err, ok, safeJson } from "@/lib/api/http";
+import { logger } from "@/lib/observability";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { ensureError } from "@/lib/utils/error-handler";
 import {
   processEmailIntelligence,
   generateWeeklyDigest,
 } from "@/server/services/email-intelligence.service";
 import { enqueue } from "@/server/jobs/enqueue";
+import { z } from "zod";
+
+const PostBodySchema = z.object({
+  action: z
+    .enum(["process_single", "enqueue_batch", "weekly_digest", "cleanup"])
+    .default("process_single"),
+  rawEventId: z.string().optional(),
+  batchId: z.string().optional(),
+  maxItems: z.number().default(10),
+  generateWeekly: z.boolean().default(false),
+  retentionDays: z.number().default(90),
+  keepHighValue: z.boolean().default(true),
+});
+
+const GetQuerySchema = z.object({
+  limit: z.coerce.number().default(20),
+  days: z.coerce.number().default(7),
+});
 
 /**
  * POST /api/admin/email-intelligence
  * Trigger email intelligence processing for raw Gmail events
  */
-export async function POST(request: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "admin_email_intelligence_post" },
+  validation: {
+    body: PostBodySchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const apiResponse = new ApiResponseBuilder("admin.email_intelligence.post", requestId);
 
   try {
-    const body = (await safeJson<unknown>(request)) ?? {};
-    const bodyObj = body as Record<string, unknown>;
-    const {
-      action = "process_single",
-      rawEventId,
-      batchId,
-      maxItems = 10,
-      generateWeekly = false,
-      retentionDays = 90,
-      keepHighValue = true,
-    } = bodyObj;
+    const { action, rawEventId, batchId, maxItems, generateWeekly, retentionDays, keepHighValue } =
+      validated.body;
 
     const db = await getDb();
 
     switch (action) {
       case "process_single": {
         if (!rawEventId) {
-          return err(400, "rawEventId required for single processing");
+          return apiResponse.error("rawEventId required for single processing", "VALIDATION_ERROR");
         }
 
         // Verify the raw event exists and belongs to the user
@@ -54,7 +63,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           .from(rawEvents)
           .where(
             and(
-              eq(rawEvents.id, rawEventId as string),
+              eq(rawEvents.id, rawEventId),
               eq(rawEvents.userId, userId),
               eq(rawEvents.provider, "gmail"),
             ),
@@ -62,27 +71,26 @@ export async function POST(request: NextRequest): Promise<Response> {
           .limit(1);
 
         if (!rawEvent) {
-          return err(404, "Raw event not found or not a Gmail event");
+          return apiResponse.error("Raw event not found or not a Gmail event", "NOT_FOUND");
         }
 
         // Process immediately
-        const intelligence = await processEmailIntelligence(userId, rawEventId as string);
+        const intelligence = await processEmailIntelligence(userId, rawEventId);
 
-        log.info(
-          {
-            op: "admin.email_intelligence.single_complete",
+        await logger.info("Single email intelligence processed via admin API", {
+          operation: "admin.email_intelligence.single_complete",
+          additionalData: {
             userId,
             rawEventId,
             category: intelligence.classification.primaryCategory,
             businessRelevance: intelligence.classification.businessRelevance,
           },
-          "Single email intelligence processed via admin API",
-        );
+        });
 
-        return ok({
+        return apiResponse.success({
           success: true,
           data: {
-            rawEventId: rawEventId as string,
+            rawEventId: rawEventId,
             intelligence,
             processingTime: intelligence.processingMeta.processedAt,
           },
@@ -94,42 +102,44 @@ export async function POST(request: NextRequest): Promise<Response> {
         await enqueue(
           "email_intelligence_batch",
           {
-            batchId: batchId as string,
-            maxItems: maxItems as number,
+            batchId: batchId ?? "admin_batch",
+            maxItems: maxItems,
             onlyUnprocessed: true,
           },
           userId,
         );
 
-        return ok({
+        return apiResponse.success({
           success: true,
           data: {
             action: "email_intelligence_batch",
-            batchId: batchId as string,
-            maxItems: maxItems as number,
+            batchId: batchId ?? "admin_batch",
+            maxItems: maxItems,
           },
         });
       }
 
       case "weekly_digest": {
         if (!generateWeekly) {
-          return err(400, "generateWeekly must be true for weekly digest");
+          return apiResponse.error(
+            "generateWeekly must be true for weekly digest",
+            "VALIDATION_ERROR",
+          );
         }
 
         // Generate weekly digest immediately
         const digest = await generateWeeklyDigest(userId);
 
-        log.info(
-          {
-            op: "admin.email_intelligence.weekly_digest",
+        await logger.info("Weekly digest generated via admin API", {
+          operation: "admin.email_intelligence.weekly_digest",
+          additionalData: {
             userId,
             emailCount: digest.summary.totalEmails,
             businessRelevance: digest.summary.avgBusinessRelevance,
           },
-          "Weekly digest generated via admin API",
-        );
+        });
 
-        return ok({
+        return apiResponse.success({
           success: true,
           data: {
             digest,
@@ -142,52 +152,50 @@ export async function POST(request: NextRequest): Promise<Response> {
         await enqueue(
           "email_intelligence_cleanup",
           {
-            retentionDays: retentionDays as number,
-            keepHighValue: keepHighValue as boolean,
+            retentionDays: retentionDays,
+            keepHighValue: keepHighValue,
           },
           userId,
         );
 
-        return ok({
+        return apiResponse.success({
           success: true,
           data: {
             action: "email_intelligence_cleanup",
-            retentionDays: retentionDays as number,
-            keepHighValue: keepHighValue as boolean,
+            retentionDays: retentionDays,
+            keepHighValue: keepHighValue,
           },
         });
       }
 
       default:
-        return err(
-          400,
+        return apiResponse.error(
           `Unknown action: ${action}. Available: process_single, enqueue_batch, weekly_digest, cleanup`,
+          "VALIDATION_ERROR",
         );
     }
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Failed to process email intelligence";
-    return err(500, errorMessage);
+    return apiResponse.error(errorMessage, "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
 /**
  * GET /api/admin/email-intelligence
  * Get email intelligence statistics and recent processed emails
  */
-export async function GET(request: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "admin_email_intelligence_get" },
+  validation: {
+    query: GetQuerySchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const apiResponse = new ApiResponseBuilder("admin.email_intelligence.get", requestId);
 
   try {
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") ?? "20", 10);
-    const daysBack = parseInt(searchParams.get("days") ?? "7", 10);
+    const { limit, days: daysBack } = validated.query;
 
     const db = await getDb();
 
@@ -249,7 +257,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       .orderBy(desc(jobs.createdAt))
       .limit(10);
 
-    return ok({
+    return apiResponse.success({
       success: true,
       data: {
         statistics: {
@@ -272,6 +280,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Failed to get email intelligence statistics";
-    return err(500, errorMessage);
+    return apiResponse.error(errorMessage, "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

@@ -1,40 +1,37 @@
-import { NextRequest } from "next/server";
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { momentumStorage } from "@/server/storage/momentum.storage";
 import { z } from "zod";
+import { ensureError } from "@/lib/utils/error-handler";
 
 const ApproveMomentumSchema = z.object({
   notes: z.string().optional(),
 });
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ momentumId: string }> }
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+const ParamsSchema = z.object({
+  momentumId: z.string().uuid(),
+});
 
-  const { momentumId } = await params;
-  
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = ApproveMomentumSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "momentum_approve" },
+  validation: {
+    body: ApproveMomentumSchema,
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("momentum_approve", requestId);
 
   try {
-    await momentumStorage.approveMomentum(momentumId, userId, parsed.data.notes);
-    const momentum = await momentumStorage.getMomentum(momentumId, userId);
-    return ok({ momentum, message: "Momentum approved successfully" });
+    await momentumStorage.approveMomentum(
+      validated.params.momentumId,
+      userId,
+      validated.body.notes,
+    );
+    const momentum = await momentumStorage.getMomentum(validated.params.momentumId, userId);
+    return api.success({ momentum, message: "Momentum approved successfully" });
   } catch (error) {
-    console.error("Error approving momentum:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to approve momentum", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

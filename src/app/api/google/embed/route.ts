@@ -1,42 +1,35 @@
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
 import { CalendarEmbeddingService } from "@/server/services/calendar-embedding.service";
-import { err, ok } from "@/lib/api/http";
-import { log } from "@/lib/log";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { logger } from "@/lib/observability";
+import { z } from "zod";
 
-interface EmbedOptions {
-  provider?: "calendar" | "gmail" | "both";
-  regenerate?: boolean;
-  limit?: number;
-}
+const embedOptionsSchema = z.object({
+  provider: z.enum(["calendar", "gmail", "both"]).optional().default("both"),
+  regenerate: z.boolean().optional().default(false),
+  limit: z.number().min(1).max(1000).optional().default(100),
+});
 
 // POST: Generate embeddings for Google data (calendar, gmail, or both)
-export async function POST(req: Request): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (authError: unknown) {
-    console.error("Google embed POST - auth error:", authError);
-    return err(401, "Unauthorized");
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "google_embed" },
+  validation: { body: embedOptionsSchema },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("google.embed", requestId);
 
   try {
-    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    const {
-      provider = "both",
-      regenerate = false,
-      limit = 100,
-    }: EmbedOptions = body as EmbedOptions;
+    const { provider, regenerate, limit } = validated.body;
 
-    log.info(
-      {
-        op: "google.embed",
+    await logger.info("google_embedding_started", {
+      operation: "google.embed",
+      additionalData: {
         userId,
         provider,
         regenerate,
         limit,
       },
-      "google_embedding_started",
-    );
+    });
 
     let totalProcessedEvents = 0;
     const errors: string[] = [];
@@ -46,7 +39,7 @@ export async function POST(req: Request): Promise<Response> {
       try {
         const calendarResult = await CalendarEmbeddingService.embedAllEvents(userId);
         if (calendarResult.success) {
-          totalProcessedEvents += calendarResult.processedEvents || 0;
+          totalProcessedEvents += calendarResult.processedEvents ?? 0;
         } else {
           errors.push(`Calendar embedding failed: ${calendarResult.error}`);
         }
@@ -60,7 +53,10 @@ export async function POST(req: Request): Promise<Response> {
     // Process gmail embeddings (placeholder for future implementation)
     if (provider === "gmail" || provider === "both") {
       // TODO: Implement Gmail embedding service
-      log.info({ op: "google.embed", userId }, "gmail_embedding_not_implemented");
+      await logger.info("gmail_embedding_not_implemented", {
+        operation: "google.embed",
+        additionalData: { userId },
+      });
       errors.push("Gmail embedding not yet implemented");
     }
 
@@ -68,23 +64,22 @@ export async function POST(req: Request): Promise<Response> {
     const status =
       hasErrors && totalProcessedEvents === 0 ? "failed" : hasErrors ? "partial" : "completed";
 
-    log.info(
-      {
-        op: "google.embed",
+    await logger.info("google_embedding_completed", {
+      operation: "google.embed",
+      additionalData: {
         userId,
         provider,
         totalProcessedEvents,
         status,
         errorCount: errors.length,
       },
-      "google_embedding_completed",
-    );
+    });
 
     if (status === "failed") {
-      return err(500, `Embedding failed: ${errors.join(", ")}`);
+      return api.error(`Embedding failed: ${errors.join(", ")}`, "INTERNAL_ERROR");
     }
 
-    return ok({
+    return api.success({
       success: true,
       provider,
       processedEvents: totalProcessedEvents,
@@ -98,15 +93,22 @@ export async function POST(req: Request): Promise<Response> {
       ],
     });
   } catch (error: unknown) {
-    log.error(
-      {
-        op: "google.embed",
-        userId,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
+    await logger.error(
       "google_embedding_failed",
+      {
+        operation: "google.embed",
+        additionalData: {
+          userId,
+        },
+      },
+      error instanceof Error ? error : new Error("Unknown error"),
     );
 
-    return err(500, "Failed to generate embeddings");
+    return api.error(
+      "Failed to generate embeddings",
+      "INTERNAL_ERROR",
+      undefined,
+      error instanceof Error ? error : undefined,
+    );
   }
-}
+});

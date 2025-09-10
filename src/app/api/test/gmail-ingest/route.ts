@@ -1,12 +1,11 @@
 /** POST /api/test/gmail-ingest — simple Gmail ingestion test (auth required). */
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
 import { getGoogleClients } from "@/server/google/client";
 import { gmail_v1 } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { rawEvents } from "@/server/db/schema";
-import { err, ok } from "@/lib/api/http";
-// import { log } from "@/server/log"; // Removed missing module
-import { toApiError } from "@/server/jobs/types";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { logger } from "@/lib/observability";
 
 interface GmailMessage {
   id?: string | null;
@@ -17,20 +16,20 @@ interface GmailMessage {
   threadId?: string | null;
 }
 
-export async function POST(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "gmail_ingest_test" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("test.gmail_ingest", requestId);
 
   try {
     // Get Gmail client
     const { gmail } = await getGoogleClients(userId);
 
-    console.warn("starting simple Gmail ingest:", { userId, op: "test_gmail_ingest_start" });
+    await logger.info("Starting Gmail ingest test", {
+      operation: "test.gmail_ingest",
+      additionalData: { userId: userId.slice(0, 8) + "...", messageLimit: 10 },
+    });
 
     // Get the 10 most recent messages (no filters)
     const listResponse = await gmail.users.messages.list({
@@ -39,7 +38,10 @@ export async function POST(): Promise<Response> {
     });
 
     const messageIds = listResponse.data.messages?.map((m) => m.id).filter(Boolean) ?? [];
-    console.warn("fetched message IDs:", { userId, messageCount: messageIds.length });
+    await logger.info("Fetched Gmail message IDs", {
+      operation: "test.gmail_ingest",
+      additionalData: { userId: userId.slice(0, 8) + "...", messageCount: messageIds.length },
+    });
 
     const insertedMessages: Array<{ id: string; success: boolean; error?: string }> = [];
 
@@ -82,25 +84,38 @@ export async function POST(): Promise<Response> {
         });
 
         insertedMessages.push({ id: messageId, success: true });
-        console.warn("successfully inserted message:", { userId, messageId });
+        await logger.info("Successfully inserted message", {
+          operation: "test.gmail_ingest",
+          additionalData: { userId: userId.slice(0, 8) + "...", messageId },
+        });
       } catch (insertError) {
         const errorMsg = insertError instanceof Error ? insertError.message : String(insertError);
         insertedMessages.push({ id: messageId, success: false, error: errorMsg });
-        console.warn("failed to insert message:", { userId, messageId, error: errorMsg });
+        await logger.warn(
+          "Failed to insert message",
+          {
+            operation: "test.gmail_ingest",
+            additionalData: { userId: userId.slice(0, 8) + "...", messageId, error: errorMsg },
+          },
+          insertError instanceof Error ? insertError : undefined,
+        );
       }
     }
 
     const successCount = insertedMessages.filter((m) => m.success).length;
     const failureCount = insertedMessages.filter((m) => !m.success).length;
 
-    console.warn("Gmail ingest completed:", {
-      userId,
-      totalMessages: messageIds.length,
-      successCount,
-      failureCount,
+    await logger.info("Gmail ingest completed", {
+      operation: "test.gmail_ingest",
+      additionalData: {
+        userId: userId.slice(0, 8) + "...",
+        totalMessages: messageIds.length,
+        successCount,
+        failureCount,
+      },
     });
 
-    return ok({
+    return api.success({
       totalMessages: messageIds.length,
       successCount,
       failureCount,
@@ -108,7 +123,19 @@ export async function POST(): Promise<Response> {
     });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error("Gmail ingest failed:", { userId, error: errorMsg });
-    return err(500, "Gmail ingest failed");
+    await logger.error(
+      "Gmail ingest failed",
+      {
+        operation: "test.gmail_ingest",
+        additionalData: { userId: userId.slice(0, 8) + "...", error: errorMsg },
+      },
+      error instanceof Error ? error : undefined,
+    );
+    return api.error(
+      "Gmail ingest failed",
+      "INTERNAL_ERROR",
+      undefined,
+      error instanceof Error ? error : undefined,
+    );
   }
-}
+});

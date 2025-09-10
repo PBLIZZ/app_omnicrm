@@ -1,25 +1,22 @@
-import { ok, err } from "@/lib/api/http";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { JobRunner } from "@/server/jobs/runner";
-import { toApiError } from "@/server/jobs/types";
-import { logger } from "@/lib/observability/unified-logger";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * Manual job processing endpoint for testing and manual triggers
  * POST /api/jobs/process
  */
-export async function POST(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, "unauthorized", { message });
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "manual_job_processing" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("manual_job_processing", requestId);
 
   try {
     logger.progress("Processing jobs...", "Manual job processing started");
-    logger.info("Manual job processing triggered by user", {
+    await logger.info("Manual job processing triggered by user", {
       operation: "manual_job_processing",
       userId,
     });
@@ -37,16 +34,17 @@ export async function POST(): Promise<Response> {
       },
     );
 
-    return ok({
+    return api.success({
       success: true,
       message: "Jobs processed successfully",
       ...result,
     });
   } catch (error) {
-    console.error("Manual job processing failed:", error);
-    return err(500, "processing_failed", {
-      success: false,
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+    return api.error(
+      "Manual job processing failed",
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

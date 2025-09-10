@@ -1,5 +1,7 @@
 /** DELETE /api/user/delete — Permanent account deletion for GDPR compliance (auth required). */
 import { NextRequest } from "next/server";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import {
   contacts,
@@ -19,55 +21,37 @@ import {
   userIntegrations,
 } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { getServerUserId } from "@/server/auth/user";
-import { err, ok } from "@/lib/api/http";
-import { toApiError } from "@/server/jobs/types";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
+import { z } from "zod";
 
-interface DeletionConfirmation {
-  confirmation: string;
-  acknowledgeIrreversible: boolean;
-}
+const deletionSchema = z.object({
+  confirmation: z.literal("DELETE MY DATA"),
+  acknowledgeIrreversible: z.literal(true),
+});
 
-export async function DELETE(req: NextRequest): Promise<Response> {
-  let userId: string;
+export const DELETE = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "user_delete" },
+  validation: {
+    body: deletionSchema,
+  },
+})(async ({ userId, validated, requestId }, req: NextRequest) => {
+  const api = new ApiResponseBuilder("user.delete", requestId);
+
   try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
-
-  try {
-    // Parse and validate deletion request
-    const body = (await req.json()) as unknown;
-
-    if (!body || typeof body !== "object") {
-      return err(400, "Invalid request body");
-    }
-
-    const { confirmation, acknowledgeIrreversible } = body as DeletionConfirmation;
-
-    // Require explicit confirmation
-    if (confirmation !== "DELETE MY DATA") {
-      return err(400, "Invalid confirmation. Must type 'DELETE MY DATA' exactly.");
-    }
-
-    if (!acknowledgeIrreversible) {
-      return err(400, "Must acknowledge that deletion is irreversible");
-    }
+    const { confirmation, acknowledgeIrreversible } = validated.body;
 
     const db = await getDb();
     const deletionTimestamp = new Date();
 
-    log.info(
-      {
-        op: "user.deletion.start",
+    await logger.info("Starting account deletion process", {
+      operation: "user.deletion.start",
+      additionalData: {
         userId,
         timestamp: deletionTimestamp.toISOString(),
       },
-      "Starting account deletion process",
-    );
+    });
 
     // Log deletion request to audit trail before deletion
     await db.insert(syncAudit).values({
@@ -139,9 +123,9 @@ export async function DELETE(req: NextRequest): Promise<Response> {
       // This is intentional - we keep the deletion audit trail for legal/regulatory purposes
 
       // Log detailed deletion results
-      log.info(
-        {
-          op: "user.deletion.complete",
+      await logger.info("Account deletion completed successfully", {
+        operation: "user.deletion.complete",
+        additionalData: {
           userId,
           deletionResults: {
             toolInvocations: toolInvocationResult.count,
@@ -161,8 +145,7 @@ export async function DELETE(req: NextRequest): Promise<Response> {
           },
           completedAt: new Date().toISOString(),
         },
-        "Account deletion completed successfully",
-      );
+      });
     });
 
     // Final audit log entry (will be retained for compliance)
@@ -178,7 +161,7 @@ export async function DELETE(req: NextRequest): Promise<Response> {
       },
     });
 
-    return ok({
+    return api.success({
       deleted: true,
       deletedAt: deletionTimestamp.toISOString(),
       message: "Account and all associated data have been permanently deleted",
@@ -191,16 +174,18 @@ export async function DELETE(req: NextRequest): Promise<Response> {
       ],
     });
   } catch (error: unknown) {
-    log.error(
-      {
-        op: "user.deletion.failed",
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-      },
+    await logger.error(
       "Account deletion failed",
+      {
+        operation: "user.deletion.failed",
+        additionalData: {
+          userId,
+        },
+      },
+      ensureError(error),
     );
 
     // SECURITY: Don't expose internal error details for account deletion failures
-    return err(500, "Account deletion failed due to internal error");
+    return api.error("Account deletion failed due to internal error", "INTERNAL_ERROR");
   }
-}
+});

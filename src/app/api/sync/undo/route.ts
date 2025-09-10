@@ -1,37 +1,55 @@
-import type { NextRequest } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
-import { interactions, jobs, rawEvents } from "@/server/db/schema";
-import { err, ok, safeJson } from "@/lib/api/http";
-import { toApiError } from "@/server/jobs/types";
+import { jobs, rawEvents, interactions } from "@/server/db/schema";
+import { z } from "zod";
+import { ensureError } from "@/lib/utils/error-handler";
 
-export async function POST(req: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+const undoBodySchema = z.object({
+  batchId: z.string().uuid(),
+});
+
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "sync_undo" },
+  validation: {
+    body: undoBodySchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("sync.undo", requestId);
 
   const dbo = await getDb();
-  const body = (await safeJson<{ batchId?: string }>(req)) ?? {};
-  const batchId = body?.batchId as string | undefined;
-  if (!batchId) return err(400, "missing_batchId");
 
-  // delete raw_events and interactions for this batch
-  await dbo
-    .delete(rawEvents)
-    .where(and(eq(rawEvents.userId, userId), eq(rawEvents.batchId, batchId)));
-  await dbo
-    .delete(interactions)
-    .where(and(eq(interactions.userId, userId), eq(interactions.batchId, batchId)));
-  // mark jobs reverted (optional: set status)
-  await dbo
-    .update(jobs)
-    .set({ status: "done", updatedAt: new Date() })
-    .where(and(eq(jobs.userId, userId), eq(jobs.batchId, batchId)));
+  try {
+    const { batchId } = validated.body;
 
-  return ok({ undone: batchId });
-}
+    // delete raw_events and interactions for this batch
+    const deletedEvents = await dbo
+      .delete(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.batchId, batchId)));
+    const deletedInteractions = await dbo
+      .delete(interactions)
+      .where(and(eq(interactions.userId, userId), eq(interactions.batchId, batchId)));
+    // mark jobs reverted (optional: set status)
+    const deletedJobs = await dbo
+      .update(jobs)
+      .set({ status: "done", updatedAt: new Date() })
+      .where(and(eq(jobs.userId, userId), eq(jobs.batchId, batchId)));
+
+    return api.success({
+      message: "Sync batch undone successfully",
+      batchId,
+      deletedJobs: deletedJobs.length,
+      deletedEvents: deletedEvents.length,
+      deletedInteractions: deletedInteractions.length,
+    });
+  } catch (error) {
+    return api.error(
+      `Failed to undo sync batch: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
+    );
+  }
+});

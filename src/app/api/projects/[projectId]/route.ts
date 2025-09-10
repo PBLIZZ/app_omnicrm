@@ -1,12 +1,12 @@
-import { NextRequest } from "next/server";
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { MomentumStorage } from "@/server/storage/momentum.storage";
-
-const momentumStorage = new MomentumStorage();
 import { z } from "zod";
 import type { NewMomentumProject } from "@/server/db/schema";
+import { ensureError } from "@/lib/utils/error-handler";
+
+const momentumStorage = new MomentumStorage();
 
 const UpdateProjectSchema = z.object({
   name: z.string().min(1), // Required to match DB schema
@@ -16,91 +16,75 @@ const UpdateProjectSchema = z.object({
   dueDate: z.string().datetime().optional(),
 });
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+const ParamsSchema = z.object({
+  projectId: z.string().uuid(),
+});
 
-  const { projectId } = await params;
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "project_get" },
+  validation: {
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("project_get", requestId);
 
   try {
-    const project = await momentumStorage.getMomentumProject(projectId, userId);
+    const project = await momentumStorage.getMomentumProject(validated.params.projectId, userId);
     if (!project) {
-      return err(404, "project_not_found");
+      return api.notFound("Project not found");
     }
-    return ok({ project });
+
+    return api.success({ project });
   } catch (error) {
-    console.error("Error fetching project:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to fetch project", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const { projectId } = await params;
-  
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = UpdateProjectSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const PUT = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "project_update" },
+  validation: {
+    params: ParamsSchema,
+    body: UpdateProjectSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("project_update", requestId);
 
   try {
     // Handle optional fields properly for exactOptionalPropertyTypes
-    const updateData: Partial<Omit<NewMomentumProject, 'userId'>> = {};
-    if (parsed.data['name'] !== undefined) updateData['name'] = parsed.data['name'];
-    if (parsed.data['description'] !== undefined) updateData['description'] = parsed.data['description'];
-    if (parsed.data['color'] !== undefined) updateData['color'] = parsed.data['color'];
-    if (parsed.data['status'] !== undefined) updateData['status'] = parsed.data['status'];
-    if (parsed.data['dueDate'] !== undefined) {
-      updateData['dueDate'] = new Date(parsed.data['dueDate']);
+    const updateData: Partial<Omit<NewMomentumProject, "userId">> = {};
+    if (validated.body["name"] !== undefined) updateData["name"] = validated.body["name"];
+    if (validated.body["description"] !== undefined)
+      updateData["description"] = validated.body["description"];
+    if (validated.body["color"] !== undefined) updateData["color"] = validated.body["color"];
+    if (validated.body["status"] !== undefined) updateData["status"] = validated.body["status"];
+    if (validated.body["dueDate"] !== undefined) {
+      updateData["dueDate"] = new Date(validated.body["dueDate"]);
     }
-    
-    await momentumStorage.updateMomentumProject(projectId, userId, updateData);
-    const project = await momentumStorage.getMomentumProject(projectId, userId);
-    return ok({ project });
+
+    await momentumStorage.updateMomentumProject(validated.params.projectId, userId, updateData);
+    const project = await momentumStorage.getMomentumProject(validated.params.projectId, userId);
+
+    return api.success({ project });
   } catch (error) {
-    console.error("Error updating project:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to update project", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const { projectId } = await params;
+export const DELETE = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "project_delete" },
+  validation: {
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("project_delete", requestId);
 
   try {
-    await momentumStorage.deleteMomentumProject(projectId, userId);
-    return ok({ success: true });
+    await momentumStorage.deleteMomentumProject(validated.params.projectId, userId);
+    return api.success({ success: true });
   } catch (error) {
-    console.error("Error deleting project:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to delete project", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

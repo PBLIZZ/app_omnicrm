@@ -1,18 +1,19 @@
 /** GET /api/auth/user — get current authenticated user data */
-import { NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { ok, err } from "@/lib/api/http";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 
-export async function GET(): Promise<NextResponse> {
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "auth_user" },
+})(async ({ userId, requestId }) => {
+  const apiResponse = new ApiResponseBuilder("auth.user", requestId);
+
   try {
-    // Get user ID securely from server-side auth (handles E2E mode)
-    const userId = await getServerUserId();
-
     // For E2E mode, return minimal user data
     if (process.env["NODE_ENV"] !== "production" && process.env["E2E_USER_ID"]) {
-      return ok({
+      return apiResponse.success({
         id: userId,
         email: "test-e2e@example.com",
         user_metadata: {
@@ -28,7 +29,7 @@ export async function GET(): Promise<NextResponse> {
     const supabasePublishableKey = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
 
     if (!supabaseUrl || !supabasePublishableKey) {
-      return err(500, "Server misconfigured");
+      return apiResponse.error("Server misconfigured", "INTERNAL_ERROR");
     }
 
     const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
@@ -53,11 +54,11 @@ export async function GET(): Promise<NextResponse> {
     const { data, error } = await supabase.auth.getUser();
 
     if (error || !data?.user) {
-      return err(401, "Unauthorized");
+      return apiResponse.error("Unauthorized", "UNAUTHORIZED");
     }
 
     // Return user data (safe to expose to client)
-    return ok({
+    return apiResponse.success({
       id: data.user.id,
       email: data.user.email,
       user_metadata: data.user.user_metadata,
@@ -69,6 +70,11 @@ export async function GET(): Promise<NextResponse> {
         ? (error as { status: number }).status
         : 401;
     const message = error instanceof Error ? error.message : "Unauthorized";
-    return err(status, message);
+    return apiResponse.error(
+      message,
+      status === 401 ? "UNAUTHORIZED" : "INTERNAL_ERROR",
+      undefined,
+      error instanceof Error ? error : undefined,
+    );
   }
-}
+});

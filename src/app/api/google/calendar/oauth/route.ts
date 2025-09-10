@@ -1,21 +1,16 @@
 /** GET /api/google/calendar/oauth — start Calendar OAuth (auth required). Errors: 401 Unauthorized */
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { logSync } from "@/lib/api/sync-audit";
-import { getServerUserId } from "@/server/auth/user";
-import { err } from "@/lib/api/http";
-import { hmacSign, randomNonce } from "@/lib/crypto";
-import { toApiError } from "@/server/jobs/types";
+import { logSync } from "@/server/sync/audit";
+import { createRouteHandler } from "@/server/api/handler";
+import { hmacSign, randomNonce } from "@/server/utils/crypto";
 
 // GET /api/google/calendar/oauth - specific Calendar full access authorization
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "google_calendar_oauth" },
+})(async ({ userId }) => {
+  // Note: OAuth redirect response - no API response builder needed
 
   const scopes = ["https://www.googleapis.com/auth/calendar"];
 
@@ -52,4 +47,4 @@ export async function GET(): Promise<Response> {
     maxAge: 5 * 60, // 5 minutes
   });
   return res;
-}
+});

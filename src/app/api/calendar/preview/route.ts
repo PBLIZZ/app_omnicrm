@@ -1,19 +1,14 @@
-import { ok, err } from "@/lib/api/http";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { google } from "googleapis";
+import { ensureError } from "@/lib/utils/error-handler";
 
-// GET: Return live preview data from Google Calendar (30 days ahead)
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error) {
-    return err(401, "unauthorized", {
-      details: error instanceof Error ? error.message : "Authentication failed",
-    });
-  }
-
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "calendar_preview" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("calendar_preview", requestId);
   try {
     // Get auth and make live Google Calendar API call
     const auth = await GoogleCalendarService.getAuth(userId);
@@ -34,21 +29,27 @@ export async function GET(): Promise<Response> {
 
     const events = response.data.items ?? [];
 
-    return ok({
+    return api.success({
       upcomingEventsCount: events.length,
     });
   } catch (error) {
     // Handle specific Google API errors
     if (error instanceof Error) {
       if (error.message.includes("invalid_grant") || error.message.includes("unauthorized")) {
-        return err(401, "authentication_expired", {
-          message: "Google Calendar authentication has expired. Please reconnect.",
-        });
+        return api.error(
+          "Google Calendar authentication has expired. Please reconnect.",
+          "UNAUTHORIZED",
+          undefined,
+          error,
+        );
       }
     }
 
-    return err(500, "service_error", {
-      details: error instanceof Error ? error.message : "Failed to fetch calendar preview",
-    });
+    return api.error(
+      "Failed to fetch calendar preview",
+      "INTEGRATION_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

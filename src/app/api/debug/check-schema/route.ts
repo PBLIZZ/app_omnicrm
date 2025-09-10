@@ -1,6 +1,7 @@
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
-import { err, ok } from "@/lib/api/http";
+import { ensureError } from "@/lib/utils/error-handler";
 
 // Strong typing for information_schema.columns rows
 type ColumnInfoRow = {
@@ -9,9 +10,12 @@ type ColumnInfoRow = {
   is_nullable: "YES" | "NO";
 };
 
-export async function GET(): Promise<Response> {
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "debug_check_schema" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("debug.check_schema", requestId);
   try {
-    const userId = await getServerUserId();
     const db = await getDb();
 
     // Check if raw_events table has source_id column
@@ -26,7 +30,7 @@ export async function GET(): Promise<Response> {
     // Check if source_id column exists
     const hasSourceId = columns.some((col) => col.column_name === "source_id");
 
-    return ok({
+    return api.success({
       tableExists: true,
       columns,
       hasSourceId,
@@ -34,25 +38,23 @@ export async function GET(): Promise<Response> {
       userId,
     });
   } catch (error) {
-    console.error("Schema check error:", error);
-    return err(500, "Failed to check schema");
+    return api.error("Failed to check schema", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function POST(): Promise<Response> {
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "debug_apply_migration" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("debug.apply_migration", requestId);
   try {
-    const userId = await getServerUserId();
     const db = await getDb();
 
     // Apply the missing migration
-    // console.log("Applying source_id column migration...");
-
     await db.execute(`
       ALTER TABLE public.raw_events
       ADD COLUMN IF NOT EXISTS source_id TEXT;
     `);
-
-    // console.log("Migration applied successfully");
 
     // Verify the migration worked
     const columns = (await db.execute(`
@@ -63,17 +65,18 @@ export async function POST(): Promise<Response> {
       AND column_name = 'source_id';
     `)) as unknown as ColumnInfoRow[];
 
-    return ok({
+    return api.success({
       success: true,
       message: "Migration applied successfully",
       sourceIdColumn: columns[0] ?? null,
       userId,
     });
   } catch (error) {
-    console.error("Migration error:", error);
-    return err(
-      500,
+    return api.error(
       `Migration failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
     );
   }
-}
+});

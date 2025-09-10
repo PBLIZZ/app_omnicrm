@@ -1,17 +1,25 @@
-import { env } from "@/lib/env";
-import { ok, err } from "@/lib/api/http";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { env } from "@/server/lib/env";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export const GET = createRouteHandler({
+  auth: false,
+  rateLimit: { operation: "debug_env" },
+})(async ({ requestId }) => {
+  const api = new ApiResponseBuilder("debug_env", requestId);
+
   if (env.NODE_ENV === "production") {
-    return err(404, "not_found", { message: "Not found" });
+    return api.notFound("Not found");
   }
+
   const url = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "<undefined>";
   const key = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"] ?? "<undefined>";
   const gmailRedirect = process.env["GOOGLE_GMAIL_REDIRECT_URI"] ?? "<undefined>";
   const calendarRedirect = process.env["GOOGLE_CALENDAR_REDIRECT_URI"] ?? "<undefined>";
-  return ok({
+
+  return api.success({
     env: {
       NEXT_PUBLIC_SUPABASE_URL: url,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: key
@@ -22,4 +30,4 @@ export async function GET(): Promise<Response> {
       NODE_ENV: env.NODE_ENV,
     },
   });
-}
+});

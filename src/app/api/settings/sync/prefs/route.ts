@@ -1,17 +1,19 @@
 /** GET/PUT /api/settings/sync/prefs — read/write sync preferences (auth required). Errors: 401 Unauthorized, 400 invalid_body */
-import type { NextRequest } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { eq } from "drizzle-orm";
 import { userSyncPrefs } from "@/server/db/schema";
-import { err, ok } from "@/lib/api/http";
-import { toApiError } from "@/server/jobs/types";
-import { safeJson } from "@/lib/api/http";
-import { UserSyncPrefsUpdateSchema } from "@/lib/schemas";
+import { UserSyncPrefsUpdateSchema } from "@/lib/validation/schemas";
+import { ensureError } from "@/lib/utils/error-handler";
 
-export async function GET(): Promise<Response> {
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "sync_prefs_get" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("settings.sync.prefs.get", requestId);
+
   try {
-    const userId = await getServerUserId();
     const dbo = await getDb();
     const rows = await dbo
       .select()
@@ -28,19 +30,29 @@ export async function GET(): Promise<Response> {
       driveIngestionMode: "none",
       driveFolderIds: [],
     };
-    return ok(p);
+    return api.success(p);
   } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
+    return api.error(
+      "Failed to get sync preferences",
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});
 
-export async function PUT(req: NextRequest): Promise<Response> {
+export const PUT = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "sync_prefs_update" },
+  validation: {
+    body: UserSyncPrefsUpdateSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("settings.sync.prefs.update", requestId);
+
   try {
-    const userId = await getServerUserId();
     const dbo = await getDb();
-    const raw = (await safeJson<Record<string, unknown>>(req)) ?? {};
-    const body = UserSyncPrefsUpdateSchema.parse(raw);
+    const body = validated.body;
     const toBool = (v: unknown, d: boolean): boolean => {
       if (typeof v === "boolean") return v;
       if (typeof v === "string") return v === "true";
@@ -90,9 +102,13 @@ export async function PUT(req: NextRequest): Promise<Response> {
         driveFolderIds: body.driveFolderIds ?? [],
       });
     }
-    return ok({});
+    return api.success({});
   } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
+    return api.error(
+      "Failed to update sync preferences",
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

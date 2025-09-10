@@ -1,15 +1,41 @@
-import { NextRequest } from "next/server";
-import { ok, err } from "@/lib/api/http";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { QueueManager } from "@/server/jobs/queue-manager";
-import { supabaseServerAdmin } from "@/lib/supabase/server";
+import { supabaseServerAdmin } from "@/server/db/supabase/server";
+import { z } from "zod";
+import { ensureError } from "@/lib/utils/error-handler";
 
-export async function POST(request: NextRequest): Promise<Response> {
+const replayQuerySchema = z.object({
+  provider: z.string().default("gmail,google_calendar"),
+  days: z
+    .string()
+    .default("30")
+    .transform((val) => parseInt(val, 10)),
+  batchSize: z
+    .string()
+    .default("50")
+    .transform((val) => parseInt(val, 10)),
+  dryRun: z
+    .string()
+    .optional()
+    .transform((val) => val === "true"),
+});
+
+export const POST = createRouteHandler({
+  auth: false, // Using custom admin auth
+  validation: {
+    query: replayQuerySchema,
+  },
+  rateLimit: { operation: "admin_replay" },
+})(async ({ validated, requestId }) => {
+  const api = new ApiResponseBuilder("admin_replay", requestId);
+
   try {
     // Get authenticated user using admin client
     if (!supabaseServerAdmin) {
-      return err(500, "Admin client not configured");
+      return api.error("Admin client not configured", "INTERNAL_ERROR");
     }
 
     const {
@@ -18,23 +44,18 @@ export async function POST(request: NextRequest): Promise<Response> {
     } = await supabaseServerAdmin.auth.getUser();
 
     if (authError || !user) {
-      return err(401, "Unauthorized");
+      return api.unauthorized("Admin authentication required");
     }
 
-    // Parse query parameters
-    const { searchParams } = new URL(request.url);
-    const provider = searchParams.get("provider") ?? "gmail,google_calendar";
-    const days = parseInt(searchParams.get("days") ?? "30", 10);
-    const batchSize = parseInt(searchParams.get("batchSize") ?? "50", 10);
-    const dryRun = searchParams.get("dryRun") === "true";
+    const { provider, days, batchSize, dryRun } = validated.query;
 
     // Validate parameters
     if (days > 90 || days < 1) {
-      return err(400, "Days must be between 1 and 90");
+      return api.validationError("Days must be between 1 and 90");
     }
 
     if (batchSize > 200 || batchSize < 1) {
-      return err(400, "Batch size must be between 1 and 200");
+      return api.validationError("Batch size must be between 1 and 200");
     }
 
     const providers = provider.split(",").map((p) => p.trim());
@@ -42,7 +63,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     const invalidProviders = providers.filter((p) => !validProviders.includes(p));
 
     if (invalidProviders.length > 0) {
-      return err(400, `Invalid providers: ${invalidProviders.join(", ")}`);
+      return api.validationError(`Invalid providers: ${invalidProviders.join(", ")}`);
     }
 
     // Get unprocessed raw events
@@ -59,7 +80,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     `);
 
     if (rawEvents.length === 0) {
-      return ok({
+      return api.success({
         message: "No events found to replay",
         stats: {
           found: 0,
@@ -81,7 +102,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         {} as Record<string, number>,
       );
 
-      return ok({
+      return api.success({
         message: "Dry run completed",
         stats: {
           found: rawEvents.length,
@@ -125,7 +146,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       )
     `);
 
-    return ok({
+    return api.success({
       message: `Successfully queued ${jobIds.length} events for replay`,
       stats: {
         found: rawEvents.length,
@@ -135,18 +156,27 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
     });
   } catch (error) {
-    console.error("Replay API error:", error);
-    return err(500, "Internal server error", {
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+    return api.error("Internal server error", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function GET(request: NextRequest): Promise<Response> {
+const statusQuerySchema = z.object({
+  batchId: z.string().optional(),
+});
+
+export const GET = createRouteHandler({
+  auth: false, // Using custom admin auth
+  validation: {
+    query: statusQuerySchema,
+  },
+  rateLimit: { operation: "admin_replay_status" },
+})(async ({ validated, requestId }) => {
+  const api = new ApiResponseBuilder("admin_replay_status", requestId);
+
   try {
     // Get authenticated user using admin client
     if (!supabaseServerAdmin) {
-      return err(500, "Admin client not configured");
+      return api.error("Admin client not configured", "INTERNAL_ERROR");
     }
 
     const {
@@ -155,12 +185,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     } = await supabaseServerAdmin.auth.getUser();
 
     if (authError || !user) {
-      return err(401, "Unauthorized");
+      return api.unauthorized("Admin authentication required");
     }
 
-    // Get replay status and statistics
-    const { searchParams } = new URL(request.url);
-    const batchId = searchParams.get("batchId");
+    const { batchId } = validated.query;
 
     const db = await getDb();
 
@@ -196,7 +224,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       batchStatus = await queueManager.getBatchStatus(batchId);
     }
 
-    return ok({
+    return api.success({
       providerStats: overallStats.map((row) => {
         const r = row as Record<string, unknown>;
         return {
@@ -217,9 +245,6 @@ export async function GET(request: NextRequest): Promise<Response> {
       batchStatus,
     });
   } catch (error) {
-    console.error("Replay status API error:", error);
-    return err(500, "Internal server error", {
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+    return api.error("Internal server error", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

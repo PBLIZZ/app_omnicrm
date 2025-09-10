@@ -1,12 +1,12 @@
-import { NextRequest } from "next/server";
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { MomentumStorage } from "@/server/storage/momentum.storage";
-
-const momentumStorage = new MomentumStorage();
 import { z } from "zod";
 import type { NewMomentumWorkspace } from "@/server/db/schema";
+import { ensureError } from "@/lib/utils/error-handler";
+
+const momentumStorage = new MomentumStorage();
 
 const UpdateWorkspaceSchema = z.object({
   name: z.string().min(1), // Required to match DB schema
@@ -15,88 +15,79 @@ const UpdateWorkspaceSchema = z.object({
   isDefault: z.boolean().optional(),
 });
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ workspaceId: string }> }
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+const ParamsSchema = z.object({
+  workspaceId: z.string().uuid(),
+});
 
-  const { workspaceId } = await params;
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "workspace_get" },
+  validation: {
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("workspace_get", requestId);
 
   try {
-    const workspace = await momentumStorage.getMomentumWorkspace(workspaceId, userId);
+    const workspace = await momentumStorage.getMomentumWorkspace(
+      validated.params.workspaceId,
+      userId,
+    );
     if (!workspace) {
-      return err(404, "workspace_not_found");
+      return api.notFound("Workspace not found");
     }
-    return ok({ workspace });
+
+    return api.success({ workspace });
   } catch (error) {
-    console.error("Error fetching workspace:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to fetch workspace", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ workspaceId: string }> }
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const { workspaceId } = await params;
-  
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = UpdateWorkspaceSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const PUT = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "workspace_update" },
+  validation: {
+    params: ParamsSchema,
+    body: UpdateWorkspaceSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("workspace_update", requestId);
 
   try {
     // Handle optional fields properly for exactOptionalPropertyTypes
-    const updateData: Partial<Omit<NewMomentumWorkspace, 'userId'>> = {};
-    if (parsed.data['name'] !== undefined) updateData['name'] = parsed.data['name'];
-    if (parsed.data['description'] !== undefined) updateData['description'] = parsed.data['description'];
-    if (parsed.data['color'] !== undefined) updateData['color'] = parsed.data['color'];
-    if (parsed.data['isDefault'] !== undefined) updateData['isDefault'] = parsed.data['isDefault'];
-    
-    await momentumStorage.updateMomentumWorkspace(workspaceId, userId, updateData);
-    const workspace = await momentumStorage.getMomentumWorkspace(workspaceId, userId);
-    return ok({ workspace });
+    const updateData: Partial<Omit<NewMomentumWorkspace, "userId">> = {};
+    if (validated.body["name"] !== undefined) updateData["name"] = validated.body["name"];
+    if (validated.body["description"] !== undefined)
+      updateData["description"] = validated.body["description"];
+    if (validated.body["color"] !== undefined) updateData["color"] = validated.body["color"];
+    if (validated.body["isDefault"] !== undefined)
+      updateData["isDefault"] = validated.body["isDefault"];
+
+    await momentumStorage.updateMomentumWorkspace(validated.params.workspaceId, userId, updateData);
+    const workspace = await momentumStorage.getMomentumWorkspace(
+      validated.params.workspaceId,
+      userId,
+    );
+
+    return api.success({ workspace });
   } catch (error) {
-    console.error("Error updating workspace:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to update workspace", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ workspaceId: string }> }
-): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const { workspaceId } = await params;
+export const DELETE = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "workspace_delete" },
+  validation: {
+    params: ParamsSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("workspace_delete", requestId);
 
   try {
-    await momentumStorage.deleteMomentumWorkspace(workspaceId, userId);
-    return ok({ success: true });
+    await momentumStorage.deleteMomentumWorkspace(validated.params.workspaceId, userId);
+    return api.success({ success: true });
   } catch (error) {
-    console.error("Error deleting workspace:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to delete workspace", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

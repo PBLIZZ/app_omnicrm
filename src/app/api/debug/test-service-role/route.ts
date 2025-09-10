@@ -1,11 +1,16 @@
-import { supaAdminGuard } from "@/lib/supabase/admin";
-import { getServerUserId } from "@/server/auth/user";
-import { err, ok } from "@/lib/api/http";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { supaAdminGuard } from "@/server/db/supabase-admin";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
-export async function GET(): Promise<Response> {
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "debug_test_service_role" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("debug.test_service_role", requestId);
+
   try {
-    const userId = await getServerUserId();
-
     // Test inserting a simple raw_event
     const testEvent = {
       userId,
@@ -18,46 +23,99 @@ export async function GET(): Promise<Response> {
       sourceId: "test-123",
     };
 
-    // console.log("🧪 Testing service role insert...");
+    await logger.info("Testing service role insert", {
+      operation: "debug.test_service_role.insert",
+      additionalData: {
+        userId: userId.slice(0, 8) + "...",
+        testEventKeys: Object.keys(testEvent),
+      },
+    });
+
     const result = await supaAdminGuard.insert("raw_events", testEvent);
 
-    // console.log("✅ Service role test successful:", result);
-    return ok({
+    await logger.info("Service role test successful", {
+      operation: "debug.test_service_role.insert",
+      additionalData: {
+        userId: userId.slice(0, 8) + "...",
+        insertedCount: result.length,
+      },
+    });
+    return api.success({
       success: true,
       message: "Service role insert successful",
       insertedCount: result.length,
       userId,
     });
   } catch (error) {
-    console.error("❌ Service role test failed:", error);
-    return err(
-      500,
+    await logger.error(
+      "Service role test failed",
+      {
+        operation: "debug.test_service_role.insert",
+        additionalData: {
+          userId: "unknown",
+        },
+      },
+      ensureError(error),
+    );
+    return api.error(
       `Service role test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
     );
   }
-}
+});
 
-export async function DELETE(): Promise<Response> {
+export const DELETE = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "debug_cleanup_test_data" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("debug.cleanup_test_data", requestId);
+
   try {
-    const userId = await getServerUserId();
-
     // Clean up test data
-    // console.log("🧹 Cleaning up test data...");
+    await logger.info("Cleaning up test data", {
+      operation: "debug.cleanup_test_data.update",
+      additionalData: {
+        userId: userId.slice(0, 8) + "...",
+      },
+    });
+
     const result = await supaAdminGuard.update(
       "raw_events",
       { provider: "test" },
       { sourceMeta: { cleaned: true } },
     );
 
-    // console.log("✅ Cleanup successful:", result);
-    return ok({
+    await logger.info("Cleanup successful", {
+      operation: "debug.cleanup_test_data.update",
+      additionalData: {
+        userId: userId.slice(0, 8) + "...",
+        updatedCount: result.length,
+      },
+    });
+    return api.success({
       success: true,
       message: "Test data cleaned up",
       updatedCount: result.length,
       userId,
     });
   } catch (error) {
-    console.error("❌ Cleanup failed:", error);
-    return err(500, `Cleanup failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    await logger.error(
+      "Cleanup failed",
+      {
+        operation: "debug.cleanup_test_data.update",
+        additionalData: {
+          userId: "unknown",
+        },
+      },
+      ensureError(error),
+    );
+    return api.error(
+      `Cleanup failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "INTERNAL_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

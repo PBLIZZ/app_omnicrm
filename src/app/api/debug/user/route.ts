@@ -1,15 +1,22 @@
-import { ok, err } from "@/lib/api/http";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { cookies } from "next/headers";
-import { env } from "@/lib/env";
-import { logger } from "@/lib/logger";
+import { env } from "@/server/lib/env";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<ReturnType<typeof ok> | ReturnType<typeof err>> {
+export const GET = createRouteHandler({
+  auth: true, // Use standard auth now
+  rateLimit: { operation: "debug_user" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("debug_user", requestId);
+
   if (env.NODE_ENV === "production") {
-    return err(404, "not_found");
+    return api.notFound("Not found");
   }
+
   try {
     // Debug: Show what cookies we have
     const cookieStore = await cookies();
@@ -18,19 +25,16 @@ export async function GET(): Promise<ReturnType<typeof ok> | ReturnType<typeof e
       (c) => c.name.includes("sb") || c.name.includes("supabase"),
     );
 
-    logger.warn(
-      "[DEBUG] All cookies",
-      { cookieNames: allCookies.map((c) => c.name) },
-      "api/debug/user/GET",
-    );
-    logger.warn(
-      "[DEBUG] Supabase cookies",
-      { cookieNames: supabaseCookies.map((c) => c.name) },
-      "api/debug/user/GET",
-    );
+    await logger.warn("[DEBUG] All cookies", {
+      operation: "api/debug/user/GET",
+      additionalData: { cookieNames: allCookies.map((c) => c.name) },
+    });
+    await logger.warn("[DEBUG] Supabase cookies", {
+      operation: "api/debug/user/GET",
+      additionalData: { cookieNames: supabaseCookies.map((c) => c.name) },
+    });
 
-    const userId = await getServerUserId();
-    return ok({
+    return api.success({
       userId,
       debug: {
         totalCookies: allCookies.length,
@@ -45,20 +49,23 @@ export async function GET(): Promise<ReturnType<typeof ok> | ReturnType<typeof e
     // Debug info only in non-production environments
     const cookieStore = await cookies();
     const allCookies = cookieStore.getAll();
-    logger.warn(
-      "[DEBUG] Auth failed, cookies available",
-      { cookieNames: allCookies.map((c) => c.name) },
-      "api/debug/user/GET",
-    );
+    void logger.warn("[DEBUG] Auth failed, cookies available", {
+      operation: "api/debug/user/GET",
+      additionalData: { cookieNames: allCookies.map((c) => c.name) },
+    });
 
-    return err(
-      status,
+    const errorCode =
+      status >= 500 ? "INTERNAL_ERROR" : status === 401 ? "UNAUTHORIZED" : "VALIDATION_ERROR";
+
+    return api.error(
       message,
+      errorCode,
       {
         totalCookies: allCookies.length,
         cookieNames: allCookies.map((c) => c.name),
+        file: "api/debug/user/route.ts",
       },
-      { file: "api/debug/user/route.ts" },
+      ensureError(error),
     );
   }
-}
+});

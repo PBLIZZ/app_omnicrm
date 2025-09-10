@@ -1,5 +1,4 @@
 /** GET /api/user/export — Complete user data export for GDPR compliance (auth required). */
-import { NextResponse } from "next/server";
 import { getDb } from "@/server/db/client";
 import {
   contacts,
@@ -18,18 +17,14 @@ import {
   aiQuotas,
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getServerUserId } from "@/server/auth/user";
-import { err } from "@/lib/api/http";
-import { toApiError } from "@/server/jobs/types";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "user_export" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("user.export", requestId);
 
   try {
     const db = await getDb();
@@ -216,18 +211,12 @@ export async function GET(): Promise<Response> {
     // Return as downloadable JSON
     const fileName = `omnicrm-data-export-${new Date().toISOString().split("T")[0]}.json`;
 
-    return new NextResponse(JSON.stringify(exportPayload, null, 2), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
-    });
+    return api.fileDownload(JSON.stringify(exportPayload, null, 2), fileName, "application/json");
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return err(500, `Data export failed: ${errorMessage}`);
+    return api.databaseError(
+      `Data export failed: ${errorMessage}`,
+      error instanceof Error ? error : undefined,
+    );
   }
-}
+});

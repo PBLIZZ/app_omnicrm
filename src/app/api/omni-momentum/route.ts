@@ -1,12 +1,12 @@
-import { NextRequest } from "next/server";
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { momentumStorage } from "@/server/storage/momentum.storage";
 import { getDb } from "@/server/db/client";
 import { momentumWorkspaces } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { ensureError } from "@/lib/utils/error-handler";
 import { logger } from "@/lib/observability/unified-logger";
 
 const CreateMomentumSchema = z.object({
@@ -23,80 +23,72 @@ const CreateMomentumSchema = z.object({
   taggedContacts: z.array(z.string().uuid()).optional(),
   dueDate: z.string().datetime().optional(),
   estimatedMinutes: z.number().int().min(0).optional(),
-  aiContext: z.any().optional(),
+  aiContext: z.record(z.unknown()).optional(),
 });
 
-export async function GET(req: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const { searchParams } = new URL(req.url);
-  const filters: {
-    workspaceId?: string;
-    projectId?: string;
-    status?: string;
-    assignee?: string;
-    approvalStatus?: string;
-    parentMomentumId?: string | null;
-  } = {};
-
-  const workspaceId = searchParams.get("workspaceId");
-  if (workspaceId) filters.workspaceId = workspaceId;
-
-  const projectId = searchParams.get("projectId");
-  if (projectId) filters.projectId = projectId;
-
-  const status = searchParams.get("status");
-  if (status) filters.status = status;
-
-  const assignee = searchParams.get("assignee");
-  if (assignee) filters.assignee = assignee;
-
-  const approvalStatus = searchParams.get("approvalStatus");
-  if (approvalStatus) filters.approvalStatus = approvalStatus;
-  if (searchParams.has("parentMomentumId")) {
-    filters.parentMomentumId = searchParams.get("parentMomentumId") ?? null;
-  }
-
-  const withContacts = searchParams.get("withContacts") === "true";
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "momentum_list" },
+})(async ({ userId, requestId }, request) => {
+  const api = new ApiResponseBuilder("momentum_list", requestId);
 
   try {
+    const { searchParams } = request.nextUrl;
+
+    const filters: {
+      workspaceId?: string;
+      projectId?: string;
+      status?: string;
+      assignee?: string;
+      approvalStatus?: string;
+      parentMomentumId?: string | null;
+    } = {};
+
+    const workspaceId = searchParams.get("workspaceId");
+    if (workspaceId) filters.workspaceId = workspaceId;
+
+    const projectId = searchParams.get("projectId");
+    if (projectId) filters.projectId = projectId;
+
+    const status = searchParams.get("status");
+    if (status) filters.status = status;
+
+    const assignee = searchParams.get("assignee");
+    if (assignee) filters.assignee = assignee;
+
+    const approvalStatus = searchParams.get("approvalStatus");
+    if (approvalStatus) filters.approvalStatus = approvalStatus;
+    if (searchParams.has("parentMomentumId")) {
+      filters.parentMomentumId = searchParams.get("parentMomentumId") ?? null;
+    }
+
+    const withContacts = searchParams.get("withContacts") === "true";
+
     let momentums;
     if (withContacts) {
       momentums = await momentumStorage.getMomentumsWithContacts(userId);
     } else {
       momentums = await momentumStorage.getMomentums(userId, filters);
     }
-    return ok({ momentums });
+
+    return api.success({ momentums });
   } catch (error) {
-    console.error("Error fetching momentums:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to fetch momentums", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function POST(req: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = CreateMomentumSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "momentum_create" },
+  validation: {
+    body: CreateMomentumSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("momentum_create", requestId);
 
   try {
     // Get workspaceId or create default workspace
-    let workspaceId = parsed.data.workspaceId;
+    let workspaceId = validated.body.workspaceId;
 
     if (!workspaceId) {
       const db = await getDb();
@@ -121,32 +113,34 @@ export async function POST(req: NextRequest): Promise<Response> {
       workspaceId = defaultWorkspace?.id;
     }
 
-    logger.info("Creating momentum", {
+    void logger.info("Creating momentum", {
       operation: "create_momentum",
-      workspaceId,
-      projectId: parsed.data.projectId ?? null,
-      title: parsed.data.title.substring(0, 50), // Truncate for logs
+      additionalData: {
+        workspaceId,
+        projectId: validated.body.projectId ?? null,
+        title: validated.body.title.substring(0, 50), // Truncate for logs
+      },
     });
 
     const momentum = await momentumStorage.createMomentum(userId, {
       momentumWorkspaceId: workspaceId,
-      momentumProjectId: parsed.data.projectId ?? null,
-      parentMomentumId: parsed.data.parentMomentumId ?? null,
-      title: parsed.data.title,
-      description: parsed.data.description ?? null,
-      status: parsed.data.status,
-      priority: parsed.data.priority,
-      assignee: parsed.data.assignee,
-      source: parsed.data.source,
-      approvalStatus: parsed.data.approvalStatus,
-      taggedContacts: parsed.data.taggedContacts ?? null,
-      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      estimatedMinutes: parsed.data.estimatedMinutes ?? null,
-      aiContext: parsed.data.aiContext ?? null,
+      momentumProjectId: validated.body.projectId ?? null,
+      parentMomentumId: validated.body.parentMomentumId ?? null,
+      title: validated.body.title,
+      description: validated.body.description ?? null,
+      status: validated.body.status,
+      priority: validated.body.priority,
+      assignee: validated.body.assignee,
+      source: validated.body.source,
+      approvalStatus: validated.body.approvalStatus,
+      taggedContacts: validated.body.taggedContacts ?? null,
+      dueDate: validated.body.dueDate ? new Date(validated.body.dueDate) : null,
+      estimatedMinutes: validated.body.estimatedMinutes ?? null,
+      aiContext: validated.body.aiContext ?? null,
     });
-    return ok({ momentum });
+
+    return api.success({ momentum });
   } catch (error) {
-    console.error("Error creating momentum:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to create momentum", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

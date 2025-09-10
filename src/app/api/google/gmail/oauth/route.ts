@@ -1,22 +1,15 @@
 /** GET /api/google/gmail/oauth — start Gmail OAuth (auth required). Errors: 401 Unauthorized */
-import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { logSync } from "@/lib/api/sync-audit";
-import { getServerUserId } from "@/server/auth/user";
-import { err } from "@/lib/api/http";
-import { hmacSign, randomNonce } from "@/lib/crypto";
-import { toApiError } from "@/server/jobs/types";
+import { NextResponse } from "next/server";
+import { createRouteHandler } from "@/server/api/handler";
+import { logSync } from "@/server/sync/audit";
+import { hmacSign, randomNonce } from "@/server/utils/crypto";
 
 // GET /api/google/gmail/oauth - specific Gmail readonly authorization
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
-
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "google_gmail_oauth" },
+})(async ({ userId }) => {
   const scopes = ["https://www.googleapis.com/auth/gmail.readonly"];
 
   const oauth2 = new google.auth.OAuth2(
@@ -52,4 +45,4 @@ export async function GET(): Promise<Response> {
     maxAge: 5 * 60, // 5 minutes
   });
   return res;
-}
+});

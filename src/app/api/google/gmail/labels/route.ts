@@ -1,13 +1,13 @@
 /** GET /api/google/gmail/labels — fetch Gmail labels for authenticated user */
 
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
 import { getDb } from "@/server/db/client";
 import { and, eq } from "drizzle-orm";
 import { userIntegrations } from "@/server/db/schema";
-import { err, ok } from "@/lib/api/http";
-import { toApiError } from "@/server/jobs/types";
-import { decryptString } from "@/lib/crypto";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { decryptString } from "@/server/utils/crypto";
 import { gmail_v1, google } from "googleapis";
+import { logger } from "@/lib/observability";
 
 interface GmailLabel {
   id: string;
@@ -24,14 +24,11 @@ interface GmailLabelsResponse {
   totalLabels: number;
 }
 
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "gmail_labels" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("google.gmail.labels", requestId);
 
   const dbo = await getDb();
 
@@ -49,7 +46,7 @@ export async function GET(): Promise<Response> {
     .limit(1);
 
   if (!integration) {
-    return err(401, "Gmail not connected");
+    return api.error("Gmail not connected", "UNAUTHORIZED");
   }
 
   try {
@@ -87,7 +84,7 @@ export async function GET(): Promise<Response> {
     });
 
     if (!response.data.labels) {
-      return ok({ labels: [], totalLabels: 0 });
+      return api.success({ labels: [], totalLabels: 0 });
     }
 
     // Transform labels to our format
@@ -127,25 +124,46 @@ export async function GET(): Promise<Response> {
       totalLabels: labels.length,
     };
 
-    return ok(result);
+    return api.success(result);
   } catch (error: unknown) {
-    console.error("Gmail labels fetch failed:", error);
+    await logger.error(
+      "Gmail labels fetch failed",
+      {
+        operation: "api.google.gmail.labels",
+        additionalData: {
+          userId: userId.slice(0, 8) + "...",
+          hasIntegration: !!integration,
+          errorType: error instanceof Error ? error.constructor.name : typeof error,
+        },
+      },
+      error instanceof Error ? error : undefined,
+    );
 
     if (error instanceof Error) {
       // Handle specific Google API errors
       if (error.message.includes("insufficient authentication scopes")) {
-        return err(403, "Insufficient Gmail permissions. Please reconnect your Gmail account.");
+        return api.error(
+          "Insufficient Gmail permissions. Please reconnect your Gmail account.",
+          "FORBIDDEN",
+        );
       }
 
       if (
         error.message.includes("invalid_grant") ||
         error.message.includes("Token has been expired or revoked")
       ) {
-        return err(401, "Gmail access token has expired. Please reconnect your account.");
+        return api.error(
+          "Gmail access token has expired. Please reconnect your account.",
+          "UNAUTHORIZED",
+        );
       }
     }
 
-    const { status, message } = toApiError(error);
-    return err(status, message);
+    return api.error(
+      "Failed to fetch Gmail labels",
+      "INTERNAL_ERROR",
+      undefined,
+      error instanceof Error ? error : undefined,
+    );
   }
-}
+});

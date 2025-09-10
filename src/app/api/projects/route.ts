@@ -1,11 +1,11 @@
-import { NextRequest } from "next/server";
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { MomentumStorage } from "@/server/storage/momentum.storage";
+import { z } from "zod";
+import { ensureError } from "@/lib/utils/error-handler";
 
 const momentumStorage = new MomentumStorage();
-import { z } from "zod";
 
 const CreateProjectSchema = z.object({
   momentumWorkspaceId: z.string().uuid("Invalid workspace ID"),
@@ -16,54 +16,43 @@ const CreateProjectSchema = z.object({
   dueDate: z.string().datetime().optional(),
 });
 
-export async function GET(req: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const { searchParams } = new URL(req.url);
-  const workspaceId = searchParams.get("workspaceId") ?? undefined;
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "projects_list" },
+})(async ({ userId, requestId }, request) => {
+  const api = new ApiResponseBuilder("projects_list", requestId);
 
   try {
+    const workspaceId = request.nextUrl.searchParams.get("workspaceId") ?? undefined;
     const projects = await momentumStorage.getMomentumProjects(userId, workspaceId);
-    return ok({ projects });
+
+    return api.success({ projects });
   } catch (error) {
-    console.error("Error fetching projects:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to fetch projects", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function POST(req: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = CreateProjectSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "projects_create" },
+  validation: {
+    body: CreateProjectSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("projects_create", requestId);
 
   try {
     const project = await momentumStorage.createMomentumProject(userId, {
-      momentumWorkspaceId: parsed.data.momentumWorkspaceId,
-      name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      color: parsed.data.color,
-      status: parsed.data.status,
-      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+      momentumWorkspaceId: validated.body.momentumWorkspaceId,
+      name: validated.body.name,
+      description: validated.body.description ?? null,
+      color: validated.body.color,
+      status: validated.body.status,
+      dueDate: validated.body.dueDate ? new Date(validated.body.dueDate) : null,
     });
-    return ok({ project });
+
+    return api.success({ project });
   } catch (error) {
-    console.error("Error creating project:", error);
-    return err(500, "internal_server_error");
+    return api.error("Failed to create project", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

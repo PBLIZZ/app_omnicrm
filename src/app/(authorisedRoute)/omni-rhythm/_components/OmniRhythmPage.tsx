@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiClient } from "@/lib/api/client";
 import { logger } from "@/lib/observability";
+import { toast } from "sonner";
 
 import { Calendar } from "lucide-react";
 
@@ -57,7 +58,7 @@ export function OmniRhythmPage(): JSX.Element {
   const handleGenerateEmbeddings = async (): Promise<void> => {
     try {
       const result = await apiClient.post<{ processedEvents: number }>("/api/calendar/embed", {});
-      alert(`Successfully generated embeddings for ${result.processedEvents} events!`);
+      toast.success(`Successfully generated embeddings for ${result.processedEvents} events!`);
     } catch (error) {
       await logger.error(
         "embeddings_generation_failed",
@@ -67,7 +68,7 @@ export function OmniRhythmPage(): JSX.Element {
         },
         ensureError(error),
       );
-      alert("Network error during embedding generation");
+      toast.error("Network error during embedding generation");
     }
   };
 
@@ -83,7 +84,7 @@ export function OmniRhythmPage(): JSX.Element {
         errors?: unknown[];
       }>("/api/jobs/runner", {});
 
-      alert(
+      toast.info(
         `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
       );
     } catch (error) {
@@ -95,7 +96,7 @@ export function OmniRhythmPage(): JSX.Element {
         },
         ensureError(error),
       );
-      alert("Network error during job processing");
+      toast.error("Network error during job processing");
     } finally {
       setIsProcessingJobs(false);
     }
@@ -106,9 +107,11 @@ export function OmniRhythmPage(): JSX.Element {
       const response = await fetch("/api/calendar/insights");
       if (response.ok) {
         const result = (await response.json()) as { insights?: Record<string, unknown> };
-        alert(`Insights loaded: ${Object.keys(result.insights ?? {}).length} categories available`);
+        toast.success(
+          `Insights loaded: ${Object.keys(result.insights ?? {}).length} categories available`,
+        );
       } else {
-        alert("Failed to load insights");
+        toast.error("Failed to load insights");
       }
     } catch (error) {
       await logger.error(
@@ -119,15 +122,16 @@ export function OmniRhythmPage(): JSX.Element {
         },
         ensureError(error),
       );
-      alert("Network error during insights loading");
+      toast.error("Network error during insights loading");
     }
   };
 
-  // Initialize calendar status and clients
+  // Initialize calendar status and clients (run once per stable handler change)
+  const { checkCalendarStatus, fetchClients } = data;
   useEffect(() => {
-    void data.checkCalendarStatus();
-    void data.fetchClients();
-  }, [data, data.checkCalendarStatus, data.fetchClients]);
+    void checkCalendarStatus?.();
+    void fetchClients?.();
+  }, [checkCalendarStatus, fetchClients]);
 
   // Debug logging (development only) - commented out to reduce noise
   // Uncomment only when debugging calendar issues

@@ -6,7 +6,7 @@ import {
   bytesToHex,
   bytesToBase64Url,
   base64UrlToBytes,
-} from "../encoding";
+} from "../utils/encoding";
 
 describe("encoding utilities", () => {
   it("utf8ToBytes/bytesToUtf8 roundtrip (ASCII)", () => {

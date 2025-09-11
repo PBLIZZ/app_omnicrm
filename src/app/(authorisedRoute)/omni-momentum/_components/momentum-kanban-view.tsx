@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Momentum } from "@/server/db/schema";
 
@@ -291,13 +291,7 @@ export function MomentumKanbanView({ momentums, isLoading }: MomentumKanbanViewP
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, data }: { taskId: string; data: { status: string } }) => {
-      return apiRequest(`/api/tasks/${taskId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      return apiClient.put(`/api/tasks/${taskId}`, data);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
@@ -307,7 +301,7 @@ export function MomentumKanbanView({ momentums, isLoading }: MomentumKanbanViewP
       });
     },
     onError: (error) => {
-      console.error("Error updating task:", error);
+      console.error("Failed to update task status:", error);
       toast({
         title: "Error",
         description: "Failed to update task status. Please try again.",

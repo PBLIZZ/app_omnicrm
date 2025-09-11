@@ -4,7 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { RealtimeAgent, RealtimeSession } from "@openai/agents/realtime";
 import { Sparkles, Send, Mic, MicOff } from "lucide-react";
 import { Button, Input } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 type ChatMessage = {
   type: "user" | "bot" | "tool";
@@ -20,7 +22,39 @@ interface TranscriptionEvent {
 }
 
 interface AudioChunk {
-  data: ArrayBuffer;
+  data?: Uint8Array | ArrayBuffer;
+  format?: string;
+  sampleRate?: number;
+}
+
+// API response types
+interface EphemeralKeyResponse {
+  secret: string;
+}
+
+interface ToolResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+// Type guards for API responses
+function isEphemeralKeyResponse(obj: unknown): obj is EphemeralKeyResponse {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "secret" in obj &&
+    typeof (obj as Record<string, unknown>)["secret"] === "string"
+  );
+}
+
+function isToolResult(obj: unknown): obj is ToolResult {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "success" in obj &&
+    typeof (obj as Record<string, unknown>)["success"] === "boolean"
+  );
 }
 
 interface ToolInvocation {
@@ -31,19 +65,6 @@ interface ToolInvocation {
 interface ConversationError {
   message: string;
 }
-
-type FunctionTool = {
-  type: "function";
-  function: {
-    name: string;
-    description: string;
-    parameters: {
-      type: "object";
-      properties: Record<string, unknown>;
-      required?: string[];
-    };
-  };
-};
 
 interface RealtimeSessionEvents {
   "audio.transcribed": (event: TranscriptionEvent) => void;
@@ -59,7 +80,7 @@ interface MockRealtimeSession {
   disconnect(): void;
   audio: {
     player: {
-      play(chunk: AudioChunk): void;
+      play(chunk: AudioChunk | Uint8Array): void;
     };
     mic: {
       open(): Promise<void>;
@@ -79,20 +100,17 @@ export function OmniBot(): JSX.Element {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const agentRef = useRef<RealtimeAgent | null>(null);
 
-  // Define the tools for the agent
-  const getContactsSummaryTool = {
-    type: "function" as const,
-    function: {
+  // Initialize the agent and session
+  useEffect(() => {
+    // Define the tools for the agent
+    const getContactsSummaryTool = {
       name: "get_contacts_summary",
       description:
         "Retrieves a summary of the user's CRM contacts, including total count, how many have emails/phones, and a list of the 5 most recently added contacts.",
       parameters: { type: "object" as const, properties: {} },
-    },
-  };
+    };
 
-  const searchContactsTool = {
-    type: "function" as const,
-    function: {
+    const searchContactsTool = {
       name: "search_contacts",
       description: "Searches for contacts by name, email, or phone number.",
       parameters: {
@@ -105,25 +123,26 @@ export function OmniBot(): JSX.Element {
         },
         required: ["query"],
       },
-    },
-  };
+    };
 
-  // Initialize the agent and session
-  useEffect(() => {
     agentRef.current = new RealtimeAgent({
       name: "OmniCRM Assistant",
       instructions:
         "You are a helpful CRM assistant for wellness professionals. You can access the user's CRM data to answer questions about their contacts. Keep your responses concise and conversational.",
-      tools: [getContactsSummaryTool, searchContactsTool] as FunctionTool[],
+      tools: [getContactsSummaryTool, searchContactsTool],
     });
 
-    const initializeSession = async () => {
+    const initializeSession = async (): Promise<void> => {
       try {
         const response = await fetch("/api/chat/openai-token", { method: "POST" });
         if (!response.ok) {
           throw new Error("Failed to fetch ephemeral key");
         }
-        const ephemeralKey = await response.json();
+        const ephemeralKeyData: unknown = await response.json();
+        if (!isEphemeralKeyResponse(ephemeralKeyData)) {
+          throw new Error("Invalid ephemeral key response format");
+        }
+        const ephemeralKey = ephemeralKeyData;
 
         const session = new RealtimeSession(agentRef.current!) as MockRealtimeSession;
         sessionRef.current = session;
@@ -174,7 +193,11 @@ export function OmniBot(): JSX.Element {
               throw new Error(`Tool ${toolName} failed.`);
             }
 
-            const result = await response.json();
+            const resultData: unknown = await response.json();
+            if (!isToolResult(resultData)) {
+              throw new Error("Invalid tool result response format");
+            }
+            const result = resultData;
 
             setChatHistory((prev) => {
               const last = prev[prev.length - 1];
@@ -192,21 +215,27 @@ export function OmniBot(): JSX.Element {
 
             await session.send({
               type: "tool.result",
-              toolName: toolName,
+              toolName,
               result: JSON.stringify(result),
             });
           } catch (error) {
-            console.error("Tool invocation error:", error);
+            logger.userError("Tool invocation failed", ensureError(error), {
+              operation: "omni_bot.tool_invocation",
+              additionalData: { toolName },
+            });
             await session.send({
               type: "tool.result",
-              toolName: toolName,
+              toolName,
               result: `Error: ${(error as Error).message}`,
             });
           }
         });
 
         session.on("conversation.item.error", (error: ConversationError) => {
-          console.error("Conversation item error:", error);
+          logger.userError("Conversation error", new Error(error.message), {
+            operation: "omni_bot.conversation",
+            additionalData: { errorMessage: error.message },
+          });
           setChatHistory((prev) => [
             ...prev,
             { type: "bot", message: `Error: ${error.message}`, isFinal: true },
@@ -215,7 +244,9 @@ export function OmniBot(): JSX.Element {
 
         await session.connect({ apiKey: ephemeralKey.secret });
       } catch (error) {
-        console.error("Error initializing realtime session:", error);
+        logger.userError("Failed to connect to assistant", ensureError(error), {
+          operation: "omni_bot.session_init",
+        });
         setChatHistory((prev) => [
           ...prev,
           { type: "bot", message: "Error connecting to assistant.", isFinal: true },
@@ -223,14 +254,18 @@ export function OmniBot(): JSX.Element {
       }
     };
 
-    initializeSession();
+    initializeSession().catch((error) => {
+      logger.userError("Failed to initialize session", ensureError(error), {
+        operation: "omni_bot.session_init_error",
+      });
+    });
 
     return () => {
       sessionRef.current?.disconnect();
     };
   }, []);
 
-  const handleMicToggle = async () => {
+  const handleMicToggle = async (): Promise<void> => {
     if (!sessionRef.current) return;
 
     if (isRecording) {
@@ -242,7 +277,7 @@ export function OmniBot(): JSX.Element {
     }
   };
 
-  const handleSendText = async () => {
+  const handleSendText = async (): Promise<void> => {
     if (!sessionRef.current || !inputValue.trim()) return;
 
     setChatHistory((prev) => [...prev, { type: "user", message: inputValue, isFinal: true }]);

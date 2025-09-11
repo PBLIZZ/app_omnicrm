@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchPost } from "@/lib/api";
+import { apiClient } from "@/lib/api/client";
+import { logger } from "@/lib/observability";
 
 import { Calendar } from "lucide-react";
 
@@ -21,8 +22,31 @@ import { PreparationWorkflow } from "./PreparationWorkflow";
 // Custom Components
 import { QuickActions } from "./QuickActions";
 import { CalendarConnectionCard } from "./CalendarConnectionCard";
+import { ensureError } from "@/lib/utils/error-handler";
 
-export function OmniRhythmPage() {
+// Types
+interface BusinessInsights {
+  isHighValue?: boolean;
+  requiresPreparation?: boolean;
+}
+
+interface ClientContext {
+  estimatedRevenue?: number;
+  clientName?: string;
+  notes?: string;
+}
+
+interface CalendarEvent {
+  id?: string;
+  title?: string;
+  startTime?: string;
+  businessCategory?: string;
+  eventType?: string;
+  businessInsights?: BusinessInsights;
+  clientContext?: ClientContext;
+}
+
+export function OmniRhythmPage(): JSX.Element {
   // Use custom hooks for state management
   const data = useOmniRhythmData();
   const bi = useBusinessIntelligence(data.biService, data.allEvents || []);
@@ -30,20 +54,27 @@ export function OmniRhythmPage() {
   const [isProcessingJobs, setIsProcessingJobs] = useState(false);
 
   // Handler functions for calendar actions
-  const handleGenerateEmbeddings = async () => {
+  const handleGenerateEmbeddings = async (): Promise<void> => {
     try {
-      const result = await fetchPost<{ processedEvents: number }>("/api/calendar/embed", {});
+      const result = await apiClient.post<{ processedEvents: number }>("/api/calendar/embed", {});
       alert(`Successfully generated embeddings for ${result.processedEvents} events!`);
     } catch (error) {
-      console.error("Embeddings error:", error);
+      await logger.error(
+        "embeddings_generation_failed",
+        {
+          operation: "generate_embeddings",
+          additionalData: { component: "OmniRhythmPage" },
+        },
+        ensureError(error),
+      );
       alert("Network error during embedding generation");
     }
   };
 
-  const handleProcessJobs = async () => {
+  const handleProcessJobs = async (): Promise<void> => {
     setIsProcessingJobs(true);
     try {
-      const result = await fetchPost<{
+      const result = await apiClient.post<{
         message: string;
         runner: string;
         processed: number;
@@ -51,46 +82,68 @@ export function OmniRhythmPage() {
         failed: number;
         errors?: unknown[];
       }>("/api/jobs/runner", {});
-      
-      alert(`Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`);
+
+      alert(
+        `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
+      );
     } catch (error) {
-      console.error("Job processing error:", error);
+      await logger.error(
+        "job_processing_failed",
+        {
+          operation: "process_jobs",
+          additionalData: { component: "OmniRhythmPage" },
+        },
+        ensureError(error),
+      );
       alert("Network error during job processing");
     } finally {
       setIsProcessingJobs(false);
     }
   };
 
-  const handleLoadInsights = async () => {
+  const handleLoadInsights = async (): Promise<void> => {
     try {
       const response = await fetch("/api/calendar/insights");
       if (response.ok) {
-        const result = await response.json();
-        alert(`Insights loaded: ${Object.keys(result.insights || {}).length} categories available`);
+        const result = (await response.json()) as { insights?: Record<string, unknown> };
+        alert(`Insights loaded: ${Object.keys(result.insights ?? {}).length} categories available`);
       } else {
         alert("Failed to load insights");
       }
     } catch (error) {
-      console.error("Insights error:", error);
+      await logger.error(
+        "insights_loading_failed",
+        {
+          operation: "load_insights",
+          additionalData: { component: "OmniRhythmPage" },
+        },
+        ensureError(error),
+      );
       alert("Network error during insights loading");
     }
   };
 
   // Initialize calendar status and clients
   useEffect(() => {
-    data.checkCalendarStatus();
-    data.fetchClients();
-  }, [data.checkCalendarStatus, data.fetchClients]);
+    void data.checkCalendarStatus();
+    void data.fetchClients();
+  }, [data, data.checkCalendarStatus, data.fetchClients]);
 
-  // Debug logging
+  // Debug logging (development only)
   useEffect(() => {
-    console.log("OmniRhythmPage - Current stats:", data.stats);
-    console.log("OmniRhythmPage - All events for BI:", data.allEvents?.length || 0, "events");
-    console.log("OmniRhythmPage - BI upcoming events:", bi.upcomingEvents?.length || 0, "events");
-    console.log("OmniRhythmPage - BI service:", data.biService);
-    console.log("OmniRhythmPage - Clients for BI:", data.clients?.length || 0, "clients");
-    if (bi.upcomingEvents?.length > 0) {
-      console.log("OmniRhythmPage - First upcoming event detail:", bi.upcomingEvents[0]);
+    if (process.env.NODE_ENV === "development") {
+      void logger.debug("omni_rhythm_page_stats", {
+        operation: "debug_logging",
+        additionalData: {
+          component: "OmniRhythmPage",
+          stats: data.stats,
+          allEventsCount: data.allEvents?.length ?? 0,
+          upcomingEventsCount: bi.upcomingEvents?.length ?? 0,
+          biService: data.biService,
+          clientsCount: data.clients?.length ?? 0,
+          firstUpcomingEvent: bi.upcomingEvents?.[0],
+        },
+      });
     }
   }, [data.stats, data.allEvents, bi.upcomingEvents, data.biService, data.clients]);
 
@@ -103,7 +156,7 @@ export function OmniRhythmPage() {
         isSyncing={data.isSyncing}
         isEmbedding={data.isEmbedding}
         isProcessingJobs={isProcessingJobs}
-        upcomingEventsCount={data.stats?.upcomingEventsCount || 0}
+        upcomingEventsCount={data.stats?.upcomingEventsCount ?? 0}
         lastSync={data.stats?.lastSync ?? undefined}
         error={data.error}
         onConnect={data.connectCalendar}
@@ -133,41 +186,61 @@ export function OmniRhythmPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {bi.upcomingEvents && Array.isArray(bi.upcomingEvents) && bi.upcomingEvents.length > 0 ? (
+                {bi.upcomingEvents &&
+                Array.isArray(bi.upcomingEvents) &&
+                bi.upcomingEvents.length > 0 ? (
                   <>
-                    {bi.upcomingEvents.map((event: any, index: number) => {
+                    {bi.upcomingEvents.map((event: CalendarEvent, index: number) => {
                       try {
                         // Helper function to get display category
-                        const getDisplayCategory = (event: any) => {
+                        const getDisplayCategory = (event: CalendarEvent): string => {
                           if (event.businessCategory) {
-                            return event.businessCategory.charAt(0).toUpperCase() + event.businessCategory.slice(1);
+                            return (
+                              event.businessCategory.charAt(0).toUpperCase() +
+                              event.businessCategory.slice(1)
+                            );
                           }
                           if (event.eventType) {
                             switch (event.eventType) {
-                              case "consultation": return "Consultation";
-                              case "workshop": return "Workshop";
-                              case "class": return "Class";
-                              case "massage": return "Massage";
-                              case "yoga": return "Yoga";
-                              default: return event.eventType.charAt(0).toUpperCase() + event.eventType.slice(1);
+                              case "consultation":
+                                return "Consultation";
+                              case "workshop":
+                                return "Workshop";
+                              case "class":
+                                return "Class";
+                              case "massage":
+                                return "Massage";
+                              case "yoga":
+                                return "Yoga";
+                              default:
+                                return (
+                                  event.eventType.charAt(0).toUpperCase() + event.eventType.slice(1)
+                                );
                             }
                           }
                           return "Session";
                         };
 
                         return (
-                          <div key={event.id || index} className="border rounded-lg p-3 bg-background">
+                          <div
+                            key={event.id ?? index}
+                            className="border rounded-lg p-3 bg-background"
+                          >
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <div 
+                                <div
                                   className={`w-3 h-3 rounded-full ${
-                                    event.businessInsights?.isHighValue ? 'bg-green-600' : 
-                                    event.businessInsights?.requiresPreparation ? 'bg-yellow-600' : 
-                                    'bg-blue-600'
+                                    event.businessInsights?.isHighValue
+                                      ? "bg-green-600"
+                                      : event.businessInsights?.requiresPreparation
+                                        ? "bg-yellow-600"
+                                        : "bg-blue-600"
                                   }`}
                                 ></div>
-                                <Badge 
-                                  variant={event.businessInsights?.isHighValue ? "default" : "secondary"}
+                                <Badge
+                                  variant={
+                                    event.businessInsights?.isHighValue ? "default" : "secondary"
+                                  }
                                   className="text-xs"
                                 >
                                   {getDisplayCategory(event)}
@@ -179,10 +252,10 @@ export function OmniRhythmPage() {
                                 </span>
                               )}
                             </div>
-                            
+
                             <div className="mb-2">
                               <p className="text-sm font-medium leading-tight">
-                                {event.title || "Untitled Event"}
+                                {event.title ?? "Untitled Event"}
                               </p>
                               {event.clientContext?.clientName && (
                                 <p className="text-xs text-muted-foreground mt-1">
@@ -190,7 +263,7 @@ export function OmniRhythmPage() {
                                 </p>
                               )}
                             </div>
-                            
+
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
                               <span>
                                 {event.startTime
@@ -206,12 +279,10 @@ export function OmniRhythmPage() {
                                   : "TBD"}
                               </span>
                               {event.businessInsights?.requiresPreparation && (
-                                <span className="text-yellow-600 font-medium">
-                                  Prep Required
-                                </span>
+                                <span className="text-yellow-600 font-medium">Prep Required</span>
                               )}
                             </div>
-                            
+
                             {event.clientContext?.notes && (
                               <p className="text-xs text-muted-foreground italic mt-2 border-t pt-2">
                                 {event.clientContext.notes}
@@ -220,10 +291,22 @@ export function OmniRhythmPage() {
                           </div>
                         );
                       } catch (error) {
-                        console.error("Error rendering BI event:", error, event);
+                        void logger.error(
+                          "bi_event_render_failed",
+                          {
+                            operation: "render_bi_event",
+                            additionalData: {
+                              component: "OmniRhythmPage",
+                              eventIndex: index,
+                              event,
+                            },
+                          },
+                          ensureError(error),
+                        );
                         return (
                           <div key={index} className="text-xs text-red-500 p-2 border rounded">
-                            Error rendering event {index}: {error instanceof Error ? error.message : String(error)}
+                            Error rendering event {index}:{" "}
+                            {error instanceof Error ? error.message : String(error)}
                           </div>
                         );
                       }
@@ -236,34 +319,36 @@ export function OmniRhythmPage() {
                   </>
                 ) : data.stats?.upcomingEvents && data.stats.upcomingEvents.length > 0 ? (
                   <>
-                    {data.stats.upcomingEvents.slice(0, 5).map((event: any, index: number) => (
-                      <div key={event.id || index} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-                          <div>
-                            <p className="text-sm font-medium truncate max-w-[120px]">
-                              {event.title || "Untitled Event"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {event.startTime
-                                ? new Date(event.startTime).toLocaleDateString([], {
-                                    month: "short",
-                                    day: "numeric",
-                                  }) +
-                                  " " +
-                                  new Date(event.startTime).toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                : "TBD"}
-                            </p>
+                    {data.stats.upcomingEvents
+                      .slice(0, 5)
+                      .map((event: CalendarEvent, index: number) => (
+                        <div key={event.id ?? index} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                            <div>
+                              <p className="text-sm font-medium truncate max-w-[120px]">
+                                {event.title ?? "Untitled Event"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {event.startTime
+                                  ? new Date(event.startTime).toLocaleDateString([], {
+                                      month: "short",
+                                      day: "numeric",
+                                    }) +
+                                    " " +
+                                    new Date(event.startTime).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : "TBD"}
+                              </p>
+                            </div>
                           </div>
+                          <Badge variant="outline" className="text-xs">
+                            {event.eventType ?? "Session"}
+                          </Badge>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {event.eventType || "Session"}
-                        </Badge>
-                      </div>
-                    ))}
+                      ))}
                   </>
                 ) : (
                   <div className="text-center py-4">
@@ -287,7 +372,7 @@ export function OmniRhythmPage() {
             isSyncing={data.isSyncing}
             isEmbedding={data.isEmbedding}
             isProcessingJobs={isProcessingJobs}
-            upcomingEventsCount={data.stats?.upcomingEventsCount || 0}
+            upcomingEventsCount={data.stats?.upcomingEventsCount ?? 0}
             lastSync={data.stats?.lastSync ?? undefined}
             syncStatus={data.syncStatus}
             error={data.error}

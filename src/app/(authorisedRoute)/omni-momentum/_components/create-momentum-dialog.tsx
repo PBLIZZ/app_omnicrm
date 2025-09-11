@@ -27,7 +27,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { fetchPost } from "@/lib/api";
+import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
 import type { MomentumWorkspace, MomentumProject, Contact } from "@/server/db/schema";
 
@@ -96,7 +96,7 @@ export function CreateMomentumDialog({
 
   const createTaskMutation = useMutation({
     mutationFn: async (data: CreateTaskFormData) => {
-      return fetchPost("/api/tasks", {
+      return apiClient.post("/api/tasks", {
         ...data,
         workspaceId: data.workspaceId ?? undefined,
         projectId: data.projectId ?? undefined,
@@ -113,7 +113,7 @@ export function CreateMomentumDialog({
       handleClose();
     },
     onError: (error) => {
-      console.error("Error creating task:", error);
+      console.error("Failed to create task:", error);
       toast({
         title: "Error",
         description: "Failed to create task. Please try again.",

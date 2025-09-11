@@ -168,7 +168,7 @@ export function ContactTimeline({ contactId, limit = 10 }: ContactTimelineProps)
                   <div className="h-px bg-border flex-1" />
                 </div>
               )}
-              {events.map((event, eventIndex) => (
+              {events.map((event) => (
                 <div key={event.id} className="flex gap-3">
                   <div
                     className="mt-1 h-6 w-6 flex items-center justify-center rounded-full"

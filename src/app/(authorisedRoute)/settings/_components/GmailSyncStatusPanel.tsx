@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail, Play, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchGet, fetchPost } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 
 // Job status tracking types
 interface JobStatus {
@@ -69,7 +69,7 @@ export function GmailSyncStatusPanel(): JSX.Element {
   const { data: jobsData, error: jobsError } = useQuery({
     queryKey: ["jobs", "status", currentBatchId],
     queryFn: async (): Promise<SyncJobsResponse> =>
-      await fetchGet<SyncJobsResponse>("/api/jobs/status", { showErrorToast: false }),
+      await apiClient.get<SyncJobsResponse>("/api/jobs/status", { showErrorToast: false }),
     enabled: isPolling && !!currentBatchId,
     refetchInterval: 2000, // Poll every 2 seconds during sync
     staleTime: 1000,
@@ -78,7 +78,7 @@ export function GmailSyncStatusPanel(): JSX.Element {
   // Mutation to start Gmail sync
   const startSyncMutation = useMutation({
     mutationFn: async () =>
-      await fetchPost<{ batchId: string }>(
+      await apiClient.post<{ batchId: string }>(
         "/api/sync/approve/gmail",
         {},
         {
@@ -98,7 +98,7 @@ export function GmailSyncStatusPanel(): JSX.Element {
       void queryClient.invalidateQueries({ queryKey: ["sync", "status"] });
     },
     onError: (error) => {
-      console.error("Failed to start Gmail sync:", error);
+      console.error("Gmail sync error:", error);
       setSyncPhase("error");
       setIsPolling(false);
     },
@@ -149,7 +149,7 @@ export function GmailSyncStatusPanel(): JSX.Element {
   // Kick the job runner once when polling starts
   useEffect(() => {
     if (!isPolling) return;
-    void fetchPost<{ message: string }>(
+    void apiClient.post<{ message: string }>(
       "/api/jobs/runner",
       {},
       { showErrorToast: false, errorToastTitle: "Job runner failed" },

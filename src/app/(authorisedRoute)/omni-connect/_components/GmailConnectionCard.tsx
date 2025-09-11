@@ -12,21 +12,17 @@ import { GmailSyncPreview } from "./GmailSyncPreview";
 import { GmailConnectionCardProps } from "./types";
 
 export function GmailConnectionCard({
-  onSyncStart,
   onSettingsClick,
   refreshTrigger,
-  isSyncing,
-  isEmbedding,
   isProcessingContacts,
   showSyncPreview,
   setShowSyncPreview,
   onApproveSync,
-  onGenerateEmbeddings,
   onProcessContacts,
 }: GmailConnectionCardProps): JSX.Element {
   // Use shared hooks
   const { status, connect, isConnecting } = useGmailConnection(refreshTrigger);
-  const { jobStatus, isLoadingJobStatus, refreshJobStatus, runJobProcessor } = useGmailJobStatus(
+  const { jobStatus, isLoadingJobStatus, refreshJobStatus } = useGmailJobStatus(
     status.isConnected,
     refreshTrigger,
   );
@@ -47,11 +43,6 @@ export function GmailConnectionCard({
     isLoadingInsights,
     loadInsights,
   } = useGmailAI();
-
-  const handleSyncStart = (): void => {
-    // The actual sync start now happens via parent's hook
-    onSyncStart?.();
-  };
 
   const handleSyncApprove = (): void => {
     // Use the approve function from parent's hook
@@ -75,13 +66,8 @@ export function GmailConnectionCard({
           status={status}
           jobStatus={jobStatus}
           isLoadingJobStatus={isLoadingJobStatus}
-          isSyncing={isSyncing}
           isProcessingContacts={isProcessingContacts}
-          isEmbedding={isEmbedding}
-          onSync={handleSyncStart}
-          onRunJobProcessor={runJobProcessor}
           onProcessContacts={handleProcessContacts}
-          onGenerateEmbeddings={onGenerateEmbeddings}
           {...(onSettingsClick && { onSettings: onSettingsClick })}
           onRefreshJobStatus={refreshJobStatus}
         />

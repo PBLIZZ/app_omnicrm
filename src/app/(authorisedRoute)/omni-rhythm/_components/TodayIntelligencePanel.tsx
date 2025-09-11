@@ -44,7 +44,7 @@ interface TodayIntelligencePanelProps {
 export function TodayIntelligencePanel({
   appointments,
   isLoading = false,
-}: TodayIntelligencePanelProps) {
+}: TodayIntelligencePanelProps): JSX.Element {
   const today = new Date();
   const todayString = format(today, "EEEE, MMMM d, yyyy");
 
@@ -54,7 +54,7 @@ export function TodayIntelligencePanel({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Today's Intelligence
+            Today&apos;s Intelligence
           </CardTitle>
           <CardDescription>Loading your appointments...</CardDescription>
         </CardHeader>
@@ -77,7 +77,7 @@ export function TodayIntelligencePanel({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Calendar className="h-5 w-5" />
-          Today's Intelligence
+          Today&apos;s Intelligence
         </CardTitle>
         <CardDescription>
           {todayString} - {appointments.length} appointment{appointments.length !== 1 ? "s" : ""}
@@ -130,7 +130,7 @@ export function TodayIntelligencePanel({
   );
 }
 
-function AppointmentCard({ appointment }: { appointment: Appointment }) {
+function AppointmentCard({ appointment }: { appointment: Appointment }): JSX.Element {
   const startTime = new Date(appointment.startTime);
   const endTime = new Date(appointment.endTime);
   const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60); // minutes
@@ -176,7 +176,7 @@ function AppointmentCard({ appointment }: { appointment: Appointment }) {
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-blue-600" />
             <span className="font-medium text-blue-900 dark:text-blue-100">
-              {appointment.clientContext.clientName || "Client"}
+              {appointment.clientContext.clientName ?? "Client"}
             </span>
             {appointment.clientContext.sessionNumber && (
               <Badge variant="outline" className="text-xs">

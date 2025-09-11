@@ -1,23 +1,39 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { ArrowRight, TrendingUp, Calendar, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 // Theme-consistent color constants - using the same color palette as the rest of the dashboard
-const COLORS = ['#00afaf', '#ffaf00', '#8884d8', '#FF8042', '#00C49F'];
+const COLORS = ["#00afaf", "#ffaf00", "#8884d8", "#FF8042", "#00C49F"];
 
 interface BusinessMetricsCardProps {
   className?: string;
 }
 
-export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
+export function BusinessMetricsCard({ className }: BusinessMetricsCardProps): JSX.Element {
   // Try to fetch dashboard summary data, but use mock data if the endpoint doesn't exist
   const isLoading = false;
-  
-  
 
   // Mock data to use when API endpoints are not available
   const mockData = {
@@ -27,12 +43,12 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
 
   const mockContactMetrics = {
     journeyStageDistribution: [
-      { wellness_journey_stage: 'onboarding', count: 8 },
-      { wellness_journey_stage: 'inquiry', count: 12 },
-      { wellness_journey_stage: 'inactive', count: 5 },
-      { wellness_journey_stage: 'maintenance', count: 10 },
-      { wellness_journey_stage: 'active', count: 7 }
-    ]
+      { wellness_journey_stage: "onboarding", count: 8 },
+      { wellness_journey_stage: "inquiry", count: 12 },
+      { wellness_journey_stage: "inactive", count: 5 },
+      { wellness_journey_stage: "maintenance", count: 10 },
+      { wellness_journey_stage: "active", count: 7 },
+    ],
   };
 
   const mockSessionMetrics = {
@@ -43,8 +59,8 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
       { date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), count: 4 },
       { date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), count: 2 },
       { date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(), count: 3 },
-      { date: new Date().toISOString(), count: 5 }
-    ]
+      { date: new Date().toISOString(), count: 5 },
+    ],
   };
 
   // Use mock data since we don't have TRPC setup
@@ -62,41 +78,44 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
   }
 
   // Format journey stage data for pie chart with warmer terminology
-  const journeyStageData = contactMetrics.journeyStageDistribution.map((stage, index) => {
-    // Map the existing journey stage names to warmer, more relationship-focused terms
-    let displayName = stage.wellness_journey_stage;
-    
-    // Transform the stage names to warmer terminology
-    switch(stage.wellness_journey_stage.toLowerCase()) {
-      case 'onboarding':
-        displayName = 'Welcome';
-        break;
-      case 'inquiry':
-        displayName = 'Inquiry'; // Keep English spelling
-        break;
-      case 'inactive':
-        displayName = 'Needs Outreach';
-        break;
-      case 'maintenance':
-        displayName = 'Relationship Development';
-        break;
-      case 'active':
-        displayName = 'My Core Tribe';
-        break;
-    }
-    
-    return {
-      name: displayName,
-      value: stage.count,
-      originalName: stage.wellness_journey_stage // Keep original for data integrity
-    };
-  }) || [];
+  const journeyStageData =
+    contactMetrics.journeyStageDistribution.map((stage) => {
+      // Map the existing journey stage names to warmer, more relationship-focused terms
+      let displayName = stage.wellness_journey_stage;
+
+      // Transform the stage names to warmer terminology
+      switch (stage.wellness_journey_stage.toLowerCase()) {
+        case "onboarding":
+          displayName = "Welcome";
+          break;
+        case "inquiry":
+          displayName = "Inquiry"; // Keep English spelling
+          break;
+        case "inactive":
+          displayName = "Needs Outreach";
+          break;
+        case "maintenance":
+          displayName = "Relationship Development";
+          break;
+        case "active":
+          displayName = "My Core Tribe";
+          break;
+      }
+
+      return {
+        name: displayName,
+        value: stage.count,
+        originalName: stage.wellness_journey_stage, // Keep original for data integrity
+      };
+    }) || [];
 
   // Format session trend data for area chart
-  const sessionTrendData = sessionMetrics.sessionTrend.map((item: { date: string; count: number }) => ({
-    date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    sessions: item.count,
-  }));
+  const sessionTrendData = sessionMetrics.sessionTrend.map(
+    (item: { date: string; count: number }) => ({
+      date: new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      sessions: item.count,
+    }),
+  );
 
   // Calculate retention risk (mock data - would be calculated based on engagement metrics)
   const retentionRisk = {
@@ -117,7 +136,7 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
           <div className="text-2xl font-bold">{data?.upcomingSessionsCount || 0}</div>
           <p className="text-xs text-muted-foreground">
             {data?.upcomingSessionsCount === 1
-              ? '1 session scheduled'
+              ? "1 session scheduled"
               : `${data?.upcomingSessionsCount || 0} sessions scheduled`}
           </p>
           <div className="mt-4 space-y-2">
@@ -140,7 +159,7 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
         </CardContent>
         <CardFooter>
           <Button variant="outline" size="sm" className="w-full" asChild>
-            <Link href={{ pathname: '/calendar' }}>
+            <Link href={{ pathname: "/calendar" }}>
               View Calendar
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
@@ -179,7 +198,7 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
         </CardContent>
         <CardFooter>
           <Button variant="outline" size="sm" className="w-full" asChild>
-            <Link href={{ pathname: '/contacts', query: { risk: 'high' } }}>
+            <Link href={{ pathname: "/contacts", query: { risk: "high" } }}>
               View At-Risk Customers
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
@@ -195,9 +214,7 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">68%</div>
-          <p className="text-xs text-muted-foreground">
-            Overall goal completion rate
-          </p>
+          <p className="text-xs text-muted-foreground">Overall goal completion rate</p>
           <div className="mt-4 space-y-2">
             <div className="text-xs font-medium">Goal Categories</div>
             <div className="space-y-2">
@@ -206,28 +223,28 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
                 <span className="text-xs font-medium">75%</span>
               </div>
               <div className="h-1.5 w-full rounded-full bg-primary/20">
-                <div className="h-1.5 rounded-full bg-primary" style={{ width: '75%' }}></div>
+                <div className="h-1.5 rounded-full bg-primary" style={{ width: "75%" }}></div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs">Workshops</span>
                 <span className="text-xs font-medium">50%</span>
               </div>
               <div className="h-1.5 w-full rounded-full bg-primary/20">
-                <div className="h-1.5 rounded-full bg-primary" style={{ width: '50%' }}></div>
+                <div className="h-1.5 rounded-full bg-primary" style={{ width: "50%" }}></div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs">Conversions</span>
                 <span className="text-xs font-medium">80%</span>
               </div>
               <div className="h-1.5 w-full rounded-full bg-primary/20">
-                <div className="h-1.5 rounded-full bg-primary" style={{ width: '80%' }}></div>
+                <div className="h-1.5 rounded-full bg-primary" style={{ width: "80%" }}></div>
               </div>
             </div>
           </div>
         </CardContent>
         <CardFooter>
           <Button variant="outline" size="sm" className="w-full" asChild>
-            <Link href={{ pathname: '/goals' }}>
+            <Link href={{ pathname: "/goals" }}>
               Manage Goals
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
@@ -239,9 +256,7 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
       <Card className="md:col-span-2">
         <CardHeader>
           <CardTitle>Well-being Customer Journey</CardTitle>
-          <CardDescription>
-            Breakdown of your community by wellness journey stage
-          </CardDescription>
+          <CardDescription>Breakdown of your community by wellness journey stage</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-80">
@@ -253,16 +268,23 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
                     cx="50%"
                     cy="50%"
                     labelLine={true}
-                    label={({ name, percent }) => `${name}: ${(percent ? percent * 100 : 0).toFixed(0)}%`}
+                    label={({ name, percent }) =>
+                      `${name}: ${(percent ? percent * 100 : 0).toFixed(0)}%`
+                    }
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {journeyStageData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
+                    {journeyStageData.map(
+                      (
+                        entry: { name: string; value: number; originalName: string },
+                        index: number,
+                      ) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ),
+                    )}
                   </Pie>
-                  <Tooltip formatter={(value) => [`${value} customers`, 'Count']} />
+                  <Tooltip formatter={(value) => [`${value} customers`, "Count"]} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -278,9 +300,7 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
       <Card className="md:col-span-1">
         <CardHeader>
           <CardTitle>Session Trend</CardTitle>
-          <CardDescription>
-            Your wellness journey impact
-          </CardDescription>
+          <CardDescription>Your wellness journey impact</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-80">
@@ -289,26 +309,18 @@ export function BusinessMetricsCard({ className }: BusinessMetricsCardProps) {
                 <AreaChart data={sessionTrendData}>
                   <defs>
                     <linearGradient id="sessionGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#00afaf" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#00afaf" stopOpacity={0.1}/>
+                      <stop offset="5%" stopColor="#00afaf" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#00afaf" stopOpacity={0.1} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{fontSize: 12}}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{fontSize: 12}}
-                    tickLine={false}
-                    axisLine={false}
-                  />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
                   <Tooltip
                     contentStyle={{
-                      borderRadius: '8px',
-                      border: 'none',
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+                      borderRadius: "8px",
+                      border: "none",
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
                     }}
                   />
                   <Area

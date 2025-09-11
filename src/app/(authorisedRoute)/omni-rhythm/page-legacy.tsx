@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { fetchPost } from "@/lib/api-client";
+import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -170,7 +170,7 @@ export default function CalendarPage(): JSX.Element {
     setError(null);
 
     try {
-      await fetchPost<{ message: string }>(
+      await apiClient.post<{ message: string }>(
         "/api/calendar/sync",
         {},
         {
@@ -193,7 +193,7 @@ export default function CalendarPage(): JSX.Element {
     setError(null);
 
     try {
-      const data = await fetchPost<{ processedEvents: number }>(
+      const data = await apiClient.post<{ processedEvents: number }>(
         "/api/calendar/embed",
         {},
         {
@@ -216,7 +216,7 @@ export default function CalendarPage(): JSX.Element {
     if (!searchQuery.trim()) return;
 
     try {
-      const data = await fetchPost<{
+      const data = await apiClient.post<{
         results?: Array<{ event: CalendarEventData; similarity: number; preview: string }>;
       }>(
         "/api/calendar/search",

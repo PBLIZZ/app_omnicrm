@@ -51,7 +51,7 @@ export function ClientSessionTimeline({
   clients,
   milestones,
   isLoading = false,
-}: ClientSessionTimelineProps) {
+}: ClientSessionTimelineProps): JSX.Element {
   // Sort clients by last session date (most recent first)
   const sortedClients = [...clients].sort(
     (a, b) => new Date(b.lastSessionDate).getTime() - new Date(a.lastSessionDate).getTime(),
@@ -159,7 +159,7 @@ function ClientTimelineCard({
 }: {
   client: Client;
   milestones: SessionMilestone[];
-}) {
+}): JSX.Element {
   const sortedMilestones = [...milestones].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
@@ -195,7 +195,7 @@ function ClientTimelineCard({
 
         <div className="flex items-center gap-2">
           <div className="flex items-center">
-            {[...Array(5)].map((_, i) => (
+            {Array.from({ length: 5 }, (_, i) => (
               <Star
                 key={i}
                 className={`h-3 w-3 ${
@@ -251,7 +251,7 @@ function ClientTimelineCard({
 
         {/* Session Dots */}
         <div className="flex justify-between mt-1">
-          {sortedMilestones.slice(0, 5).map((milestone, index) => (
+          {sortedMilestones.slice(0, 5).map((milestone) => (
             <div
               key={milestone.id}
               className={`w-2 h-2 rounded-full ${

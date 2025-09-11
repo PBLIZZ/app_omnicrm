@@ -24,17 +24,13 @@ export interface GmailConnectionStatus {
 }
 
 export interface GmailConnectionCardProps {
-  onSyncStart?: () => void;
   onSettingsClick?: () => void;
   refreshTrigger?: number;
   // Props from parent's single useGmailSync hook instance
-  isSyncing: boolean;
-  isEmbedding: boolean;
   isProcessingContacts: boolean;
   showSyncPreview: boolean;
   setShowSyncPreview: (show: boolean) => void;
   onApproveSync: () => void;
-  onGenerateEmbeddings: () => void;
   onProcessContacts: () => void;
 }
 
@@ -61,7 +57,7 @@ export interface GmailInsights {
   emailVolume?: {
     total: number;
     thisWeek: number;
-    trend: 'up' | 'down' | 'stable';
+    trend: "up" | "down" | "stable";
   };
   topContacts?: ContactData[];
 }

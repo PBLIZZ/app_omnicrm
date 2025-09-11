@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Heart, Save, CheckCircle } from "lucide-react";
@@ -9,29 +9,29 @@ interface TherapistCheckInProps {
   className?: string;
 }
 
-export function TherapistCheckIn({ className }: TherapistCheckInProps) {
+export function TherapistCheckIn({ className }: TherapistCheckInProps): JSX.Element {
   const [mood, setMood] = useState<string | null>(null);
   const [connections, setConnections] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
-  
+
   // Mood options with emojis
   const moodOptions = [
-    { label: 'Great', emoji: '😊' },
-    { label: 'Good', emoji: '🙂' },
-    { label: 'Okay', emoji: '😐' },
-    { label: 'Stressed', emoji: '😓' }
+    { label: "Great", emoji: "😊" },
+    { label: "Good", emoji: "🙂" },
+    { label: "Okay", emoji: "😐" },
+    { label: "Stressed", emoji: "😓" },
   ];
-  
+
   // Connection count options
-  const connectionOptions = [0, 1, 2, 3, '4+'];
-  
+  const connectionOptions = [0, 1, 2, 3, "4+"];
+
   // Handle save
-  const handleSave = () => {
+  const handleSave = (): void => {
     // In a real implementation, this would save to an API
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
-  
+
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -46,9 +46,9 @@ export function TherapistCheckIn({ className }: TherapistCheckInProps) {
           <p className="mb-2 text-sm font-medium">How are you feeling today?</p>
           <div className="flex flex-wrap gap-2">
             {moodOptions.map((option) => (
-              <Button 
-                key={option.label} 
-                variant={mood === option.label ? 'default' : 'outline'}
+              <Button
+                key={option.label}
+                variant={mood === option.label ? "default" : "outline"}
                 onClick={() => setMood(option.label)}
                 size="sm"
                 className="flex gap-1"
@@ -59,15 +59,15 @@ export function TherapistCheckIn({ className }: TherapistCheckInProps) {
             ))}
           </div>
         </div>
-        
+
         <div>
           <p className="mb-2 text-sm font-medium">Client connections today:</p>
           <div className="flex flex-wrap gap-2">
             {connectionOptions.map((option) => (
-              <Button 
-                key={option.toString()} 
-                variant={connections === option ? 'default' : 'outline'}
-                onClick={() => setConnections(typeof option === 'string' ? 4 : option)}
+              <Button
+                key={option.toString()}
+                variant={connections === option ? "default" : "outline"}
+                onClick={() => setConnections(typeof option === "string" ? 4 : option)}
                 size="sm"
               >
                 {option}
@@ -75,9 +75,9 @@ export function TherapistCheckIn({ className }: TherapistCheckInProps) {
             ))}
           </div>
         </div>
-        
+
         <div className="pt-2">
-          <Button 
+          <Button
             onClick={handleSave}
             disabled={!mood || connections === null || saved}
             className="w-full"

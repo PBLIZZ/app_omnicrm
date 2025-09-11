@@ -52,9 +52,9 @@ interface PreparationWorkflowProps {
 export function PreparationWorkflow({
   upcomingAppointments,
   isLoading = false,
-}: PreparationWorkflowProps) {
+}: PreparationWorkflowProps): JSX.Element {
   const [selectedAppointment, setSelectedAppointment] = useState<string | null>(
-    upcomingAppointments[0]?.id || null,
+    upcomingAppointments[0]?.id ?? null,
   );
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
@@ -84,9 +84,9 @@ export function PreparationWorkflow({
     );
   }
 
-  const totalTasks = currentAppointment?.preparationTasks.length || 0;
+  const totalTasks = currentAppointment?.preparationTasks.length ?? 0;
   const completedCount =
-    currentAppointment?.preparationTasks.filter((task) => completedTasks.has(task.id)).length || 0;
+    currentAppointment?.preparationTasks.filter((task) => completedTasks.has(task.id)).length ?? 0;
   const progressPercentage = totalTasks > 0 ? (completedCount / totalTasks) * 100 : 0;
 
   return (
@@ -206,7 +206,7 @@ export function PreparationWorkflow({
             </div>
 
             {/* Client Insights */}
-            {(currentAppointment.clientNotes || currentAppointment.lastSessionNotes) && (
+            {(currentAppointment.clientNotes ?? currentAppointment.lastSessionNotes) && (
               <div className="space-y-4">
                 <h4 className="font-medium flex items-center gap-2">
                   <Lightbulb className="h-4 w-4" />
@@ -317,8 +317,8 @@ function PreparationTaskItem({
   task: PreparationTask;
   isCompleted: boolean;
   onToggle: (completed: boolean) => void;
-}) {
-  const getPriorityColor = (priority: string) => {
+}): JSX.Element {
+  const getPriorityColor = (priority: string): string => {
     switch (priority) {
       case "high":
         return "text-red-600 dark:text-red-400";
@@ -331,7 +331,7 @@ function PreparationTaskItem({
     }
   };
 
-  const getCategoryIcon = (category: string) => {
+  const getCategoryIcon = (category: string): JSX.Element => {
     switch (category) {
       case "client":
         return <User className="h-4 w-4" />;
@@ -403,8 +403,8 @@ function AutomatedWorkflowItem({
   description: string;
   status: "scheduled" | "pending" | "ready" | "completed";
   timeUntil: string;
-}) {
-  const getStatusColor = (status: string) => {
+}): JSX.Element {
+  const getStatusColor = (status: string): string => {
     switch (status) {
       case "completed":
         return "text-green-600 bg-green-100 dark:bg-green-900/30";

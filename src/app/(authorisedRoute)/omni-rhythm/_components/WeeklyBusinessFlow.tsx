@@ -3,14 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Clock,
-  TrendingUp,
-  Calendar,
-  Users,
-  Target,
-  Zap,
-} from "lucide-react";
+import { Clock, TrendingUp, Calendar, Users, Target, Zap } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from "date-fns";
 
 interface Appointment {
@@ -42,7 +35,7 @@ export function WeeklyBusinessFlow({
   appointments,
   weeklyStats,
   isLoading = false,
-}: WeeklyBusinessFlowProps) {
+}: WeeklyBusinessFlowProps): JSX.Element {
   const today = new Date();
   const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
@@ -52,7 +45,7 @@ export function WeeklyBusinessFlow({
   const appointmentsByDay = appointments.reduce(
     (acc, appointment) => {
       const dayKey = format(new Date(appointment.startTime), "yyyy-MM-dd");
-      if (!acc[dayKey]) acc[dayKey] = [];
+      acc[dayKey] ??= [];
       acc[dayKey].push(appointment);
       return acc;
     },
@@ -102,7 +95,7 @@ export function WeeklyBusinessFlow({
         <div className="grid grid-cols-7 gap-2">
           {weekDays.map((day) => {
             const dayKey = format(day, "yyyy-MM-dd");
-            const dayAppointments = appointmentsByDay[dayKey] || [];
+            const dayAppointments = appointmentsByDay[dayKey] ?? [];
             const isDayToday = isToday(day);
 
             return (
@@ -127,7 +120,7 @@ export function WeeklyBusinessFlow({
 
                 {dayAppointments.length > 0 ? (
                   <div className="space-y-1">
-                    {dayAppointments.slice(0, 2).map((appointment, index) => (
+                    {dayAppointments.slice(0, 2).map((appointment) => (
                       <div
                         key={appointment.id}
                         className={`text-xs p-1 rounded truncate ${
@@ -168,16 +161,16 @@ export function WeeklyBusinessFlow({
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Sessions</span>
                 <span className="font-medium">
-                  {(weeklyStats || defaultStats).totalAppointments}
+                  {(weeklyStats ?? defaultStats).totalAppointments}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Hours</span>
-                <span className="font-medium">{(weeklyStats || defaultStats).totalHours}h</span>
+                <span className="font-medium">{(weeklyStats ?? defaultStats).totalHours}h</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Revenue</span>
-                <span className="font-medium">${(weeklyStats || defaultStats).totalRevenue}</span>
+                <span className="font-medium">${(weeklyStats ?? defaultStats).totalRevenue}</span>
               </div>
             </div>
           </div>
@@ -192,18 +185,18 @@ export function WeeklyBusinessFlow({
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Busiest Day</span>
                 <Badge variant="secondary" className="text-xs">
-                  {(weeklyStats || defaultStats).busiestDay}
+                  {(weeklyStats ?? defaultStats).busiestDay}
                 </Badge>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Avg Session</span>
                 <span className="font-medium">
-                  {(weeklyStats || defaultStats).avgSessionLength}min
+                  {(weeklyStats ?? defaultStats).avgSessionLength}min
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">New Clients</span>
-                <span className="font-medium">{(weeklyStats || defaultStats).newClients}</span>
+                <span className="font-medium">{(weeklyStats ?? defaultStats).newClients}</span>
               </div>
             </div>
           </div>
@@ -215,7 +208,7 @@ export function WeeklyBusinessFlow({
               Suggestions
             </h4>
             <div className="space-y-2">
-              {getOptimizationSuggestions(appointments, weeklyStats || defaultStats).map(
+              {getOptimizationSuggestions(appointments, weeklyStats ?? defaultStats).map(
                 (suggestion, index) => (
                   <div key={index} className="flex items-start gap-2 text-xs">
                     <div
@@ -292,7 +285,7 @@ function calculateWeeklyStats(appointments: Appointment[]): WeeklyStats {
   const appointmentsByDay = appointments.reduce(
     (acc, appointment) => {
       const dayName = format(new Date(appointment.startTime), "EEEE");
-      acc[dayName] = (acc[dayName] || 0) + 1;
+      acc[dayName] = (acc[dayName] ?? 0) + 1;
       return acc;
     },
     {} as Record<string, number>,
@@ -352,7 +345,7 @@ function getOptimizationSuggestions(
     appointments.reduce(
       (acc, appointment) => {
         const day = format(new Date(appointment.startTime), "EEEE");
-        acc[day] = (acc[day] || 0) + 1;
+        acc[day] = (acc[day] ?? 0) + 1;
         return acc;
       },
       {} as Record<string, number>,

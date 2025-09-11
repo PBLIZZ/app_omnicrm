@@ -81,16 +81,12 @@ export function OmniConnectPage(): JSX.Element {
       <OmniConnectErrorBanner error={error} />
 
       <GmailConnectionCard
-        onSyncStart={handleSyncStart}
         onSettingsClick={handleSettingsClick}
         refreshTrigger={refreshTrigger}
-        isSyncing={isSyncing}
-        isEmbedding={isEmbedding}
         isProcessingContacts={isProcessingContacts}
         showSyncPreview={showSyncPreview}
         setShowSyncPreview={setShowSyncPreview}
         onApproveSync={handleApproveSync}
-        onGenerateEmbeddings={handleGenerateEmbeddings}
         onProcessContacts={handleProcessContacts}
       />
 

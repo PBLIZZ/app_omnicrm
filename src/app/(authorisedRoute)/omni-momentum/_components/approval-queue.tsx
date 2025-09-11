@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -14,17 +14,10 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
-  Check,
-  X, 
-  Bot,
-  Clock,
-  Flag,
-  MessageSquare,
-} from "lucide-react";
+import { Check, X, Bot, Clock, Flag, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchPost } from "@/lib/api";
+import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Momentum } from "@/server/db/schema";
 
@@ -46,12 +39,12 @@ interface TaskApprovalCardProps {
   onReject: (taskId: string, notes?: string) => void;
 }
 
-function TaskApprovalCard({ 
-  task, 
-  isSelected, 
-  onSelect, 
-  onApprove, 
-  onReject 
+function TaskApprovalCard({
+  task,
+  isSelected,
+  onSelect,
+  onApprove,
+  onReject,
 }: TaskApprovalCardProps): JSX.Element {
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState("");
@@ -60,10 +53,10 @@ function TaskApprovalCard({
     const colors = {
       low: "text-green-600 dark:text-green-400 border-l-green-500",
       medium: "text-blue-600 dark:text-blue-400 border-l-blue-500",
-      high: "text-orange-600 dark:text-orange-400 border-l-orange-500", 
+      high: "text-orange-600 dark:text-orange-400 border-l-orange-500",
       urgent: "text-red-600 dark:text-red-400 border-l-red-500",
     } as const;
-    
+
     if (priority in colors) {
       return colors[priority as keyof typeof colors];
     }
@@ -83,11 +76,13 @@ function TaskApprovalCard({
   };
 
   return (
-    <Card className={`border-l-4 ${getPriorityColor(task.priority)} ${isSelected ? 'ring-2 ring-primary' : ''}`}>
+    <Card
+      className={`border-l-4 ${getPriorityColor(task.priority)} ${isSelected ? "ring-2 ring-primary" : ""}`}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3 flex-1">
-            <Checkbox 
+            <Checkbox
               checked={isSelected}
               onCheckedChange={onSelect}
               data-testid={`checkbox-task-${task.id}`}
@@ -95,19 +90,15 @@ function TaskApprovalCard({
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 <Bot className="h-4 w-4 text-blue-500" />
-                <CardTitle className="text-sm font-medium">
-                  {task.title}
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">{task.title}</CardTitle>
                 <div className="flex items-center gap-1">
                   <Flag className={`h-3 w-3 ${getPriorityColor(task.priority)}`} />
                   <span className="text-xs capitalize">{task.priority}</span>
                 </div>
               </div>
-              
+
               {task.description && (
-                <p className="text-sm text-muted-foreground mb-3">
-                  {task.description}
-                </p>
+                <p className="text-sm text-muted-foreground mb-3">{task.description}</p>
               )}
 
               {task.aiContext != null && (
@@ -120,16 +111,16 @@ function TaskApprovalCard({
                   </div>
                   <p className="text-xs text-blue-600 dark:text-blue-400">
                     {((): string => {
-                      if (typeof task.aiContext === 'string') {
+                      if (typeof task.aiContext === "string") {
                         return task.aiContext;
-                      } else if (task.aiContext !== null && typeof task.aiContext === 'object') {
+                      } else if (task.aiContext !== null && typeof task.aiContext === "object") {
                         try {
                           return JSON.stringify(task.aiContext, null, 2);
                         } catch {
-                          return 'Unable to display AI context';
+                          return "Unable to display AI context";
                         }
                       }
-                      return 'No AI context available';
+                      return "No AI context available";
                     })()}
                   </p>
                 </div>
@@ -151,7 +142,7 @@ function TaskApprovalCard({
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent className="pt-0">
         {showNotes && (
           <div className="space-y-2 mb-4">
@@ -166,7 +157,7 @@ function TaskApprovalCard({
             />
           </div>
         )}
-        
+
         <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -177,7 +168,7 @@ function TaskApprovalCard({
             <Check className="h-3 w-3 mr-1" />
             Approve
           </Button>
-          
+
           <Button
             size="sm"
             variant="destructive"
@@ -187,7 +178,7 @@ function TaskApprovalCard({
             <X className="h-3 w-3 mr-1" />
             Reject
           </Button>
-          
+
           <Button
             size="sm"
             variant="outline"
@@ -195,7 +186,7 @@ function TaskApprovalCard({
             data-testid={`button-add-notes-${task.id}`}
           >
             <MessageSquare className="h-3 w-3 mr-1" />
-            {showNotes ? 'Hide Notes' : 'Add Notes'}
+            {showNotes ? "Hide Notes" : "Add Notes"}
           </Button>
         </div>
       </CardContent>
@@ -203,10 +194,14 @@ function TaskApprovalCard({
   );
 }
 
-export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueueProps): JSX.Element {
+export function ApprovalQueue({
+  open,
+  onOpenChange,
+  pendingTasks,
+}: ApprovalQueueProps): JSX.Element {
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [bulkNotes, setBulkNotes] = useState("");
-  
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -216,7 +211,7 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
       if (notes !== undefined) {
         body.notes = notes;
       }
-      return fetchPost(`/api/omni-momentum/${taskId}/approve`, body);
+      return apiClient.post(`/api/omni-momentum/${taskId}/approve`, body);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["/api/omni-momentum"] });
@@ -227,7 +222,7 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
       });
     },
     onError: (error) => {
-      console.error("Error approving task:", error);
+      console.error("Failed to approve task:", error);
       toast({
         title: "Error",
         description: "Failed to approve task. Please try again.",
@@ -242,7 +237,7 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
       if (notes !== undefined) {
         body.notes = notes;
       }
-      return fetchPost(`/api/omni-momentum/${taskId}/reject`, body);
+      return apiClient.post(`/api/omni-momentum/${taskId}/reject`, body);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["/api/omni-momentum"] });
@@ -253,7 +248,7 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
       });
     },
     onError: (error) => {
-      console.error("Error rejecting task:", error);
+      console.error("Failed to reject task:", error);
       toast({
         title: "Error",
         description: "Failed to reject task. Please try again.",
@@ -263,25 +258,25 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
   });
 
   const handleApprove = (taskId: string, notes?: string): void => {
-    approveMutation.mutate({ 
-      taskId, 
-      ...(notes ? { notes } : {})
+    approveMutation.mutate({
+      taskId,
+      ...(notes ? { notes } : {}),
     });
   };
 
   const handleReject = (taskId: string, notes?: string): void => {
-    rejectMutation.mutate({ 
-      taskId, 
-      ...(notes ? { notes } : {})
+    rejectMutation.mutate({
+      taskId,
+      ...(notes ? { notes } : {}),
     });
   };
 
   const handleBulkApprove = (): void => {
     const trimmedNotes = bulkNotes.trim();
-    selectedTasks.forEach(taskId => {
-      approveMutation.mutate({ 
-        taskId, 
-        ...(trimmedNotes ? { notes: trimmedNotes } : {})
+    selectedTasks.forEach((taskId) => {
+      approveMutation.mutate({
+        taskId,
+        ...(trimmedNotes ? { notes: trimmedNotes } : {}),
       });
     });
     setSelectedTasks([]);
@@ -290,10 +285,10 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
 
   const handleBulkReject = (): void => {
     const trimmedNotes = bulkNotes.trim();
-    selectedTasks.forEach(taskId => {
-      rejectMutation.mutate({ 
-        taskId, 
-        ...(trimmedNotes ? { notes: trimmedNotes } : {})
+    selectedTasks.forEach((taskId) => {
+      rejectMutation.mutate({
+        taskId,
+        ...(trimmedNotes ? { notes: trimmedNotes } : {}),
       });
     });
     setSelectedTasks([]);
@@ -302,9 +297,9 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
 
   const toggleTaskSelection = (taskId: string, selected: boolean): void => {
     if (selected) {
-      setSelectedTasks(prev => [...prev, taskId]);
+      setSelectedTasks((prev) => [...prev, taskId]);
     } else {
-      setSelectedTasks(prev => prev.filter(id => id !== taskId));
+      setSelectedTasks((prev) => prev.filter((id) => id !== taskId));
     }
   };
 
@@ -312,7 +307,7 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
     if (selectedTasks.length === pendingTasks.length) {
       setSelectedTasks([]);
     } else {
-      setSelectedTasks(pendingTasks.map(t => t.id));
+      setSelectedTasks(pendingTasks.map((t) => t.id));
     }
   };
 
@@ -326,7 +321,8 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
             <Badge variant="secondary">{pendingTasks.length}</Badge>
           </DialogTitle>
           <DialogDescription>
-            Review and approve AI-generated task suggestions. Your decisions help improve future suggestions.
+            Review and approve AI-generated task suggestions. Your decisions help improve future
+            suggestions.
           </DialogDescription>
         </DialogHeader>
 
@@ -336,7 +332,8 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
               <Bot className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No pending suggestions</h3>
               <p className="text-sm text-muted-foreground">
-                All AI-generated tasks have been reviewed. New suggestions will appear here overnight.
+                All AI-generated tasks have been reviewed. New suggestions will appear here
+                overnight.
               </p>
             </div>
           ) : (
@@ -348,13 +345,16 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">
-                          {selectedTasks.length} task{selectedTasks.length === 1 ? '' : 's'} selected
+                          {selectedTasks.length} task{selectedTasks.length === 1 ? "" : "s"}{" "}
+                          selected
                         </span>
                         <Button variant="outline" size="sm" onClick={toggleSelectAll}>
-                          {selectedTasks.length === pendingTasks.length ? 'Deselect All' : 'Select All'}
+                          {selectedTasks.length === pendingTasks.length
+                            ? "Deselect All"
+                            : "Select All"}
                         </Button>
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
@@ -376,7 +376,7 @@ export function ApprovalQueue({ open, onOpenChange, pendingTasks }: ApprovalQueu
                         </Button>
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="bulk-notes">Bulk Notes (optional)</Label>
                       <Textarea

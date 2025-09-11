@@ -6,6 +6,7 @@
  */
 
 import { toast } from "sonner";
+import { isError } from "./type-guards";
 
 export interface ErrorContext {
   operation: string;
@@ -148,26 +149,6 @@ export async function withErrorHandling<T>(
   } catch (error) {
     return handleError(error, context, options);
   }
-}
-
-/**
- * Type guard for checking if a value is an Error
- */
-export function isError(value: unknown): value is Error {
-  return value instanceof Error;
-}
-
-/**
- * Extract error message from unknown error value
- */
-export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === "string") {
-    return error;
-  }
-  return "An unknown error occurred";
 }
 
 /**

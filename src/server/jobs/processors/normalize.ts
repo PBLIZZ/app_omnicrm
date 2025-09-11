@@ -1,10 +1,11 @@
 import { JobRecord } from "@/server/jobs/types";
-import { log } from "@/lib/log";
+import { eq, and } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { rawEvents, calendarEvents } from "@/server/db/schema";
-import { and, eq } from "drizzle-orm";
+import { logger } from "@/lib/observability";
 import { drizzleAdminGuard } from "@/server/db/admin";
 import type { RawEvent } from "@/server/db/schema";
+import { ensureError } from "@/lib/utils/error-handler";
 
 // Type guards for safe payload parsing
 interface BatchJobPayload {
@@ -52,15 +53,14 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   const batchId = isBatchJobPayload(job.payload) ? job.payload.batchId : undefined;
   const startedAt = Date.now();
 
-  log.info(
-    {
-      op: "normalize_google_email.start",
+  await logger.info("normalize_google_email_start", {
+    operation: "normalize_data",
+    additionalData: {
       jobId: job.id,
       userId: job.userId,
       batchId,
     },
-    "normalize_google_email_start",
-  );
+  });
 
   try {
     const typedPayload = job.payload as GmailPayload;
@@ -118,9 +118,9 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
       batchId: (r.batchId ?? undefined) as string | undefined,
     });
 
-    log.info(
-      {
-        op: "normalize_google_email.complete",
+    await logger.info("normalize_google_email_complete", {
+      operation: "normalize_data",
+      additionalData: {
         jobId: job.id,
         userId: job.userId,
         messageId,
@@ -134,19 +134,20 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
         durationMs: Date.now() - startedAt,
         batchId,
       },
-      "normalize_google_email_complete",
-    );
+    });
   } catch (error) {
-    log.error(
-      {
-        op: "normalize_google_email.error",
-        jobId: job.id,
-        userId: job.userId,
-        error: error instanceof Error ? error.message : String(error),
-        durationMs: Date.now() - startedAt,
-        batchId,
-      },
+    await logger.error(
       "normalize_google_email_error",
+      {
+        operation: "normalize_data",
+        additionalData: {
+          jobId: job.id,
+          userId: job.userId,
+          durationMs: Date.now() - startedAt,
+          batchId,
+        },
+      },
+      ensureError(error),
     );
     throw error;
   }
@@ -238,7 +239,18 @@ function extractTextFromParts(parts: unknown[]): string[] {
         const decoded = Buffer.from(part.body.data, "base64url").toString("utf-8");
         textParts.push(decoded);
       } catch (error) {
-        console.warn("Failed to decode Gmail message part:", error);
+        // Log decode warning with proper error handling
+        void logger
+          .warn("Failed to decode Gmail message part", {
+            operation: "jobs.normalize.decode_message",
+            additionalData: {
+              mimeType: part.mimeType,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          })
+          .catch(() => {
+            // Failed to log decode warning - ignore silently to avoid cascading errors
+          });
       }
     }
   }
@@ -285,30 +297,28 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
     .where(and(...conditions))
     .limit(Math.min(1000, maxItems));
 
-  log.info(
-    {
-      op: "normalize_google_event.start",
+  await logger.info("normalize_google_event_start", {
+    operation: "normalize_data",
+    additionalData: {
       jobId: job.id,
       userId: job.userId,
       totalRows: rows.length,
       batchId,
     },
-    "normalize_google_event_start",
-  );
+  });
 
   for (const row of rows) {
     if (Date.now() > deadlineMs) {
-      log.warn(
-        {
-          op: "normalize_google_event.timeout",
+      await logger.warn("normalize_google_event_timeout", {
+        operation: "normalize_data",
+        additionalData: {
           jobId: job.id,
           userId: job.userId,
           itemsFetched,
           itemsInserted,
           itemsSkipped,
         },
-        "normalize_google_event_timeout",
-      );
+      });
       break;
     }
 
@@ -405,15 +415,17 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
       itemsInserted++;
       itemsFetched++;
     } catch (error) {
-      log.error(
-        {
-          op: "normalize_google_event.item_error",
-          jobId: job.id,
-          userId: job.userId,
-          rawEventId: row.id,
-          error: error instanceof Error ? error.message : String(error),
-        },
+      await logger.error(
         "normalize_google_event_item_error",
+        {
+          operation: "normalize_data",
+          additionalData: {
+            jobId: job.id,
+            userId: job.userId,
+            rawEventId: row.id,
+          },
+        },
+        ensureError(error),
       );
       itemsSkipped++;
     }
@@ -422,9 +434,9 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   // Note: extract_contacts job is already enqueued by the sync API route
   // No need to create duplicate job here
 
-  log.info(
-    {
-      op: "normalize_google_event.complete",
+  await logger.info("normalize_google_event_complete", {
+    operation: "normalize_data",
+    additionalData: {
       jobId: job.id,
       userId: job.userId,
       itemsFetched,
@@ -434,6 +446,5 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
       batchId,
       embeddingJobEnqueued: itemsInserted > 0,
     },
-    "normalize_google_event_complete",
-  );
+  });
 }

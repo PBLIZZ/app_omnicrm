@@ -4,8 +4,9 @@ import { embeddings, interactions, documents } from "@/server/db/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { generateEmbedding } from "@/server/ai/llm.service";
 import { buildEmbedInput } from "@/server/prompts/embed.prompt";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
+import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * Process embedding generation for interactions and documents
@@ -22,17 +23,16 @@ export async function runEmbed(job: JobRecord<"embed">): Promise<void> {
     const ownerId = payload.ownerId;
     const batchMaxItems = payload.maxItems ?? maxItems;
 
-    log.info(
-      {
-        op: "embed.start",
+    await logger.info("Starting embedding generation", {
+      operation: "embed_process",
+      additionalData: {
         userId: job.userId,
         ownerType,
         ownerId,
         maxItems: batchMaxItems,
         jobId: job.id,
       },
-      "Starting embedding generation",
-    );
+    });
 
     let processedItems = 0;
     let generatedEmbeddings = 0;
@@ -59,9 +59,9 @@ export async function runEmbed(job: JobRecord<"embed">): Promise<void> {
     }
 
     const duration = Date.now() - startTime;
-    log.info(
-      {
-        op: "embed.complete",
+    await logger.info("Embedding generation completed", {
+      operation: "embed_process",
+      additionalData: {
         userId: job.userId,
         processedItems,
         generatedEmbeddings,
@@ -69,19 +69,20 @@ export async function runEmbed(job: JobRecord<"embed">): Promise<void> {
         duration,
         jobId: job.id,
       },
-      "Embedding generation completed",
-    );
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
-    log.error(
-      {
-        op: "embed.error",
-        userId: job.userId,
-        error: error instanceof Error ? error.message : String(error),
-        duration,
-        jobId: job.id,
-      },
+    await logger.error(
       "Embedding generation failed",
+      {
+        operation: "embed_process",
+        additionalData: {
+          userId: job.userId,
+          duration,
+          jobId: job.id,
+        },
+      },
+      ensureError(error),
     );
     throw error;
   }
@@ -120,14 +121,13 @@ async function processSpecificInteraction(
     .limit(1);
 
   if (!interaction) {
-    log.warn(
-      {
-        op: "embed.interaction_not_found",
+    await logger.warn("Interaction not found for embedding", {
+      operation: "embed_process",
+      additionalData: {
         userId,
         interactionId,
       },
-      "Interaction not found for embedding",
-    );
+    });
     return { generated: false };
   }
 
@@ -193,14 +193,13 @@ async function processSpecificDocument(
     .limit(1);
 
   if (!document) {
-    log.warn(
-      {
-        op: "embed.document_not_found",
+    await logger.warn("Document not found for embedding", {
+      operation: "embed_process",
+      additionalData: {
         userId,
         documentId,
       },
-      "Document not found for embedding",
-    );
+    });
     return { generated: false };
   }
 
@@ -304,15 +303,14 @@ async function processMissingEmbeddings(
 
       generated++;
     } catch (error) {
-      log.warn(
-        {
-          op: "embed.interaction_failed",
+      await logger.warn("Failed to generate embedding for interaction", {
+        operation: "embed_process",
+        additionalData: {
           userId,
           interactionId: interaction.id,
           error: error instanceof Error ? error.message : String(error),
         },
-        "Failed to generate embedding for interaction",
-      );
+      });
       skipped++;
     }
   }
@@ -375,15 +373,14 @@ async function processMissingEmbeddings(
 
       generated++;
     } catch (error) {
-      log.warn(
-        {
-          op: "embed.document_failed",
+      await logger.warn("Failed to generate embedding for document", {
+        operation: "embed_process",
+        additionalData: {
           userId,
           documentId: document.id,
           error: error instanceof Error ? error.message : String(error),
         },
-        "Failed to generate embedding for document",
-      );
+      });
       skipped++;
     }
   }

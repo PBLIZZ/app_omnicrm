@@ -1,8 +1,9 @@
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { contactTimeline } from "@/server/db/schema";
 import type { JobRecord, ContactExtractionPayload } from "../types";
+import { ensureError } from "@/lib/utils/error-handler";
 
 function isContactExtractionPayload(payload: unknown): payload is ContactExtractionPayload {
   return typeof payload === "object" && payload !== null;
@@ -71,9 +72,9 @@ export async function runExtractContacts(job: JobRecord<"extract_contacts">): Pr
   const startedAt = Date.now();
   const payload = isContactExtractionPayload(job.payload) ? job.payload : {};
 
-  log.info(
-    {
-      op: "extract_contacts.start",
+  await logger.info("Starting contact extraction job", {
+    operation: "extract_contacts",
+    additionalData: {
       jobId: job.id,
       userId: job.userId,
       mode: payload.mode ?? "batch",
@@ -81,8 +82,7 @@ export async function runExtractContacts(job: JobRecord<"extract_contacts">): Pr
       maxItems: payload.maxItems ?? null,
       batchId: payload.batchId ?? job.batchId ?? null,
     },
-    "Starting contact extraction job",
-  );
+  });
 
   let processed = 0;
   let linked = 0;
@@ -112,33 +112,34 @@ export async function runExtractContacts(job: JobRecord<"extract_contacts">): Pr
           if (result.timelineCreated) timelineCreated++;
         } else {
           errors++;
-          log.warn(
-            {
-              op: "extract_contacts.interaction_failed",
+          await logger.warn("Failed to process interaction for contact extraction", {
+            operation: "extract_contacts",
+            additionalData: {
               jobId: job.id,
               userId: job.userId,
               interactionId: interaction.id,
               error: result.error,
             },
-            "Failed to process interaction for contact extraction",
-          );
+          });
         }
       }
     }
 
     const durationMs = Date.now() - startedAt;
-    log.info(
-      {
-        op: "extract_contacts.complete",
-        jobId: job.id,
-        userId: job.userId,
-        durationMs,
-        processed,
-        linked,
-        timelineCreated,
-        errors,
-      },
+    await logger.info(
       `Contact extraction completed: ${linked}/${processed} interactions linked, ${timelineCreated} timeline entries created`,
+      {
+        operation: "extract_contacts",
+        additionalData: {
+          jobId: job.id,
+          userId: job.userId,
+          durationMs,
+          processed,
+          linked,
+          timelineCreated,
+          errors,
+        },
+      },
     );
 
     // Enqueue embed job (final step in the pipeline)
@@ -155,27 +156,28 @@ export async function runExtractContacts(job: JobRecord<"extract_contacts">): Pr
         )
       `);
 
-      log.info(
-        {
-          op: "extract_contacts.embed_enqueued",
+      await logger.info("Embed job enqueued after contact extraction", {
+        operation: "extract_contacts",
+        additionalData: {
           jobId: job.id,
           userId: job.userId,
           batchId: payload.batchId ?? job.batchId ?? null,
         },
-        "Embed job enqueued after contact extraction",
-      );
+      });
     }
   } catch (error) {
     const durationMs = Date.now() - startedAt;
-    log.error(
-      {
-        op: "extract_contacts.failed",
-        jobId: job.id,
-        userId: job.userId,
-        durationMs,
-        error: error instanceof Error ? error.message : String(error),
-      },
+    await logger.error(
       "Contact extraction job failed",
+      {
+        operation: "extract_contacts",
+        additionalData: {
+          jobId: job.id,
+          userId: job.userId,
+          durationMs,
+        },
+      },
+      ensureError(error),
     );
     throw error;
   }
@@ -203,7 +205,12 @@ async function processInteraction(
       return { success: false, error: "Interaction not found or already linked" };
     }
 
-    const interaction = interactionResult[0] as InteractionWithMeta;
+    const interactionData = interactionResult[0];
+    if (!interactionData || typeof interactionData !== "object") {
+      return { success: false, error: "Invalid interaction data" };
+    }
+
+    const interaction = interactionData as unknown as InteractionWithMeta;
 
     // Extract candidate identities from interaction
     const candidateIdentities = extractCandidateIdentities(interaction);
@@ -231,16 +238,15 @@ async function processInteraction(
           await createCalendarTimelineEntry(userId, resolution.contactId, interaction);
           timelineCreated = true;
         } catch (error) {
-          log.warn(
-            {
-              op: "extract_contacts.timeline_creation_failed",
+          await logger.warn("Failed to create timeline entry for calendar event", {
+            operation: "extract_contacts",
+            additionalData: {
               userId,
               contactId: resolution.contactId,
               interactionId: interaction.id,
               error: error instanceof Error ? error.message : String(error),
             },
-            "Failed to create timeline entry for calendar event",
-          );
+          });
         }
       }
 
@@ -515,15 +521,15 @@ async function createCalendarTimelineEntry(
   // Build event data
   const eventData = {
     googleEventId: eventId,
-    calendarId: calendarId,
+    calendarId,
     interactionId: interaction.id,
     location: sourceMeta.location ?? null,
-    startTime: startTime,
-    endTime: endTime,
+    startTime,
+    endTime,
     duration: calculateDuration(startTime, endTime),
-    isAllDay: isAllDay,
-    recurring: recurring,
-    status: status,
+    isAllDay,
+    recurring,
+    status,
     attendees: sourceMeta.attendees ?? [],
   };
 

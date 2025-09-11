@@ -4,7 +4,8 @@ import { contacts } from "@/server/db/schema";
 import { eq, and, ne } from "drizzle-orm";
 
 /**
- * Generate a unique slug for a client based on their display name
+ * SERVER-ONLY: Generate a unique slug for a client based on their display name
+ * This function requires database access and should NEVER be imported in client code
  *
  * @param displayName - The client's display name to convert to a slug
  * @param userId - The user ID to scope the uniqueness check
@@ -52,18 +53,4 @@ export async function generateUniqueSlug(
   }
 
   return slug;
-}
-
-/**
- * Generate slug from display name with basic validation
- * This is a simpler version for client-side preview generation
- */
-export function generateSlugPreview(displayName: string): string {
-  const slug = slugify(displayName, {
-    lower: true,
-    strict: true,
-    trim: true,
-  });
-
-  return slug ?? `client-${Date.now()}`;
 }

@@ -3,7 +3,8 @@ export * from "./cn";
 export * from "./auth";
 export * from "./dateUtils";
 export * from "./encoding";
-export * from "./generate-unique-slug";
+// Client-safe slug utilities only
+export { generateSlugPreview, isValidSlug, formatSlugForDisplay } from "./slug-preview";
 export * from "./accessibility-contrast";
 
 // Error handling utilities

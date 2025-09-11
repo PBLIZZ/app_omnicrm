@@ -3,7 +3,7 @@ import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { contacts } from "@/server/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
-import { generateUniqueSlug } from "@/lib/utils/generate-unique-slug";
+import { generateUniqueSlug } from "@/server/lib/utils/generate-unique-slug";
 import { logger } from "@/lib/observability";
 
 /**

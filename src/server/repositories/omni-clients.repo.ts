@@ -4,7 +4,7 @@ import { getDb } from "@/server/db/client";
 import { contacts, notes } from "@/server/db/schema";
 import { queryCache, cacheKeys, cacheInvalidation } from "@/server/lib/cache";
 import { logger } from "@/lib/observability";
-import { generateUniqueSlug } from "@/lib/utils/generate-unique-slug";
+import { generateUniqueSlug } from "@/server/lib/utils/generate-unique-slug";
 // Types moved from contacts.repo.ts
 export type ContactListParams = {
   search?: string;

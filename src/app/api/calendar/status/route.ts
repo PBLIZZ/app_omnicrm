@@ -64,7 +64,7 @@ export const GET = createRouteHandler({
           return api.success({
             isConnected: !stillExpired,
             reason: stillExpired ? "token_expired" : "connected",
-            expiryDate: refreshedIntegration[0].expiryDate?.toISOString() || null,
+            expiryDate: refreshedIntegration[0].expiryDate?.toISOString() ?? null,
             hasRefreshToken: !!refreshedIntegration[0].refreshToken,
             autoRefreshed: !stillExpired, // Indicate that auto-refresh was attempted
           });
@@ -78,7 +78,7 @@ export const GET = createRouteHandler({
     return api.success({
       isConnected: !isExpired,
       reason: isExpired ? "token_expired" : "connected",
-      expiryDate: integration[0].expiryDate?.toISOString() || null,
+      expiryDate: integration[0].expiryDate?.toISOString() ?? null,
       hasRefreshToken: !!integration[0].refreshToken,
     });
   } catch (error) {

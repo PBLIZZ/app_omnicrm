@@ -17,7 +17,7 @@ export const PUT = createRouteHandler({
   const api = new ApiResponseBuilder("settings.consent", requestId);
 
   // Log the consent update for debugging (remove in production)
-  console.debug("Consent settings updated for user:", userId, "with data:", validated.body);
+  console.warn("Consent settings updated for user:", userId, "with data:", validated.body);
 
   // Persistence tracked in GitHub issues #61 (DB migration) and #62 (error handling)
   return api.success({});

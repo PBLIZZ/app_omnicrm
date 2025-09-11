@@ -4,7 +4,7 @@ import { UserCircle } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect, useMemo } from "react";
 
-import { useFileUrl } from "@/lib/api/storage";
+import { useFileUrl } from "@/hooks/use-storage";
 
 interface AvatarImageProps {
   src: string | null;

@@ -6,7 +6,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { v4 as uuidv4 } from "uuid";
 
-import { getUploadUrl, useFileUrl } from "@/lib/api/storage";
+import { getUploadUrl, useFileUrl } from "@/hooks/use-storage";
 
 // Helper function to validate if a string is a valid URL
 function isValidUrl(string: string): boolean {

@@ -29,7 +29,7 @@ export const POST = createRouteHandler({
     return api.error("not_found", "NOT_FOUND");
   }
 
-  console.debug("Gmail preview request:", { userId, testOnly });
+  console.warn("Gmail preview request:", { userId, testOnly });
 
   try {
     const db = await getDb();

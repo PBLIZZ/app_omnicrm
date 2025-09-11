@@ -111,9 +111,7 @@ export function CalendarPreview({ className }: CalendarPreviewProps): JSX.Elemen
   const sessionsByDate = mockUpcomingSessions.reduce(
     (acc, session) => {
       const dateKey = formatDate(session.startTime);
-      if (!acc[dateKey]) {
-        acc[dateKey] = [];
-      }
+      acc[dateKey] ??= [];
       acc[dateKey].push(session);
       return acc;
     },

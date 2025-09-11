@@ -5,7 +5,7 @@ import { z } from "zod";
 const errorMap: z.ZodErrorMap = (issue, ctx) => {
   const message = issue.message ?? "Invalid input";
   // ctx is provided by Zod but not currently used for error customization
-  console.debug("Zod validation error:", { issue, ctx });
+  console.warn("Zod validation error:", { issue, ctx });
   return { message };
 };
 

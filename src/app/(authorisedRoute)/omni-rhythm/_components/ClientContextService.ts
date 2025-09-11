@@ -92,9 +92,8 @@ export class ClientContextService {
 
     // Try email match first
     if (attendee.email) {
-      const clientByEmail = this.clients.find(
-        (c) => c.email.toLowerCase() === attendee.email!.toLowerCase(),
-      );
+      const attendeeEmail = attendee.email.toLowerCase();
+      const clientByEmail = this.clients.find((c) => c.email.toLowerCase() === attendeeEmail);
       if (clientByEmail) return clientByEmail;
     }
 
@@ -123,6 +122,7 @@ export class ClientContextService {
   }> {
     // This would integrate with your calendar API
     // For now, return mock data structure
+    console.warn("Getting upcoming appointments for client:", clientId);
     return [];
   }
 

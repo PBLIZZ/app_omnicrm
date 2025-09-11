@@ -1,8 +1,14 @@
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
-import { ok } from "@/lib/api/http";
 
-export async function GET(): Promise<Response> {
+export const GET = createRouteHandler({
+  auth: false,
+  rateLimit: { operation: "health_check" },
+})(async ({ requestId }) => {
+  const api = new ApiResponseBuilder("health.check", requestId);
+
   // Minimal self-check: if DB is configured, attempt a quick ping without blocking the response
   let dbOk: boolean | undefined = undefined;
   if (process.env["DATABASE_URL"]) {
@@ -16,5 +22,5 @@ export async function GET(): Promise<Response> {
       dbOk = false;
     }
   }
-  return ok({ ts: new Date().toISOString(), db: dbOk });
-}
+  return api.success({ ts: new Date().toISOString(), db: dbOk });
+});

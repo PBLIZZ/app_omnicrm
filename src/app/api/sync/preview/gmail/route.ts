@@ -1,16 +1,13 @@
 /** POST /api/sync/preview/gmail — compute Gmail preview (auth required). Errors: 404 not_found, 401 Unauthorized, 500 preview_failed */
-// no NextResponse usage; responses via helpers
 import { getDb } from "@/server/db/client";
 import { userSyncPrefs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { gmailPreview } from "@/server/google/gmail";
-import { logSync } from "@/lib/api/sync-audit";
-import { getServerUserId } from "@/server/auth/user";
-import { err, ok } from "@/lib/api/http";
+import { logSync } from "@/server/sync/audit";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { z } from "zod";
-import { toApiError } from "@/server/jobs/types";
-import { log } from "@/lib/log";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/observability";
 
 const previewBodySchema = z
   .object({
@@ -18,19 +15,21 @@ const previewBodySchema = z
   })
   .strict();
 
-export async function POST(request: Request): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "sync_preview_gmail" },
+  validation: { body: previewBodySchema },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("sync.preview.gmail", requestId);
+
+  const { testOnly } = validated.body;
 
   const gmailFlag = String(process.env["FEATURE_GOOGLE_GMAIL_RO"] ?? "").toLowerCase();
   if (!["1", "true", "yes", "on"].includes(gmailFlag)) {
-    return err(404, "not_found");
+    return api.error("not_found", "NOT_FOUND");
   }
+
+  console.debug("Gmail preview request:", { userId, testOnly });
 
   try {
     const db = await getDb();
@@ -64,20 +63,25 @@ export async function POST(request: Request): Promise<Response> {
           };
     } catch {
       // Non-fatal: default to sane prefs if table is missing or RLS prevents read
-      log.warn({ op: "sync.preview.gmail", note: "prefs_query_failed" }, "preview_fallback_prefs");
+      await logger.warn("preview_fallback_prefs", {
+        operation: "sync.preview.gmail",
+        additionalData: { note: "prefs_query_failed" },
+      });
       prefs = {
         gmailQuery: "in:inbox", // Simplified query for testing
         gmailLabelIncludes: [],
         gmailLabelExcludes: ["Promotions", "Social", "Forums", "Updates"],
       };
     }
-    const raw: unknown = await request.json().catch(() => ({}));
-    previewBodySchema.parse(raw ?? {});
+    // Body validation is handled by createRouteHandler
 
-    logger.info(`Gmail preview: Starting for user ${userId} with prefs:`, {
-      gmailQuery: prefs.gmailQuery,
-      gmailLabelIncludes: prefs.gmailLabelIncludes,
-      gmailLabelExcludes: prefs.gmailLabelExcludes,
+    void logger.info(`Gmail preview: Starting for user ${userId} with prefs:`, {
+      operation: "sync.preview.gmail",
+      additionalData: {
+        gmailQuery: prefs.gmailQuery,
+        gmailLabelIncludes: prefs.gmailLabelIncludes,
+        gmailLabelExcludes: prefs.gmailLabelExcludes,
+      },
     });
 
     const preview = await gmailPreview(userId, {
@@ -92,10 +96,10 @@ export async function POST(request: Request): Promise<Response> {
     const pages = typeof meta.pages === "number" ? meta.pages : undefined;
     const itemsFiltered = typeof meta.itemsFiltered === "number" ? meta.itemsFiltered : undefined;
     const durationMs = typeof meta.durationMs === "number" ? meta.durationMs : undefined;
-    log.info(
-      { op: "gmail.preview.metrics", userId, pages, itemsFiltered, durationMs },
-      "gmail_preview_metrics",
-    );
+    await logger.info("gmail_preview_metrics", {
+      operation: "gmail.preview.metrics",
+      additionalData: { userId, pages, itemsFiltered, durationMs },
+    });
     // Safe property access for preview result logging
     const previewObj = preview as unknown as Record<string, unknown>;
     const countByLabel = "countByLabel" in previewObj ? previewObj["countByLabel"] : undefined;
@@ -104,18 +108,24 @@ export async function POST(request: Request): Promise<Response> {
         ? (previewObj["sampleSubjects"] as unknown[])
         : [];
 
-    logger.warn("Gmail preview metrics:", { pages, itemsFiltered, durationMs });
+    void logger.warn("Gmail preview metrics:", {
+      operation: "sync.preview.gmail",
+      additionalData: { pages, itemsFiltered, durationMs },
+    });
 
-    logger.warn(`Gmail preview: Final response being sent:`, {
-      countByLabel,
-      sampleSubjectsCount: sampleSubjects.length,
-      sampleSubjects: sampleSubjects.slice(0, 3),
-      previewType: typeof preview,
-      previewKeys: preview ? Object.keys(preview) : [],
+    void logger.warn(`Gmail preview: Final response being sent:`, {
+      operation: "sync.preview.gmail",
+      additionalData: {
+        countByLabel,
+        sampleSubjectsCount: sampleSubjects.length,
+        sampleSubjects: sampleSubjects.slice(0, 3),
+        previewType: typeof preview,
+        previewKeys: preview ? Object.keys(preview) : [],
+      },
     });
 
     await logSync(userId, "gmail", "preview", preview as unknown as Record<string, unknown>);
-    return ok(preview ?? {});
+    return api.success(preview ?? {});
   } catch (e: unknown) {
     const isApiError = (
       err: unknown,
@@ -128,10 +138,13 @@ export async function POST(request: Request): Promise<Response> {
     const status = unauthorized ? 401 : 500;
 
     // Minimal, non-sensitive log for debugging preview failures
-    log.warn(
-      { op: "sync.preview.gmail", status, code: error.code, msg: error.message },
-      "preview_failed",
+    await logger.warn("preview_failed", {
+      operation: "sync.preview.gmail",
+      additionalData: { status, code: error.code, msg: error.message },
+    });
+    return api.error(
+      unauthorized ? "unauthorized" : "preview_failed",
+      unauthorized ? "UNAUTHORIZED" : "INTERNAL_ERROR",
     );
-    return err(status, unauthorized ? "unauthorized" : "preview_failed");
   }
-}
+});

@@ -1,35 +1,35 @@
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
 import { CalendarEmbeddingService } from "@/server/services/calendar-embedding.service";
-import { err, ok } from "@/lib/api/http";
-import { log } from "@/lib/log";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { logger } from "@/lib/observability";
+import { z } from "zod";
 
-type Provider = "calendar" | "gmail" | "both";
-type Timeframe = "week" | "month" | "quarter";
+const insightsQuerySchema = z.object({
+  provider: z.enum(["calendar", "gmail", "both"]).default("both"),
+  timeframe: z.enum(["week", "month", "quarter"]).default("month"),
+});
 
 // GET: Get AI insights from Google data (calendar, gmail, or both)
-export async function GET(request: Request): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (authError: unknown) {
-    console.error("Google insights GET - auth error:", authError);
-    return err(401, "Unauthorized");
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "google_insights" },
+  validation: {
+    query: insightsQuerySchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("google.insights", requestId);
 
   try {
-    const { searchParams } = new URL(request.url);
-    const provider = (searchParams.get("provider") as Provider) || "both";
-    const timeframe = (searchParams.get("timeframe") as Timeframe) || "month";
+    const { provider, timeframe } = validated.query;
 
-    log.info(
-      {
-        op: "google.insights",
+    await logger.info("google_insights_started", {
+      operation: "google.insights",
+      additionalData: {
         userId,
         provider,
         timeframe,
       },
-      "google_insights_started",
-    );
+    });
 
     const insights: Record<string, unknown> = {
       provider,
@@ -44,55 +44,64 @@ export async function GET(request: Request): Promise<Response> {
           userId,
           timeframe,
         );
-        insights.calendar = calendarInsights;
+        insights["calendar"] = calendarInsights;
       } catch (error) {
-        log.warn(
-          {
-            op: "google.insights",
+        await logger.warn("calendar_insights_failed", {
+          operation: "google.insights",
+          additionalData: {
             userId,
-            error: error instanceof Error ? error.message : "Unknown error",
+            error: error instanceof Error ? error.message : String(error),
           },
-          "calendar_insights_failed",
-        );
-        insights.calendar = { error: "Failed to generate calendar insights" };
+        });
+        insights["calendar"] = { error: "Failed to generate calendar insights" };
       }
     }
 
     // Get Gmail insights (placeholder - remove mock data)
     if (provider === "gmail" || provider === "both") {
       // TODO: Implement real Gmail insights from interactions table
-      log.info({ op: "google.insights", userId }, "gmail_insights_not_implemented");
-      insights.gmail = {
+      await logger.info("gmail_insights_not_implemented", {
+        operation: "google.insights",
+        additionalData: { userId },
+      });
+      insights["gmail"] = {
         error: "Gmail insights not yet implemented",
         message: "Will be available once Gmail data is processed through the ingestion pipeline",
       };
     }
 
-    log.info(
-      {
-        op: "google.insights",
+    await logger.info("google_insights_completed", {
+      operation: "google.insights",
+      additionalData: {
         userId,
         provider,
-        hasCalendarInsights: !!insights.calendar && !insights.calendar.error,
-        hasGmailInsights: !!insights.gmail && !insights.gmail.error,
+        hasCalendarInsights:
+          !!insights["calendar"] && !(insights["calendar"] as { error?: string }).error,
+        hasGmailInsights: !!insights["gmail"] && !(insights["gmail"] as { error?: string }).error,
       },
-      "google_insights_completed",
-    );
+    });
 
-    return ok({
+    return api.success({
       success: true,
       insights,
     });
   } catch (error: unknown) {
-    log.error(
-      {
-        op: "google.insights",
-        userId,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
+    await logger.error(
       "google_insights_failed",
+      {
+        operation: "google.insights",
+        additionalData: {
+          userId,
+        },
+      },
+      error instanceof Error ? error : new Error("Unknown error"),
     );
 
-    return err(500, "Failed to generate insights");
+    return api.error(
+      "Failed to generate insights",
+      "INTERNAL_ERROR",
+      undefined,
+      error instanceof Error ? error : undefined,
+    );
   }
-}
+});

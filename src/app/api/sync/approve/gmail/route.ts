@@ -1,15 +1,13 @@
 /** POST /api/sync/approve/gmail — approve Gmail sync (auth required). Errors: 404 not_found, 401 Unauthorized, 500 approve_failed */
-// no NextResponse usage; responses via helpers
-import { logSync } from "@/lib/api/sync-audit";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { logSync } from "@/server/sync/audit";
 import { randomUUID } from "node:crypto";
-import { getServerUserId } from "@/server/auth/user";
 import { enqueue } from "@/server/jobs/enqueue";
-import { err, ok, safeJson } from "@/lib/api/http";
 import { z } from "zod";
-import { toApiError } from "@/server/jobs/types";
-import { NextRequest } from "next/server";
 import { JobRunner } from "@/server/jobs/runner";
-import { log } from "@/lib/log";
+import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 const approveBodySchema = z
   .object({
@@ -18,26 +16,18 @@ const approveBodySchema = z
   })
   .strict();
 
-export async function POST(req: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error: unknown) {
-    const { status, message } = toApiError(error);
-    return err(status, message);
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "sync_approve_gmail" },
+  validation: {
+    body: approveBodySchema,
+  },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("sync.approve.gmail", requestId);
 
   const gmailFlag = String(process.env["FEATURE_GOOGLE_GMAIL_RO"] ?? "").toLowerCase();
   if (!["1", "true", "yes", "on"].includes(gmailFlag)) {
-    return err(404, "not_found");
-  }
-
-  // Validate input (even if currently unused) to harden handler surface
-  try {
-    const raw = (await safeJson<Record<string, unknown>>(req)) ?? {};
-    approveBodySchema.parse(raw);
-  } catch {
-    return err(400, "invalid_body");
+    return api.error("not_found", "NOT_FOUND");
   }
 
   const batchId = randomUUID();
@@ -46,43 +36,43 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // Auto-start job runner processing after enqueuing
   try {
-    log.info(
-      {
-        op: "gmail_sync.auto_process_start",
+    await logger.info("Starting automatic job runner processing after Gmail sync approval", {
+      operation: "gmail_sync.auto_process_start",
+      additionalData: {
         userId,
         batchId,
       },
-      "Starting automatic job runner processing after Gmail sync approval",
-    );
+    });
 
     // Start job processing in background (don't await to avoid blocking response)
     const jobRunner = new JobRunner();
-    jobRunner.processUserJobs(userId).catch((error) => {
-      log.error(
-        {
-          op: "gmail_sync.auto_process_failed",
-          userId,
-          batchId,
-          error: error instanceof Error ? error.message : String(error),
-        },
+    jobRunner.processUserJobs(userId).catch(async (error) => {
+      await logger.error(
         "Auto job processing failed after Gmail sync approval",
+        {
+          operation: "gmail_sync.auto_process_failed",
+          additionalData: {
+            userId,
+            batchId,
+          },
+        },
+        ensureError(error),
       );
     });
   } catch (error) {
     // Log but don't fail the approval if job runner processing fails to start
-    log.warn(
-      {
-        op: "gmail_sync.auto_process_error",
+    await logger.warn("Failed to start automatic job runner processing", {
+      operation: "gmail_sync.auto_process_error",
+      additionalData: {
         userId,
         batchId,
         error: error instanceof Error ? error.message : String(error),
       },
-      "Failed to start automatic job runner processing",
-    );
+    });
   }
 
-  return ok({
+  return api.success({
     batchId,
     message: "Gmail sync approved and job processing started automatically",
   });
-}
+});

@@ -1,13 +1,13 @@
-import { NextRequest } from "next/server";
-import "@/lib/zod-error-map";
-import { getServerUserId } from "@/server/auth/user";
-import { ok, err, safeJson } from "@/lib/api/http";
+import "@/lib/validation/zod-error-map";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { MomentumStorage } from "@/server/storage/momentum.storage";
 import { getDb } from "@/server/db/client";
 import { momentumWorkspaces } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "@/lib/observability/unified-logger";
+import { ensureError } from "@/lib/utils/error-handler";
 
 const momentumStorage = new MomentumStorage();
 
@@ -28,72 +28,70 @@ const CreateTaskSchema = z.object({
   aiContext: z.record(z.unknown()).optional(),
 });
 
-interface TaskFilters {
-  workspaceId?: string;
-  projectId?: string;
-  status?: string;
-  assignee?: string;
-  approvalStatus?: string;
-  parentTaskId?: string | null;
-}
+const taskFiltersSchema = z.object({
+  workspaceId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional(),
+  status: z.string().optional(),
+  assignee: z.string().optional(),
+  approvalStatus: z.string().optional(),
+  parentTaskId: z.string().uuid().nullable().optional(),
+  withContacts: z.boolean().default(false),
+});
 
-export async function GET(req: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "tasks_list" },
+  validation: {
+    query: taskFiltersSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("tasks.list", requestId);
 
-  const { searchParams } = new URL(req.url);
-  const filters: TaskFilters = {};
-  const workspaceId = searchParams.get("workspaceId");
-  if (workspaceId) filters.workspaceId = workspaceId;
-  const projectId = searchParams.get("projectId");
-  if (projectId) filters.projectId = projectId;
-  const status = searchParams.get("status");
-  if (status) filters.status = status;
-  const assignee = searchParams.get("assignee");
-  if (assignee) filters.assignee = assignee;
-  const approvalStatus = searchParams.get("approvalStatus");
-  if (approvalStatus) filters.approvalStatus = approvalStatus;
-  if (searchParams.has("parentTaskId")) filters.parentTaskId = searchParams.get("parentTaskId");
+  const { withContacts, parentTaskId, ...filters } = validated.query;
 
-  const withContacts = searchParams.get("withContacts") === "true";
+  // Transform parentTaskId to parentMomentumId for the storage layer
+  const storageFilters = Object.fromEntries(
+    Object.entries({ ...filters, parentMomentumId: parentTaskId }).filter(
+      ([, value]) => value !== undefined,
+    ),
+  );
 
   try {
     let tasks;
     if (withContacts) {
       tasks = await momentumStorage.getMomentumsWithContacts(userId);
     } else {
-      tasks = await momentumStorage.getMomentums(userId, filters);
+      tasks = await momentumStorage.getMomentums(userId, storageFilters);
     }
-    return ok({ tasks });
+    return api.success({ tasks });
   } catch (error) {
-    console.error("Error fetching tasks:", error);
-    return err(500, "internal_server_error");
+    await logger.error(
+      "Error fetching tasks",
+      {
+        operation: "tasks.list",
+        additionalData: {
+          userId: userId.slice(0, 8) + "...",
+          filters,
+        },
+      },
+      ensureError(error),
+    );
+    return api.error("Internal server error", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});
 
-export async function POST(req: NextRequest): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
-    return err(error?.status ?? 401, error?.message ?? "unauthorized");
-  }
-
-  const body = (await safeJson<unknown>(req)) ?? {};
-  const parsed = CreateTaskSchema.safeParse(body);
-  if (!parsed.success) {
-    return err(400, "invalid_body", parsed.error.flatten());
-  }
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "tasks_create" },
+  validation: {
+    body: CreateTaskSchema,
+  },
+})(async ({ userId, validated, requestId }) => {
+  const api = new ApiResponseBuilder("tasks.create", requestId);
 
   try {
     // Get workspaceId or create default workspace
-    let workspaceId = parsed.data.workspaceId;
+    let workspaceId = validated.body.workspaceId;
 
     if (!workspaceId) {
       const db = await getDb();
@@ -118,31 +116,43 @@ export async function POST(req: NextRequest): Promise<Response> {
       workspaceId = defaultWorkspace?.id;
     }
 
-    logger.info("Creating task", {
+    void logger.info("Creating task", {
       operation: "create_task",
-      workspaceId,
-      projectId: parsed.data.projectId ?? null,
-      title: parsed.data.title.substring(0, 50), // Truncate for logs
+      additionalData: {
+        workspaceId,
+        projectId: validated.body.projectId ?? null,
+        title: validated.body.title.substring(0, 50), // Truncate for logs
+      },
     });
 
     const task = await momentumStorage.createMomentum(userId, {
       momentumWorkspaceId: workspaceId,
-      momentumProjectId: parsed.data.projectId ?? null,
-      title: parsed.data.title,
-      description: parsed.data.description ?? null,
-      status: parsed.data.status,
-      priority: parsed.data.priority,
-      assignee: parsed.data.assignee,
-      source: parsed.data.source,
-      approvalStatus: parsed.data.approvalStatus,
-      taggedContacts: parsed.data.taggedContacts ?? null,
-      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      estimatedMinutes: parsed.data.estimatedMinutes ?? null,
-      aiContext: parsed.data.aiContext ?? null,
+      momentumProjectId: validated.body.projectId ?? null,
+      title: validated.body.title,
+      description: validated.body.description ?? null,
+      status: validated.body.status,
+      priority: validated.body.priority,
+      assignee: validated.body.assignee,
+      source: validated.body.source,
+      approvalStatus: validated.body.approvalStatus,
+      taggedContacts: validated.body.taggedContacts ?? null,
+      dueDate: validated.body.dueDate ? new Date(validated.body.dueDate) : null,
+      estimatedMinutes: validated.body.estimatedMinutes ?? null,
+      aiContext: validated.body.aiContext ?? null,
     });
-    return ok({ task });
+    return api.success({ task });
   } catch (error) {
-    console.error("Error creating task:", error);
-    return err(500, "internal_server_error");
+    await logger.error(
+      "Error creating task",
+      {
+        operation: "tasks.create",
+        additionalData: {
+          userId: userId.slice(0, 8) + "...",
+          title: validated.body?.title?.substring(0, 50) ?? "unknown",
+        },
+      },
+      ensureError(error),
+    );
+    return api.error("Internal server error", "INTERNAL_ERROR", undefined, ensureError(error));
   }
-}
+});

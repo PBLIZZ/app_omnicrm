@@ -1,33 +1,31 @@
 /** GET /api/google/calendar/callback — handle Calendar OAuth redirect (auth required). Errors: 400 invalid_state|missing_code_or_state, 401 Unauthorized */
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
-import { logSync } from "@/lib/api/sync-audit";
+import { logSync } from "@/server/sync/audit";
 import { and, eq } from "drizzle-orm";
-import { err } from "@/lib/api/http";
-import { encryptString, hmacVerify } from "@/lib/crypto";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
+import { encryptString, hmacVerify } from "@/server/utils/crypto";
+import { logger } from "@/lib/observability";
+import { z } from "zod";
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
+const QuerySchema = z.object({
+  code: z.string(),
+  state: z.string(),
+});
+
+export const GET = createRouteHandler({
+  auth: true,
+  validation: {
+    query: QuerySchema,
+  },
+  rateLimit: { operation: "google_calendar_callback" },
+})(async ({ userId, requestId, validated: { query } }, req) => {
+  const apiResponse = new ApiResponseBuilder("google.calendar.callback", requestId);
   const db = await getDb();
-  const code = req.nextUrl.searchParams.get("code");
-  const stateRaw = req.nextUrl.searchParams.get("state");
-  if (!code || !stateRaw) return err(400, "missing_code_or_state");
-
-  // Validate state against signed cookie to prevent CSRF/state tampering
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (e: unknown) {
-    const error = e instanceof Error ? e : new Error("Unknown error");
-    const status =
-      typeof (e as { status?: number }).status === "number"
-        ? (e as { status: number }).status
-        : 401;
-    const message = error.message || "Unauthorized";
-    return err(status, message);
-  }
+  const { code, state: stateRaw } = query;
 
   let parsed: { n: string; s: string };
   try {
@@ -41,24 +39,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ) {
       parsed = parsedState as { n: string; s: string };
     } else {
-      return err(400, "invalid_state");
+      return apiResponse.validationError("invalid_state");
     }
   } catch {
-    return err(400, "invalid_state");
+    return apiResponse.validationError("invalid_state");
   }
   if (typeof parsed?.n !== "string" || typeof parsed?.s !== "string") {
-    return err(400, "invalid_state");
+    return apiResponse.validationError("invalid_state");
   }
   if (parsed.s !== "calendar") {
-    return err(400, "invalid_state");
+    return apiResponse.validationError("invalid_state");
   }
 
   const cookieVal = req.cookies.get("calendar_auth")?.value ?? "";
   const [sig, nonce] = cookieVal.split(".");
-  if (!sig || !nonce) return err(400, "invalid_state");
+  if (!sig || !nonce) return apiResponse.validationError("invalid_state");
   const expectedState = JSON.stringify({ n: nonce, s: parsed.s });
   if (!hmacVerify(expectedState, sig) || parsed.n !== nonce) {
-    return err(400, "invalid_state");
+    return apiResponse.validationError("invalid_state");
   }
 
   const oauth2Client = new google.auth.OAuth2(
@@ -71,7 +69,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { tokens } = await oauth2Client.getToken(code);
     const accessToken = tokens.access_token;
     if (!accessToken) {
-      throw new Error("Google OAuth did not return an access token");
+      return apiResponse.error("Google OAuth did not return an access token", "INTEGRATION_ERROR");
     }
     const refreshToken = tokens.refresh_token ?? null;
     const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
@@ -129,7 +127,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     res.cookies.set("calendar_auth", "", { path: "/", httpOnly: true, maxAge: 0 });
     return res;
   } catch (error) {
-    console.error("Calendar OAuth callback error:", error);
+    await logger.security(
+      "Calendar OAuth callback failed",
+      {
+        operation: "auth.oauth.calendar_callback",
+        additionalData: {
+          userId: userId.slice(0, 8) + "...",
+          userAgent: req.headers.get("user-agent"),
+          forwardedFor: req.headers.get("x-forwarded-for"),
+          endpoint: req.url,
+          method: req.method,
+        },
+      },
+      error instanceof Error ? error : undefined,
+    );
 
     // Clear nonce cookie even on error
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
@@ -139,4 +150,4 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     res.cookies.set("calendar_auth", "", { path: "/", httpOnly: true, maxAge: 0 });
     return res;
   }
-}
+});

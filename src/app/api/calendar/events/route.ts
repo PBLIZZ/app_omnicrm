@@ -1,27 +1,21 @@
-import { ok, err } from "@/lib/api/http";
-import { getServerUserId } from "@/server/auth/user";
+import { createRouteHandler } from "@/server/api/handler";
+import { ApiResponseBuilder } from "@/server/api/response";
 import { getGoogleClients } from "@/server/google/client";
+import { ensureError } from "@/lib/utils/error-handler";
 
-// GET: Return all calendar events for business intelligence
-export async function GET(): Promise<Response> {
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch (error) {
-    console.error("Calendar events GET - auth error:", error);
-    return err(401, "unauthorized", {
-      details: error instanceof Error ? error.message : "Authentication failed",
-    });
-  }
-
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "calendar_events" },
+})(async ({ userId, requestId }) => {
+  const api = new ApiResponseBuilder("calendar_events", requestId);
   try {
     // Check if user has Google Calendar integration
     try {
       await getGoogleClients(userId);
     } catch (error: unknown) {
-      const err_obj = error as { status?: number; message?: string };
-      if (err_obj?.status === 401 || err_obj?.message === "google_not_connected") {
-        return ok({
+      const errorObj = error as { status?: number; message?: string };
+      if (errorObj?.status === 401 || errorObj?.message === "google_not_connected") {
+        return api.success({
           isConnected: false,
           events: [],
         });
@@ -45,7 +39,7 @@ export async function GET(): Promise<Response> {
         toDate: endDate,
       });
 
-      return ok({
+      return api.success({
         isConnected: true,
         events: eventsResult.items.map((event) => ({
           id: event.id,
@@ -60,17 +54,20 @@ export async function GET(): Promise<Response> {
         totalCount: eventsResult.items.length,
       });
     } catch (serviceError) {
-      console.error("Calendar events GET - database error:", serviceError);
-
       // Return empty data for service errors
-      return ok({
+      console.error("Calendar service error:", serviceError);
+      return api.success({
         isConnected: true,
         events: [],
         totalCount: 0,
       });
     }
   } catch (error) {
-    console.error("Calendar events GET - database error:", error);
-    return err(500, "database_error");
+    return api.error(
+      "Failed to retrieve calendar events",
+      "DATABASE_ERROR",
+      undefined,
+      ensureError(error),
+    );
   }
-}
+});

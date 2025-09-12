@@ -129,9 +129,7 @@ export function OmniRhythmPage(): JSX.Element {
     void data.fetchClients();
   }, [data, data.checkCalendarStatus, data.fetchClients]);
 
-  // Debug logging (development only) - commented out to reduce noise
-  // Uncomment only when debugging calendar issues
-  /*
+  // Debug logging (development only)
   useEffect(() => {
     if (process.env.NODE_ENV === "development") {
       void logger.debug("omni_rhythm_page_stats", {
@@ -148,7 +146,6 @@ export function OmniRhythmPage(): JSX.Element {
       });
     }
   }, [data.stats, data.allEvents, bi.upcomingEvents, data.biService, data.clients]);
-  */
 
   // If calendar is not connected, show only the connection screen
   if (!data.isConnected) {

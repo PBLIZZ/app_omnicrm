@@ -15,8 +15,7 @@ export function useOmniClientCount(): number {
         // Fetch without query params to get total count
         const data = await apiClient.get<OmniClientsListResponseDTO>("/api/omni-clients");
         if (isMounted) {
-          // Debug logging - remove in production
-          // console.log("OmniClients count loaded:", data.total, "items:", data.items?.length);
+          console.error("OmniClients count loaded:", data.total, "items:", data.items?.length);
           setCount(data.total);
         }
       } catch (error) {

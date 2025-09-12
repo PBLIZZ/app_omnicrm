@@ -103,14 +103,14 @@ export function useOmniRhythmData(): {
   } = useQuery<CalendarEvent[]>({
     queryKey: ["calendar", "events"],
     queryFn: async (): Promise<CalendarEvent[]> => {
-      // console.log("Fetching calendar events...");
+      toast.info("Fetching calendar events...");
       const response = await apiClient.get<{
         events: CalendarEvent[];
         isConnected: boolean;
         totalCount: number;
       }>("/api/calendar/events");
       if (!response.isConnected) {
-        // console.log("Calendar not connected");
+        toast.info("Calendar not connected");
         return [];
       }
       const items = Array.isArray(response.events) ? response.events : [];
@@ -148,10 +148,7 @@ export function useOmniRhythmData(): {
   useEffect(() => {
     if (eventsData) {
       setAllEvents(eventsData);
-      // Only notify on meaningful data changes
-      if (eventsData.length > 0) {
-        // console.log(`Loaded ${eventsData.length} calendar events`);
-      }
+      toast.info(`Loaded ${eventsData.length} calendar events`);
     }
   }, [eventsData]);
 
@@ -176,7 +173,7 @@ export function useOmniRhythmData(): {
   } = useQuery<Client[]>({
     queryKey: ["clients"],
     queryFn: async (): Promise<Client[]> => {
-      // console.log("Fetching clients...");
+      toast.info("Fetching clients...");
       const response = await fetch("/api/contacts");
       if (!response.ok) {
         const text = await response.text();
@@ -302,7 +299,7 @@ export function useOmniRhythmData(): {
       reason?: string;
       hasRefreshToken?: boolean;
     }> => {
-      // console.log("Checking calendar status...");
+      toast.info("Checking calendar status...");
       const statusResponse = await fetch("/api/calendar/status");
       const statusJson: unknown = await statusResponse.json();
       if (!statusResponse.ok) {
@@ -324,14 +321,15 @@ export function useOmniRhythmData(): {
       if (!connected) {
         // Provide user feedback based on the reason
         if (reason === "token_expired") {
-          // Only show warning once, not on every query
-          console.log("Google Calendar token expired", {
-            hasRefreshToken,
-            reason,
+          toast.warning("Google Calendar token expired", {
+            description: hasRefreshToken
+              ? "Click 'Refresh Tokens' to renew your connection."
+              : "Please reconnect your Google Calendar.",
           });
         } else if (reason === "no_integration") {
-          // Only log once, not on every query
-          console.log("Google Calendar not connected");
+          toast.info("Google Calendar not connected", {
+            description: "Connect your calendar to sync events and get insights.",
+          });
         }
         return {
           isConnected: false,
@@ -453,6 +451,7 @@ export function useOmniRhythmData(): {
     setSyncStatus("Initializing sync...");
 
     try {
+      toast.info("Starting calendar sync...");
       setSyncStatus("Sync Queued");
       toast.info("Calendar sync started", {
         description: "Preparing to sync your calendar events...",
@@ -470,7 +469,7 @@ export function useOmniRhythmData(): {
         error?: string;
       }>("/api/calendar/sync", {});
 
-      // console.log("Sync response received");
+      toast.info("Sync response received");
 
       // Extract batchId for job monitoring
       const batchId = syncResponse?.data?.batchId;
@@ -558,7 +557,7 @@ export function useOmniRhythmData(): {
           // Track if status changes
           if (statusData.status !== lastStatus) {
             lastStatus = statusData.status;
-            // console.log(`Job status: ${statusData.status}`);
+            toast.info(`Job status: ${statusData.status}`);
           }
         } catch {
           // Continue polling even if status check fails
@@ -569,6 +568,7 @@ export function useOmniRhythmData(): {
 
       // Step 3: Handle final result
       if (finalStatus === "completed") {
+        toast.success(`Sync successful! ${eventsProcessed} events processed`);
         setSyncStatus("Sync Done");
         toast.success("Calendar synced successfully!", {
           description: `${eventsProcessed} events synchronized and stored in database`,
@@ -587,6 +587,11 @@ export function useOmniRhythmData(): {
         await fetchClients();
 
         setSyncStatus("Job Done");
+        toast.success("All data updated!", {
+          description: "Calendar and client data synchronized successfully",
+        });
+
+        toast.success("Sync process completed successfully!");
       } else if (finalStatus === "failed") {
         throw new Error("Calendar sync failed - check server logs for details");
       } else if (pollCount >= maxPolls) {

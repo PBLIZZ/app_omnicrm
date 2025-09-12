@@ -302,23 +302,35 @@ export function useOmniRhythmData(): {
       reason?: string;
       hasRefreshToken?: boolean;
     }> => {
-      // Use unified apiClient to handle envelope parsing
-      const status = await apiClient.get<{
-        isConnected: boolean;
-        reason?: string;
-        expiryDate?: string | null;
-        hasRefreshToken?: boolean;
-      }>("/api/calendar/status", { showErrorToast: false });
+      // console.log("Checking calendar status...");
+      const statusResponse = await fetch("/api/calendar/status");
+      const statusJson: unknown = await statusResponse.json();
+      if (!statusResponse.ok) {
+        return { isConnected: false, upcomingEventsCount: 0, reason: "api_error" };
+      }
+      const isRec = (v: unknown): v is Record<string, unknown> =>
+        typeof v === "object" && v !== null;
+      if (!isRec(statusJson)) {
+        return { isConnected: false, upcomingEventsCount: 0, reason: "invalid_response" };
+      }
+      if (statusJson["error"]) {
+        return { isConnected: false, upcomingEventsCount: 0, reason: "api_error" };
+      }
 
-      const connected = Boolean(status.isConnected);
-      const reason = status.reason;
-      const hasRefreshToken = Boolean(status.hasRefreshToken);
+      const connected = Boolean(statusJson["isConnected"]);
+      const reason = typeof statusJson["reason"] === "string" ? statusJson["reason"] : undefined;
+      const hasRefreshToken = Boolean(statusJson["hasRefreshToken"]);
 
       if (!connected) {
-        // Only log once, not on every query
+        // Provide user feedback based on the reason
         if (reason === "token_expired") {
-          console.log("Google Calendar token expired", { hasRefreshToken, reason });
+          // Only show warning once, not on every query
+          console.log("Google Calendar token expired", {
+            hasRefreshToken,
+            reason,
+          });
         } else if (reason === "no_integration") {
+          // Only log once, not on every query
           console.log("Google Calendar not connected");
         }
         return {
@@ -329,17 +341,25 @@ export function useOmniRhythmData(): {
         };
       }
 
-      // If connected, get preview data for events count via apiClient
+      // If connected, get preview data for events count
       try {
-        const preview = await apiClient.get<{ upcomingEventsCount: number }>(
-          "/api/calendar/preview",
-          { showErrorToast: false },
-        );
-        const cnt =
-          typeof preview.upcomingEventsCount === "number" ? preview.upcomingEventsCount : 0;
+        const previewResponse = await fetch("/api/calendar/preview");
+        const previewJson: unknown = await previewResponse.json();
+        if (previewResponse.ok && isRec(previewJson) && !previewJson["error"]) {
+          const cnt =
+            typeof previewJson["upcomingEventsCount"] === "number"
+              ? (previewJson["upcomingEventsCount"] as number)
+              : 0;
+          return {
+            isConnected: true,
+            upcomingEventsCount: cnt,
+            ...(reason ? { reason } : {}),
+            ...(hasRefreshToken ? { hasRefreshToken } : {}),
+          };
+        }
         return {
           isConnected: true,
-          upcomingEventsCount: cnt,
+          upcomingEventsCount: 0,
           ...(reason ? { reason } : {}),
           ...(hasRefreshToken ? { hasRefreshToken } : {}),
         };

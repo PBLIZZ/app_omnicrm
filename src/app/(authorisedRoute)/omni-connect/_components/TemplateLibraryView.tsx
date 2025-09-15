@@ -126,7 +126,7 @@ export function TemplateLibraryView(): JSX.Element {
     navigator.clipboard
       .writeText(template.content)
       .then(() => {
-        console.log("Template copied to clipboard:", template.name);
+        // Template copied to clipboard successfully
         // TODO: Show success toast notification
       })
       .catch((err: unknown) => {

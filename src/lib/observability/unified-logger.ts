@@ -258,13 +258,15 @@ class UnifiedLogger {
     const prefix = this.getLogPrefix(entry.level);
 
     if (entry.error) {
-      // Group collapsed is not allowed, use console.error instead
-      console.error(`${prefix} ${entry.message}`);
-      if (entry.context) console.error("Context:", entry.context);
-      console.error("Error:", entry.error);
-      if (entry.stack) console.error("Stack:", entry.stack);
+      // Use appropriate console method based on log level
+      const consoleMethod = this.getConsoleMethod(entry.level);
+      consoleMethod(`${prefix} ${entry.message}`);
+      if (entry.context) consoleMethod("Context:", entry.context);
+      consoleMethod("Error:", entry.error);
+      if (entry.stack) consoleMethod("Stack:", entry.stack);
     } else {
-      console.error(`${prefix} ${entry.message}`, entry.context ?? "");
+      const consoleMethod = this.getConsoleMethod(entry.level);
+      consoleMethod(`${prefix} ${entry.message}`, entry.context ?? "");
     }
   }
 
@@ -277,6 +279,22 @@ class UnifiedLogger {
       debug: "🟢 DEBUG",
     };
     return prefixes[level];
+  }
+
+  private getConsoleMethod(level: ErrorSeverity): typeof console.log {
+    switch (level) {
+      case "critical":
+      case "error":
+        return console.error;
+      case "warn":
+        return console.warn;
+      case "info":
+        return console.warn;
+      case "debug":
+        return console.warn;
+      default:
+        return console.warn;
+    }
   }
 
   private trackMetrics(entry: LogEntry): void {

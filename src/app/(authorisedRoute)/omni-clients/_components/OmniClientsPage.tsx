@@ -29,22 +29,9 @@ import { omniClientsColumns } from "./omni-clients-columns";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import {
-  useEnhancedOmniClients,
-  useOmniClientSuggestions,
-  type ClientWithNotes,
-} from "@/hooks/use-omni-clients";
-
-interface ClientSuggestion {
-  id: string;
-  displayName: string;
-  email: string;
-  eventCount: number;
-  lastEventDate: string;
-  eventTitles: string[];
-  confidence: "high" | "medium" | "low";
-  source: "calendar_attendee";
-}
+import { useEnhancedOmniClients, useOmniClientSuggestions } from "@/hooks/use-omni-clients";
+import type { ClientWithNotes, ClientSuggestion, ClientQuickAddData } from "./types";
+import { validationHelpers } from "./types";
 
 /**
  * OmniClientsPage - Main Client Component
@@ -59,11 +46,12 @@ export function OmniClientsPage(): JSX.Element {
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [isAddingClient, setIsAddingClient] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [newClient, setNewClient] = useState({
+  const [newClient, setNewClient] = useState<ClientQuickAddData>({
     displayName: "",
     primaryEmail: "",
     primaryPhone: "",
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -82,7 +70,7 @@ export function OmniClientsPage(): JSX.Element {
     const query = searchQuery.toLowerCase();
     return enhancedClients.filter(
       (client) =>
-        client.displayName?.toLowerCase().includes(query) ||
+        (client.displayName?.toLowerCase().includes(query) ?? false) ||
         (client.primaryEmail?.toLowerCase().includes(query) ?? false) ||
         (client.primaryPhone?.toLowerCase().includes(query) ?? false),
     );
@@ -158,17 +146,30 @@ export function OmniClientsPage(): JSX.Element {
 
   // Enhanced System Handlers
   const handleAddClient = async (): Promise<void> => {
-    if (!newClient.displayName.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a client name",
-        variant: "destructive",
-      });
+    // Validate form data using the validation schema
+    const validation = validationHelpers.validateClientQuickAdd(newClient);
+
+    if (!validation.success) {
+      const errorsByField = validationHelpers.getErrorsByField(validation.errors ?? []);
+      setFormErrors(errorsByField);
+
+      // Show first error message
+      const firstError = validation.errors?.[0];
+      if (firstError && "message" in firstError) {
+        toast({
+          title: "Validation Error",
+          description: firstError.message,
+          variant: "destructive",
+        });
+      }
       return;
     }
 
+    // Clear any previous errors
+    setFormErrors({});
+
     try {
-      await apiClient.post("/api/omni-clients", newClient);
+      await apiClient.post("/api/omni-clients", validation.data);
 
       await queryClient.invalidateQueries({ queryKey: ["/api/omni-clients"] });
       setIsAddingClient(false);
@@ -300,11 +301,23 @@ export function OmniClientsPage(): JSX.Element {
                   id="name"
                   placeholder="Enter client name"
                   value={newClient.displayName}
-                  onChange={(e) =>
-                    setNewClient((prev) => ({ ...prev, displayName: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setNewClient((prev) => ({ ...prev, displayName: e.target.value }));
+                    // Clear field error when user starts typing
+                    if (formErrors["displayName"]) {
+                      setFormErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors["displayName"];
+                        return newErrors;
+                      });
+                    }
+                  }}
                   data-testid="client-name-input"
+                  className={formErrors["displayName"] ? "border-red-500" : ""}
                 />
+                {formErrors["displayName"] && (
+                  <p className="text-sm text-red-500">{formErrors["displayName"][0]}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -313,11 +326,23 @@ export function OmniClientsPage(): JSX.Element {
                   type="email"
                   placeholder="Enter email address"
                   value={newClient.primaryEmail}
-                  onChange={(e) =>
-                    setNewClient((prev) => ({ ...prev, primaryEmail: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setNewClient((prev) => ({ ...prev, primaryEmail: e.target.value }));
+                    // Clear field error when user starts typing
+                    if (formErrors["primaryEmail"]) {
+                      setFormErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors["primaryEmail"];
+                        return newErrors;
+                      });
+                    }
+                  }}
                   data-testid="client-email-input"
+                  className={formErrors["primaryEmail"] ? "border-red-500" : ""}
                 />
+                {formErrors["primaryEmail"] && (
+                  <p className="text-sm text-red-500">{formErrors["primaryEmail"][0]}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
@@ -325,11 +350,23 @@ export function OmniClientsPage(): JSX.Element {
                   id="phone"
                   placeholder="Enter phone number"
                   value={newClient.primaryPhone}
-                  onChange={(e) =>
-                    setNewClient((prev) => ({ ...prev, primaryPhone: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setNewClient((prev) => ({ ...prev, primaryPhone: e.target.value }));
+                    // Clear field error when user starts typing
+                    if (formErrors["primaryPhone"]) {
+                      setFormErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors["primaryPhone"];
+                        return newErrors;
+                      });
+                    }
+                  }}
                   data-testid="client-phone-input"
+                  className={formErrors["primaryPhone"] ? "border-red-500" : ""}
                 />
+                {formErrors["primaryPhone"] && (
+                  <p className="text-sm text-red-500">{formErrors["primaryPhone"][0]}</p>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <Button

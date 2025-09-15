@@ -374,5 +374,14 @@ export function validateAllContrasts(): {
 // Usage in development - accessibility debugging
 if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
   const results = validateAllContrasts();
-  console.error("Accessibility Contrast Validation:", results);
+  const failedContrasts = results.filter((r) => !r.passes);
+
+  if (failedContrasts.length > 0) {
+    console.warn(
+      "⚠️ Accessibility: Some color combinations don't meet WCAG AA standards:",
+      failedContrasts,
+    );
+  } else {
+    console.warn("✅ Accessibility: All color combinations meet WCAG AA standards");
+  }
 }

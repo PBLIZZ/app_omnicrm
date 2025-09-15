@@ -48,15 +48,8 @@ import {
   useCreateOmniClientNote,
   useDeleteOmniClient,
 } from "@/hooks/use-omni-clients-bridge";
-import {
-  type ClientAIInsightsResponse,
-  type ClientEmailSuggestion,
-} from "@/lib/validation/schemas/omniClients";
-import { ClientWithNotes } from "@/hooks/use-omni-clients";
+import type { ClientWithNotes, ClientAIInsightsResponse, ClientEmailSuggestion } from "./types";
 import { toast } from "sonner";
-
-// Export ClientWithNotes for components
-export type { ClientWithNotes };
 
 // Helper function to generate initials from display name
 function getInitials(displayName: string): string {
@@ -321,7 +314,7 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
           href={href}
           className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
         >
-          {name}
+          {name ?? "Unknown"}
         </Link>
       );
     },
@@ -339,7 +332,7 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
     accessorKey: "primaryEmail",
     header: "Email",
     cell: ({ row }) => {
-      const email = row.getValue("primaryEmail") as string;
+      const email = row.getValue("primaryEmail") as string | null;
       return email ? (
         <span className="text-muted-foreground">{email}</span>
       ) : (
@@ -351,7 +344,7 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
     accessorKey: "primaryPhone",
     header: "Phone",
     cell: ({ row }) => {
-      const phone = row.getValue("primaryPhone") as string;
+      const phone = row.getValue("primaryPhone") as string | null;
       return phone ? (
         <span className="text-muted-foreground">{phone}</span>
       ) : (
@@ -370,7 +363,7 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
         <div className="max-w-[48ch] min-w-0">
           <NotesHoverCard
             clientId={client.id}
-            clientName={client.displayName}
+            clientName={client.displayName ?? "Unknown"}
             data-testid={`notes-hover-card-${client.id}`}
           >
             <div className="line-clamp-2 text-sm text-muted-foreground leading-tight overflow-hidden text-ellipsis">
@@ -507,8 +500,8 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
     accessorKey: "stage",
     header: "Wellness Stage",
     cell: ({ row }) => {
-      const stage = row.getValue("stage") as string;
-      const getStageColor = (stage: string): string => {
+      const stage = row.getValue("stage") as string | null;
+      const getStageColor = (stage: string | null): string => {
         switch (stage) {
           case "VIP Client":
             return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300";
@@ -588,14 +581,14 @@ function ClientActionsCell({ client }: { client: ClientWithNotes }): JSX.Element
   const deleteClient = useDeleteOmniClient();
 
   const handleEditClient = (client: ClientWithNotes): void => {
-    toast.info(`Edit client functionality for ${client.displayName} - Coming soon!`);
+    toast.info(`Edit client functionality for ${client.displayName ?? "Unknown"} - Coming soon!`);
     // TODO: Open edit client dialog/form
   };
 
   const handleDeleteClient = (client: ClientWithNotes): void => {
     if (
       confirm(
-        `Are you sure you want to delete ${client.displayName}? This action cannot be undone.`,
+        `Are you sure you want to delete ${client.displayName ?? "Unknown"}? This action cannot be undone.`,
       )
     ) {
       deleteClient.mutate(client.id);
@@ -624,7 +617,7 @@ function ClientActionsCell({ client }: { client: ClientWithNotes }): JSX.Element
             // This should open the add note dialog for this specific client
             // Since this is outside the ClientAIActions component, we'll need to implement this differently
             toast.info(
-              `Add note for ${client.displayName} - Use the note icon in the Actions column`,
+              `Add note for ${client.displayName ?? "Unknown"} - Use the note icon in the Actions column`,
             );
           }}
         >

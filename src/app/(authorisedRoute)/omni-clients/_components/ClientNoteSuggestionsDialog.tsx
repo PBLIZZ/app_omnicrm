@@ -3,16 +3,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { type ClientNoteSuggestion } from "@/lib/validation/schemas/omniClients";
+import type { ClientNoteSuggestionsDialogProps } from "./types";
 import { Loader2 } from "lucide-react";
-
-interface ClientNoteSuggestionsDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  suggestions: ClientNoteSuggestion[] | null;
-  isLoading: boolean;
-  clientName: string;
-}
 
 export function ClientNoteSuggestionsDialog({
   open,

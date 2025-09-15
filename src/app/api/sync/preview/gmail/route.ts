@@ -89,6 +89,7 @@ export const POST = createRouteHandler({
       gmailLabelIncludes: prefs.gmailLabelIncludes ?? [],
       gmailLabelExcludes: prefs.gmailLabelExcludes ?? [],
     });
+
     // Light metrics log for observability (non-sensitive) with safe narrowing
     type PreviewMetrics = { pages?: number; itemsFiltered?: number; durationMs?: number };
     const meta: PreviewMetrics =
@@ -137,10 +138,25 @@ export const POST = createRouteHandler({
     const unauthorized = error.status === 401 || error.code === 401 || error.code === 403;
     const status = unauthorized ? 401 : 500;
 
-    // Minimal, non-sensitive log for debugging preview failures
-    await logger.warn("preview_failed", {
+    // Enhanced error logging for debugging
+    console.error("Gmail preview error details:", {
+      error: e,
+      message: error.message,
+      status: error.status,
+      code: error.code,
+      stack: e instanceof Error ? e.stack : undefined,
+    });
+
+    await logger.error("gmail_preview_failed", {
       operation: "sync.preview.gmail",
-      additionalData: { status, code: error.code, msg: error.message },
+      additionalData: {
+        userId,
+        status,
+        code: error.code,
+        msg: error.message,
+        errorType: typeof e,
+        errorName: e instanceof Error ? e.name : undefined,
+      },
     });
     return api.error(
       unauthorized ? "unauthorized" : "preview_failed",

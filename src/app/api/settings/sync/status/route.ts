@@ -63,9 +63,18 @@ export const GET = createRouteHandler({
     )
     .limit(1);
 
+  // Check for valid (non-expired) tokens
+  const now = new Date();
+
   // Unified integration provides Gmail access, legacy gmail integration also works
-  const hasGmailToken = !!(unifiedIntegration[0] ?? gmailIntegration[0]);
-  const hasCalendarToken = !!calendarIntegration[0];
+  const gmailIntegrationToCheck = unifiedIntegration[0] ?? gmailIntegration[0];
+  const hasGmailToken =
+    !!gmailIntegrationToCheck &&
+    (!gmailIntegrationToCheck.expiryDate || gmailIntegrationToCheck.expiryDate > now);
+
+  const hasCalendarToken =
+    !!calendarIntegration[0] &&
+    (!calendarIntegration[0].expiryDate || calendarIntegration[0].expiryDate > now);
 
   // Last sync per provider (based on latest created_at of raw_events)
   const [gmailLast] = await dbo
@@ -77,7 +86,7 @@ export const GET = createRouteHandler({
   const [calendarLast] = await dbo
     .select({ createdAt: rawEvents.createdAt })
     .from(rawEvents)
-    .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, "calendar")))
+    .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, "google_calendar")))
     .orderBy(desc(rawEvents.createdAt))
     .limit(1);
 

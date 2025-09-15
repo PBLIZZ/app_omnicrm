@@ -1,12 +1,9 @@
 /** GET /api/google/gmail/labels — fetch Gmail labels for authenticated user */
 
 import { createRouteHandler } from "@/server/api/handler";
-import { getDb } from "@/server/db/client";
-import { and, eq } from "drizzle-orm";
-import { userIntegrations } from "@/server/db/schema";
 import { ApiResponseBuilder } from "@/server/api/response";
-import { decryptString } from "@/server/utils/crypto";
 import { gmail_v1, google } from "googleapis";
+import { GoogleGmailService } from "@/server/services/google-gmail.service";
 import { logger } from "@/lib/observability";
 
 interface GmailLabel {
@@ -30,50 +27,9 @@ export const GET = createRouteHandler({
 })(async ({ userId, requestId }) => {
   const api = new ApiResponseBuilder("google.gmail.labels", requestId);
 
-  const dbo = await getDb();
-
-  // Get Gmail-specific OAuth integration
-  const [integration] = await dbo
-    .select()
-    .from(userIntegrations)
-    .where(
-      and(
-        eq(userIntegrations.userId, userId),
-        eq(userIntegrations.provider, "google"),
-        eq(userIntegrations.service, "gmail"),
-      ),
-    )
-    .limit(1);
-
-  if (!integration) {
-    return api.error("Gmail not connected", "UNAUTHORIZED");
-  }
-
   try {
-    // Decrypt the stored tokens
-    const accessToken = decryptString(integration.accessToken);
-    const refreshToken = integration.refreshToken ? decryptString(integration.refreshToken) : null;
-
-    // Create OAuth2 client with Gmail redirect URI
-    const oauth2Client = new google.auth.OAuth2(
-      process.env["GOOGLE_CLIENT_ID"],
-      process.env["GOOGLE_CLIENT_SECRET"],
-      process.env["GOOGLE_GMAIL_REDIRECT_URI"],
-    );
-
-    oauth2Client.setCredentials({
-      access_token: accessToken,
-      refresh_token: refreshToken ?? null,
-      expiry_date: integration.expiryDate?.getTime() ?? null,
-    });
-
-    // Set up automatic token refresh
-    oauth2Client.on("tokens", (tokens) => {
-      if (tokens.refresh_token) {
-        // In production, you'd update the database with new tokens
-        // TODO: Implement token refresh in database
-      }
-    });
+    // Get authenticated OAuth2 client using the new service
+    const oauth2Client = await GoogleGmailService.getAuth(userId);
 
     // Create Gmail client
     const gmail = google.gmail({ version: "v1", auth: oauth2Client });
@@ -132,7 +88,6 @@ export const GET = createRouteHandler({
         operation: "api.google.gmail.labels",
         additionalData: {
           userId: userId.slice(0, 8) + "...",
-          hasIntegration: !!integration,
           errorType: error instanceof Error ? error.constructor.name : typeof error,
         },
       },

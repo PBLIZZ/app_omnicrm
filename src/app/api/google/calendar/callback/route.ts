@@ -1,5 +1,5 @@
 /** GET /api/google/calendar/callback — handle Calendar OAuth redirect (auth required). Errors: 400 invalid_state|missing_code_or_state, 401 Unauthorized */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
@@ -22,40 +22,30 @@ export const GET = createRouteHandler({
     query: QuerySchema,
   },
   rateLimit: { operation: "google_calendar_callback" },
-})(async ({ userId, requestId, validated: { query } }, req) => {
+})(async ({ userId, requestId, validated: { query } }, req: NextRequest) => {
   const apiResponse = new ApiResponseBuilder("google.calendar.callback", requestId);
   const db = await getDb();
   const { code, state: stateRaw } = query;
 
-  let parsed: { n: string; s: string };
+  // Parse and validate state
+  const StateSchema = z.object({
+    n: z.string().min(18).max(64),
+    s: z.enum(["gmail", "calendar"]),
+  });
+
+  let parsed: z.infer<typeof StateSchema>;
   try {
-    const parsedState = JSON.parse(stateRaw) as unknown;
-    // Type guard to ensure parsed state has expected structure
-    if (
-      typeof parsedState === "object" &&
-      parsedState !== null &&
-      "n" in parsedState &&
-      "s" in parsedState
-    ) {
-      parsed = parsedState as { n: string; s: string };
-    } else {
-      return apiResponse.validationError("invalid_state");
-    }
+    parsed = StateSchema.parse(JSON.parse(stateRaw));
   } catch {
     return apiResponse.validationError("invalid_state");
   }
-  if (typeof parsed?.n !== "string" || typeof parsed?.s !== "string") {
-    return apiResponse.validationError("invalid_state");
-  }
-  if (parsed.s !== "calendar") {
-    return apiResponse.validationError("invalid_state");
-  }
+  if (parsed.s !== "calendar") return apiResponse.validationError("invalid_state");
 
   const cookieVal = req.cookies.get("calendar_auth")?.value ?? "";
   const [sig, nonce] = cookieVal.split(".");
   if (!sig || !nonce) return apiResponse.validationError("invalid_state");
-  const expectedState = JSON.stringify({ n: nonce, s: parsed.s });
-  if (!hmacVerify(expectedState, sig) || parsed.n !== nonce) {
+  // Verify signature against the original state string and match nonce
+  if (!hmacVerify(stateRaw, sig) || parsed.n !== nonce) {
     return apiResponse.validationError("invalid_state");
   }
 
@@ -122,8 +112,10 @@ export const GET = createRouteHandler({
       grantedScopes: tokens.scope,
     });
 
-    // Clear nonce cookie and redirect to omni-rhythm
-    const res = NextResponse.redirect(new URL("/omni-rhythm?success=true", req.url));
+    // Clear nonce cookie and redirect to Omni Rhythm for post-connect sync setup
+    const res = NextResponse.redirect(
+      new URL("/omni-rhythm?connected=true&step=calendar-sync", req.url),
+    );
     res.cookies.set("calendar_auth", "", { path: "/", httpOnly: true, maxAge: 0 });
     return res;
   } catch (error) {

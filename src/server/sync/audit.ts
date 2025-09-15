@@ -6,7 +6,7 @@ import { ensureError } from "@/lib/utils/error-handler";
 export async function logSync(
   userId: string,
   provider: "gmail" | "calendar" | "drive",
-  action: "preview" | "approve" | "undo",
+  action: "preview" | "approve" | "undo" | "initial_sync_start",
   payload: unknown,
 ): Promise<void> {
   // If a database is not configured (e.g., local dev without DATABASE_URL),

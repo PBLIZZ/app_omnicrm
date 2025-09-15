@@ -158,7 +158,7 @@ export class ApiResponseBuilder {
   /**
    * Success response with data
    */
-  success<T>(data: T, message?: string, status: number = 200): Response {
+  success<T>(data: T, message?: string, status: number = 200): NextResponse {
     const response: OkResponse<T> = {
       ok: true,
       data,
@@ -172,10 +172,7 @@ export class ApiResponseBuilder {
       additionalData: { hasData: !!data, messageIncluded: !!message, status },
     });
 
-    return new Response(JSON.stringify(response), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json(response, { status });
   }
 
   /**
@@ -186,7 +183,7 @@ export class ApiResponseBuilder {
     code: ApiErrorCode = API_ERROR_CODES.INTERNAL_ERROR,
     details?: unknown,
     originalError?: Error,
-  ): Response {
+  ): NextResponse {
     const response: ErrorResponse = {
       ok: false,
       error: message,
@@ -217,44 +214,41 @@ export class ApiResponseBuilder {
       });
     }
 
-    return new Response(JSON.stringify(response), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json(response, { status });
   }
 
   /**
    * Validation error (400)
    */
-  validationError(message: string, details?: unknown): Response {
+  validationError(message: string, details?: unknown): NextResponse {
     return this.error(message, API_ERROR_CODES.VALIDATION_ERROR, details);
   }
 
   /**
    * Unauthorized error (401)
    */
-  unauthorized(message: string = "Authentication required"): Response {
+  unauthorized(message: string = "Authentication required"): NextResponse {
     return this.error(message, API_ERROR_CODES.UNAUTHORIZED);
   }
 
   /**
    * Forbidden error (403)
    */
-  forbidden(message: string = "Access denied"): Response {
+  forbidden(message: string = "Access denied"): NextResponse {
     return this.error(message, API_ERROR_CODES.FORBIDDEN);
   }
 
   /**
    * Not found error (404)
    */
-  notFound(message: string = "Resource not found"): Response {
+  notFound(message: string = "Resource not found"): NextResponse {
     return this.error(message, API_ERROR_CODES.NOT_FOUND);
   }
 
   /**
    * Database error (500)
    */
-  databaseError(message: string, originalError?: Error): Response {
+  databaseError(message: string, originalError?: Error): NextResponse {
     return this.error(message, API_ERROR_CODES.DATABASE_ERROR, undefined, originalError);
   }
 

@@ -5,7 +5,7 @@ import {
   EmailPreview,
   JobStatus,
   SearchResult,
-  GmailInsights,
+  EmailInsights as GmailInsights,
 } from "../../app/(authorisedRoute)/omni-connect/_components/types";
 
 /**
@@ -39,23 +39,33 @@ export class GmailApiService {
    */
   static async checkGmailStatus(): Promise<GmailConnectionStatus> {
     try {
+      // Use the new Gmail status endpoint with proper token expiry handling
       const data = await apiClient.get<{
-        serviceTokens?: { gmail?: boolean };
-        lastSync?: { gmail?: string };
-      }>("/api/settings/sync/status");
+        isConnected: boolean;
+        reason?: string;
+        expiryDate?: string;
+        hasRefreshToken?: boolean;
+        autoRefreshed?: boolean;
+        service?: string;
+      }>("/api/google/gmail/status", { showErrorToast: false });
 
-      const hasGmailToken = data?.serviceTokens?.gmail;
-      const lastSync = data?.lastSync?.gmail;
+      if (data.isConnected) {
+        // Get additional sync info for backwards compatibility
+        const syncData = await apiClient.get<{
+          lastSync?: { gmail?: string };
+        }>("/api/settings/sync/status", { showErrorToast: false });
 
-      if (hasGmailToken) {
         return {
           isConnected: true,
-          lastSync: lastSync,
+          ...(syncData.lastSync?.gmail && { lastSync: syncData.lastSync.gmail }),
           emailCount: 0,
           contactCount: 0,
         };
       } else {
-        return { isConnected: false };
+        return {
+          isConnected: false,
+          ...(data.reason === "token_expired" && { error: "Gmail tokens have expired" }),
+        };
       }
     } catch (error) {
       await logger.error(
@@ -194,7 +204,7 @@ export class GmailApiService {
         },
         error instanceof Error ? error : undefined,
       );
-      return {};
+      return { jobs: [], currentBatch: null };
     }
   }
 

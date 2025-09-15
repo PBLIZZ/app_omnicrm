@@ -38,9 +38,9 @@ function getClientIdentifier(request: NextRequest): string {
 
 // Authentication wrapper that improves on existing pattern (extracted from api-helpers.ts lines 276-326)
 export function withAuth<T extends unknown[]>(
-  handler: (userId: string, requestId: string, ...args: T) => Promise<Response>,
+  handler: (userId: string, requestId: string, ...args: T) => Promise<NextResponse>,
 ) {
-  return async (...args: T): Promise<Response> => {
+  return async (...args: T): Promise<NextResponse> => {
     // Type guard to ensure first argument is a NextRequest
     function isNextRequest(arg: unknown): arg is NextRequest {
       return arg !== null && typeof arg === "object" && "nextUrl" in arg && "headers" in arg;
@@ -118,9 +118,9 @@ export function withValidation<
       },
       requestId: string,
       ...args: T
-    ) => Promise<Response>,
+    ) => Promise<NextResponse>,
   ) {
-    return async (...args: T): Promise<Response> => {
+    return async (...args: T): Promise<NextResponse> => {
       const [request, routeParams] = args as unknown as [
         NextRequest,
         { params?: Promise<unknown> },
@@ -228,8 +228,8 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 // Legacy rate limiting wrapper (kept for backward compatibility)
 export function withRateLimit(options: RateLimitOptions) {
-  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse | Response>) {
-    return async (...args: T): Promise<NextResponse | Response> => {
+  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>) {
+    return async (...args: T): Promise<NextResponse> => {
       const [request] = args as unknown as [NextRequest, ...unknown[]];
       const requestId = getCorrelationId(request);
 
@@ -336,8 +336,8 @@ interface CacheOptions {
 const cache = new Map<string, { data: unknown; expires: number }>();
 
 export function withCache(options: CacheOptions) {
-  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse | Response>) {
-    return async (...args: T): Promise<NextResponse | Response> => {
+  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>) {
+    return async (...args: T): Promise<NextResponse> => {
       const [request] = args as unknown as [NextRequest, ...unknown[]];
       const requestId = getCorrelationId(request);
 
@@ -390,7 +390,7 @@ async function applyAdvancedRateLimit(
   operation: string,
   userId: string,
   requestId: string,
-): Promise<Response | null> {
+): Promise<NextResponse | null> {
   const rateLimitResult = await RateLimiter.checkRateLimit(operation, userId);
 
   if (!rateLimitResult.allowed) {
@@ -421,6 +421,14 @@ async function applyAdvancedRateLimit(
   }
 
   return null; // No rate limit applied
+}
+
+// Type definition for segment parameters, aligning with Next.js expectations
+type SegmentParams = { [key: string]: string | string[] | undefined };
+
+// Next.js 15 route context - using the correct structure expected by Next.js
+interface RouteContext {
+  params: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 // Conditional type to make userId required when auth is true
@@ -455,13 +463,13 @@ export function createRouteHandler<
         requestId: string;
       },
       request: NextRequest,
-      routeParams?: { params?: Promise<unknown> },
-    ) => Promise<Response>,
+      routeParams?: { params?: Promise<SegmentParams> },
+    ) => Promise<NextResponse | Response>,
   ) {
     let wrappedHandler = async (
       request: NextRequest,
-      routeParams?: { params?: Promise<unknown> },
-    ): Promise<Response> => {
+      routeContext: RouteContext,
+    ): Promise<NextResponse> => {
       const requestId = getCorrelationId(request);
 
       // Handle validation if configured
@@ -486,8 +494,8 @@ export function createRouteHandler<
               : z.infer<TBody>;
           }
 
-          if (config.validation.params && routeParams?.params) {
-            const params = await routeParams.params;
+          if (config.validation.params && routeContext.params) {
+            const params = await routeContext.params;
             validated.params = config.validation.params.parse(params) as TParams extends z.ZodVoid
               ? undefined
               : z.infer<TParams>;
@@ -572,7 +580,20 @@ export function createRouteHandler<
         requestId: string;
       };
 
-      const result = await handler(context, request, routeParams);
+      const result = await handler(context, request, routeContext);
+
+      // Convert Response to NextResponse if needed
+      let nextResponse: NextResponse;
+      if (result instanceof Response && !("cookies" in result)) {
+        // This is a raw Response, convert to NextResponse
+        nextResponse = new NextResponse(result.body, {
+          status: result.status,
+          statusText: result.statusText,
+          headers: result.headers,
+        });
+      } else {
+        nextResponse = result as NextResponse;
+      }
 
       // Add rate limit headers for successful responses with advanced rate limiting
       if (config.rateLimit && "operation" in config.rateLimit && config.rateLimit.operation) {
@@ -580,12 +601,12 @@ export function createRouteHandler<
         const status = RateLimiter.getStatus(config.rateLimit.operation, rateLimitUserId);
 
         if (status) {
-          result.headers.set("X-RateLimit-Remaining", status.remaining.toString());
-          result.headers.set("X-RateLimit-Reset", status.resetTime.toString());
+          nextResponse.headers.set("X-RateLimit-Remaining", status.remaining.toString());
+          nextResponse.headers.set("X-RateLimit-Reset", status.resetTime.toString());
         }
       }
 
-      return result;
+      return nextResponse;
     };
 
     // Apply legacy rate limiting if configured (only for non-operation-based rate limits)
@@ -632,22 +653,26 @@ export type RouteHandler<
 > = (
   context: RouteHandlerContext<TAuth, TQuery, TBody, TParams>,
   request: NextRequest,
-  routeParams?: { params?: Promise<unknown> },
-) => Promise<Response>;
+  routeParams?: { params?: Promise<SegmentParams> },
+) => Promise<NextResponse>;
 
 // Middleware types
 export type AuthMiddleware<T extends unknown[]> = (
-  handler: (userId: string, requestId: string, ...args: T) => Promise<Response>,
-) => (...args: T) => Promise<Response>;
+  handler: (userId: string, requestId: string, ...args: T) => Promise<NextResponse>,
+) => (...args: T) => Promise<NextResponse>;
 
 export type ValidationMiddleware<T extends unknown[]> = (
-  handler: (validated: Record<string, unknown>, requestId: string, ...args: T) => Promise<Response>,
-) => (...args: T) => Promise<Response>;
+  handler: (
+    validated: Record<string, unknown>,
+    requestId: string,
+    ...args: T
+  ) => Promise<NextResponse>,
+) => (...args: T) => Promise<NextResponse>;
 
 export type RateLimitMiddleware<T extends unknown[]> = (
-  handler: (...args: T) => Promise<Response>,
-) => (...args: T) => Promise<Response>;
+  handler: (...args: T) => Promise<NextResponse>,
+) => (...args: T) => Promise<NextResponse>;
 
 export type CacheMiddleware<T extends unknown[]> = (
-  handler: (...args: T) => Promise<Response>,
-) => (...args: T) => Promise<Response>;
+  handler: (...args: T) => Promise<NextResponse>,
+) => (...args: T) => Promise<NextResponse>;

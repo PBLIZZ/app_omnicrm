@@ -4,7 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { userIntegrations } from "@/server/db/schema";
 import { decryptString, encryptString, isEncrypted } from "@/server/utils/crypto";
 import type { GmailClient } from "./gmail";
-import type { CalendarClient } from "./calendar";
+
+type CalendarClient = ReturnType<typeof google.calendar>;
 
 export type GoogleApisClients = {
   oauth2: InstanceType<typeof google.auth.OAuth2>;
@@ -28,13 +29,25 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
     .from(userIntegrations)
     .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")));
 
+  console.warn(
+    `getGoogleClients: Found ${rows?.length || 0} Google integrations for user ${userId}`,
+  );
+
   if (!rows || rows.length === 0) {
+    console.error(`getGoogleClients: No Google integrations found for user ${userId}`);
     throw Object.assign(new Error("google_not_connected"), { status: 401 });
   }
 
   function buildOAuthFromRow(
     r: typeof userIntegrations.$inferSelect,
   ): InstanceType<typeof google.auth.OAuth2> {
+    console.warn(`buildOAuthFromRow: Creating OAuth client for service ${r.service}`);
+
+    if (!process.env["GOOGLE_CLIENT_ID"] || !process.env["GOOGLE_CLIENT_SECRET"]) {
+      console.error("buildOAuthFromRow: Missing Google OAuth credentials");
+      throw new Error("Missing Google OAuth configuration");
+    }
+
     const auth = new google.auth.OAuth2(
       process.env["GOOGLE_CLIENT_ID"]!,
       process.env["GOOGLE_CLIENT_SECRET"]!,
@@ -145,4 +158,18 @@ export async function getGoogleClient(
 ): Promise<Pick<GoogleApisClients, "gmail" | "calendar">> {
   const { gmail, calendar } = await getGoogleClients(userId);
   return { gmail, calendar };
+}
+
+// Specific helper for calendar client
+export async function getGoogleCalendarClient(userId: string): Promise<CalendarClient | null> {
+  try {
+    const { calendar } = await getGoogleClients(userId);
+    return calendar;
+  } catch (error) {
+    console.error(
+      `getGoogleCalendarClient: Failed to get calendar client for user ${userId}:`,
+      error,
+    );
+    return null;
+  }
 }

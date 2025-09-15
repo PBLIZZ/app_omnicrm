@@ -19,6 +19,7 @@ export interface BatchJobPayload {
   daysPast?: number;
   daysFuture?: number;
   maxResults?: number;
+  provider?: string; // For normalize jobs to specify gmail vs calendar
 }
 
 export interface ContactExtractionPayload {
@@ -70,9 +71,8 @@ export interface EmailIntelligenceCleanupJobPayload {
   keepHighValue?: boolean;
 }
 
-type Empty = Record<string, never>;
 export type JobPayloadByKind = {
-  normalize: Empty;
+  normalize: BatchJobPayload;
   embed: EmbedJobPayload;
   insight: InsightJobPayload;
   extract_contacts: ContactExtractionPayload;

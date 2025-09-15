@@ -54,7 +54,12 @@ export class QueueManager {
         if (!batchJob) continue;
         const jobId = `${generatedBatchId}_${i}`;
 
-        await enqueue(kind, batchJob.payload as JobPayloadByKind[K], userId, generatedBatchId);
+        await enqueue(
+          kind,
+          batchJob.payload as unknown as JobPayloadByKind[K],
+          userId,
+          generatedBatchId,
+        );
 
         jobIds.push(jobId);
       }

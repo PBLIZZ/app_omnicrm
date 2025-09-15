@@ -1,14 +1,11 @@
 import { useMemo } from "react";
 import {
-  CalendarBusinessIntelligence,
+  RhythmIntelligenceService,
   type CalendarEvent,
   type WeeklyStats,
-} from "../app/(authorisedRoute)/omni-rhythm/_components/CalendarBusinessIntelligence";
+} from "@/server/services/rhythm-intelligence.service";
 
-export function useBusinessIntelligence(
-  biService: CalendarBusinessIntelligence,
-  appointments: CalendarEvent[] = [],
-): {
+export function useBusinessIntelligence(appointments: CalendarEvent[] = []): {
   enhancedAppointments: CalendarEvent[];
   weeklyStats: WeeklyStats;
   todaysEvents: CalendarEvent[];
@@ -38,32 +35,32 @@ export function useBusinessIntelligence(
 } {
   // Enhanced appointments with business intelligence
   const enhancedAppointments = useMemo(() => {
-    return biService.enhanceEvents(appointments);
-  }, [biService, appointments]);
+    return RhythmIntelligenceService.enhanceEvents(appointments);
+  }, [appointments]);
 
   // Weekly statistics
   const weeklyStats = useMemo(() => {
-    return biService.calculateWeeklyStats(appointments);
-  }, [biService, appointments]);
+    return RhythmIntelligenceService.calculateWeeklyStats(enhancedAppointments);
+  }, [enhancedAppointments]);
 
   // Today's priority events
   const todaysEvents = useMemo(() => {
-    return biService.getTodaysPriorityEvents(appointments);
-  }, [biService, appointments]);
+    return RhythmIntelligenceService.getTodaysPriorityEvents(appointments);
+  }, [appointments]);
 
   // Upcoming events (next 5 events)
   const upcomingEvents = useMemo(() => {
     try {
-      return biService.getUpcomingPriorityEvents(appointments, 5);
+      return RhythmIntelligenceService.getUpcomingPriorityEvents(appointments, 5);
     } catch {
       return [];
     }
-  }, [biService, appointments]);
+  }, [appointments]);
 
   // Upcoming events needing preparation
   const preparationEvents = useMemo(() => {
-    return biService.getUpcomingPreparationEvents(appointments);
-  }, [biService, appointments]);
+    return RhythmIntelligenceService.getUpcomingPreparationEvents(appointments);
+  }, [appointments]);
 
   // Business insights
   const businessInsights = useMemo(() => {
@@ -137,10 +134,14 @@ export function useBusinessIntelligence(
     recommendations,
 
     // Utility functions
-    getTodaysPriorityEvents: () => biService.getTodaysPriorityEvents(appointments),
+    getTodaysPriorityEvents: () => RhythmIntelligenceService.getTodaysPriorityEvents(appointments),
     getUpcomingPriorityEvents: (limit?: number) =>
-      biService.getUpcomingPriorityEvents(appointments, limit),
-    getUpcomingPreparationEvents: () => biService.getUpcomingPreparationEvents(appointments),
-    calculateWeeklyStats: () => biService.calculateWeeklyStats(appointments),
+      RhythmIntelligenceService.getUpcomingPriorityEvents(appointments, limit),
+    getUpcomingPreparationEvents: () =>
+      RhythmIntelligenceService.getUpcomingPreparationEvents(appointments),
+    calculateWeeklyStats: () =>
+      RhythmIntelligenceService.calculateWeeklyStats(
+        RhythmIntelligenceService.enhanceEvents(appointments),
+      ),
   };
 }

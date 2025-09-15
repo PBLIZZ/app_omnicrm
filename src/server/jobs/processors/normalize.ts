@@ -10,6 +10,7 @@ import { ensureError } from "@/lib/utils/error-handler";
 // Type guards for safe payload parsing
 interface BatchJobPayload {
   batchId?: string;
+  provider?: string;
 }
 
 interface GmailPayload {

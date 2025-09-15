@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { NextRequest } from "next/server";
 
 describe("settings/sync/status route", () => {
   const mocks = vi.hoisted(() => ({ selects: [] as unknown[] }));
@@ -46,7 +47,13 @@ describe("settings/sync/status route", () => {
     mocks.selects.push([{ batchId: "batch-1" }]);
 
     const mod = await import("./route");
-    const res = await mod.GET();
+    const req = new Request("https://example.com", {
+      method: "GET",
+      headers: {
+        "x-correlation-id": "test-correlation-id",
+      },
+    }) as unknown as NextRequest;
+    const res = await mod.GET(req);
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.data.googleConnected).toBe(true);

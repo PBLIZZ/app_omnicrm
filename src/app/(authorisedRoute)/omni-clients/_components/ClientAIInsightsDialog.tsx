@@ -1,16 +1,8 @@
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { type ClientAIInsightsResponse } from "@/lib/validation/schemas/omniClients";
+import type { ClientAIInsightsDialogProps } from "./types";
 import { Loader2 } from "lucide-react";
-
-interface ClientAIInsightsDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  insights: ClientAIInsightsResponse | null;
-  isLoading: boolean;
-  clientName: string;
-}
 
 export function ClientAIInsightsDialog({
   open,
@@ -33,7 +25,7 @@ export function ClientAIInsightsDialog({
           </div>
         ) : insights ? (
           <div className="space-y-4">
-            {insights.insights.wellnessGoals && (
+            {insights.insights.wellnessGoals && insights.insights.wellnessGoals.length > 0 && (
               <div>
                 <h4 className="font-medium">Wellness Goals</h4>
                 <ul className="list-disc list-inside text-sm text-muted-foreground">
@@ -44,7 +36,7 @@ export function ClientAIInsightsDialog({
               </div>
             )}
 
-            {insights.insights.nextSteps && (
+            {insights.insights.nextSteps && insights.insights.nextSteps.length > 0 && (
               <div>
                 <h4 className="font-medium">Next Steps</h4>
                 <ul className="list-disc list-inside text-sm text-muted-foreground">

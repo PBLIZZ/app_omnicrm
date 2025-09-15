@@ -9,12 +9,14 @@ interface GmailEmailPreviewProps {
   emails: EmailPreview[];
   isLoading: boolean;
   previewRange: { from: string; to: string } | null;
+  error?: Error | null;
 }
 
 export function GmailEmailPreview({
   emails,
   isLoading,
   previewRange,
+  error,
 }: GmailEmailPreviewProps): JSX.Element {
   return (
     <Card>
@@ -79,6 +81,20 @@ export function GmailEmailPreview({
                 <p className="text-xs text-muted-foreground line-clamp-2">{email.snippet}</p>
               </div>
             ))
+          ) : error ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Mail className="h-12 w-12 mx-auto mb-4 opacity-50 text-red-400" />
+              <p className="text-sm text-red-600">Unable to load emails</p>
+              <p className="text-xs mb-4">
+                Your Gmail token may have expired. Please reconnect your account.
+              </p>
+              <button
+                onClick={() => window.open("/api/google/gmail/oauth", "_self")}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+              >
+                Reconnect Gmail
+              </button>
+            </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />

@@ -1,7 +1,7 @@
 import { getDb } from "@/server/db/client";
 import { contacts, notes } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { calendarStorage } from "@/server/storage/calendar.storage";
+// import { calendarStorage } from "@/server/storage/calendar.storage";
 import { ContactIntelligenceService } from "./contact-intelligence.service";
 import { logger } from "@/lib/observability";
 
@@ -34,10 +34,20 @@ export class ContactSuggestionService {
       const existingEmails = existingContacts.map((c) => c.email).filter(Boolean) as string[];
 
       // Analyze calendar attendees using the calendar storage layer
-      const attendeeAnalysis = await calendarStorage.getAttendeeAnalysis(userId);
+      // const attendeeAnalysis = await calendarStorage.getAttendeeAnalysis(userId);
+      interface AttendeeAnalysisRow {
+        email: string;
+        display_name: string;
+        event_count: number;
+        last_event_date: string;
+        event_titles: string;
+      }
+      const attendeeAnalysis: { potentialContacts: AttendeeAnalysisRow[] } = {
+        potentialContacts: [],
+      }; // Temporary until calendar.storage is restored
       const suggestions: ContactSuggestion[] = [];
 
-      for (const row of attendeeAnalysis) {
+      for (const row of attendeeAnalysis.potentialContacts) {
         const email = row.email;
         const displayName = row.display_name;
         const eventCount = row.event_count;
@@ -68,7 +78,7 @@ export class ContactSuggestionService {
           email: email.toLowerCase(),
           eventCount,
           lastEventDate,
-          eventTitles: eventTitles.slice(0, 5), // Limit to 5 titles
+          eventTitles: eventTitles.split(",").slice(0, 5), // Split string and limit to 5 titles
           confidence,
           source: "calendar_attendee",
         });

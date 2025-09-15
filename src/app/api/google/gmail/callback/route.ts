@@ -117,8 +117,8 @@ export const GET = createRouteHandler({
       grantedScopes: tokens.scope,
     });
 
-    // Clear nonce cookie
-    const res = NextResponse.redirect(new URL("/omni-connect?connected=gmail", req.url));
+    // Clear nonce cookie and redirect to sync setup step
+    const res = NextResponse.redirect(new URL("/omni-connect?step=gmail-sync", req.url));
     res.cookies.set("gmail_auth", "", { path: "/", httpOnly: true, maxAge: 0 });
     return res;
   } catch (error) {

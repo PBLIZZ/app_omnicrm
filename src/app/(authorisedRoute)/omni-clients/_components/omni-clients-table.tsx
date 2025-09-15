@@ -43,21 +43,8 @@ import {
 } from "lucide-react";
 import { useBulkDeleteOmniClients } from "@/hooks/use-client-delete";
 import { useBulkEnrichOmniClients } from "@/hooks/use-omni-clients-bridge";
+import type { ExportableClientData, DataTableProps } from "./types";
 import { toast } from "sonner";
-
-interface ExportableClientData {
-  displayName: string;
-  primaryEmail?: string;
-  primaryPhone?: string;
-  stage?: string;
-  tags?: string[];
-  updatedAt: string;
-}
-
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
-  data: TData[];
-}
 
 export function OmniClientsTable<TData, TValue>({
   columns,
@@ -142,7 +129,7 @@ export function OmniClientsTable<TData, TValue>({
 
   const table = useReactTable({
     data,
-    columns,
+    columns: columns as ColumnDef<TData, unknown>[],
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),

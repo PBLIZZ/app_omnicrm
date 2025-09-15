@@ -14,7 +14,7 @@ export const POST = createRouteHandler({
   auth: true,
   rateLimit: { operation: "openrouter_chat" },
   validation: { body: ChatRequestSchema },
-})(async ({ userId, validated, requestId }) => {
+})(async ({ userId, validated, requestId }): Promise<Response> => {
   const api = new ApiResponseBuilder("openrouter.chat", requestId);
 
   // Feature gating: if provider not configured, return error

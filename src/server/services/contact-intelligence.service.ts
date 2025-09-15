@@ -4,10 +4,22 @@ import { eq, desc, and, or, sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import { isObject, getString } from "@/lib/utils/type-guards";
 import { OpenAI } from "openai";
-import { calendarStorage } from "@/server/storage/calendar.storage";
+// import { calendarStorage } from "@/server/storage/calendar.storage";
 import { getUserContext } from "@/server/repositories/auth-user.repo";
 
-import type { CalendarEventData } from "@/server/storage/calendar.storage";
+// import type { CalendarEventData } from "@/server/storage/calendar.storage";
+interface CalendarEventData {
+  id: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time?: string;
+  location?: string;
+  attendees?: Array<{
+    email: string;
+    displayName?: string;
+  }>;
+}
 
 // Interface for Gmail interaction data
 interface GmailInteractionData {
@@ -219,7 +231,7 @@ export class ContactIntelligenceService {
 
       // Fetch both calendar events and Gmail interactions
       const [events, gmailInteractions] = await Promise.all([
-        this.getContactEvents(userId, contactEmail),
+        this.getContactEvents(),
         this.getContactGmailInteractions(userId, contactEmail),
       ]);
 
@@ -257,13 +269,7 @@ export class ContactIntelligenceService {
       );
 
       // Cache the enrichment results
-      await this.cacheEnrichmentResults(
-        userId,
-        contactEmail,
-        aiInsights,
-        events,
-        gmailInteractions,
-      );
+      await this.cacheEnrichmentResults(contactEmail, aiInsights, events, gmailInteractions);
 
       return aiInsights;
     } catch (error) {
@@ -490,7 +496,6 @@ export class ContactIntelligenceService {
    * Cache enrichment results for future use
    */
   private static async cacheEnrichmentResults(
-    userId: string,
     contactEmail: string,
     insights: ContactInsightsWithNote,
     events: CalendarEventData[],
@@ -513,11 +518,9 @@ export class ContactIntelligenceService {
   /**
    * Get calendar events for a specific contact
    */
-  private static async getContactEvents(
-    userId: string,
-    contactEmail: string,
-  ): Promise<CalendarEventData[]> {
-    return await calendarStorage.getContactEvents(userId, contactEmail);
+  private static async getContactEvents(): Promise<CalendarEventData[]> {
+    // return await calendarStorage.getContactEvents(userId, contactEmail);
+    return []; // Temporary until calendar.storage is restored
   }
 
   /**

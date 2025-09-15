@@ -25,7 +25,7 @@ export const GET = createRouteHandler({
 
     // Get all calendar events from database for BI analysis
     try {
-      const { listCalendarEventsService } = await import("@/server/services/calendar.service");
+      const { GoogleCalendarService } = await import("@/server/services/google-calendar.service");
 
       // Get events from a wider range for BI analysis (last 30 days to next 90 days)
       const startDate = new Date();
@@ -33,15 +33,15 @@ export const GET = createRouteHandler({
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 90);
 
-      const eventsResult = await listCalendarEventsService(userId, {
-        limit: 500, // Get more events for BI
-        fromDate: startDate,
-        toDate: endDate,
-      });
+      const eventsResult = await GoogleCalendarService.getEventsByDateRange(
+        userId,
+        startDate,
+        endDate,
+      );
 
       return api.success({
         isConnected: true,
-        events: eventsResult.items.map((event) => ({
+        events: eventsResult.map((event) => ({
           id: event.id,
           title: event.title,
           startTime: event.startTime.toISOString(),
@@ -51,7 +51,7 @@ export const GET = createRouteHandler({
           businessCategory: event.businessCategory,
           attendees: event.attendees,
         })),
-        totalCount: eventsResult.items.length,
+        totalCount: eventsResult.length,
       });
     } catch (serviceError) {
       // Return empty data for service errors

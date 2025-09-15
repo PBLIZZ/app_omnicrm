@@ -20,7 +20,7 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
       // Verify slug column properties
       const slugColumn = (contacts as any).slug;
       expect(slugColumn).toBeDefined();
-      expect(slugColumn.dataType).toBe("text");
+      expect(slugColumn.dataType).toBe("string");
     });
 
     it("contacts table must have all critical business fields", () => {

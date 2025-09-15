@@ -23,7 +23,7 @@ import { ApiResponseBuilder } from "@/server/api/response";
 export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "user_export" },
-})(async ({ userId, requestId }) => {
+})(async ({ userId, requestId }): Promise<Response> => {
   const api = new ApiResponseBuilder("user.export", requestId);
 
   try {

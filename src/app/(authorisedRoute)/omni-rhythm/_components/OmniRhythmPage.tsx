@@ -1,105 +1,61 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiClient } from "@/lib/api/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { logger } from "@/lib/observability";
 
-import { Calendar } from "lucide-react";
+import { Calendar, Zap, BookCheck } from "lucide-react";
 
 // Hooks
-import { useOmniRhythmData } from "../../../../hooks/useOmniRhythmData";
-import { useBusinessIntelligence } from "../../../../hooks/useBusinessIntelligence";
+import { useOmniRhythmData } from "@/hooks/useOmniRhythmData";
+import { useBusinessIntelligence } from "@/hooks/useBusinessIntelligence";
 
 // Components - Used in Main Dashboard
-import { TodayIntelligencePanel } from "./TodayIntelligencePanel";
-import { WeeklyBusinessFlow } from "./WeeklyBusinessFlow";
-import { ClientSessionTimeline } from "./ClientSessionTimeline";
-import { PreparationWorkflow } from "./PreparationWorkflow";
+import { TodayIntelligencePanel } from "@/app/(authorisedRoute)/omni-rhythm/_components/TodayIntelligencePanel";
+import { WeeklyBusinessFlow } from "@/app/(authorisedRoute)/omni-rhythm/_components/WeeklyBusinessFlow";
+import { PreparationWorkflow } from "@/app/(authorisedRoute)/omni-rhythm/_components/PreparationWorkflow";
 
 // Custom Components
-import { QuickActions } from "./QuickActions";
-import { CalendarConnectionCard } from "./CalendarConnectionCard";
+import { CalendarConnectionCard } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarConnectionCard";
+import { CalendarSyncSetup } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarSyncSetup";
+import { RhythmHeader } from "@/app/(authorisedRoute)/omni-rhythm/_components/RhythmHeader";
 import { ensureError } from "@/lib/utils/error-handler";
-
-// Types
-interface BusinessInsights {
-  isHighValue?: boolean;
-  requiresPreparation?: boolean;
-}
-
-interface ClientContext {
-  estimatedRevenue?: number;
-  clientName?: string;
-  notes?: string;
-}
-
-interface CalendarEvent {
-  id?: string;
-  title?: string;
-  startTime?: string;
-  businessCategory?: string;
-  eventType?: string;
-  businessInsights?: BusinessInsights;
-  clientContext?: ClientContext;
-}
+import { toAppointments } from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
 
 export function OmniRhythmPage(): JSX.Element {
+  const searchParams = useSearchParams();
   // Use custom hooks for state management
   const data = useOmniRhythmData();
-  const bi = useBusinessIntelligence(data.biService, data.allEvents || []);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [isProcessingJobs, setIsProcessingJobs] = useState(false);
+  const bi = useBusinessIntelligence(data.allEvents || []);
+  const [activeTab, setActiveTab] = useState("insights");
 
-  // Handler functions for calendar actions
-  const handleGenerateEmbeddings = async (): Promise<void> => {
-    try {
-      const result = await apiClient.post<{ processedEvents: number }>("/api/calendar/embed", {});
-      alert(`Successfully generated embeddings for ${result.processedEvents} events!`);
-    } catch (error) {
-      await logger.error(
-        "embeddings_generation_failed",
-        {
-          operation: "generate_embeddings",
-          additionalData: { component: "OmniRhythmPage" },
-        },
-        ensureError(error),
-      );
-      alert("Network error during embedding generation");
-    }
+  // Calculate session metrics
+  const calculateSessionMetrics = (): { sessionsNext7Days: number; sessionsThisMonth: number } => {
+    const now = new Date();
+    const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const sessionsNext7Days =
+      data.allEvents?.filter((event) => {
+        if (!event.startTime) return false;
+        const eventDate = new Date(event.startTime);
+        return eventDate >= now && eventDate <= next7Days;
+      }).length ?? 0;
+
+    const sessionsThisMonth =
+      data.allEvents?.filter((event) => {
+        if (!event.startTime) return false;
+        const eventDate = new Date(event.startTime);
+        return eventDate >= startOfCurrentMonth && eventDate <= endOfCurrentMonth;
+      }).length ?? 0;
+
+    return { sessionsNext7Days, sessionsThisMonth };
   };
 
-  const handleProcessJobs = async (): Promise<void> => {
-    setIsProcessingJobs(true);
-    try {
-      const result = await apiClient.post<{
-        message: string;
-        runner: string;
-        processed: number;
-        succeeded: number;
-        failed: number;
-        errors?: unknown[];
-      }>("/api/jobs/runner", {});
-
-      alert(
-        `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
-      );
-    } catch (error) {
-      await logger.error(
-        "job_processing_failed",
-        {
-          operation: "process_jobs",
-          additionalData: { component: "OmniRhythmPage" },
-        },
-        ensureError(error),
-      );
-      alert("Network error during job processing");
-    } finally {
-      setIsProcessingJobs(false);
-    }
-  };
+  const { sessionsNext7Days, sessionsThisMonth } = calculateSessionMetrics();
 
   const handleLoadInsights = async (): Promise<void> => {
     try {
@@ -123,324 +79,219 @@ export function OmniRhythmPage(): JSX.Element {
     }
   };
 
+  const handleSearch = (query: string): void => {
+    // TODO: Implement search functionality
+    void logger.debug("Search initiated", {
+      operation: "search",
+      component: "OmniRhythmPage",
+      additionalData: { query },
+    });
+  };
+
   // Initialize calendar status and clients
   useEffect(() => {
     void data.checkCalendarStatus();
     void data.fetchClients();
-  }, [data, data.checkCalendarStatus, data.fetchClients]);
+  }, [data]);
 
-  // Debug logging (development only)
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      void logger.debug("omni_rhythm_page_stats", {
-        operation: "debug_logging",
-        additionalData: {
-          component: "OmniRhythmPage",
-          stats: data.stats,
-          allEventsCount: data.allEvents?.length ?? 0,
-          upcomingEventsCount: bi.upcomingEvents?.length ?? 0,
-          biService: data.biService,
-          clientsCount: data.clients?.length ?? 0,
-          firstUpcomingEvent: bi.upcomingEvents?.[0],
-        },
-      });
-    }
-  }, [data.stats, data.allEvents, bi.upcomingEvents, data.biService, data.clients]);
+  // If we need to run initial import, show setup step regardless of connection
+  const step = searchParams.get("step");
+  if (step === "calendar-sync") {
+    return <CalendarSyncSetup />;
+  }
 
-  // If calendar is not connected, show only the connection screen
+  // If calendar is not connected, show the Connect Your Calendar screen with preview
   if (!data.isConnected) {
     return (
-      <CalendarConnectionCard
-        isConnected={data.isConnected}
-        isConnecting={data.isConnecting}
-        isSyncing={data.isSyncing}
-        isEmbedding={data.isEmbedding}
-        isProcessingJobs={isProcessingJobs}
-        upcomingEventsCount={data.stats?.upcomingEventsCount ?? 0}
-        lastSync={data.stats?.lastSync ?? undefined}
-        error={data.error}
-        onConnect={data.connectCalendar}
-        onReconnect={data.connectCalendar}
-        onSync={data.syncCalendar}
-        onProcessJobs={handleProcessJobs}
-        onGenerateEmbeddings={handleGenerateEmbeddings}
-        onLoadInsights={handleLoadInsights}
-      />
+      <div className="container mx-auto p-6 space-y-6">
+        <RhythmHeader onLoadInsights={handleLoadInsights} onSearch={handleSearch} />
+
+        <div className="space-y-8">
+          {/* Main Connection Card */}
+          <CalendarConnectionCard
+            isConnected={data.isConnected}
+            isConnecting={data.isConnecting}
+            isSyncing={data.isSyncing}
+            lastSync={data.stats?.lastSync ?? undefined}
+            error={data.error}
+            onConnect={data.connectCalendar}
+            onSync={data.syncCalendar}
+          />
+
+          {/* Preview of what you can do once connected */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Upcoming Events Preview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Upcoming Sessions
+                </CardTitle>
+                <CardDescription>
+                  See your upcoming appointments and sessions at a glance
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Connect your calendar to see upcoming sessions</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Business Intelligence Preview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  AI Insights
+                </CardTitle>
+                <CardDescription>
+                  Get smart recommendations and business intelligence
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Zap className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">AI insights will appear here after connecting</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Client Timeline Preview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BookCheck className="h-5 w-5" />
+                  Client Timeline
+                </CardTitle>
+                <CardDescription>Track client progress and session history</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="text-center py-8 text-muted-foreground">
+                    <BookCheck className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Client timelines will be built automatically</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
     );
   }
 
   // If calendar is connected, show the dashboard with calendar status in the top grid
   return (
-    <div className="space-y-6">
-      {/* Intelligence Dashboard Section */}
-      <div className="space-y-6">
-        {/* Compact Cards Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Upcoming Sessions - Enhanced Card */}
-          <Card className="md:col-span-1">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Upcoming Sessions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {bi.upcomingEvents &&
-                Array.isArray(bi.upcomingEvents) &&
-                bi.upcomingEvents.length > 0 ? (
-                  <>
-                    {bi.upcomingEvents.map((event: CalendarEvent, index: number) => {
-                      try {
-                        // Helper function to get display category
-                        const getDisplayCategory = (event: CalendarEvent): string => {
-                          if (event.businessCategory) {
-                            return (
-                              event.businessCategory.charAt(0).toUpperCase() +
-                              event.businessCategory.slice(1)
-                            );
-                          }
-                          if (event.eventType) {
-                            switch (event.eventType) {
-                              case "consultation":
-                                return "Consultation";
-                              case "workshop":
-                                return "Workshop";
-                              case "class":
-                                return "Class";
-                              case "massage":
-                                return "Massage";
-                              case "yoga":
-                                return "Yoga";
-                              default:
-                                return (
-                                  event.eventType.charAt(0).toUpperCase() + event.eventType.slice(1)
-                                );
-                            }
-                          }
-                          return "Session";
-                        };
+    <div className="container mx-auto p-6 space-y-6">
+      <RhythmHeader onLoadInsights={handleLoadInsights} onSearch={handleSearch} />
 
-                        return (
-                          <div
-                            key={event.id ?? index}
-                            className="border rounded-lg p-3 bg-background"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={`w-3 h-3 rounded-full ${
-                                    event.businessInsights?.isHighValue
-                                      ? "bg-green-600"
-                                      : event.businessInsights?.requiresPreparation
-                                        ? "bg-yellow-600"
-                                        : "bg-blue-600"
-                                  }`}
-                                ></div>
-                                <Badge
-                                  variant={
-                                    event.businessInsights?.isHighValue ? "default" : "secondary"
-                                  }
-                                  className="text-xs"
-                                >
-                                  {getDisplayCategory(event)}
-                                </Badge>
-                              </div>
-                              {event.clientContext?.estimatedRevenue && (
-                                <span className="text-sm font-medium text-green-600">
-                                  ${event.clientContext.estimatedRevenue}
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="mb-2">
-                              <p className="text-sm font-medium leading-tight">
-                                {event.title ?? "Untitled Event"}
-                              </p>
-                              {event.clientContext?.clientName && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Client: {event.clientContext.clientName}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span>
-                                {event.startTime
-                                  ? new Date(event.startTime).toLocaleDateString([], {
-                                      month: "short",
-                                      day: "numeric",
-                                    }) +
-                                    " " +
-                                    new Date(event.startTime).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : "TBD"}
-                              </span>
-                              {event.businessInsights?.requiresPreparation && (
-                                <span className="text-yellow-600 font-medium">Prep Required</span>
-                              )}
-                            </div>
-
-                            {event.clientContext?.notes && (
-                              <p className="text-xs text-muted-foreground italic mt-2 border-t pt-2">
-                                {event.clientContext.notes}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      } catch (error) {
-                        void logger.error(
-                          "bi_event_render_failed",
-                          {
-                            operation: "render_bi_event",
-                            additionalData: {
-                              component: "OmniRhythmPage",
-                              eventIndex: index,
-                              event,
-                            },
-                          },
-                          ensureError(error),
-                        );
-                        return (
-                          <div key={index} className="text-xs text-red-500 p-2 border rounded">
-                            Error rendering event {index}:{" "}
-                            {error instanceof Error ? error.message : String(error)}
-                          </div>
-                        );
-                      }
-                    })}
-                    {data.stats?.upcomingEventsCount && data.stats.upcomingEventsCount > 5 && (
-                      <p className="text-xs text-muted-foreground">
-                        +{data.stats.upcomingEventsCount - 5} more sessions
-                      </p>
-                    )}
-                  </>
-                ) : data.stats?.upcomingEvents && data.stats.upcomingEvents.length > 0 ? (
-                  <>
-                    {data.stats.upcomingEvents
-                      .slice(0, 5)
-                      .map((event: CalendarEvent, index: number) => (
-                        <div key={event.id ?? index} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-                            <div>
-                              <p className="text-sm font-medium truncate max-w-[120px]">
-                                {event.title ?? "Untitled Event"}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {event.startTime
-                                  ? new Date(event.startTime).toLocaleDateString([], {
-                                      month: "short",
-                                      day: "numeric",
-                                    }) +
-                                    " " +
-                                    new Date(event.startTime).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : "TBD"}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {event.eventType ?? "Session"}
-                          </Badge>
-                        </div>
-                      ))}
-                  </>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-muted-foreground">No upcoming sessions</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Events will appear here when you sync your calendar
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Quick Actions */}
-          <QuickActions />
-
-          {/* Calendar Connection Card */}
-          <CalendarConnectionCard
-            isConnected={data.isConnected}
-            isConnecting={data.isConnecting}
-            isSyncing={data.isSyncing}
-            isEmbedding={data.isEmbedding}
-            isProcessingJobs={isProcessingJobs}
-            upcomingEventsCount={data.stats?.upcomingEventsCount ?? 0}
-            lastSync={data.stats?.lastSync ?? undefined}
-            syncStatus={data.syncStatus}
-            error={data.error}
-            onConnect={data.connectCalendar}
-            onReconnect={data.connectCalendar}
-            onSync={data.syncCalendar}
-            onProcessJobs={handleProcessJobs}
-            onGenerateEmbeddings={handleGenerateEmbeddings}
-            onLoadInsights={handleLoadInsights}
-          />
+      {/* Top Status Row - New Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-stretch">
+        {/* Business Intelligence Card (moved from tab content) */}
+        <div className="lg:col-span-2 flex">
+          <div className="w-full">
+            <TodayIntelligencePanel
+              appointments={toAppointments(bi.enhancedAppointments)}
+              isLoading={false}
+            />
+          </div>
         </div>
 
-        {/* Main Content Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="preparation">Preparation</TabsTrigger>
-            <TabsTrigger value="insights">Insights</TabsTrigger>
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          </TabsList>
+        {/* Calendar Intelligence Layer */}
+        <div className="lg:col-span-1 flex">
+          <Card className="w-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Calendar Intelligence Layer</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">User Interface Approach:</p>
+              <ul className="mt-2 text-sm list-disc pl-4 text-muted-foreground space-y-1">
+                <li>Today&apos;s Intelligence Panel</li>
+                <li>Weekly Business Flow</li>
+                <li>Client Session Timeline</li>
+                <li>Revenue Rhythm</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
 
-          <TabsContent value="overview" className="space-y-6">
-            <TodayIntelligencePanel appointments={bi.enhancedAppointments} isLoading={false} />
-          </TabsContent>
-
-          <TabsContent value="preparation" className="space-y-6">
-            <PreparationWorkflow
-              upcomingAppointments={[
-                {
-                  id: "1",
-                  title: "Deep Tissue Massage",
-                  clientName: "Sarah Johnson",
-                  date: "2024-01-20",
-                  startTime: "2024-01-20T10:00:00Z",
-                  endTime: "2024-01-20T11:30:00Z",
-                  serviceType: "Deep Tissue Massage",
-                  preparationTasks: [
-                    {
-                      id: "1",
-                      title: "Review client intake form",
-                      description: "Check for any medical conditions or preferences",
-                      completed: false,
-                      priority: "high" as const,
-                      estimatedTime: 5,
-                      category: "client" as const,
-                    },
-                  ],
-                  clientNotes: "Sarah prefers firm pressure and has mentioned lower back tension.",
-                  lastSessionNotes: "Focused on lower back and shoulders.",
-                },
-              ]}
-              isLoading={false}
+        {/* Calendar Connection Card (moved to end) */}
+        <div className="lg:col-span-1 flex">
+          <div className="w-full">
+            <CalendarConnectionCard
+              isConnected={data.isConnected}
+              isConnecting={data.isConnecting}
+              isSyncing={data.isSyncing}
+              importedEventsCount={data.stats?.importedCount ?? 0}
+              lastSync={data.stats?.lastSync ?? undefined}
+              error={data.error}
+              onConnect={data.connectCalendar}
+              onSync={data.syncCalendar}
+              sessionsNext7Days={sessionsNext7Days}
+              sessionsThisMonth={sessionsThisMonth}
             />
-          </TabsContent>
-
-          <TabsContent value="insights" className="space-y-6">
-            <WeeklyBusinessFlow
-              appointments={bi.enhancedAppointments}
-              weeklyStats={bi.weeklyStats}
-              isLoading={false}
-            />
-          </TabsContent>
-
-          <TabsContent value="timeline" className="space-y-6">
-            <ClientSessionTimeline clients={data.clients} milestones={[]} isLoading={false} />
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </div>
+
+      {/* Main Content Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="insights">Insights</TabsTrigger>
+          <TabsTrigger value="availability">Availability</TabsTrigger>
+          <TabsTrigger value="prep">Prep</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="insights" className="space-y-6">
+          <WeeklyBusinessFlow
+            appointments={toAppointments(bi.enhancedAppointments)}
+            weeklyStats={bi.weeklyStats}
+            isLoading={false}
+          />
+        </TabsContent>
+
+        <TabsContent value="availability" className="space-y-6">
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Availability management coming soon...</p>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="prep" className="space-y-6">
+          <PreparationWorkflow
+            upcomingAppointments={[
+              {
+                id: "1",
+                title: "Deep Tissue Massage",
+                clientName: "Sarah Johnson",
+                date: "2024-01-20",
+                startTime: "2024-01-20T10:00:00Z",
+                endTime: "2024-01-20T11:30:00Z",
+                serviceType: "Deep Tissue Massage",
+                preparationTasks: [
+                  {
+                    id: "1",
+                    title: "Review client intake form",
+                    description: "Check for any medical conditions or preferences",
+                    completed: false,
+                    priority: "high" as const,
+                    estimatedTime: 5,
+                    category: "client" as const,
+                  },
+                ],
+                clientNotes: "Sarah prefers firm pressure and has mentioned lower back tension.",
+                lastSessionNotes: "Focused on lower back and shoulders.",
+              },
+            ]}
+            isLoading={false}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

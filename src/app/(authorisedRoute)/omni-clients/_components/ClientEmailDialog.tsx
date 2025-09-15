@@ -1,17 +1,8 @@
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { type ClientEmailSuggestion } from "@/lib/validation/schemas/omniClients";
+import type { ClientEmailDialogProps } from "./types";
 import { Loader2 } from "lucide-react";
-
-interface ClientEmailDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  emailSuggestion: ClientEmailSuggestion | null;
-  isLoading: boolean;
-  clientName: string;
-  clientEmail: string | undefined;
-}
 
 export function ClientEmailDialog({
   open,

@@ -19,35 +19,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { format, differenceInHours } from "date-fns";
-
-interface PreparationTask {
-  id: string;
-  title: string;
-  description: string;
-  completed: boolean;
-  priority: "low" | "medium" | "high";
-  estimatedTime: number; // minutes
-  category: "client" | "preparation" | "followup" | "administrative";
-  dueDate?: Date;
-}
-
-interface UpcomingAppointment {
-  id: string;
-  title: string;
-  clientName: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  serviceType: string;
-  preparationTasks: PreparationTask[];
-  clientNotes?: string;
-  lastSessionNotes?: string;
-}
-
-interface PreparationWorkflowProps {
-  upcomingAppointments: UpcomingAppointment[];
-  isLoading?: boolean;
-}
+import { PreparationTask, PreparationWorkflowProps } from "./types";
 
 export function PreparationWorkflow({
   upcomingAppointments,

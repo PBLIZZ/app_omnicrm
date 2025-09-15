@@ -5,6 +5,7 @@ import { and, eq, gte, lte, asc } from "drizzle-orm";
 import { withRateLimit } from "@/server/lib/rate-limiter";
 import { logger } from "@/lib/observability";
 import { decryptString, encryptString } from "@/server/utils/crypto";
+import { enqueue } from "@/server/jobs/enqueue";
 
 // CalendarEvent type for return values
 export interface CalendarEvent {
@@ -310,6 +311,29 @@ export class GoogleCalendarService {
         }
       }
 
+      // Enqueue normalization jobs for the synced events
+      if (totalSyncedEvents > 0 && options.batchId) {
+        try {
+          await enqueue(
+            "normalize",
+            { batchId: options.batchId, provider: "google_calendar" },
+            userId,
+            options.batchId,
+          );
+        } catch (jobError) {
+          // Non-fatal for initial sync; raw events written successfully
+          await logger.warn("Failed to enqueue normalization job after calendar sync", {
+            operation: "job_enqueue",
+            additionalData: {
+              userId,
+              batchId: options.batchId,
+              syncedEvents: totalSyncedEvents,
+              error: jobError instanceof Error ? jobError.message : String(jobError),
+            },
+          });
+        }
+      }
+
       return {
         success: true,
         syncedEvents: totalSyncedEvents,
@@ -456,23 +480,33 @@ export class GoogleCalendarService {
       lastSynced: new Date().toISOString(),
     };
 
-    // Use Drizzle ORM for safe database operations
+    // Use Drizzle ORM for safe database operations with upsert
     try {
-      // First try to insert
-      await db.insert(rawEvents).values({
-        userId: userId,
-        provider: "google_calendar",
-        payload: eventPayload,
-        sourceId: event.id,
-        occurredAt: startTime,
-        sourceMeta: sourceMeta,
-        batchId: batchId ?? null,
-      });
+      await db
+        .insert(rawEvents)
+        .values({
+          userId: userId,
+          provider: "google_calendar",
+          payload: eventPayload,
+          sourceId: event.id,
+          occurredAt: startTime,
+          sourceMeta: sourceMeta,
+          batchId: batchId ?? null,
+        })
+        .onConflictDoUpdate({
+          target: [rawEvents.userId, rawEvents.provider, rawEvents.sourceId],
+          set: {
+            payload: eventPayload,
+            occurredAt: startTime,
+            sourceMeta: sourceMeta,
+            batchId: batchId ?? null,
+          },
+        });
     } catch (error: unknown) {
-      // If unique constraint violation, update existing record
+      // Handle any remaining errors
       const pgError = error as { code?: string };
       if (pgError?.code === "23505") {
-        // PostgreSQL unique violation error code
+        // Fallback for unique constraint violations
         await db
           .update(rawEvents)
           .set({

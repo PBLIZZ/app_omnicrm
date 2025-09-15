@@ -170,7 +170,7 @@ export const rawEvents = pgTable("raw_events", {
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   sourceMeta: jsonb("source_meta"),
   batchId: uuid("batch_id"),
-  sourceId: text("source_id"), // ✅ new (nullable)
+  sourceId: text("source_id"), // Added in migration 11_db_perf_optimizations.sql
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

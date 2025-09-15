@@ -110,9 +110,19 @@ export async function apiRequest<T = unknown>(
     ...fetchOptions.headers,
   };
 
-  // Add CSRF token if enabled
-  if (includeCsrf) {
-    (headers as Record<string, string>)["x-csrf-token"] = getCsrfToken();
+  // Add CSRF token if enabled and request is mutating
+  const method = fetchOptions.method?.toUpperCase() ?? "GET";
+  const isMutatingRequest = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+
+  if (includeCsrf && isMutatingRequest) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      (headers as Record<string, string>)["x-csrf-token"] = csrfToken;
+    } else if (process.env.NODE_ENV === "development") {
+      console.warn(
+        `No CSRF token found in cookies for ${method} request. This may cause authentication issues.`,
+      );
+    }
   }
 
   // Add content-type for requests with body
@@ -198,7 +208,8 @@ export async function apiRequest<T = unknown>(
  * GET request
  */
 export async function get<T = unknown>(url: string, options: ApiRequestOptions = {}): Promise<T> {
-  return apiRequest<T>(url, { ...options, method: "GET" });
+  // GET requests typically don't need CSRF tokens
+  return apiRequest<T>(url, { includeCsrf: false, ...options, method: "GET" });
 }
 
 /**

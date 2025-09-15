@@ -1,12 +1,12 @@
 import { getDb } from "@/server/db/client";
 import { drizzleAdminGuard } from "@/server/db/admin";
 import { and, desc, eq } from "drizzle-orm";
-import { jobs, rawEvents, userSyncPrefs } from "@/server/db/schema";
+import { jobs, rawEvents } from "@/server/db/schema";
 import { getGoogleClients } from "@/server/google/client";
+import type { GoogleApisClients } from "@/server/google/client";
 import type { GmailClient } from "@/server/google/gmail";
 import { listGmailMessageIds } from "@/server/google/gmail";
-import type { CalendarClient } from "@/server/google/calendar";
-import { listCalendarEvents } from "@/server/google/calendar";
+// Removed broken calendar imports - these functions are handled by GoogleCalendarService now
 import { logger } from "@/lib/observability";
 import {
   CALENDAR_CHUNK,
@@ -23,20 +23,6 @@ import type { calendar_v3 } from "googleapis";
  * - Retries: 3 attempts with exponential backoff + jitter (see callWithRetry)
  * - Hard wall-clock cap: 3 minutes per job to prevent runaway executions
  */
-
-export async function lastEventTimestamp(
-  userId: string,
-  provider: "gmail" | "calendar",
-): Promise<Date> {
-  const dbo = await getDb();
-  const rows = await dbo
-    .select({ occurredAt: rawEvents.occurredAt })
-    .from(rawEvents)
-    .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, provider)))
-    .orderBy(desc(rawEvents.occurredAt))
-    .limit(1);
-  return rows[0]?.occurredAt ?? new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
-}
 
 // Define proper types for job payloads
 interface SyncJobPayload {
@@ -126,42 +112,50 @@ export async function runGmailSync(
     additionalData: { userId },
   });
 
-  await logger.debug("gmail_sync_getting_preferences", {
-    operation: "sync_gmail",
-    additionalData: { userId },
-  });
-  const prefsRow = await dbo
-    .select()
-    .from(userSyncPrefs)
-    .where(eq(userSyncPrefs.userId, userId))
+  // Find the timestamp of the last successfully synced email
+  // This is the key to "always incremental" logic - we always sync from where we left off
+  const lastSyncedEvent = await dbo
+    .select({ lastDate: rawEvents.occurredAt })
+    .from(rawEvents)
+    .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, "gmail")))
+    .orderBy(desc(rawEvents.occurredAt))
     .limit(1);
-  const prefs = prefsRow[0];
-  await logger.debug("gmail_sync_preferences_loaded", {
-    operation: "sync_gmail",
-    additionalData: { userId },
-  });
 
-  await logger.debug("gmail_sync_getting_last_timestamp", {
-    operation: "sync_gmail",
-    additionalData: { userId },
-  });
-  const since = await lastEventTimestamp(userId, "gmail");
-  await logger.debug("gmail_sync_last_timestamp_obtained", {
-    operation: "sync_gmail",
-    additionalData: { userId, lastTimestamp: since.toISOString() },
-  });
+  // Import EVERYTHING - no filtering, all emails, all categories, all time
+  const baseQuery = "";
+  let finalQuery = baseQuery;
 
-  // Build incremental Gmail query using after:timestamp for efficiency
-  const baseQuery = prefs?.gmailQuery ?? "newer_than:30d";
-  const daysSinceLastSync = Math.ceil((Date.now() - since.getTime()) / (1000 * 60 * 60 * 24));
+  if (lastSyncedEvent[0]?.lastDate) {
+    // We have synced before. Find everything after this date (incremental sync).
+    const lastSyncDate = new Date(lastSyncedEvent[0].lastDate);
+    // Add 1-day overlap to catch any missed emails due to timezone/timing issues
+    const overlapDate = new Date(lastSyncDate.getTime() - 24 * 60 * 60 * 1000);
+    const gmailDateFormat = overlapDate.toISOString().split("T")[0]?.replace(/-/g, "/") ?? "";
+    finalQuery += ` after:${gmailDateFormat}`;
 
-  // Gmail uses YYYY/MM/DD format for after: queries, not unix timestamp
-  // Subtract 1 day for overlap to catch any missed emails
-  const overlapDate = new Date(since.getTime() - 24 * 60 * 60 * 1000);
-  const gmailDateFormat = overlapDate.toISOString().split("T")[0]?.replace(/-/g, "/") ?? "";
+    await logger.debug("gmail_sync_incremental_mode", {
+      operation: "sync_gmail",
+      additionalData: {
+        userId,
+        lastSyncDate: lastSyncDate.toISOString(),
+        overlapDate: overlapDate.toISOString(),
+        gmailDateFormat,
+        mode: "incremental",
+      },
+    });
+  } else {
+    // This is effectively the FIRST sync. Use 30 day default lookback.
+    await logger.debug("gmail_sync_first_sync_mode", {
+      operation: "sync_gmail",
+      additionalData: {
+        userId,
+        lookbackDays: 30,
+        mode: "first_sync",
+      },
+    });
+  }
 
-  // Use incremental sync with 1-day overlap to catch any missed emails
-  const q = daysSinceLastSync <= 30 ? `${baseQuery} after:${gmailDateFormat}` : baseQuery;
+  const q = finalQuery;
   const batchId = typedJob.payload?.batchId;
 
   await logger.debug("gmail_sync_query_built", {
@@ -169,10 +163,8 @@ export async function runGmailSync(
     additionalData: {
       userId,
       baseQuery,
-      daysSinceLastSync,
-      gmailDateFormat,
       finalQuery: q,
-      isIncrementalSync: daysSinceLastSync <= 30,
+      hasLastSync: !!lastSyncedEvent[0]?.lastDate,
       batchId,
     },
   });
@@ -275,10 +267,8 @@ export async function runGmailSync(
       total,
       query: q,
       pages,
-      since: since.toISOString(),
-      daysSinceLastSync,
-      gmailDateFormat,
-      isIncrementalSync: daysSinceLastSync <= 30,
+      syncMode: lastSyncedEvent[0]?.lastDate ? "incremental" : "first_sync",
+      lastSyncDate: lastSyncedEvent[0]?.lastDate?.toISOString() ?? null,
     },
   });
 
@@ -483,8 +473,13 @@ export async function runGmailSync(
 export async function runCalendarSync(
   job: unknown,
   userId: string,
-  injected?: { calendar?: CalendarClient },
+  injected?: { calendar?: GoogleApisClients["calendar"] },
 ): Promise<void> {
+  await logger.info("calendar_sync_started", {
+    operation: "sync_calendar",
+    additionalData: { userId },
+  });
+
   // Type guard to ensure job has the expected structure
   if (!isJobRow(job)) {
     await logger.warn("Sync job invalid shape", {
@@ -496,17 +491,13 @@ export async function runCalendarSync(
   const typedJob: MinimalJob = job;
   const dbo = await getDb();
   const calendar = injected?.calendar ?? (await getGoogleClients(userId)).calendar;
-  const prefsRow = await dbo
-    .select()
-    .from(userSyncPrefs)
-    .where(eq(userSyncPrefs.userId, userId))
-    .limit(1);
-  const prefs = prefsRow[0];
 
+  // Enhanced time window configuration with incremental sync support
   const now = new Date();
-  const days = prefs?.calendarTimeWindowDays ?? 60;
-  const timeMin = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
-  const timeMax = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+  const daysPast = 180; // 6 months back for comprehensive data
+  const daysFuture = 365; // 1 year ahead
+  const timeMin = new Date(now.getTime() - daysPast * 24 * 60 * 60 * 1000).toISOString();
+  const timeMax = new Date(now.getTime() + daysFuture * 24 * 60 * 60 * 1000).toISOString();
   const batchId = typedJob.payload?.batchId;
   const debugContext = {
     requestId: undefined as string | undefined,
@@ -516,15 +507,53 @@ export async function runCalendarSync(
     provider: "google_calendar" as const,
   };
 
-  // Calendar: process paginated items with caps & light filtering
+  // Enhanced calendar sync with comprehensive event processing
   const startedAt = Date.now();
   const deadlineMs = startedAt + JOB_HARD_CAP_MS; // hard cap
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
-  let itemsFiltered = 0;
+  const itemsFiltered = 0;
   let errorsCount = 0;
-  const { items, pages } = await listCalendarEvents(calendar, timeMin, timeMax);
+
+  // Use Google Calendar API to list events from all calendars
+  const calendarsResponse = await calendar.calendarList.list();
+  const calendars = calendarsResponse.data.items ?? [];
+
+  const allEvents: calendar_v3.Schema$Event[] = [];
+  let totalPages = 0;
+
+  // Fetch events from each calendar
+  for (const cal of calendars) {
+    if (!cal.id) continue;
+
+    try {
+      const eventsResponse = await calendar.events.list({
+        calendarId: cal.id,
+        timeMin,
+        timeMax,
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 1000,
+      });
+
+      const events = eventsResponse.data.items ?? [];
+      allEvents.push(...events);
+      totalPages++;
+    } catch (calError) {
+      await logger.warn(`Failed to fetch events from calendar ${cal.id}`, {
+        operation: "sync_calendar",
+        additionalData: {
+          ...debugContext,
+          calendarId: cal.id,
+          error: calError instanceof Error ? calError.message : String(calError),
+        },
+      });
+    }
+  }
+
+  const items = allEvents;
+  const pages = totalPages;
   const total = Math.min(items.length, SYNC_MAX_PER_RUN);
   await logger.info("Calendar sync start", {
     operation: "sync_calendar",
@@ -533,7 +562,7 @@ export async function runCalendarSync(
       op: "calendar.sync.start",
       candidates: items.length,
       total,
-      windowDays: days,
+      windowDays: daysPast + daysFuture,
       pages,
     },
   });
@@ -554,42 +583,7 @@ export async function runCalendarSync(
         continue;
       }
 
-      if (
-        prefs?.calendarIncludeOrganizerSelf === true &&
-        e.organizer &&
-        e.organizer.self === false
-      ) {
-        itemsFiltered += 1;
-        await logger.info("Filtered out event: not organizer self", {
-          operation: "sync_calendar",
-          additionalData: {
-            ...debugContext,
-            op: "calendar.sync.filtered_organizer",
-            eventId: e.id,
-            eventTitle: e.summary,
-            organizerEmail: e.organizer?.email,
-            organizerSelf: e.organizer?.self,
-            calendarIncludeOrganizerSelf: prefs?.calendarIncludeOrganizerSelf,
-          },
-        });
-        continue;
-      }
-
-      if (prefs?.calendarIncludePrivate === false && e.visibility === "private") {
-        itemsFiltered += 1;
-        await logger.info("Filtered out event: private visibility", {
-          operation: "sync_calendar",
-          additionalData: {
-            ...debugContext,
-            op: "calendar.sync.filtered_private",
-            eventId: e.id,
-            eventTitle: e.summary,
-            visibility: e.visibility,
-            calendarIncludePrivate: prefs?.calendarIncludePrivate,
-          },
-        });
-        continue;
-      }
+      // No filtering - include all events
 
       const startStr = e.start?.dateTime ?? e.start?.date;
       if (!startStr) {

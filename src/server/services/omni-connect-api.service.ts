@@ -5,7 +5,7 @@ import {
   EmailPreview,
   SearchResult,
   Insights,
-} from "../../app/(authorisedRoute)/omni-connect/_components/omni-connect-types";
+} from "../../app/(authorisedRoute)/omni-connect/_components/types";
 
 /**
  * OmniConnect API Service with integrated rate limiting
@@ -63,7 +63,17 @@ export class OmniConnectApiService {
    * Fetch Gmail statistics with rate-limited Google API calls
    */
   static async fetchGmailStats(): Promise<GmailStats> {
-    // Get sync status using the API utility
+    // Get Gmail connection status with proper token expiry handling
+    const gmailStatusData = await apiClient.get<{
+      isConnected: boolean;
+      reason?: string;
+      expiryDate?: string;
+      hasRefreshToken?: boolean;
+      autoRefreshed?: boolean;
+      service?: string;
+    }>("/api/google/gmail/status", { showErrorToast: false });
+
+    // Get sync status for lastSync info
     const syncData = await apiClient.get<SyncStatusResponse>("/api/settings/sync/status", {
       showErrorToast: false,
     });
@@ -90,7 +100,7 @@ export class OmniConnectApiService {
       emailsProcessed,
       suggestedContacts,
       lastSync: syncData.lastSync?.gmail ?? null,
-      isConnected: syncData.serviceTokens?.gmail ?? false,
+      isConnected: gmailStatusData.isConnected,
     };
   }
 
@@ -164,6 +174,8 @@ export class OmniConnectApiService {
         from: emailObj.from ?? "Sample Sender",
         date: emailObj.date ?? new Date(Date.now() - index * 24 * 60 * 60 * 1000).toISOString(),
         snippet: `This is a preview of email ${index + 1}...`,
+        hasAttachments: false,
+        labels: ["INBOX"],
       }));
     }
 

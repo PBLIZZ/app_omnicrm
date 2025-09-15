@@ -200,6 +200,19 @@ describe("sync processors with injected clients", () => {
     // Fake Calendar client
     const listCalls: calendar_v3.Params$Resource$Events$List[] = [];
     const calendar = {
+      calendarList: {
+        list: async () => ({
+          data: {
+            items: [
+              {
+                id: "primary",
+                summary: "Primary Calendar",
+                primary: true,
+              },
+            ],
+          },
+        }),
+      },
       events: {
         list: async (params: calendar_v3.Params$Resource$Events$List) => {
           listCalls.push(params);
@@ -326,6 +339,19 @@ describe("sync processors with injected clients", () => {
       calendarTimeWindowDays: 1,
     });
     const calendar = {
+      calendarList: {
+        list: async () => ({
+          data: {
+            items: [
+              {
+                id: "primary",
+                summary: "Primary Calendar",
+                primary: true,
+              },
+            ],
+          },
+        }),
+      },
       events: {
         list: async () => ({
           data: {

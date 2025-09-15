@@ -13,7 +13,13 @@ vi.mock("@/server/db/client", () => ({
 // lightweight shape tests for prefs GET defaults
 describe("sync prefs route", () => {
   it("GET returns ok envelope with defaults", async () => {
-    const res = await GET();
+    const req = new Request("https://example.com", {
+      method: "GET",
+      headers: {
+        "x-correlation-id": "test-correlation-id",
+      },
+    }) as unknown as NextRequest;
+    const res = await GET(req);
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
@@ -30,6 +36,8 @@ describe("sync prefs route", () => {
     }) as unknown as NextRequest; // NextRequest type compatibility without any
     const res = await PUT(req);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, data: {} });
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.data).toEqual({});
   });
 });

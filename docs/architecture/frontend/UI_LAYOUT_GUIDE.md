@@ -38,7 +38,7 @@ This document covers the UI and layout architecture for OmniCRM, focusing on the
 
 The application uses a modern sidebar layout pattern with the following structure:
 
-```
+```txt
 ┌─────────────────────────────────────────────────────┐
 │                    Header (64px)                    │ top-0
 ├──────────────┬──────────────────────────────────────┤
@@ -121,7 +121,7 @@ className={cn(
 
 ### Sidebar Components Structure
 
-```
+```txt
 SidebarProvider (Context & State Management)
 └── Sidebar (Main Container)
     ├── SidebarHeader

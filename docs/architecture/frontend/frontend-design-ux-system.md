@@ -126,26 +126,26 @@ Dashboard > Contacts > John Smith > Edit Contact
 
 #### **Information Architecture**
 
-**Level 1: Core Functions**
+#### **Level 1: Core Functions**
 
 - Dashboard (Overview & AI insights)
 - Contacts (CRM core functionality)
 - Calendar (Schedule management)
 - Messages (Communication history)
 
-**Level 2: AI & Automation**
+#### **Level 2: AI & Automation**
 
 - AI Assistant (Chat interface)
 - Insights (AI-driven analytics)
 - Automation (Workflow management)
 
-**Level 3: Configuration**
+#### **Level 3: Configuration**
 
 - Integrations (Google services, etc.)
 - Settings (User preferences)
 - Help & Documentation
 
-**Level 4: Account Management**
+#### **Level 4: Account Management**
 
 - Profile & Billing
 - Data Export
@@ -337,7 +337,7 @@ Based on existing CSS custom properties with enhancements:
 
 #### **Skeleton Screen Implementation**
 
-**Dashboard Skeletons:**
+#### **Dashboard Skeletons:**
 
 ```tsx
 // Contact list skeleton
@@ -354,7 +354,7 @@ Based on existing CSS custom properties with enhancements:
 </div>
 ```
 
-**Loading State Hierarchy:**
+#### **Loading State Hierarchy:**
 
 1. **Instant** (<100ms): Show skeleton immediately
 2. **Fast** (100-500ms): Maintain skeleton, add subtle pulse
@@ -387,7 +387,7 @@ Based on existing CSS custom properties with enhancements:
 
 #### **Error State Hierarchy**
 
-**Level 1: Inline Validation (Form Fields)**
+#### **Level 1: Inline Validation (Form Fields)**
 
 ```tsx
 <div className="space-y-2">
@@ -409,7 +409,7 @@ Based on existing CSS custom properties with enhancements:
 </div>
 ```
 
-**Level 2: Component-Level Errors (Toast Notifications)**
+#### **Level 2: Component-Level Errors (Toast Notifications)**
 
 ```tsx
 // Replace all alert() calls with:
@@ -430,7 +430,7 @@ toast.success("Contacts synchronized", {
 });
 ```
 
-**Level 3: Page-Level Errors (Error Boundaries)**
+#### **Level 3: Page-Level Errors (Error Boundaries)**
 
 ```tsx
 <ErrorBoundary>
@@ -1769,14 +1769,14 @@ return (
 
 #### **Priority 1A: Homepage & Navigation (3-4 days)**
 
-**Day 1-2: Dashboard Implementation**
+#### **Day 1-2: Dashboard Implementation**
 
 - [ ] Replace `/src/app/page.tsx` with dashboard layout
 - [ ] Implement `DashboardLayout` component
 - [ ] Create `WelcomeBanner` for first-time users
 - [ ] Add `QuickActions` panel with primary CRM actions
 
-**Day 3-4: Navigation Structure**
+#### **Day 3-4: Navigation Structure**
 
 - [ ] Enhance `AuthHeader` with full navigation
 - [ ] Implement breadcrumb system
@@ -1793,14 +1793,14 @@ return (
 
 #### **Priority 1B: Component Standardization (2-3 days)**
 
-**Day 1: Button Standardization**
+#### **Day 1: Button Standardization**
 
 - [ ] Audit all button implementations across codebase
 - [ ] Replace custom buttons with design system components
 - [ ] Implement `LoadingButton` component
 - [ ] Add proper loading states to all async actions
 
-**Day 2-3: Form Improvements**
+#### **Day 2-3: Form Improvements**
 
 - [ ] Replace all `alert()` calls with toast notifications
 - [ ] Implement proper form validation feedback
@@ -1816,14 +1816,14 @@ return (
 
 #### **Priority 1C: Accessibility Compliance (3-4 days)**
 
-**Day 1-2: Form Accessibility**
+#### **Day 1-2: Form Accessibility**
 
 - [ ] Add proper labels to all form inputs
 - [ ] Implement `aria-describedby` for error messages
 - [ ] Ensure logical tab order throughout
 - [ ] Add skip links and landmarks
 
-**Day 3-4: Color & Navigation**
+#### **Day 3-4: Color & Navigation**
 
 - [ ] Verify color contrast ratios meet WCAG AA
 - [ ] Implement focus indicators
@@ -1841,14 +1841,14 @@ return (
 
 #### **Priority 2A: Chat Assistant UI (5-6 days)**
 
-**Day 1-3: Core Chat Interface**
+#### **Day 1-3: Core Chat Interface**
 
 - [ ] Implement expandable chat panel
 - [ ] Create message components (user & AI)
 - [ ] Add typing indicators and loading states
 - [ ] Implement chat history persistence
 
-**Day 4-6: AI Features & Integration**
+#### **Day 4-6: AI Features & Integration**
 
 - [ ] Connect to existing chat API endpoint
 - [ ] Add confidence indicators for AI responses
@@ -1864,14 +1864,14 @@ return (
 
 #### **Priority 2B: Contact Management (6-7 days)**
 
-**Day 1-3: Contact Dashboard**
+#### **Day 1-3: Contact Dashboard**
 
 - [ ] Create contact listing with search/filter
 - [ ] Implement contact cards with key information
 - [ ] Add bulk selection and actions
 - [ ] Create empty states and loading skeletons
 
-**Day 4-7: Contact Details & AI Integration**
+#### **Day 4-7: Contact Details & AI Integration**
 
 - [ ] Build detailed contact view
 - [ ] Implement contact timeline
@@ -1889,14 +1889,14 @@ return (
 
 #### **Priority 3A: Settings Interface Redesign (4-5 days)**
 
-**Day 1-3: Settings Navigation & Layout**
+#### **Day 1-3: Settings Navigation & Layout**
 
 - [ ] Implement progressive disclosure layout
 - [ ] Create settings sidebar navigation
 - [ ] Add section-based organization
 - [ ] Implement mobile settings patterns
 
-**Day 4-5: Enhanced Sync Settings**
+#### **Day 4-5: Enhanced Sync Settings**
 
 - [ ] Redesign sync settings with clear sections
 - [ ] Add contextual help and tooltips
@@ -1912,14 +1912,14 @@ return (
 
 #### **Priority 3B: Integration Flow Polish (3-4 days)**
 
-**Day 1-2: Google Integration UI**
+#### **Day 1-2: Google Integration UI**
 
 - [ ] Enhanced OAuth flow with clear permissions
 - [ ] Visual integration status dashboard
 - [ ] Data health monitoring interface
 - [ ] Permission management controls
 
-**Day 3-4: Sync Visualization & Control**
+#### **Day 3-4: Sync Visualization & Control**
 
 - [ ] Real-time sync progress indicators
 - [ ] Data freshness visualization
@@ -1937,14 +1937,14 @@ return (
 
 #### **Priority 4A: Mobile Experience (4-5 days)**
 
-**Day 1-3: Touch Optimization**
+#### **Day 1-3: Touch Optimization**
 
 - [ ] Implement proper touch target sizes
 - [ ] Add swipe actions for lists
 - [ ] Create pull-to-refresh patterns
 - [ ] Optimize forms for mobile input
 
-**Day 4-5: Mobile-Specific Features**
+#### **Day 4-5: Mobile-Specific Features**
 
 - [ ] Bottom navigation implementation
 - [ ] Mobile-optimized modals and sheets
@@ -1960,14 +1960,14 @@ return (
 
 #### **Priority 4B: Advanced UX Features (3-4 days)**
 
-**Day 1-2: Enhanced Interactions**
+#### **Day 1-2: Enhanced Interactions**
 
 - [ ] Comprehensive animation system
 - [ ] Advanced loading states
 - [ ] Micro-interaction polish
 - [ ] Keyboard shortcut system
 
-**Day 3-4: Help & Documentation**
+#### **Day 3-4: Help & Documentation**
 
 - [ ] In-app help system
 - [ ] Interactive onboarding tour
@@ -1989,7 +1989,7 @@ return (
 
 #### **Automated Testing Integration**
 
-**Lighthouse CI Integration:**
+#### **Lighthouse CI Integration:**
 
 ```yaml
 # .github/workflows/accessibility.yml
@@ -2009,7 +2009,7 @@ jobs:
           temporaryPublicStorage: true
 ```
 
-**Lighthouse Configuration:**
+#### **Lighthouse Configuration:**
 
 ```json
 {
@@ -2037,7 +2037,7 @@ jobs:
 
 #### **Manual Testing Checklist**
 
-**Screen Reader Testing:**
+#### **Screen Reader Testing:**
 
 - [ ] NVDA (Windows) navigation test
 - [ ] VoiceOver (macOS) compatibility test
@@ -2045,7 +2045,7 @@ jobs:
 - [ ] Table navigation verification
 - [ ] Modal/dialog accessibility test
 
-**Keyboard Navigation Testing:**
+#### **Keyboard Navigation Testing:**
 
 - [ ] Tab order logical throughout application
 - [ ] All interactive elements keyboard accessible
@@ -2053,7 +2053,7 @@ jobs:
 - [ ] Keyboard shortcuts functional
 - [ ] Modal focus trap working correctly
 
-**Color & Contrast Testing:**
+#### **Color & Contrast Testing:**
 
 - [ ] All text meets 4.5:1 contrast ratio
 - [ ] Large text meets 3:1 contrast ratio
@@ -2065,21 +2065,21 @@ jobs:
 
 #### **Core UX Metrics**
 
-**Task Completion Rates:**
+#### **Task Completion Rates:**
 
 - Contact creation: Target ≥95% success rate
 - Email sync setup: Target ≥90% success rate
 - AI assistant interaction: Target ≥85% success rate
 - Mobile navigation: Target ≥95% success rate
 
-**Time-to-Completion Metrics:**
+#### **Time-to-Completion Metrics:**
 
 - New user onboarding: Target ≤5 minutes
 - Contact import: Target ≤3 minutes
 - Settings configuration: Target ≤2 minutes
 - AI query resolution: Target ≤30 seconds
 
-**User Satisfaction Scores:**
+#### **User Satisfaction Scores:**
 
 - Overall interface rating: Target ≥4.5/5
 - Mobile experience rating: Target ≥4.3/5
@@ -2088,14 +2088,14 @@ jobs:
 
 #### **Performance Metrics**
 
-**Core Web Vitals Targets:**
+#### **Core Web Vitals Targets:**
 
 - Largest Contentful Paint (LCP): ≤2.5 seconds
 - First Input Delay (FID): ≤100 milliseconds
 - Cumulative Layout Shift (CLS): ≤0.1
 - First Contentful Paint (FCP): ≤1.8 seconds
 
-**Loading State Expectations:**
+#### **Loading State Expectations:**
 
 - Skeleton screens: Show within 100ms
 - Initial content: Load within 1.5 seconds
@@ -2106,7 +2106,7 @@ jobs:
 
 #### **Production Readiness Checklist**
 
-**Design System Compliance:**
+#### **Design System Compliance:**
 
 - [ ] All buttons use design system components
 - [ ] Consistent spacing throughout application

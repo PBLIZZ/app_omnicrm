@@ -101,7 +101,7 @@ graph TD
 
 **Navigation Structure**:
 
-```
+```bash
 /contacts
 ├── / (contact list)
 ├── /[contactId] (individual contact view)

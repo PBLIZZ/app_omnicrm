@@ -13,8 +13,8 @@ const baseSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
   // Service-specific Google OAuth redirect URIs
-  GOOGLE_GMAIL_REDIRECT_URI: z.string().url("Invalid GOOGLE_GMAIL_REDIRECT_URI"),
-  GOOGLE_CALENDAR_REDIRECT_URI: z.string().url("Invalid GOOGLE_CALENDAR_REDIRECT_URI"),
+  GOOGLE_GMAIL_REDIRECT_URI: z.string().url("Invalid GOOGLE_GMAIL_REDIRECT_URI").optional(),
+  GOOGLE_CALENDAR_REDIRECT_URI: z.string().url("Invalid GOOGLE_CALENDAR_REDIRECT_URI").optional(),
   // AI / Providers
   OPENROUTER_API_KEY: z.string().optional(),
   AI_MODEL_CHAT: z.string().default("openrouter/auto"),

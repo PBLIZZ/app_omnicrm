@@ -14,7 +14,7 @@ vi.mock("@/server/db/client", () => {
         return { rows: [] };
       }
       if (sqlParts.includes("update ai_quotas")) {
-        return { rows: [{ credits_left: 199 }] };
+        return [{ credits_left: 199 }];
       }
       if (sqlParts.includes("count(*)::int as c")) {
         return { rows: [{ c: 0 }] };

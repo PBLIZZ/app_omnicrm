@@ -98,6 +98,11 @@ export function withAuth<T extends unknown[]>(
         );
       }
 
+      // Handle plain Error objects as authentication failures
+      if (error instanceof Error) {
+        return apiError(API_ERROR_CODES.UNAUTHORIZED, error.message, 401, requestId);
+      }
+
       return apiError(API_ERROR_CODES.INTERNAL_ERROR, "Authentication failed", 500, requestId);
     }
   };

@@ -33,6 +33,7 @@ export function useOmniRhythmData(): {
     total: number;
     message: string;
   } | null;
+  hasCheckedConnection: boolean;
 
   // Actions
   setSearchQuery: (query: string) => void;
@@ -53,8 +54,8 @@ export function useOmniRhythmData(): {
     return service;
   });
 
-  // Calendar integration state
-  const [isConnected, setIsConnected] = useState(false);
+  // Calendar integration state - optimistic loading: assume connected initially
+  const [isConnected, setIsConnected] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isEmbedding] = useState(false);
@@ -68,6 +69,7 @@ export function useOmniRhythmData(): {
     total: number;
     message: string;
   } | null>(null);
+  const [hasCheckedConnection, setHasCheckedConnection] = useState(false);
 
   // Fetch real clients data
   // Calendar events (GET) via TanStack Query
@@ -334,17 +336,27 @@ export function useOmniRhythmData(): {
 
   useEffect(() => {
     if (calendarStatus) {
-      setIsConnected(calendarStatus.isConnected);
+      setHasCheckedConnection(true);
+      // Only update connection state after we've checked - rollback if not connected
+      if (!calendarStatus.isConnected && isConnected) {
+        // Rollback from optimistic state
+        setIsConnected(false);
+      } else if (calendarStatus.isConnected && !isConnected) {
+        // Update to connected if we were previously disconnected
+        setIsConnected(true);
+      }
       setStats({
         upcomingEventsCount: calendarStatus.upcomingEventsCount,
         upcomingEvents: [],
         lastSync: null,
       });
     }
-  }, [calendarStatus]);
+  }, [calendarStatus, isConnected]);
 
   useEffect(() => {
     if (isCalendarStatusError) {
+      setHasCheckedConnection(true);
+      // Rollback from optimistic state on error
       setIsConnected(false);
       setStats(null);
     }
@@ -627,6 +639,7 @@ export function useOmniRhythmData(): {
     error,
     syncStatus,
     syncProgress,
+    hasCheckedConnection,
 
     // Actions
     setSearchQuery,

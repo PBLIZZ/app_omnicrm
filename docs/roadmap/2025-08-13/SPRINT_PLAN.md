@@ -297,41 +297,41 @@ export async function checkAndIncrementRateLimit(
 
 ### Week 1: Critical Infrastructure & Security (Aug 13-19)
 
-**Monday-Tuesday (Aug 13-14): CRITICAL SECURITY**
+Monday-Tuesday (Aug 13-14): CRITICAL SECURITY\*\*
 
 - [ ] Day 1 AM: Fix TypeScript build failure (2h)
 - [ ] Day 1 PM: Begin OpenRouter security implementation (4h)
 - [ ] Day 2 AM: Complete OpenRouter security (2h)
 - [ ] Day 2 PM: Implement database error sanitization (4h)
 
-**Wednesday-Thursday (Aug 15-16): PERFORMANCE FOUNDATION**
+Wednesday-Thursday (Aug 15-16): PERFORMANCE FOUNDATION\*\*
 
 - [ ] Day 3: Database connection pooling implementation (6h)
 - [ ] Day 4: AI rate limiting race condition fixes (6h)
 
-**Friday (Aug 17): SECURITY HARDENING**
+Friday (Aug 17): SECURITY HARDENING\*\*
 
 - [ ] Day 5 AM: PostgreSQL LIKE pattern escaping (4h)
 - [ ] Day 5 PM: Gmail query validation completion (4h)
 
-**Weekend (Aug 18-19): TESTING RECOVERY**
+Weekend (Aug 18-19): TESTING RECOVERY\*\*
 
 - [ ] E2E test reliability fixes (8h)
 - [ ] Health endpoint testing implementation (3h)
 
 ### Week 2: Performance & Quality (Aug 20-26)
 
-**Monday-Tuesday (Aug 20-21): OPTIMIZATION**
+Monday-Tuesday (Aug 20-21): OPTIMIZATION\*\*
 
 - [ ] User preferences caching implementation (4h)
 - [ ] Batch database operations (6h)
 
-**Wednesday-Friday (Aug 22-24): COMPONENT TESTING**
+Wednesday-Friday (Aug 22-24): COMPONENT TESTING\*\*
 
 - [ ] Critical component testing expansion (16h)
 - [ ] Testing infrastructure improvements
 
-**Weekend (Aug 25-26): VALIDATION & PREPARATION**
+Weekend (Aug 25-26): VALIDATION & PREPARATION\*\*
 
 - [ ] Load testing and validation
 - [ ] Documentation and handoff preparation
@@ -344,7 +344,7 @@ export async function checkAndIncrementRateLimit(
 
 ### Development Team Assignment
 
-**Backend Security Developer (24 hours)**
+Backend Security Developer (24 hours)
 
 - OpenRouter proxy security (6h)
 - Database error sanitization (4h)
@@ -352,18 +352,18 @@ export async function checkAndIncrementRateLimit(
 - PostgreSQL pattern escaping (4h)
 - Gmail query validation (4h)
 
-**Backend Performance Developer (16 hours)**
+Backend Performance Developer (16 hours)
 
 - Database connection pooling (6h)
 - User preferences caching (4h)
 - Batch database operations (6h)
 
-**Frontend Developer (18 hours)**
+Frontend Developer (18 hours)
 
 - TypeScript build fix (2h)
 - Component testing expansion (16h)
 
-**QA Developer (11 hours)**
+QA Developer (11 hours)
 
 - E2E test reliability (8h)
 - Health endpoint testing (3h)

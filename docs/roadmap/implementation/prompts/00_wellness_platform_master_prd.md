@@ -89,7 +89,7 @@ ui/
 **Branch:** `feat/auth-nav`
 **Dependencies:** design-system
 
-#### **Deliverables:**
+#### Deliverables
 
 - **AuthHeader component** with logo, user avatar, primary nav
 - **Navigation state management** (active page, breadcrumbs)
@@ -184,13 +184,13 @@ ui/
 **Branch:** `feat/contacts`
 **Dependencies:** layout-core
 
-#### **Widget Layout (Top Row)**
+#### Widget Layout (Top Row)
 
 ```txt
 [Client Stats] [Lifecycle Overview] [Recent Activity] [Quick Add]
 ```
 
-#### **Toolbar:**
+#### Toolbar
 
 - **Search bar** (name, email, tags, notes)
 - **Filter dropdowns** (Stage, Tags, Last Session, Risk Level)
@@ -239,25 +239,25 @@ columns: [
 **Branch:** `feat/tasks`
 **Dependencies:** layout-core
 
-#### **Widget Layout (Top Row)**
+#### **Widget Layout (Top Row)\***
 
 ```txt
 [My Tasks] [Due Today] [AI Suggestions] [Quick Create]
 ```
 
-#### **View Toggle:**
+#### **View Toggle**
 
 - **List View** (default) - TanStack table
 - **Kanban View** - Drag-and-drop columns (Todo, In Progress, Review, Done)
 
-#### **Toolbar:**
+#### **Toolbar**
 
 - **Filter by**: Owner (Me/AI), Priority, Due Date, Project
 - **Sort by**: Due Date, Priority, Created Date, Alphabetical
 - **Group by**: Project, Owner, Status
 - **Bulk actions**: Assign, Update Status, Delete
 
-#### **List View Columns:**
+#### List View Columns
 
 ```typescript
 columns: [
@@ -460,4 +460,4 @@ Each PRD must deliver:
 - ✅ **Type-safe** with TypeScript
 - ✅ **Tested** with automated tests
 
-**Ready for parallel development! 🚀**
+Ready for parallel development! 🚀

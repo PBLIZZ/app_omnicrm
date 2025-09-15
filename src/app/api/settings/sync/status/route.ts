@@ -63,18 +63,12 @@ export const GET = createRouteHandler({
     )
     .limit(1);
 
-  // Check for valid (non-expired) tokens
-  const now = new Date();
-
-  // Unified integration provides Gmail access, legacy gmail integration also works
+  // Check for valid tokens - a connection is valid if we have a refresh token (regardless of access token expiry)
+  // Access tokens expire frequently but refresh tokens allow us to get new access tokens
   const gmailIntegrationToCheck = unifiedIntegration[0] ?? gmailIntegration[0];
-  const hasGmailToken =
-    !!gmailIntegrationToCheck &&
-    (!gmailIntegrationToCheck.expiryDate || gmailIntegrationToCheck.expiryDate > now);
+  const hasGmailToken = !!gmailIntegrationToCheck && !!gmailIntegrationToCheck.refreshToken;
 
-  const hasCalendarToken =
-    !!calendarIntegration[0] &&
-    (!calendarIntegration[0].expiryDate || calendarIntegration[0].expiryDate > now);
+  const hasCalendarToken = !!calendarIntegration[0] && !!calendarIntegration[0].refreshToken;
 
   // Last sync per provider (based on latest created_at of raw_events)
   const [gmailLast] = await dbo

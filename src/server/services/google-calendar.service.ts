@@ -75,10 +75,19 @@ export class GoogleCalendarService {
 
     const integration = result[0];
 
+    const redirectUri = process.env["GOOGLE_CALENDAR_REDIRECT_URI"];
+    if (!redirectUri) {
+      throw new GoogleAuthError(
+        "Calendar OAuth not configured - missing GOOGLE_CALENDAR_REDIRECT_URI",
+        "config_error",
+        false,
+      );
+    }
+
     const oauth2Client = new google.auth.OAuth2(
       process.env["GOOGLE_CLIENT_ID"],
       process.env["GOOGLE_CLIENT_SECRET"],
-      process.env["GOOGLE_CALENDAR_REDIRECT_URI"],
+      redirectUri,
     );
 
     // Type guard to ensure we have the required fields

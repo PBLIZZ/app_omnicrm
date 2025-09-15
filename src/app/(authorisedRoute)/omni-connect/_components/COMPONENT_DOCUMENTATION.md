@@ -87,7 +87,7 @@ The sidebar system uses a **floating design** with the following structure:
 
 #### Layout Hierarchy
 
-```
+```txt
 MainLayout.tsx (Root)
 └── SidebarProvider (Floating variant)
     ├── Sidebar (Fixed positioning, full height)

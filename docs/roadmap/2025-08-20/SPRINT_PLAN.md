@@ -290,7 +290,7 @@ This sprint represents an **emergency response** to critical operational failure
 
 **The primary goal is operational stabilization** to match the excellent application quality with equally robust infrastructure and deployment capabilities. Success in this sprint is **essential** for unlocking the full potential of the high-quality application development achieved in recent cycles.
 
-**Sprint Success = Restored Deployment Confidence + 10x Scalability + Maintained Development Velocity**
+Sprint Success = Restored Deployment Confidence + 10x Scalability + Maintained Development Velocity
 
 ---
 

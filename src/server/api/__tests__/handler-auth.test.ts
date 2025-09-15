@@ -39,10 +39,12 @@ describe("Handler Authentication System", () => {
       const body = await res.json();
       expect(body).toMatchObject({
         ok: false,
-        code: "UNAUTHORIZED",
-        error: expect.stringContaining("Unauthorized"),
-        requestId: expect.any(String),
-        timestamp: expect.any(String),
+        error: {
+          code: "UNAUTHORIZED",
+          message: "No active session",
+          requestId: expect.any(String),
+          timestamp: expect.any(String),
+        },
       });
     });
 
@@ -82,8 +84,12 @@ describe("Handler Authentication System", () => {
       const body = await res.json();
       expect(body).toMatchObject({
         ok: false,
-        code: "UNAUTHORIZED",
-        error: "Insufficient permissions",
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Insufficient permissions",
+          requestId: expect.any(String),
+          timestamp: expect.any(String),
+        },
       });
     });
 
@@ -171,7 +177,7 @@ describe("Handler Authentication System", () => {
 
       expect(res.status).toBe(401);
       const body = await res.json();
-      expect(body.code).toBe("UNAUTHORIZED");
+      expect(body.error.code).toBe("UNAUTHORIZED");
     });
   });
 
@@ -202,8 +208,12 @@ describe("Handler Authentication System", () => {
       const body = await res.json();
       expect(body).toMatchObject({
         ok: false,
-        code: "RATE_LIMITED",
-        error: "Too many requests",
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many requests",
+          requestId: expect.any(String),
+          timestamp: expect.any(String),
+        },
       });
     });
 
@@ -326,7 +336,7 @@ describe("Handler Authentication System", () => {
 
       expect(res.status).toBe(401);
       const body = await res.json();
-      expect(body.code).toBe("UNAUTHORIZED");
+      expect(body.error.code).toBe("UNAUTHORIZED");
     });
 
     it("preserves error status codes from auth layer", async () => {
@@ -344,7 +354,7 @@ describe("Handler Authentication System", () => {
 
       expect(res.status).toBe(418);
       const body = await res.json();
-      expect(body.error).toBe("Unusual error");
+      expect(body.error.message).toBe("Unusual error");
     });
 
     it("handles missing request object gracefully", async () => {

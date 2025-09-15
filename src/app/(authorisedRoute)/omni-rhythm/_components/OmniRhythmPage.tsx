@@ -100,8 +100,8 @@ export function OmniRhythmPage(): JSX.Element {
     return <CalendarSyncSetup />;
   }
 
-  // If calendar is not connected, show the Connect Your Calendar screen with preview
-  if (!data.isConnected) {
+  // If calendar is not connected AND we've checked the connection, show the Connect Your Calendar screen with preview
+  if (!data.isConnected && data.hasCheckedConnection) {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <RhythmHeader onLoadInsights={handleLoadInsights} onSearch={handleSearch} />

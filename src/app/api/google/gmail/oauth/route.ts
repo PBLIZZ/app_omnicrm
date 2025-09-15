@@ -12,10 +12,18 @@ export const GET = createRouteHandler({
 })(async ({ userId }) => {
   const scopes = ["https://www.googleapis.com/auth/gmail.readonly"];
 
+  const redirectUri = process.env["GOOGLE_GMAIL_REDIRECT_URI"];
+  if (!redirectUri) {
+    return NextResponse.json(
+      { error: "Gmail OAuth not configured - missing GOOGLE_GMAIL_REDIRECT_URI" },
+      { status: 503 },
+    );
+  }
+
   const oauth2 = new google.auth.OAuth2(
     process.env["GOOGLE_CLIENT_ID"]!,
     process.env["GOOGLE_CLIENT_SECRET"]!,
-    process.env["GOOGLE_GMAIL_REDIRECT_URI"]!,
+    redirectUri,
   );
 
   // CSRF defense: set HMAC-signed nonce cookie and include only the nonce in state

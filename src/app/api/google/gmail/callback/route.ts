@@ -58,10 +58,18 @@ export const GET = createRouteHandler({
     return api.error("Invalid state parameter", "VALIDATION_ERROR");
   }
 
+  const redirectUri = process.env["GOOGLE_GMAIL_REDIRECT_URI"];
+  if (!redirectUri) {
+    return api.error(
+      "Gmail OAuth not configured - missing GOOGLE_GMAIL_REDIRECT_URI",
+      "INTERNAL_ERROR",
+    );
+  }
+
   const oauth2Client = new google.auth.OAuth2(
     process.env["GOOGLE_CLIENT_ID"]!,
     process.env["GOOGLE_CLIENT_SECRET"]!,
-    process.env["GOOGLE_GMAIL_REDIRECT_URI"]!,
+    redirectUri,
   );
 
   try {

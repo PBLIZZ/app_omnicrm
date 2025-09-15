@@ -3,13 +3,14 @@
 import {
   AlertCircle,
   ArrowRight,
-  Calendar,
   Clock,
   Plus,
   Users,
   Activity,
-  CheckSquare,
   RefreshCw,
+  MessageSquare,
+  FileText,
+  CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -61,7 +62,12 @@ export default function DashboardContent(): JSX.Element {
   });
   const contacts: ContactDTO[] = data?.items ?? [];
 
-  const { data: sync, isLoading: syncLoading } = useQuery({
+  const {
+    data: sync,
+    isLoading: syncLoading,
+    refetch: refetchSync,
+    isFetching: syncFetching,
+  } = useQuery({
     queryKey: ["sync", "status"],
     queryFn: getSyncStatus,
     staleTime: 15_000,
@@ -93,8 +99,6 @@ export default function DashboardContent(): JSX.Element {
 
   // Calculate stats
   const totalContacts = data?.total ?? contacts.length;
-  const recentActivity = 5; // Mock data - replace with actual count
-  const upcomingTasks = 3; // Mock data - replace with actual count
 
   return (
     <div className="py-6">
@@ -107,6 +111,25 @@ export default function DashboardContent(): JSX.Element {
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Welcome to OmniCRM</CardTitle>
+              <CardDescription>
+                Your contact management system is ready. Add contacts, sync with Google services,
+                and track your interactions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild>
+                  <Link href="/contacts/new">
+                    {totalContacts === 0 ? "Add First Contact" : "Add New Contact"}
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
@@ -129,28 +152,19 @@ export default function DashboardContent(): JSX.Element {
             </CardFooter>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Welcome to OmniCRM</CardTitle>
-              <CardDescription>
-                Your contact management system is ready. Add contacts, sync with Google services,
-                and track your interactions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                <Button asChild>
-                  <Link href="/contacts/new">Add First Contact</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Sync Status */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Sync Status</CardTitle>
-              <RefreshCw className="h-4 w-4 text-muted-foreground" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchSync()}
+                disabled={syncFetching}
+                className="h-8 w-8 p-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${syncFetching ? "animate-spin" : ""}`} />
+              </Button>
             </CardHeader>
             <CardContent className="space-y-2">
               {syncLoading ? (
@@ -161,71 +175,37 @@ export default function DashboardContent(): JSX.Element {
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-medium">Gmail</div>
                       <div
-                        className={`text-xs ${sync?.serviceTokens?.gmail ? "text-green-600" : "text-amber-600"}`}
+                        className={`text-xs ${sync?.serviceTokens?.gmail ? "text-green-600" : "text-red-600"}`}
                       >
                         {sync?.serviceTokens?.gmail ? "Connected" : "Not connected"}
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Last sync: {formatDate(sync?.lastSync?.gmail)}{" "}
-                      {sync?.lastSync?.gmail && new Date(sync.lastSync.gmail).toLocaleTimeString()}
+                      Last sync:{" "}
+                      {sync?.lastSync?.gmail
+                        ? `${formatDate(sync.lastSync.gmail)} ${new Date(sync.lastSync.gmail).toLocaleTimeString()}`
+                        : "Never"}
                     </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-medium">Calendar</div>
                       <div
-                        className={`text-xs ${sync?.serviceTokens?.calendar ? "text-green-600" : "text-amber-600"}`}
+                        className={`text-xs ${sync?.serviceTokens?.calendar ? "text-green-600" : "text-red-600"}`}
                       >
                         {sync?.serviceTokens?.calendar ? "Connected" : "Not connected"}
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Last sync: {formatDate(sync?.lastSync?.calendar)}{" "}
-                      {sync?.lastSync?.calendar &&
-                        new Date(sync.lastSync.calendar).toLocaleTimeString()}
+                      Last sync:{" "}
+                      {sync?.lastSync?.calendar
+                        ? `${formatDate(sync.lastSync.calendar)} ${new Date(sync.lastSync.calendar).toLocaleTimeString()}`
+                        : "Never"}
                     </div>
                   </div>
                 </div>
               )}
             </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{recentActivity}</div>
-              <p className="text-xs text-muted-foreground">
-                {recentActivity} activities in the last 7 days
-              </p>
-            </CardContent>
-            <CardFooter>
-              <Link href="#" className="text-xs text-blue-600 hover:underline flex items-center">
-                View activity log
-                <ArrowRight className="ml-1 h-3 w-3" />
-              </Link>
-            </CardFooter>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Upcoming Tasks</CardTitle>
-              <CheckSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{upcomingTasks}</div>
-              <p className="text-xs text-muted-foreground">
-                {upcomingTasks} tasks scheduled for this week
-              </p>
-            </CardContent>
-            <CardFooter>
-              <Link href="#" className="text-xs text-blue-600 hover:underline flex items-center">
-                View all tasks
-                <ArrowRight className="ml-1 h-3 w-3" />
-              </Link>
-            </CardFooter>
           </Card>
 
           <MonthlySessionsKpi />
@@ -261,31 +241,29 @@ export default function DashboardContent(): JSX.Element {
                   variant="outline"
                   className="h-auto flex flex-col items-center justify-center p-4 space-y-2"
                   disabled
+                  title="OmniConnect Weekly Digest - Coming Soon"
                 >
-                  <Calendar className="h-6 w-6 mb-2" />
-                  <span>Schedule Task</span>
+                  <FileText className="h-6 w-6 mb-2" />
+                  <span>Weekly Digest</span>
                 </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>System Status</CardTitle>
-                <CardDescription>Current system information</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Database</span>
-                  <span className="text-sm text-green-600">Connected</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">API</span>
-                  <span className="text-sm text-green-600">Operational</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Last Backup</span>
-                  <span className="text-sm">Today, 03:45 AM</span>
-                </div>
+                <Button
+                  variant="outline"
+                  className="h-auto flex flex-col items-center justify-center p-4 space-y-2"
+                  disabled
+                  title="OmniRhythm Next Event - Coming Soon"
+                >
+                  <CalendarDays className="h-6 w-6 mb-2" />
+                  <span>Next Event</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-auto flex flex-col items-center justify-center p-4 space-y-2"
+                  disabled
+                  title="OmniBot Chat History - Coming Soon"
+                >
+                  <MessageSquare className="h-6 w-6 mb-2" />
+                  <span>Chat History</span>
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -381,91 +359,18 @@ export default function DashboardContent(): JSX.Element {
                 <CardDescription>Your latest actions and system events</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="relative">
-                  <div className="absolute left-3 top-0 bottom-0 w-px bg-muted-foreground/20"></div>
-                  <div className="space-y-6 ml-6">
-                    {/* Mock activity items - replace with actual data */}
-                    <div className="relative">
-                      <div className="absolute -left-9 top-1 h-4 w-4 rounded-full bg-primary"></div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">Contact Added</p>
-                        <p className="text-sm text-muted-foreground">
-                          You added a new contact: Jane Smith
-                        </p>
-                        <p className="text-xs text-muted-foreground">Today, 10:30 AM</p>
-                      </div>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute -left-9 top-1 h-4 w-4 rounded-full bg-primary"></div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">Contact Updated</p>
-                        <p className="text-sm text-muted-foreground">
-                          You updated contact details: John Doe
-                        </p>
-                        <p className="text-xs text-muted-foreground">Yesterday, 3:45 PM</p>
-                      </div>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute -left-9 top-1 h-4 w-4 rounded-full bg-primary"></div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">System Update</p>
-                        <p className="text-sm text-muted-foreground">
-                          System backup completed successfully
-                        </p>
-                        <p className="text-xs text-muted-foreground">Yesterday, 1:15 AM</p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Activity className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium">Activity Tracking Coming Soon</h3>
+                  <p className="text-muted-foreground mt-1 max-w-md">
+                    We&apos;re working on implementing comprehensive activity tracking to show your
+                    contact interactions, sync events, and system activities.
+                  </p>
                 </div>
               </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full" disabled>
-                  View Full Activity Log
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </CardFooter>
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Enhanced Dashboard Section - New Features */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Enhanced Dashboard Features</CardTitle>
-            <CardDescription>Additional analytics and KPIs for improved insight</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* New Analytics Cards */}
-              <div className="p-4 border rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Activity className="h-4 w-4 text-blue-500" />
-                  <h4 className="font-medium">Engagement Score</h4>
-                </div>
-                <div className="text-2xl font-bold">85%</div>
-                <p className="text-sm text-muted-foreground">Average contact engagement</p>
-              </div>
-
-              <div className="p-4 border rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Calendar className="h-4 w-4 text-green-500" />
-                  <h4 className="font-medium">This Week</h4>
-                </div>
-                <div className="text-2xl font-bold">{upcomingTasks}</div>
-                <p className="text-sm text-muted-foreground">Scheduled activities</p>
-              </div>
-
-              <div className="p-4 border rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckSquare className="h-4 w-4 text-purple-500" />
-                  <h4 className="font-medium">Completed</h4>
-                </div>
-                <div className="text-2xl font-bold">12</div>
-                <p className="text-sm text-muted-foreground">Tasks this month</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

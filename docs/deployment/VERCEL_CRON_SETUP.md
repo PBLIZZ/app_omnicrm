@@ -1,8 +1,8 @@
-# Vercel Cron Job Setup for Job Processing
+# Supabase Cron Job Setup for Job Processing
 
 ## Overview
 
-This document explains how to set up Vercel cron jobs to process queued jobs in your OmniCRM application.
+This document explains how to set up Supabase cron jobs to process queued jobs in your OmniCRM application using pg_cron extension.
 
 ## Current Setup
 
@@ -11,55 +11,53 @@ Your application has a job processing system that:
 1. Enqueues jobs when syncing Gmail/Calendar data
 2. Processes jobs via `/api/cron/process-jobs` endpoint
 3. Uses a secure `CRON_SECRET` for authentication
+4. Uses Supabase pg_cron to call the Vercel API endpoint
 
-## Vercel Configuration
+## Supabase Cron Configuration
 
-The `vercel.json` file configures:
+The cron job is configured in `supabase/sql/20_cron_job_processor.sql`:
 
-- **Cron Schedule**: Every 5 minutes (`*/5 * * * *`)
-- **Endpoint**: `/api/cron/process-jobs`
-- **Timeout**: 5 minutes (300 seconds) for long-running jobs
-- **Authentication**: Uses `CRON_SECRET` environment variable
+{{ ... }}
 
-## Environment Variables Required
+- **Schedule**: Every 5 minutes (`*/5 * * * *`)
+- **Endpoint**: `https://app-omnicrm-omnipotencyai.vercel.app/api/cron/process-jobs`
+- **Method**: HTTP POST via `net.http_post`
+- **Authentication**: Uses `app.cron_secret` database setting
 
-### 1. Set CRON_SECRET in Vercel Dashboard
+## Setup Steps
+
+### 1. Set CRON_SECRET in Supabase Database
+
+First, generate a secure secret:
 
 ```bash
-# Generate a secure secret (run this locally)
 openssl rand -base64 32
 ```
 
-Then add this to your Vercel project:
+Then set it in your Supabase database:
+
+```sql
+-- Set the cron secret as a database setting
+ALTER DATABASE postgres SET app.cron_secret = 'your-generated-secret-here';
+```
+
+### 2. Set CRON_SECRET in Vercel Environment Variables
+
+Add the same secret to Vercel:
 
 1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-2. Add `CRON_SECRET` with the generated value
+2. Add `CRON_SECRET` with the same generated value
 3. Set it for Production, Preview, and Development environments
 
-### 2. Update Your Local .env Files
+### 3. Deploy the Supabase Migration
 
-Add the same `CRON_SECRET` value to your local environment files:
+Apply the cron job migration:
 
-- `.env.local`
-- `.env`
+```bash
+supabase db push
+```
 
-## Deployment Steps
-
-1. **Deploy the updated code** (with `vercel.json`)
-
-   ```bash
-   git add vercel.json
-   git commit -m "Add Vercel cron job configuration"
-   git push
-   ```
-
-2. **Set environment variables** in Vercel Dashboard
-   - `CRON_SECRET`: Your generated secret
-   - Ensure all other required env vars are set
-
-3. **Verify cron job is active**
-   - Go to Vercel Dashboard → Functions → Crons
-   - You should see the `/api/cron/process-jobs` cron listed
+Or run the SQL directly in Supabase Dashboard → SQL Editor
 
 ## Testing
 

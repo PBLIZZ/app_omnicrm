@@ -2,39 +2,14 @@ import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
-import { CalendarBusinessIntelligence } from "../app/(authorisedRoute)/omni-rhythm/_components/CalendarBusinessIntelligence";
-
-export interface Client {
-  id: string;
-  name: string;
-  email: string;
-  totalSessions: number;
-  totalSpent: number;
-  lastSessionDate: string;
-  status: "active" | "inactive" | "prospect";
-  satisfaction: number;
-  preferences?: {
-    preferredTimes?: string[];
-    preferredServices?: string[];
-    goals?: string[];
-  };
-}
-
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  location?: string;
-  attendees?: Array<{ email: string; name?: string }>;
-  eventType?: string;
-  businessCategory?: string;
-}
+import { CalendarBusinessIntelligence } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarBusinessIntelligence";
+import { CalendarEvent, Client } from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
 
 export interface CalendarStats {
   upcomingEventsCount: number;
   upcomingEvents: CalendarEvent[];
   lastSync: string | null;
+  importedCount?: number;
 }
 
 export function useOmniRhythmData(): {
@@ -174,17 +149,19 @@ export function useOmniRhythmData(): {
     queryKey: ["clients"],
     queryFn: async (): Promise<Client[]> => {
       toast.info("Fetching clients...");
-      const response = await fetch("/api/contacts");
+      const response = await fetch("/api/omni-clients");
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`Contacts request failed: ${response.status} ${text}`);
       }
       const json: unknown = await response.json();
 
-      // Handle different response structures
+      // Handle omni-clients API response structure
       let contactsArray: unknown[] = [];
       const isRecord = (v: unknown): v is Record<string, unknown> =>
         typeof v === "object" && v !== null;
+
+      // The new API returns { data: { items: [...] } } structure
       if (
         isRecord(json) &&
         isRecord(json["data"]) &&
@@ -195,8 +172,6 @@ export function useOmniRhythmData(): {
         contactsArray = json["items"] as unknown[];
       } else if (Array.isArray(json)) {
         contactsArray = json as unknown[];
-      } else if (isRecord(json) && Array.isArray(json["contacts"])) {
-        contactsArray = json["contacts"] as unknown[];
       }
 
       // Narrowing helpers
@@ -314,9 +289,11 @@ export function useOmniRhythmData(): {
         return { isConnected: false, upcomingEventsCount: 0, reason: "api_error" };
       }
 
-      const connected = Boolean(statusJson["isConnected"]);
-      const reason = typeof statusJson["reason"] === "string" ? statusJson["reason"] : undefined;
-      const hasRefreshToken = Boolean(statusJson["hasRefreshToken"]);
+      // Handle nested data structure from API response
+      const data = isRec(statusJson["data"]) ? statusJson["data"] : statusJson;
+      const connected = Boolean(data["isConnected"]);
+      const reason = typeof data["reason"] === "string" ? data["reason"] : undefined;
+      const hasRefreshToken = Boolean(data["hasRefreshToken"]);
 
       if (!connected) {
         // Provide user feedback based on the reason
@@ -339,36 +316,18 @@ export function useOmniRhythmData(): {
         };
       }
 
-      // If connected, get preview data for events count
-      try {
-        const previewResponse = await fetch("/api/calendar/preview");
-        const previewJson: unknown = await previewResponse.json();
-        if (previewResponse.ok && isRec(previewJson) && !previewJson["error"]) {
-          const cnt =
-            typeof previewJson["upcomingEventsCount"] === "number"
-              ? (previewJson["upcomingEventsCount"] as number)
-              : 0;
-          return {
-            isConnected: true,
-            upcomingEventsCount: cnt,
-            ...(reason ? { reason } : {}),
-            ...(hasRefreshToken ? { hasRefreshToken } : {}),
-          };
-        }
-        return {
-          isConnected: true,
-          upcomingEventsCount: 0,
-          ...(reason ? { reason } : {}),
-          ...(hasRefreshToken ? { hasRefreshToken } : {}),
-        };
-      } catch {
-        return {
-          isConnected: true,
-          upcomingEventsCount: 0,
-          ...(reason ? { reason } : {}),
-          ...(hasRefreshToken ? { hasRefreshToken } : {}),
-        };
-      }
+      // Use upcoming events count from status API response
+      const upcomingEventsCount =
+        typeof data["upcomingEventsCount"] === "number"
+          ? (data["upcomingEventsCount"] as number)
+          : 0;
+
+      return {
+        isConnected: true,
+        upcomingEventsCount,
+        ...(reason ? { reason } : {}),
+        ...(hasRefreshToken ? { hasRefreshToken } : {}),
+      };
     },
     staleTime: 15_000,
   });
@@ -638,8 +597,11 @@ export function useOmniRhythmData(): {
         toast.success("Google Calendar connected!", {
           description: "You can now sync your calendar events.",
         });
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
+        // Don't clean up URL if we have a step parameter (needed for sync setup)
+        const step = urlParams.get("step");
+        if (!step) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
       }
     }
 

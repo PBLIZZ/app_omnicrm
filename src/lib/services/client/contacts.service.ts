@@ -28,7 +28,7 @@ function getCsrf(): string {
 export async function fetchContacts(
   params: FetchContactsParams = {},
 ): Promise<ContactListResponse> {
-  const url = new URL("/api/contacts", window.location.origin);
+  const url = new URL("/api/omni-clients", window.location.origin);
   if (params.search) url.searchParams.set("search", params.search);
   if (params.sort) url.searchParams.set("sort", params.sort);
   if (params.order) url.searchParams.set("order", params.order);
@@ -59,7 +59,7 @@ export async function fetchContacts(
 }
 
 export async function createContact(input: CreateContactInput): Promise<ContactDTO> {
-  const res = await fetch("/api/contacts", {
+  const res = await fetch("/api/omni-clients", {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json", "x-csrf-token": getCsrf() },
@@ -69,7 +69,7 @@ export async function createContact(input: CreateContactInput): Promise<ContactD
 }
 
 export async function updateContact(id: string, input: UpdateContactInput): Promise<ContactDTO> {
-  const res = await fetch(`/api/contacts/${id}`, {
+  const res = await fetch(`/api/omni-clients/${id}`, {
     method: "PUT",
     credentials: "same-origin",
     headers: { "content-type": "application/json", "x-csrf-token": getCsrf() },
@@ -79,7 +79,7 @@ export async function updateContact(id: string, input: UpdateContactInput): Prom
 }
 
 export async function deleteContacts(ids: string[]): Promise<number> {
-  const res = await fetch(`/api/contacts/bulk-delete`, {
+  const res = await fetch(`/api/omni-clients/bulk-delete`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json", "x-csrf-token": getCsrf() },
@@ -90,7 +90,7 @@ export async function deleteContacts(ids: string[]): Promise<number> {
 }
 
 export async function fetchContact(id: string): Promise<ContactDTO> {
-  const res = await fetch(`/api/contacts/${id}`, {
+  const res = await fetch(`/api/omni-clients/${id}`, {
     credentials: "same-origin",
     headers: { "x-csrf-token": getCsrf() },
   });

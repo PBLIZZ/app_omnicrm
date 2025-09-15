@@ -5,7 +5,7 @@
 export * from "./http";
 export * from "./chat";
 export * from "./sync";
-export * from "./calendar";
+// export * from "./calendar"; // Removed - file doesn't exist
 export * from "./drive";
 export * from "./raw-events";
 export * from "./notes";

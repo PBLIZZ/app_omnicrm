@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api/client";
-import type { OmniClientsListResponseDTO } from "@/lib/validation/schemas/omniClients";
+
+type CountResponse = {
+  count: number;
+};
 
 export function useOmniClientCount(): number {
   const [count, setCount] = useState(0);
@@ -12,11 +15,10 @@ export function useOmniClientCount(): number {
 
     const loadCount = async (): Promise<void> => {
       try {
-        // Fetch without query params to get total count
-        const data = await apiClient.get<OmniClientsListResponseDTO>("/api/omni-clients");
+        // Use dedicated count endpoint for better performance
+        const data = await apiClient.get<CountResponse>("/api/omni-clients/count");
         if (isMounted) {
-          console.error("OmniClients count loaded:", data.total, "items:", data.items?.length);
-          setCount(data.total);
+          setCount(data.count);
         }
       } catch (error) {
         // Log error for debugging

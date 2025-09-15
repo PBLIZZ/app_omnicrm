@@ -2493,9 +2493,9 @@ const MobileContactDetail = ({ contactId }) => {
 
 ### 6.1 Phase-by-Phase Implementation
 
-**Phase 1: Core Contact Management (Weeks 1-3)**
+#### **Phase 1: Core Contact Management (Weeks 1-3)**
 
-**Week 1: Contact List Foundation**
+#### **Week 1: Contact List Foundation**
 
 - [ ] Implement contact list page (`/contacts`) replacing any placeholder content
 - [ ] Create contact list header with search, filters, and bulk actions
@@ -2503,7 +2503,7 @@ const MobileContactDetail = ({ contactId }) => {
 - [ ] Add mobile swipe actions for quick contact operations
 - [ ] Implement basic filtering (source, date range, has email/phone)
 
-**Week 2: Contact Details & Forms**
+#### **Week 2: Contact Details & Forms**
 
 - [ ] Create contact detail page (`/contacts/[id]`) with comprehensive information
 - [ ] Implement contact creation dialog with proper validation
@@ -2511,7 +2511,7 @@ const MobileContactDetail = ({ contactId }) => {
 - [ ] Add contact timeline component for interaction history
 - [ ] Create mobile-optimized contact detail layout
 
-**Week 3: Advanced Features**
+#### **Week 3: Advanced Features**
 
 - [ ] Add advanced search with AI insights filtering
 - [ ] Implement bulk operations (email, delete, tag, export)
@@ -2519,9 +2519,9 @@ const MobileContactDetail = ({ contactId }) => {
 - [ ] Add contact tagging and custom fields system
 - [ ] Implement contact merge/duplicate detection
 
-**Phase 2: AI Integration (Weeks 4-6)**
+#### **Phase 2: AI Integration (Weeks 4-6)**
 
-**Week 4: AI Assistant Foundation**
+#### **Week 4: AI Assistant Foundation**
 
 - [ ] Implement floating AI chat interface
 - [ ] Connect to existing `/api/chat` endpoint
@@ -2529,7 +2529,7 @@ const MobileContactDetail = ({ contactId }) => {
 - [ ] Add contextual suggestions based on contact data
 - [ ] Implement chat history persistence
 
-**Week 5: AI Insights Display**
+#### **Week 5: AI Insights Display**
 
 - [ ] Build AI insights section for contact details
 - [ ] Create insight cards with different types (summary, risk, next_step)
@@ -2537,7 +2537,7 @@ const MobileContactDetail = ({ contactId }) => {
 - [ ] Implement AI-driven contact recommendations
 - [ ] Add confidence indicators and explanation tooltips
 
-**Week 6: Advanced AI Features**
+#### **Week 6: Advanced AI Features**
 
 - [ ] Create AI-powered contact search and filtering
 - [ ] Implement smart follow-up suggestions
@@ -2545,9 +2545,9 @@ const MobileContactDetail = ({ contactId }) => {
 - [ ] Build relationship strength indicators
 - [ ] Create AI-assisted contact scoring
 
-**Phase 3: Mobile & Polish (Weeks 7-8)**
+#### **Phase 3: Mobile & Polish (Weeks 7-8)**
 
-**Week 7: Mobile Optimization**
+#### **Week 7: Mobile Optimization**
 
 - [ ] Implement responsive layouts for all contact screens
 - [ ] Add mobile bottom navigation
@@ -2555,7 +2555,7 @@ const MobileContactDetail = ({ contactId }) => {
 - [ ] Optimize touch targets for mobile devices
 - [ ] Add pull-to-refresh functionality
 
-**Week 8: Polish & Performance**
+#### **Week 8: Polish & Performance**
 
 - [ ] Implement virtual scrolling for large contact lists
 - [ ] Add comprehensive loading states and skeletons

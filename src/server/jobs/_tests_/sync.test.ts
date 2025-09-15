@@ -122,9 +122,7 @@ describe("sync processors with injected clients", () => {
       gmailLabelExcludes: ["Promotions"],
     });
 
-    vi.spyOn(syncModule, "lastEventTimestamp").mockResolvedValueOnce(
-      new Date(Date.now() - 24 * 60 * 60 * 1000),
-    );
+    // Note: lastEventTimestamp function doesn't exist in sync module
 
     // Fake Gmail client
     const listCalls: gmail_v1.Params$Resource$Users$Messages$List[] = [];

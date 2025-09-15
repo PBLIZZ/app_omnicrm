@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock NextResponse.json to return a simple object with json() method
+// Mock NextResponse.json to return a proper response object
 vi.mock("next/server", () => ({
-  NextResponse: { json: (data: unknown) => ({ json: async () => data }) },
+  NextResponse: {
+    json: (data: unknown) => ({
+      json: async () => data,
+      headers: new Map(),
+    }),
+  },
 }));
 
 // DB mock with configurable queued jobs and captured SQL
@@ -16,9 +21,17 @@ vi.mock("@/server/db/client", () => {
           orderBy: () => ({
             limit: async () => queuedJobs,
           }),
-          limit: async () => queuedJobs,
+          limit: async () => [], // enqueue duplicate check expects empty array
         }),
       }),
+    }),
+    insert: (table: unknown) => ({
+      values: (data: unknown) => {
+        lastSql = `insert into jobs (kind, payload, user_id, status${
+          (data as any)?.batchId ? ", batch_id" : ""
+        })`;
+        return Promise.resolve([{ id: "new-job-id" }]);
+      },
     }),
     update: () => ({
       set: () => ({
@@ -116,7 +129,16 @@ describe("jobs runner dispatch", () => {
       },
     ];
 
-    const res = await runJobs();
+    // Mock request with headers for CSRF token
+    const mockRequest = new Request("http://localhost/api/jobs/runner", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": "test-token",
+      },
+    });
+
+    const res = await runJobs(mockRequest);
     const body = await res.json();
     expect(body.data.processed).toBe(3);
 

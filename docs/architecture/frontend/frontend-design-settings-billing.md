@@ -1312,7 +1312,7 @@ export class SettingsErrorBoundary extends Component<
 
 ## File Structure
 
-```
+```bash
 src/
 ├── components/
 │   └── settings/

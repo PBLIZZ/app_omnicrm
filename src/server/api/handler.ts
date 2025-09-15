@@ -424,10 +424,7 @@ async function applyAdvancedRateLimit(
 }
 
 // Type definition for segment parameters, aligning with Next.js expectations
-type SegmentParams<T extends object = Record<string, unknown>> =
-  T extends Record<string, unknown>
-    ? { [K in keyof T]: T[K] extends string ? string | string[] | undefined : never }
-    : T;
+type SegmentParams = { [key: string]: string | string[] | undefined };
 
 // Next.js 15 route context - using the correct structure expected by Next.js
 interface RouteContext {
@@ -467,7 +464,7 @@ export function createRouteHandler<
       },
       request: NextRequest,
       routeParams?: { params?: Promise<SegmentParams> },
-    ) => Promise<NextResponse>,
+    ) => Promise<NextResponse | Response>,
   ) {
     let wrappedHandler = async (
       request: NextRequest,
@@ -585,18 +582,31 @@ export function createRouteHandler<
 
       const result = await handler(context, request, routeContext);
 
+      // Convert Response to NextResponse if needed
+      let nextResponse: NextResponse;
+      if (result instanceof Response && !("cookies" in result)) {
+        // This is a raw Response, convert to NextResponse
+        nextResponse = new NextResponse(result.body, {
+          status: result.status,
+          statusText: result.statusText,
+          headers: result.headers,
+        });
+      } else {
+        nextResponse = result as NextResponse;
+      }
+
       // Add rate limit headers for successful responses with advanced rate limiting
       if (config.rateLimit && "operation" in config.rateLimit && config.rateLimit.operation) {
         const rateLimitUserId = userId ?? getClientIdentifier(request);
         const status = RateLimiter.getStatus(config.rateLimit.operation, rateLimitUserId);
 
         if (status) {
-          result.headers.set("X-RateLimit-Remaining", status.remaining.toString());
-          result.headers.set("X-RateLimit-Reset", status.resetTime.toString());
+          nextResponse.headers.set("X-RateLimit-Remaining", status.remaining.toString());
+          nextResponse.headers.set("X-RateLimit-Reset", status.resetTime.toString());
         }
       }
 
-      return result;
+      return nextResponse;
     };
 
     // Apply legacy rate limiting if configured (only for non-operation-based rate limits)

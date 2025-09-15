@@ -203,7 +203,7 @@ async function getGmailConnectionStatus(
     autoRefreshed: undefined,
     service: integration.service,
     emailCount: emailsImported[0]?.count ?? 0,
-    lastSync: lastSyncData[0]?.createdAt?.toISOString(),
+    ...(lastSyncData[0]?.createdAt && { lastSync: lastSyncData[0].createdAt.toISOString() }),
   };
 }
 

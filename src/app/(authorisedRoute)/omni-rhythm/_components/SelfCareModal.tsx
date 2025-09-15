@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { format, addMinutes } from "date-fns";
 import { Cross } from "lucide-react";
-import { SelfCareModalProps } from "./types";
+import { SelfCareModalProps, CalendarEventCreateData } from "./types";
 
 const selfCareOptions = [
   "Reflect on the day",
@@ -63,10 +63,10 @@ export function SelfCareModal({ onCreateEvent }: SelfCareModalProps): JSX.Elemen
       const startDateTime = `${formData.startDate}T${formData.startTime}`;
       const endDateTime = `${formData.startDate}T${formData.endTime}`;
 
-      const eventData = {
+      const eventData: CalendarEventCreateData = {
         summary: formData.title,
         description: `Self Care Activity: ${formData.selfCareType}${formData.description ? `\n\nNotes: ${formData.description}` : ""}`,
-        location: formData.location || undefined,
+        ...(formData.location && { location: formData.location }),
         start: {
           dateTime: startDateTime,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,

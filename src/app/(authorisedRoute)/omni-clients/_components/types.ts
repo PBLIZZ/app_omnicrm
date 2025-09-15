@@ -618,7 +618,14 @@ export interface ClientNote {
 /**
  * Client suggestion with enhanced metadata
  */
-export interface EnhancedClientSuggestion extends ClientSuggestion {
+export interface EnhancedClientSuggestion {
+  id: string;
+  displayName: string;
+  email: string;
+  eventCount: number;
+  lastEventDate: string;
+  eventTitles: string[];
+  confidence: "low" | "medium" | "high";
   source: "calendar_attendee" | "email_contact" | "referral" | "import";
   suggestedTags: string[];
   suggestedStage: string;

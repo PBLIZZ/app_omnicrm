@@ -57,14 +57,14 @@ export class GmailApiService {
 
         return {
           isConnected: true,
-          lastSync: syncData.lastSync?.gmail ?? undefined,
+          ...(syncData.lastSync?.gmail && { lastSync: syncData.lastSync.gmail }),
           emailCount: 0,
           contactCount: 0,
         };
       } else {
         return {
           isConnected: false,
-          error: data.reason === "token_expired" ? "Gmail tokens have expired" : undefined,
+          ...(data.reason === "token_expired" && { error: "Gmail tokens have expired" }),
         };
       }
     } catch (error) {

@@ -11,9 +11,9 @@ import { ApiResponseBuilder } from "@/server/api/response";
 export const POST = createRouteHandler({
   auth: false,
   rateLimit: { operation: "email_intelligence_trigger" },
-})(async ({ requestId }): Promise<Response> => {
+})(async ({ requestId }) => {
   const api = new ApiResponseBuilder("email_intelligence.trigger", requestId);
-  return api.error("Temporarily disabled for build fix", "SERVICE_UNAVAILABLE", 503);
+  return api.error("Temporarily disabled for build fix", "INTERNAL_ERROR", undefined, undefined);
 });
 
 /**
@@ -23,7 +23,7 @@ export const POST = createRouteHandler({
 export const GET = createRouteHandler({
   auth: false,
   rateLimit: { operation: "email_intelligence_stats" },
-})(async ({ requestId }): Promise<Response> => {
+})(async ({ requestId }) => {
   const api = new ApiResponseBuilder("email_intelligence.stats", requestId);
-  return api.error("Temporarily disabled for build fix", "SERVICE_UNAVAILABLE", 503);
+  return api.error("Temporarily disabled for build fix", "INTERNAL_ERROR", undefined, undefined);
 });

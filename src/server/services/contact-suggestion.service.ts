@@ -78,7 +78,7 @@ export class ContactSuggestionService {
           email: email.toLowerCase(),
           eventCount,
           lastEventDate,
-          eventTitles: eventTitles.slice(0, 5), // Limit to 5 titles
+          eventTitles: eventTitles.split(",").slice(0, 5), // Split string and limit to 5 titles
           confidence,
           source: "calendar_attendee",
         });

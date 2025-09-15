@@ -150,7 +150,13 @@ export function OmniClientsPage(): JSX.Element {
     const validation = validationHelpers.validateClientQuickAdd(newClient);
 
     if (!validation.success) {
-      const errorsByField = validationHelpers.getErrorsByField(validation.errors ?? []);
+      // Convert custom error objects to ZodIssue format for getErrorsByField
+      const zodErrors = (validation.errors ?? []).map((error) => ({
+        code: "custom" as const,
+        message: error.message,
+        path: [],
+      }));
+      const errorsByField = validationHelpers.getErrorsByField(zodErrors);
       setFormErrors(errorsByField);
 
       // Show first error message

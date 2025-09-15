@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { format, addHours } from "date-fns";
 import { Euro } from "lucide-react";
-import { SessionModalProps } from "./types";
+import { SessionModalProps, CalendarEventCreateData } from "./types";
 
 const sessionTypes = [
   "Appointment",
@@ -65,10 +65,10 @@ export function SessionModal({ onCreateEvent }: SessionModalProps): JSX.Element 
       const startDateTime = `${formData.startDate}T${formData.startTime}`;
       const endDateTime = `${formData.startDate}T${formData.endTime}`;
 
-      const eventData = {
+      const eventData: CalendarEventCreateData = {
         summary: formData.title || `${formData.sessionType} Session`,
         description: `Session Type: ${formData.sessionType}\nClient: ${formData.clientName}\n\nAttendees: ${formData.attendees}\n\nNotes: ${formData.description}`,
-        location: formData.location || undefined,
+        ...(formData.location && { location: formData.location }),
         start: {
           dateTime: startDateTime,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -77,9 +77,9 @@ export function SessionModal({ onCreateEvent }: SessionModalProps): JSX.Element 
           dateTime: endDateTime,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
-        attendees: formData.attendees
-          ? formData.attendees.split(",").map((email) => ({ email: email.trim() }))
-          : undefined,
+        ...(formData.attendees && {
+          attendees: formData.attendees.split(",").map((email) => ({ email: email.trim() })),
+        }),
       };
 
       await onCreateEvent(eventData);

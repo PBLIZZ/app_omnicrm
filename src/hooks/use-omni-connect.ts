@@ -18,6 +18,8 @@ import type {
   GmailStats,
   EmailPreview,
   PreviewRange,
+  ConnectConnectionStatus,
+  JobStatusResponse,
 } from "@/app/(authorisedRoute)/omni-connect/_components/types";
 
 export interface UseOmniConnectResult {
@@ -123,13 +125,13 @@ export function useOmniConnect(refreshTrigger?: number): UseOmniConnectResult {
 export function useOmniConnectConnection(
   refreshTrigger?: number,
 ): ConnectConnectionStatus | undefined {
-  const { connection } = useOmniConnect(refreshTrigger);
-  return connection;
+  const { data } = useOmniConnect(refreshTrigger);
+  return data?.connection;
 }
 
 export function useOmniConnectEmails(refreshTrigger?: number): EmailPreview[] | undefined {
   const { emails } = useOmniConnect(refreshTrigger);
-  return emails;
+  return emails.emails;
 }
 
 export function useOmniConnectJobs(refreshTrigger?: number): {
@@ -145,8 +147,12 @@ export function useOmniConnectJobs(refreshTrigger?: number): {
   return {
     jobs: data?.activeJobs?.jobs ?? [],
     currentBatch: data?.activeJobs?.currentBatch ?? null,
-    totalEmails: data?.activeJobs?.totalEmails,
-    processedEmails: data?.activeJobs?.processedEmails,
+    ...(data?.activeJobs?.totalEmails !== undefined && {
+      totalEmails: data.activeJobs.totalEmails,
+    }),
+    ...(data?.activeJobs?.processedEmails !== undefined && {
+      processedEmails: data.activeJobs.processedEmails,
+    }),
     isLoading,
     error,
     refetch,

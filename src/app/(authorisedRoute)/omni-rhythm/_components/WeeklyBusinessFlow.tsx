@@ -5,31 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, TrendingUp, Calendar, Users, Target, Zap } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from "date-fns";
-
-interface Appointment {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  eventType?: string;
-  attendees?: Array<{ email: string; name?: string }>;
-}
-
-interface WeeklyStats {
-  totalAppointments: number;
-  totalRevenue: number;
-  totalHours: number;
-  busiestDay: string;
-  clientRetention: number;
-  newClients: number;
-  avgSessionLength: number;
-}
-
-interface WeeklyBusinessFlowProps {
-  appointments: Appointment[];
-  weeklyStats?: WeeklyStats;
-  isLoading?: boolean;
-}
+import { Appointment, WeeklyStats, WeeklyBusinessFlowProps } from "./types";
 
 export function WeeklyBusinessFlow({
   appointments,
@@ -307,6 +283,11 @@ function calculateWeeklyStats(appointments: Appointment[]): WeeklyStats {
         }, 0) / totalAppointments
       : 0;
 
+  // Calculate average session value and utilization rate
+  const averageSessionValue =
+    totalAppointments > 0 ? Math.round(totalRevenue / totalAppointments) : 0;
+  const utilizationRate = Math.round((totalHours / 40) * 100); // Assuming 40-hour work week
+
   return {
     totalAppointments,
     totalRevenue: Math.round(totalRevenue),
@@ -315,6 +296,8 @@ function calculateWeeklyStats(appointments: Appointment[]): WeeklyStats {
     clientRetention: 85, // Placeholder
     newClients: Math.floor(totalAppointments * 0.3), // Placeholder
     avgSessionLength: Math.round(avgSessionLength),
+    averageSessionValue,
+    utilizationRate,
   };
 }
 

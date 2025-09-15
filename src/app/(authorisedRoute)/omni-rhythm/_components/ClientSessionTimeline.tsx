@@ -15,37 +15,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { format, isAfter, differenceInDays } from "date-fns";
-
-interface Client {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-  totalSessions: number;
-  totalSpent: number;
-  lastSessionDate: string;
-  nextSessionDate?: string;
-  status: "active" | "inactive" | "prospect";
-  satisfaction: number; // 1-5 stars
-}
-
-interface SessionMilestone {
-  id: string;
-  clientId: string;
-  sessionNumber: number;
-  date: string;
-  type: "completed" | "scheduled" | "cancelled" | "no-show";
-  duration: number;
-  revenue: number;
-  notes?: string;
-  feedback?: string;
-}
-
-interface ClientSessionTimelineProps {
-  clients: Client[];
-  milestones: SessionMilestone[];
-  isLoading?: boolean;
-}
+import { Client, SessionMilestone, ClientSessionTimelineProps } from "./types";
 
 export function ClientSessionTimeline({
   clients,

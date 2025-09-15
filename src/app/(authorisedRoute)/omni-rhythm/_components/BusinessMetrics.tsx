@@ -1,15 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, TrendingUp, TrendingDown, Users, DollarSign } from "lucide-react";
-
-interface BusinessMetricsProps {
-  totalSessions: number;
-  totalRevenue: number;
-  newClients: number;
-  busiestDay: string;
-  utilizationRate: number;
-  clientRetention: number;
-}
+import { BusinessMetricsProps } from "./types";
 
 export function BusinessMetrics({
   totalSessions,

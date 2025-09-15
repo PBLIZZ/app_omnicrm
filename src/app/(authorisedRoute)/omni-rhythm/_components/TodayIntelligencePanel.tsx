@@ -15,31 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { format } from "date-fns";
-
-interface Appointment {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  location?: string;
-  attendees?: Array<{ email: string; name?: string }>;
-  eventType?: string;
-  businessCategory?: string;
-  clientContext?: {
-    clientId?: string;
-    clientName?: string;
-    sessionNumber?: number;
-    lastSessionDate?: string;
-    totalSessions?: number;
-    notes?: string;
-    preparationNeeded?: string[];
-  };
-}
-
-interface TodayIntelligencePanelProps {
-  appointments: Appointment[];
-  isLoading?: boolean;
-}
+import { Appointment, TodayIntelligencePanelProps } from "./types";
 
 export function TodayIntelligencePanel({
   appointments,

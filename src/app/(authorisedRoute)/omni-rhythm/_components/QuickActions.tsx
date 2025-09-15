@@ -1,14 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Zap, Users, Calendar, Brain, MessageSquare, FileText } from "lucide-react";
-
-interface QuickActionsProps {
-  onNewSession?: () => void;
-  onScheduleFollowup?: () => void;
-  onGenerateInsights?: () => void;
-  onSendMessage?: () => void;
-  onViewHistory?: () => void;
-}
+import { QuickActionsProps } from "./types";
 
 export function QuickActions({
   onNewSession,

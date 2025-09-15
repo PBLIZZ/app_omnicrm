@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Settings, Save, X, Plus, Info } from "lucide-react";
 import { ensureError } from "@/lib/utils/error-handler";
+import { get, post, put } from "@/lib/api/client";
 
 interface GmailSettings {
   gmailQuery: string;
@@ -24,11 +25,15 @@ interface GmailSettings {
 interface GmailSettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  isInitialSetup?: boolean;
+  onInitialSyncStarted?: () => void;
 }
 
 export function GmailSettingsPanel({
   isOpen,
   onClose,
+  isInitialSetup = false,
+  onInitialSyncStarted,
 }: GmailSettingsPanelProps): JSX.Element | null {
   const [settings, setSettings] = useState<GmailSettings>({
     gmailQuery: "category:primary -in:chats -in:drafts newer_than:30d",
@@ -43,30 +48,32 @@ export function GmailSettingsPanel({
 
   const loadSettings = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch("/api/settings/sync/prefs");
-      if (response.ok) {
-        const data = (await response.json()) as {
-          gmailQuery?: string;
-          gmailLabelIncludes?: unknown;
-          gmailLabelExcludes?: unknown;
-        };
-        if (data.gmailQuery || data.gmailLabelIncludes || data.gmailLabelExcludes) {
-          setSettings({
-            gmailQuery: data.gmailQuery ?? settings.gmailQuery,
-            gmailLabelIncludes:
-              Array.isArray(data.gmailLabelIncludes) &&
-              data.gmailLabelIncludes.every((item): item is string => typeof item === "string")
-                ? data.gmailLabelIncludes
-                : [],
-            gmailLabelExcludes:
-              Array.isArray(data.gmailLabelExcludes) &&
-              data.gmailLabelExcludes.every((item): item is string => typeof item === "string")
-                ? data.gmailLabelExcludes
-                : settings.gmailLabelExcludes,
-            maxEmailsPerSync: settings.maxEmailsPerSync,
-            dateRangeDays: settings.dateRangeDays,
-          });
-        }
+      const data = await get<{
+        gmailQuery?: string;
+        gmailLabelIncludes?: unknown;
+        gmailLabelExcludes?: unknown;
+      }>("/api/settings/sync/prefs");
+
+      if (data.gmailQuery || data.gmailLabelIncludes || data.gmailLabelExcludes) {
+        setSettings({
+          gmailQuery: data.gmailQuery ?? settings.gmailQuery,
+          gmailLabelIncludes:
+            Array.isArray(data.gmailLabelIncludes) &&
+            data.gmailLabelIncludes.every(
+              (item: unknown): item is string => typeof item === "string",
+            )
+              ? data.gmailLabelIncludes
+              : [],
+          gmailLabelExcludes:
+            Array.isArray(data.gmailLabelExcludes) &&
+            data.gmailLabelExcludes.every(
+              (item: unknown): item is string => typeof item === "string",
+            )
+              ? data.gmailLabelExcludes
+              : settings.gmailLabelExcludes,
+          maxEmailsPerSync: settings.maxEmailsPerSync,
+          dateRangeDays: settings.dateRangeDays,
+        });
       }
     } catch (error) {
       await logger.error(
@@ -102,37 +109,43 @@ export function GmailSettingsPanel({
   const saveSettings = async (): Promise<void> => {
     setIsSaving(true);
     try {
-      const response = await fetch("/api/settings/sync/prefs", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gmailQuery: settings.gmailQuery,
-          gmailLabelIncludes: settings.gmailLabelIncludes,
-          gmailLabelExcludes: settings.gmailLabelExcludes,
-        }),
-      });
+      const payload = {
+        gmailQuery: settings.gmailQuery,
+        gmailLabelIncludes: settings.gmailLabelIncludes,
+        gmailLabelExcludes: settings.gmailLabelExcludes,
+      };
 
-      if (response.ok) {
+      if (isInitialSetup) {
+        // Call the initial sync API endpoint
+        const data = await post<{ message?: string }>("/api/sync/initial/gmail", payload);
+        toast({
+          title: "Success",
+          description: data.message ?? "Settings saved and initial sync started!",
+        });
+        onInitialSyncStarted?.();
+      } else {
+        // Call the regular settings API endpoint
+        await put("/api/settings/sync/prefs", payload);
         toast({
           title: "Success",
           description: "Gmail settings saved successfully",
         });
         onClose();
-      } else {
-        throw new Error("Failed to save settings");
       }
     } catch (error) {
       await logger.error(
         "gmail_settings_save_failed",
         {
-          operation: "save_gmail_settings",
-          additionalData: { component: "GmailSettingsPanel" },
+          operation: isInitialSetup ? "save_initial_gmail_settings" : "save_gmail_settings",
+          additionalData: { component: "GmailSettingsPanel", isInitialSetup },
         },
         ensureError(error),
       );
       toast({
         title: "Error",
-        description: "Failed to save Gmail settings",
+        description: isInitialSetup
+          ? "Failed to save settings and start initial sync"
+          : "Failed to save Gmail settings",
         variant: "destructive",
       });
     } finally {
@@ -184,7 +197,9 @@ export function GmailSettingsPanel({
           <div className="flex items-center justify-between p-6 border-b">
             <div className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">Gmail Sync Settings</h2>
+              <h2 className="text-xl font-semibold">
+                {isInitialSetup ? "Configure Gmail Sync" : "Gmail Sync Settings"}
+              </h2>
             </div>
             <Button variant="outline" size="sm" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -369,7 +384,9 @@ export function GmailSettingsPanel({
           {/* Footer */}
           <div className="flex items-center justify-between p-6 border-t bg-gray-50">
             <div className="text-sm text-muted-foreground">
-              Changes will apply to your next Gmail sync
+              {isInitialSetup
+                ? "Your first Gmail sync will start after saving"
+                : "Changes will apply to your next Gmail sync"}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={onClose}>
@@ -379,12 +396,12 @@ export function GmailSettingsPanel({
                 {isSaving ? (
                   <>
                     <Save className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
+                    {isInitialSetup ? "Starting Sync..." : "Saving..."}
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    Save Settings
+                    {isInitialSetup ? "Save & Start Initial Sync" : "Save Settings"}
                   </>
                 )}
               </Button>

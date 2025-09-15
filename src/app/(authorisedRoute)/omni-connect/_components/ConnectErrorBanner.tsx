@@ -2,11 +2,11 @@
 
 import { AlertCircle } from "lucide-react";
 
-interface OmniConnectErrorBannerProps {
+interface ConnectErrorBannerProps {
   error: string | null;
 }
 
-export function OmniConnectErrorBanner({ error }: OmniConnectErrorBannerProps): JSX.Element | null {
+export function ConnectErrorBanner({ error }: ConnectErrorBannerProps): JSX.Element | null {
   if (!error) return null;
 
   return (

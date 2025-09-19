@@ -39,25 +39,39 @@ export class GmailApiService {
    */
   static async checkGmailStatus(): Promise<GmailConnectionStatus> {
     try {
-      // Use the new Gmail status endpoint with proper token expiry handling
-      const data = await apiClient.get<{
-        isConnected: boolean;
-        reason?: string;
-        expiryDate?: string;
-        hasRefreshToken?: boolean;
-        autoRefreshed?: boolean;
-        service?: string;
-      }>("/api/google/gmail/status", { showErrorToast: false });
+      // Use the unified Google status endpoint with proper token expiry handling
+      const syncData = await apiClient.get<{
+        services?: {
+          gmail?: {
+            connected: boolean;
+            autoRefreshed?: boolean;
+            integration?: {
+              service?: string;
+              expiryDate?: string;
+              hasRefreshToken?: boolean;
+            };
+            lastSync?: string;
+          };
+        };
+        lastSync?: { gmail?: string };
+      }>("/api/google/status", { showErrorToast: false });
+
+      const gmailService = syncData?.services?.gmail;
+      const data = gmailService ? {
+        isConnected: gmailService.connected,
+        reason: gmailService.connected ? "connected" : "token_expired",
+        autoRefreshed: gmailService.autoRefreshed,
+        expiryDate: gmailService.integration?.expiryDate,
+        hasRefreshToken: gmailService.integration?.hasRefreshToken,
+        service: gmailService.integration?.service,
+      } : { isConnected: false, reason: "no_integration" };
 
       if (data.isConnected) {
-        // Get additional sync info for backwards compatibility
-        const syncData = await apiClient.get<{
-          lastSync?: { gmail?: string };
-        }>("/api/settings/sync/status", { showErrorToast: false });
 
         return {
           isConnected: true,
-          ...(syncData.lastSync?.gmail && { lastSync: syncData.lastSync.gmail }),
+          ...(gmailService?.lastSync && { lastSync: gmailService.lastSync }),
+          ...(syncData.lastSync?.gmail && !gmailService?.lastSync && { lastSync: syncData.lastSync.gmail }),
           emailCount: 0,
           contactCount: 0,
         };

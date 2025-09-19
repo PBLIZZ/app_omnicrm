@@ -106,25 +106,6 @@ export const InsightKind = {
   TOPIC_TREND: "topic_trend",
 } as const;
 
-// Kind-specific props schemas (examples)
-export const LeadScorePropsSchema = z.object({
-  score0To100: z.number().int().min(0).max(100),
-  reasons: z.array(z.string()),
-  weights: z.record(z.string(), z.number()),
-});
-
-export const NextBestActionPropsSchema = z.object({
-  suggestion: z.string(),
-  expectedValueEur: z.number().optional(),
-  effort: z.enum(["low", "medium", "high"]),
-  why: z.array(z.string()),
-});
-
-export const ThreadSummaryPropsSchema = z.object({
-  bullets: z.array(z.string()),
-  tone: z.string(),
-  entities: z.record(z.string(), z.array(z.string())),
-});
 
 export type AIInsight = z.infer<typeof AIInsightSchema>;
 export type NewAIInsight = z.infer<typeof NewAIInsightSchema>;

@@ -19,7 +19,6 @@ import { ensureError } from "@/lib/utils/error-handler";
 export class JobRunner {
   private static readonly DEFAULT_BATCH_SIZE = 10;
   private static readonly MAX_RETRY_ATTEMPTS = 3;
-  private static readonly RETRY_DELAY_BASE_MS = 1000; // 1 second base delay
   private static readonly JOB_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   /**
@@ -163,7 +162,8 @@ export class JobRunner {
       });
 
       // Set up timeout for job processing
-      const timeoutPromise = new Promise<never>((_, reject) => {
+      const timeoutPromise = new Promise<never>((resolve, reject) => {
+        void resolve;
         setTimeout(() => {
           reject(new Error(`Job timeout after ${JobRunner.JOB_TIMEOUT_MS}ms`));
         }, JobRunner.JOB_TIMEOUT_MS);
@@ -224,12 +224,6 @@ export class JobRunner {
           attempts: newAttempts,
           lastError: errorMessage,
           updatedAt: new Date(),
-          // Add exponential backoff delay for retries
-          ...(shouldRetry && {
-            scheduledAt: new Date(
-              Date.now() + JobRunner.RETRY_DELAY_BASE_MS * Math.pow(2, newAttempts - 1),
-            ),
-          }),
         })
         .where(eq(jobs.id, job.id));
 

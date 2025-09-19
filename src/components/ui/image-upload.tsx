@@ -87,7 +87,7 @@ export function ImageUpload({ value, onChange, disabled = false }: ImageUploadPr
 
         // Generate unique filename with timestamp
         const timestamp = Date.now();
-        const fileExtension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const fileExtension = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
         const uniqueFileName = `${timestamp}-${uuidv4()}.${fileExtension}`;
 
         // Get signed upload URL from REST API

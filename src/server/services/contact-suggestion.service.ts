@@ -1,7 +1,6 @@
 import { getDb } from "@/server/db/client";
-import { contacts, notes } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
-// import { calendarStorage } from "@/server/storage/calendar.storage";
+import { contacts, notes, calendarEvents } from "@/server/db/schema";
+import { eq, sql, desc } from "drizzle-orm";
 import { ContactIntelligenceService } from "./contact-intelligence.service";
 import { logger } from "@/lib/observability";
 
@@ -33,18 +32,8 @@ export class ContactSuggestionService {
 
       const existingEmails = existingContacts.map((c) => c.email).filter(Boolean) as string[];
 
-      // Analyze calendar attendees using the calendar storage layer
-      // const attendeeAnalysis = await calendarStorage.getAttendeeAnalysis(userId);
-      interface AttendeeAnalysisRow {
-        email: string;
-        display_name: string;
-        event_count: number;
-        last_event_date: string;
-        event_titles: string;
-      }
-      const attendeeAnalysis: { potentialContacts: AttendeeAnalysisRow[] } = {
-        potentialContacts: [],
-      }; // Temporary until calendar.storage is restored
+      // Analyze calendar attendees from the calendarEvents table
+      const attendeeAnalysis = await this.getAttendeeAnalysisFromCalendarEvents(userId);
       const suggestions: ContactSuggestion[] = [];
 
       for (const row of attendeeAnalysis.potentialContacts) {
@@ -194,6 +183,122 @@ export class ContactSuggestionService {
         createdCount: 0,
         errors: [error instanceof Error ? error.message : "Unknown error"],
       };
+    }
+  }
+
+  /**
+   * Analyze calendar events to extract attendee information for contact suggestions
+   */
+  private static async getAttendeeAnalysisFromCalendarEvents(userId: string): Promise<{
+    potentialContacts: Array<{
+      email: string;
+      display_name: string;
+      event_count: number;
+      last_event_date: string;
+      event_titles: string;
+    }>;
+  }> {
+    try {
+      const db = await getDb();
+
+      // Get recent calendar events with attendees (last 6 months)
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+      const events = await db
+        .select({
+          attendees: calendarEvents.attendees,
+          title: calendarEvents.title,
+          startTime: calendarEvents.startTime,
+        })
+        .from(calendarEvents)
+        .where(
+          sql`${calendarEvents.userId} = ${userId} AND ${calendarEvents.startTime} >= ${sixMonthsAgo.toISOString()} AND ${calendarEvents.attendees} IS NOT NULL`,
+        )
+        .orderBy(desc(calendarEvents.startTime));
+
+      // Aggregate attendee data
+      const attendeeMap = new Map<
+        string,
+        {
+          displayName: string;
+          eventCount: number;
+          lastEventDate: string;
+          eventTitles: Set<string>;
+        }
+      >();
+
+      for (const event of events) {
+        if (!event.attendees) continue;
+
+        let attendeesList: Array<{ email: string; name?: string; displayName?: string }> = [];
+
+        try {
+          // Parse JSONB attendees field
+          attendeesList = Array.isArray(event.attendees)
+            ? (event.attendees as Array<{ email: string; name?: string; displayName?: string }>)
+            : [];
+        } catch {
+          // Skip if attendees data is malformed
+          continue;
+        }
+
+        for (const attendee of attendeesList) {
+          if (!attendee.email) continue;
+
+          const email = attendee.email.toLowerCase().trim();
+          const displayName = attendee.displayName ?? attendee.name ?? "";
+
+          // Skip empty or invalid emails
+          if (!email || email.length === 0) continue;
+
+          const existing = attendeeMap.get(email);
+          if (existing) {
+            existing.eventCount += 1;
+            existing.eventTitles.add(event.title ?? "Untitled Event");
+            // Keep the most recent event date
+            if (event.startTime > new Date(existing.lastEventDate)) {
+              existing.lastEventDate = event.startTime.toISOString();
+            }
+          } else {
+            attendeeMap.set(email, {
+              displayName: displayName.trim(),
+              eventCount: 1,
+              lastEventDate: event.startTime.toISOString(),
+              eventTitles: new Set([event.title ?? "Untitled Event"]),
+            });
+          }
+        }
+      }
+
+      // Convert map to array format expected by the caller
+      const potentialContacts = Array.from(attendeeMap.entries())
+        .map(([email, data]) => ({
+          email,
+          display_name: data.displayName,
+          event_count: data.eventCount,
+          last_event_date: data.lastEventDate,
+          event_titles: Array.from(data.eventTitles).slice(0, 5).join(","), // Limit to 5 titles
+        }))
+        // Sort by event count (most engaged first) then by recency
+        .sort((a, b) => {
+          if (a.event_count !== b.event_count) {
+            return b.event_count - a.event_count;
+          }
+          return new Date(b.last_event_date).getTime() - new Date(a.last_event_date).getTime();
+        });
+
+      return { potentialContacts };
+    } catch (error) {
+      await logger.error(
+        "Error analyzing calendar attendees",
+        {
+          operation: "contacts.suggestions.analyze_attendees",
+          additionalData: { userId: userId.slice(0, 8) + "..." },
+        },
+        error instanceof Error ? error : undefined,
+      );
+      return { potentialContacts: [] };
     }
   }
 

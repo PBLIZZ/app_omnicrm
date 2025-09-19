@@ -1,45 +1,25 @@
-// HTTP envelopes and helpers
-// Data types sourced from server/db/schema.ts (canonical database schema)
-// No manual types created - all types inferred from zod schemas
-
 import { z } from "zod";
 
-// Standard success/error envelope using discriminated union
-export const ErrorEnvelopeSchema = z.object({
+export const successEnvelope = <T extends z.ZodTypeAny>(data: T) =>
+  z.object({
+    ok: z.literal(true),
+    data,
+  });
+
+export const errorEnvelope = z.object({
   ok: z.literal(false),
   error: z.string(),
   details: z.unknown().optional(),
 });
 
-/**
- * Creates a success envelope schema for a given data type.
- *
- * @template T
- * @param {T} data - The data type to create a success envelope schema for.
- * @returns {z.ZodObject<{ ok: z.ZodLiteral<true>; data: T }>} The success envelope schema.
- */
-const SuccessEnvelopeSchema = <T extends z.ZodType>(
-  data: T,
-): z.ZodObject<{ ok: z.ZodLiteral<true>; data: T }> => z.object({ ok: z.literal(true), data });
+export const envelope = <T extends z.ZodTypeAny>(data: T) =>
+  z.discriminatedUnion("ok", [successEnvelope(data), errorEnvelope]);
 
-/**
- * Creates an envelope schema that can be either a success or error envelope.
- *
- * @template T
- * @param {T} data - The data type to create an envelope schema for.
- * @returns {z.ZodDiscriminatedUnion<"ok", [z.ZodObject<{ ok: z.ZodLiteral<true>; data: T }>, z.ZodObject<{ ok: z.ZodLiteral<false>; error: z.ZodString; details: z.ZodUnknown }>]>} The envelope schema.
- */
-export const Envelope = <T extends z.ZodType>(
-  data: T,
-): z.ZodDiscriminatedUnion<
-  "ok",
-  [z.ZodObject<{ ok: z.ZodLiteral<true>; data: T }>, typeof ErrorEnvelopeSchema]
-> => {
-  const successSchema = SuccessEnvelopeSchema(data);
-  return z.discriminatedUnion("ok", [successSchema, ErrorEnvelopeSchema]);
-};
+// Legacy export for backward compatibility
+export const Envelope = envelope;
 
-export type ErrorEnvelope = z.infer<typeof ErrorEnvelopeSchema>;
+// Legacy exports for backward compatibility
+export const ErrorEnvelopeSchema = errorEnvelope;
 
 // Pagination helpers
 export const PaginationSchema = z.object({
@@ -48,7 +28,7 @@ export const PaginationSchema = z.object({
   total: z.number().int().min(0),
 });
 
-export const PaginatedResponseSchema = <T extends z.ZodType>(
+export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(
   itemSchema: T,
 ): z.ZodObject<z.ZodRawShape> =>
   z.object({
@@ -57,3 +37,4 @@ export const PaginatedResponseSchema = <T extends z.ZodType>(
   });
 
 export type Pagination = z.infer<typeof PaginationSchema>;
+export type ErrorEnvelope = z.infer<typeof errorEnvelope>;

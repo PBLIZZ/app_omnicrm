@@ -41,10 +41,12 @@ import { format } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
-import type { Momentum } from "@/server/db/schema";
+import { type MomentumDTO } from "@omnicrm/contracts";
 
 interface MomentumKanbanViewProps {
-  momentums: Array<Momentum & { taggedContactsData?: Array<{ id: string; displayName: string }> }>;
+  momentums: Array<
+    MomentumDTO & { taggedContactsData?: Array<{ id: string; displayName: string }> }
+  >;
   isLoading: boolean;
 }
 
@@ -72,7 +74,7 @@ function TaskCard({
   task,
   isDragging = false,
 }: {
-  task: Momentum & { taggedContactsData?: Array<{ id: string; displayName: string }> };
+  task: MomentumDTO & { taggedContactsData?: Array<{ id: string; displayName: string }> };
   isDragging?: boolean;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
@@ -186,12 +188,12 @@ function TaskCard({
           {/* Tagged Contacts */}
           {contacts.length > 0 && (
             <div className="flex items-center gap-1">
-              {contacts.slice(0, 3).map((contact) => (
+              {contacts.slice(0, 3).map((contact: { id: string; displayName: string }) => (
                 <Avatar key={contact.id} className="h-5 w-5">
                   <AvatarFallback className="text-xs text-[10px]">
                     {contact.displayName
                       .split(" ")
-                      .map((n) => n[0])
+                      .map((n: string) => n[0])
                       .join("")
                       .slice(0, 2)}
                   </AvatarFallback>
@@ -217,7 +219,7 @@ function KanbanColumn({
   isLoading,
 }: {
   column: (typeof statusColumns)[0];
-  tasks: Array<Momentum & { taggedContactsData?: Array<{ id: string; displayName: string }> }>;
+  tasks: Array<MomentumDTO & { taggedContactsData?: Array<{ id: string; displayName: string }> }>;
   isLoading: boolean;
 }): JSX.Element {
   const columnTasks = tasks.filter((task) => task.status === column.id);
@@ -248,7 +250,7 @@ function KanbanColumn({
       <div className="space-y-0 min-h-32">
         {isLoading ? (
           <div className="space-y-3">
-            {Array.from({ length: 2 }).map((_, i) => (
+            {[...Array(2).keys()].map((i) => (
               <Skeleton key={i} className="w-full h-32" />
             ))}
           </div>

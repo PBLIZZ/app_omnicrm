@@ -1405,7 +1405,7 @@ export class ContactIntelligenceService {
       },
     });
 
-    const firstEventDate = (() => {
+    const firstEventDate = ((): Date | null => {
       if (events.length === 0) return null;
       const lastEvent = events[events.length - 1];
       return lastEvent?.start_time ? new Date(lastEvent.start_time) : null;

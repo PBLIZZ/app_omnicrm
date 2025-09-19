@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,15 +26,15 @@ import { IntelligenceView } from "./IntelligenceView";
 
 export function ConnectPage(): JSX.Element {
   const searchParams = useSearchParams();
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const queryClient = useQueryClient();
   const [error] = useState<string | null>(null);
   const [lastSyncStats, setLastSyncStats] = useState<{
     inserted: number;
     processed: number;
   } | null>(null);
 
-  // Unified dashboard data
-  const { isLoading, connection, emails } = useOmniConnect(refreshTrigger);
+  // Unified dashboard data - no refresh trigger needed
+  const { isLoading, connection, emails } = useOmniConnect();
 
   // Gmail sync + AI actions
   const { isSyncing } = useGmailSync();
@@ -46,7 +47,8 @@ export function ConnectPage(): JSX.Element {
       toast.success("Gmail connected successfully!", {
         description: "Your email sync has started automatically. This may take a few minutes.",
       });
-      setRefreshTrigger((prev) => prev + 1);
+      // Invalidate dashboard cache to refresh data
+      void queryClient.invalidateQueries({ queryKey: ["omniConnectDashboard"] });
     }
 
     // Handle new sync step
@@ -55,9 +57,10 @@ export function ConnectPage(): JSX.Element {
       toast.success("Gmail connected successfully!", {
         description: "Now you need to start your initial sync to import your emails.",
       });
-      setRefreshTrigger((prev) => prev + 1);
+      // Invalidate dashboard cache to refresh data
+      void queryClient.invalidateQueries({ queryKey: ["omniConnectDashboard"] });
     }
-  }, [searchParams]);
+  }, [searchParams, queryClient]);
 
   const handleLoadInsights = (): void => {
     void loadInsights();
@@ -81,7 +84,9 @@ export function ConnectPage(): JSX.Element {
       toast.success("Sync completed!", {
         description: `Processed ${response.stats.processed} emails, imported ${response.stats.inserted} new`,
       });
-      setRefreshTrigger((prev) => prev + 1);
+
+      // Invalidate dashboard cache to refresh data
+      void queryClient.invalidateQueries({ queryKey: ["omniConnectDashboard"] });
     } catch (error) {
       toast.error("Sync failed", {
         description: error instanceof Error ? error.message : "Unknown error",

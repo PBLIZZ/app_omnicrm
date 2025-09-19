@@ -32,7 +32,7 @@ export class AuthUserRepository {
         rows?: Array<{ email: string }>;
       };
 
-      if (resultsWithRows.rows && resultsWithRows.rows.length > 0 && resultsWithRows.rows[0]) {
+      if (resultsWithRows.rows?.length && resultsWithRows.rows[0]) {
         return {
           email: resultsWithRows.rows[0].email,
         };
@@ -63,7 +63,7 @@ export class AuthUserRepository {
         rows?: Array<{ [key: string]: unknown }>;
       };
 
-      return Boolean(resultsWithRows.rows && resultsWithRows.rows.length > 0);
+      return Boolean(resultsWithRows.rows?.length);
     } catch (checkUserError) {
       console.warn("Failed to check user existence:", checkUserError);
       return false;
@@ -97,7 +97,7 @@ export class AuthUserRepository {
         }>;
       };
 
-      if (resultsWithRows.rows && resultsWithRows.rows.length > 0 && resultsWithRows.rows[0]) {
+      if (resultsWithRows.rows?.length && resultsWithRows.rows[0]) {
         return resultsWithRows.rows[0];
       }
 

@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getServerUserId } from "@/server/auth/user";
-import { getDb } from "@/server/db/client";
-import { contacts, type Contact } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import { type ContactDTO } from "@omnicrm/contracts";
 import { ClientDetailPage } from "./_components/ClientDetailPage";
+import { ContactsRepository } from "@repo";
 
 interface ClientDetailProps {
   params: Promise<{ slug: string }>;
@@ -13,20 +12,14 @@ interface ClientDetailProps {
 /**
  * Fetch client data by slug
  */
-async function getClientBySlug(userId: string, slug: string): Promise<Contact | never> {
-  const db = await getDb();
+async function getClientBySlug(userId: string, slug: string): Promise<ContactDTO> {
+  const contact = await ContactsRepository.getBySlug(userId, slug);
 
-  const clientData = await db
-    .select()
-    .from(contacts)
-    .where(and(eq(contacts.userId, userId), eq(contacts.slug, slug)))
-    .limit(1);
-
-  if (clientData.length === 0) {
+  if (!contact) {
     notFound();
   }
 
-  return clientData[0]!;
+  return contact;
 }
 
 /**

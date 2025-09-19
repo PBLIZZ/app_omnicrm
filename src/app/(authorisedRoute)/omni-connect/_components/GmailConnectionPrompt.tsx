@@ -12,7 +12,7 @@ export function GmailConnectionPrompt({
   isConnecting,
 }: GmailConnectionPromptProps): JSX.Element {
   return (
-    <Card>
+    <Card data-testid="gmail-connection-prompt">
       <CardHeader className="text-center">
         <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
           <Mail className="h-6 w-6 text-blue-600" />
@@ -48,7 +48,7 @@ export function GmailConnectionPrompt({
               </p>
             </div>
           </div>
-          <Button onClick={onConnect} disabled={isConnecting} size="lg">
+          <Button onClick={onConnect} disabled={isConnecting} size="lg" data-testid="connect-gmail-button">
             <Link className="h-4 w-4 mr-2" />
             {isConnecting ? "Connecting..." : "Connect Gmail"}
           </Button>

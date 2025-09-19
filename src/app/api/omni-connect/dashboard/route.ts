@@ -2,9 +2,8 @@
  * GET /api/omni-connect/dashboard — unified dashboard endpoint (auth required)
  *
  * Consolidates data from:
- * - /api/google/gmail/status
- * - /api/settings/sync/status
- * - /api/sync/preview/gmail
+ * - /api/google/gmail/status (CONSOLIDATED)
+ * - /api/google/calendar/status (CONSOLIDATED)
  * - /api/jobs/status
  */
 import { createRouteHandler } from "@/server/api/handler";

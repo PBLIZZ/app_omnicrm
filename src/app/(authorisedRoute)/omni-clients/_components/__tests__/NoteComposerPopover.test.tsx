@@ -1,27 +1,37 @@
-import React from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+// React testing utilities;
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NoteComposerPopover } from "../NoteComposerPopover";
-import { renderWithProviders, mockToast } from "@/__tests__/test-utils";
+import { renderWithProviders, mockToast } from "../../../../../__tests__/test-utils";
+import { setupRepoMocks, resetRepoMocks, makeNoteDTO, testUtils, type AllRepoFakes } from "@packages/testing";
 
-// Mock the API client
+// Mock the API client - still needed for component API calls
 vi.mock("@/lib/api/client", () => ({
   post: vi.fn(),
 }));
 
 // Mock Sonner toast
 vi.mock("sonner", () => ({
-  toast: mockToast,
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+  },
 }));
 
 describe("NoteComposerPopover", () => {
   let mockPost: any;
+  let fakes: AllRepoFakes;
   const user = userEvent.setup();
 
   beforeAll(async () => {
-    const apiClientModule = await import("@/lib/api/client");
+    const apiClientModule = await import("../../../../../lib/api/client");
     mockPost = vi.mocked(apiClientModule.post);
+    fakes = setupRepoMocks();
   });
 
   const defaultProps = {
@@ -53,6 +63,7 @@ describe("NoteComposerPopover", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetRepoMocks(fakes);
     Object.defineProperty(window, "localStorage", {
       value: localStorageMock,
       writable: true,
@@ -144,12 +155,14 @@ describe("NoteComposerPopover", () => {
 
   describe("Note Submission", () => {
     it("submits note successfully", async () => {
-      mockPost.mockResolvedValueOnce({
+      // Use factory for consistent test data
+      const mockNote = makeNoteDTO({
         id: "note-1",
         content: "[User] Test note",
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-01T00:00:00Z",
+        contactId: "client-1",
+        userId: testUtils.defaultUserId,
       });
+      mockPost.mockResolvedValueOnce(mockNote);
 
       renderWithProviders(<NoteComposerPopover {...defaultProps} />);
 
@@ -171,12 +184,13 @@ describe("NoteComposerPopover", () => {
     });
 
     it("submits note with Enter key", async () => {
-      mockPost.mockResolvedValueOnce({
+      const mockNote = makeNoteDTO({
         id: "note-1",
         content: "[User] Test note",
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-01T00:00:00Z",
+        contactId: "client-1",
+        userId: testUtils.defaultUserId,
       });
+      mockPost.mockResolvedValueOnce(mockNote);
 
       renderWithProviders(<NoteComposerPopover {...defaultProps} />);
 
@@ -231,12 +245,13 @@ describe("NoteComposerPopover", () => {
     });
 
     it("clears form and closes popover after successful submission", async () => {
-      mockPost.mockResolvedValueOnce({
+      const mockNote = makeNoteDTO({
         id: "note-1",
         content: "[User] Test note",
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-01T00:00:00Z",
+        contactId: "client-1",
+        userId: testUtils.defaultUserId,
       });
+      mockPost.mockResolvedValueOnce(mockNote);
 
       renderWithProviders(<NoteComposerPopover {...defaultProps} />);
 
@@ -259,12 +274,13 @@ describe("NoteComposerPopover", () => {
     });
 
     it("dispatches notesUpdated event after successful submission", async () => {
-      mockPost.mockResolvedValueOnce({
+      const mockNote = makeNoteDTO({
         id: "note-1",
         content: "[User] Test note",
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-01T00:00:00Z",
+        contactId: "client-1",
+        userId: testUtils.defaultUserId,
       });
+      mockPost.mockResolvedValueOnce(mockNote);
 
       renderWithProviders(<NoteComposerPopover {...defaultProps} />);
 

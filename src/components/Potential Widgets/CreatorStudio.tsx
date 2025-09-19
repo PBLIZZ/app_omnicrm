@@ -116,7 +116,7 @@ export function CreatorStudio(): JSX.Element {
                 </div>
               ) : (
                 <div className="text-center space-y-4">
-                  <Image className="h-16 w-16 mx-auto text-purple-300" />
+                  <Image className="h-16 w-16 mx-auto text-purple-300" aria-label="Image placeholder icon" />
                   <p className="text-sm text-muted-foreground z-10">
                     Enter a prompt and click &apos;Generate Content&apos;
                     <br />

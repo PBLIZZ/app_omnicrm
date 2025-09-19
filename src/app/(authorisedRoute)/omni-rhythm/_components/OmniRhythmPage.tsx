@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { logger } from "@/lib/observability";
 
-import { Calendar, Zap, BookCheck } from "lucide-react";
 
-// Hooks
-import { useOmniRhythmData } from "@/hooks/useOmniRhythmData";
-import { useBusinessIntelligence } from "@/hooks/useBusinessIntelligence";
+// New hooks following OmniConnect pattern
+import { useCalendarData } from "@/hooks/useCalendarData";
+import { useCalendarIntelligence } from "@/hooks/useCalendarIntelligence";
+import { useCalendarConnection } from "@/hooks/useCalendarConnection";
+import { useCalendarSync } from "@/hooks/useCalendarSync";
 
 // Components - Used in Main Dashboard
 import { TodayIntelligencePanel } from "@/app/(authorisedRoute)/omni-rhythm/_components/TodayIntelligencePanel";
@@ -20,46 +21,24 @@ import { PreparationWorkflow } from "@/app/(authorisedRoute)/omni-rhythm/_compon
 // Custom Components
 import { CalendarConnectionCard } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarConnectionCard";
 import { CalendarSyncSetup } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarSyncSetup";
+import { CalendarConnectionPrompt } from "@/components/calendar/CalendarConnectionPrompt";
 import { RhythmHeader } from "@/app/(authorisedRoute)/omni-rhythm/_components/RhythmHeader";
 import { ensureError } from "@/lib/utils/error-handler";
-import { toAppointments } from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
+import { post } from "@/lib/api/client";
 
 export function OmniRhythmPage(): JSX.Element {
   const searchParams = useSearchParams();
-  // Use custom hooks for state management
-  const data = useOmniRhythmData();
-  const bi = useBusinessIntelligence(data.allEvents || []);
   const [activeTab, setActiveTab] = useState("insights");
 
-  // Calculate session metrics
-  const calculateSessionMetrics = (): { sessionsNext7Days: number; sessionsThisMonth: number } => {
-    const now = new Date();
-    const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-    const sessionsNext7Days =
-      data.allEvents?.filter((event) => {
-        if (!event.startTime) return false;
-        const eventDate = new Date(event.startTime);
-        return eventDate >= now && eventDate <= next7Days;
-      }).length ?? 0;
-
-    const sessionsThisMonth =
-      data.allEvents?.filter((event) => {
-        if (!event.startTime) return false;
-        const eventDate = new Date(event.startTime);
-        return eventDate >= startOfCurrentMonth && eventDate <= endOfCurrentMonth;
-      }).length ?? 0;
-
-    return { sessionsNext7Days, sessionsThisMonth };
-  };
-
-  const { sessionsNext7Days, sessionsThisMonth } = calculateSessionMetrics();
+  // New clean hook structure following OmniConnect pattern
+  const { events, clients, connectionStatus, isEventsLoading, isClientsLoading } = useCalendarData();
+  const { enhancedAppointments, weeklyStats, sessionMetrics } = useCalendarIntelligence(events, clients);
+  const { connect, isConnecting, error: connectionError } = useCalendarConnection();
+  const { syncCalendar, isSyncing } = useCalendarSync();
 
   const handleLoadInsights = async (): Promise<void> => {
     try {
-      const response = await fetch("/api/calendar/insights");
+      const response = await fetch("/api/google/calendar/insights");
       if (response.ok) {
         const result = (await response.json()) as { insights?: Record<string, unknown> };
         alert(`Insights loaded: ${Object.keys(result.insights ?? {}).length} categories available`);
@@ -79,6 +58,34 @@ export function OmniRhythmPage(): JSX.Element {
     }
   };
 
+  const handleProcessJobs = async (): Promise<void> => {
+    try {
+      const response = await post<{
+        success: boolean;
+        message: string;
+        processed: number;
+        succeeded: number;
+        failed: number;
+      }>("/api/jobs/process", {});
+
+      if (response.success) {
+        alert(`Job processing completed!\nProcessed: ${response.processed}\nSucceeded: ${response.succeeded}\nFailed: ${response.failed}`);
+      } else {
+        alert("Failed to process jobs");
+      }
+    } catch (error) {
+      await logger.error(
+        "job_processing_failed",
+        {
+          operation: "process_jobs",
+          additionalData: { component: "OmniRhythmPage" },
+        },
+        ensureError(error),
+      );
+      alert("Network error during job processing");
+    }
+  };
+
   const handleSearch = (query: string): void => {
     // TODO: Implement search functionality
     void logger.debug("Search initiated", {
@@ -88,11 +95,9 @@ export function OmniRhythmPage(): JSX.Element {
     });
   };
 
-  // Initialize calendar status and clients
-  useEffect(() => {
-    void data.checkCalendarStatus();
-    void data.fetchClients();
-  }, [data]);
+  // Connection status - derived from data hook
+  const isConnected = connectionStatus?.isConnected ?? false;
+  const hasCheckedConnection = connectionStatus !== undefined;
 
   // If we need to run initial import, show setup step regardless of connection
   const step = searchParams.get("step");
@@ -100,96 +105,21 @@ export function OmniRhythmPage(): JSX.Element {
     return <CalendarSyncSetup />;
   }
 
-  // If calendar is not connected AND we've checked the connection, show the Connect Your Calendar screen with preview
-  if (!data.isConnected && data.hasCheckedConnection) {
+  // If calendar is not connected AND we've checked the connection, show the Connect Your Calendar screen
+  if (!isConnected && hasCheckedConnection) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        <RhythmHeader onLoadInsights={handleLoadInsights} onSearch={handleSearch} />
-
-        <div className="space-y-8">
-          {/* Main Connection Card */}
-          <CalendarConnectionCard
-            isConnected={data.isConnected}
-            isConnecting={data.isConnecting}
-            isSyncing={data.isSyncing}
-            lastSync={data.stats?.lastSync ?? undefined}
-            error={data.error}
-            onConnect={data.connectCalendar}
-            onSync={data.syncCalendar}
-          />
-
-          {/* Preview of what you can do once connected */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Upcoming Events Preview */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Upcoming Sessions
-                </CardTitle>
-                <CardDescription>
-                  See your upcoming appointments and sessions at a glance
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Connect your calendar to see upcoming sessions</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Business Intelligence Preview */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  AI Insights
-                </CardTitle>
-                <CardDescription>
-                  Get smart recommendations and business intelligence
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Zap className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">AI insights will appear here after connecting</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Client Timeline Preview */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <BookCheck className="h-5 w-5" />
-                  Client Timeline
-                </CardTitle>
-                <CardDescription>Track client progress and session history</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="text-center py-8 text-muted-foreground">
-                    <BookCheck className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Client timelines will be built automatically</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
+      <CalendarConnectionPrompt
+        onConnect={connect}
+        isConnecting={isConnecting}
+        error={connectionError}
+      />
     );
   }
 
   // If calendar is connected, show the dashboard with calendar status in the top grid
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <RhythmHeader onLoadInsights={handleLoadInsights} onSearch={handleSearch} />
+      <RhythmHeader onLoadInsights={handleLoadInsights} onProcessJobs={handleProcessJobs} onSearch={handleSearch} />
 
       {/* Top Status Row - New Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-stretch">
@@ -197,8 +127,8 @@ export function OmniRhythmPage(): JSX.Element {
         <div className="lg:col-span-2 flex">
           <div className="w-full">
             <TodayIntelligencePanel
-              appointments={toAppointments(bi.enhancedAppointments)}
-              isLoading={false}
+              appointments={enhancedAppointments}
+              isLoading={isEventsLoading}
             />
           </div>
         </div>
@@ -225,16 +155,16 @@ export function OmniRhythmPage(): JSX.Element {
         <div className="lg:col-span-1 flex">
           <div className="w-full">
             <CalendarConnectionCard
-              isConnected={data.isConnected}
-              isConnecting={data.isConnecting}
-              isSyncing={data.isSyncing}
-              importedEventsCount={data.stats?.importedCount ?? 0}
-              lastSync={data.stats?.lastSync ?? undefined}
-              error={data.error}
-              onConnect={data.connectCalendar}
-              onSync={data.syncCalendar}
-              sessionsNext7Days={sessionsNext7Days}
-              sessionsThisMonth={sessionsThisMonth}
+              isConnected={isConnected}
+              isConnecting={isConnecting}
+              isSyncing={isSyncing}
+              importedEventsCount={events.length}
+              lastSync={connectionStatus?.lastSync}
+              error={connectionError}
+              onConnect={connect}
+              onSync={syncCalendar}
+              sessionsNext7Days={sessionMetrics.sessionsNext7Days}
+              sessionsThisMonth={sessionMetrics.sessionsThisMonth}
             />
           </div>
         </div>
@@ -250,9 +180,9 @@ export function OmniRhythmPage(): JSX.Element {
 
         <TabsContent value="insights" className="space-y-6">
           <WeeklyBusinessFlow
-            appointments={toAppointments(bi.enhancedAppointments)}
-            weeklyStats={bi.weeklyStats}
-            isLoading={false}
+            appointments={enhancedAppointments}
+            weeklyStats={weeklyStats}
+            isLoading={isEventsLoading || isClientsLoading}
           />
         </TabsContent>
 

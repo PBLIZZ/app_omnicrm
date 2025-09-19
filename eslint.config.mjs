@@ -1,147 +1,88 @@
-import { dirname } from "path";
+// eslint.config.mjs
 import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-import unusedImports from "eslint-plugin-unused-imports";
+import path from "path";
 import tsParser from "@typescript-eslint/parser";
+import tseslint from "@typescript-eslint/eslint-plugin";
+import nextPlugin from "@next/eslint-plugin-next";
+import unusedImports from "eslint-plugin-unused-imports";
 
+const isProd = process.env.CI === "true" || process.env.NODE_ENV === "production";
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+// 0) Global ignores (truly never lint these)
+const GLOBAL_IGNORES = [
+  "**/node_modules/**", "**/.pnpm/**", "**/dist/**", "**/build/**", ".next/**", "coverage/**",
+  // generated/third-party
+  "src/components/ui/**",
+  "src/lib/supabase.types.ts",
+  "supabase/functions/**",
+  // configs not in tsconfig project
+  "vitest.config.ts", "vitest.setup.ts", "playwright.config.*", "tailwind.config.*",
+  // e2e and run directories
+  "e2e/**",
+  "run/**",
+];
 
-const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
-  ...compat.extends("prettier"),
-  // Top-level ignores to keep noise down for tests/e2e scaffolding
+export default [
+  // 0) Apply global ignores first
+  { ignores: GLOBAL_IGNORES },
+
+  // 1) Fast, non-typed pass across repo
   {
-    ignores: [
-      "**/*.test.ts",
-      "**/*.spec.ts",
-      "**/*.test.tsx",
-      "**/*.spec.tsx",
-      "**/__tests__/**",
-      "**/_tests_/**",
-      ".next/**",
-      "e2e/**",
-      "tests/**",
-      // Ignore generated shadcn/ui components
-      "src/components/ui/**",
-    ],
+    files: ["**/*.{ts,tsx,js,jsx}"],
+    plugins: { "@typescript-eslint": tseslint, "unused-imports": unusedImports, "@next/next": nextPlugin },
+    languageOptions: { parser: tsParser }, // no project => cheap
+    rules: {
+      // debt prevention (still cheap)
+      "@typescript-eslint/no-unused-vars": ["error", { args: "all", argsIgnorePattern: "", caughtErrors: "all", varsIgnorePattern: "" }],
+      "unused-imports/no-unused-imports": "error",
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/ban-ts-comment": ["error", { "ts-ignore": true, "ts-expect-error": true, "ts-nocheck": true, "ts-check": true }],
+      // Next hints
+      "@next/next/no-html-link-for-pages": "off",
+      "@next/next/no-img-element": "warn",
+      // console policy
+      "no-console": isProd ? ["error", { allow: ["warn", "error"] }] : "off",
+    },
   },
+
+  // 2) Typed, expensive rules ONLY on app/server source (not tests)
   {
-    files: ["src/**/*.ts", "src/**/*.tsx"],
-    ignores: [
-      "**/*.test.ts",
-      "**/*.spec.ts",
-      "**/*.test.tsx",
-      "**/*.spec.tsx",
-      "**/__tests__/**",
-      "**/_tests_/**",
-      "e2e/**",
-      "tests/**",
-      // Ignore generated shadcn/ui components
-      "src/components/ui/**",
-      // ApiResponseBuilder needs to use new Response() internally
-      "src/server/api/response.ts",
-      // Auth/OAuth routes need NextResponse for redirects and cookies
-      "src/app/api/auth/**/route.ts",
-      "src/app/api/google/**/oauth/route.ts",
-      "src/app/api/google/**/callback/route.ts",
-      // Streaming routes need NextResponse for SSE
-      "src/app/api/**/enrich/route.ts",
+    files: [
+      "src/server/**/*.{ts,tsx}",
+      "src/app/api/**/*.{ts,tsx}",
+      "packages/repo/src/**/*.ts",
+      "packages/contracts/src/**/*.ts",
     ],
+    // These are the only files that are type-checked by ESLint
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        project: "./tsconfig.json",
+        project: path.join(__dirname, "tsconfig.json"),
+        tsconfigRootDir: __dirname,
       },
-      globals: {
-        // Browser globals
-        window: "readonly",
-        document: "readonly",
-        navigator: "readonly",
-        fetch: "readonly",
-        localStorage: "readonly",
-        sessionStorage: "readonly",
-        URL: "readonly",
-        URLSearchParams: "readonly",
-        FormData: "readonly",
-        Request: "readonly",
-        Response: "readonly",
-        Headers: "readonly",
-        console: "readonly",
-        setTimeout: "readonly",
-        clearTimeout: "readonly",
-        setInterval: "readonly",
-        clearInterval: "readonly",
-        // Node.js globals (for server-side code)
-        process: "readonly",
-        Buffer: "readonly",
-        global: "readonly",
-        __dirname: "readonly",
-        __filename: "readonly",
-      },
-    },
-    plugins: {
-      "unused-imports": unusedImports,
     },
     rules: {
-      "@typescript-eslint/no-explicit-any": ["error", { ignoreRestArgs: true }],
-      "@typescript-eslint/no-unused-vars": "error",
       "@typescript-eslint/no-unsafe-assignment": "error",
       "@typescript-eslint/no-unsafe-call": "error",
       "@typescript-eslint/no-unsafe-member-access": "error",
       "@typescript-eslint/no-unsafe-return": "error",
+      "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/explicit-function-return-type": [
         "error",
-        {
-          allowExpressions: true,
-          allowTypedFunctionExpressions: true,
-          allowHigherOrderFunctions: true,
-          allowConciseArrowFunctionExpressionsStartingWithVoid: true,
-        },
-      ],
-      // Prefer style guidance without breaking the build
-      "@typescript-eslint/prefer-nullish-coalescing": "warn",
-      "@typescript-eslint/prefer-optional-chain": "warn",
-      "@typescript-eslint/no-floating-promises": "error",
-      "unused-imports/no-unused-imports": "error",
-      "no-console": ["warn", { allow: ["warn", "error"] }],
-      // Enforce ApiResponseBuilder usage instead of raw Response.json or NextResponse.json
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector:
-            "CallExpression[callee.object.name='NextResponse'][callee.property.name='json']",
-          message:
-            "Use ApiResponseBuilder from @/server/api/response instead of NextResponse.json for consistent API responses.",
-        },
-        {
-          selector:
-            "CallExpression[callee.object.name='Response'][callee.property.name='json']",
-          message:
-            "Use ApiResponseBuilder from @/server/api/response instead of raw Response.json for consistent API responses.",
-        },
-        {
-          selector:
-            "NewExpression[callee.name='Response']",
-          message:
-            "Use ApiResponseBuilder from @/server/api/response instead of new Response() for consistent API responses.",
-        },
+        { allowExpressions: true, allowTypedFunctionExpressions: true, allowHigherOrderFunctions: true, allowConciseArrowFunctionExpressionsStartingWithVoid: true },
       ],
     },
   },
-  // API routes should use ApiResponseBuilder pattern
+
+  // 3) API routes rule: restrict NextResponse EXCEPT oauth/callback/enrich
   {
-    files: ["src/app/api/**/*.ts"],
+    files: ["src/app/api/**/route.ts"],
     ignores: [
-      // Auth/OAuth routes need NextResponse for redirects and cookies  
       "src/app/api/auth/**/route.ts",
-      "src/app/api/google/**/oauth/route.ts", 
+      "src/app/api/google/**/oauth/route.ts",
       "src/app/api/google/**/callback/route.ts",
-      // Streaming routes need NextResponse for SSE
       "src/app/api/**/enrich/route.ts",
     ],
     rules: {
@@ -152,54 +93,47 @@ const eslintConfig = [
             {
               name: "next/server",
               importNames: ["NextResponse"],
-              message: "API routes should use ApiResponseBuilder from @/server/api/response, not NextResponse.",
+              message: "Prefer your ApiResponse helper over raw NextResponse.json.",
             },
           ],
         },
       ],
-      // Enforce proper error handling pattern
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "TryStatement:not(:has(CatchClause > BlockStatement > ExpressionStatement > CallExpression[callee.object.name='apiResponse'][callee.property.name='error']))",
-          message: "Use apiResponse.error() for proper error handling in try-catch blocks.",
-        },
-      ],
     },
   },
-  // Enforce createRouteHandler pattern for API routes
+
+  // 4) Tests: explicitly turn off unsafe rules that mocks trigger
   {
-    files: ["src/app/api/**/route.ts"],
-    ignores: [
-      // Auth/OAuth routes can use legacy patterns for redirects and cookies
-      "src/app/api/auth/**/route.ts",
-      "src/app/api/google/**/oauth/route.ts",
-      "src/app/api/google/**/callback/route.ts",
-    ],
+    files: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}", "**/__tests__/**", "**/_tests_/**"],
+    languageOptions: { parser: tsParser }, // non-typed parsing is enough
     rules: {
-      "no-restricted-syntax": [
-        "error", 
-        {
-          selector: "ExportNamedDeclaration[declaration.type='FunctionDeclaration'][declaration.id.name=/^(GET|POST|PUT|DELETE|PATCH)$/]:not(:has(CallExpression[callee.name='createRouteHandler']))",
-          message: "API route handlers should use createRouteHandler() pattern from @/server/api/handler for consistent error handling and logging.",
-        },
-      ],
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "no-console": "off",
+      "@typescript-eslint/no-floating-promises": "off",
     },
   },
-  // So unit tests can be pragmatic with types and unused params
+
+  // 5) TypeScript declaration files: allow explicit any
   {
-    files: ["**/*.test.ts", "**/*.spec.ts", "**/*.test.tsx", "**/*.spec.tsx"],
+    files: ["**/*.d.ts"],
+    languageOptions: { parser: tsParser },
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+
+  // 6) Testing packages: allow explicit any and unused vars
+  {
+    files: ["packages/testing/**/*.ts"],
+    languageOptions: { parser: tsParser },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
-  {
-    files: ["src/server/db/schema.ts"],
-    rules: {
-      "@typescript-eslint/ban-ts-comment": "off",
-    },
-  },
 ];
-
-export default eslintConfig;

@@ -1,4 +1,4 @@
-import { JobRecord } from "@/server/jobs/types";
+import type { JobRecord } from "@/server/jobs/types";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { rawEvents, calendarEvents } from "@/server/db/schema";
@@ -53,6 +53,11 @@ function isGmailPayload(payload: unknown): payload is GmailPayload {
 export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   const batchId = isBatchJobPayload(job.payload) ? job.payload.batchId : undefined;
   const startedAt = Date.now();
+  const deadlineMs = startedAt + 3 * 60 * 1000; // hard cap: 3 minutes per job
+  const maxItems = 1000; // Default batch size limit
+  let itemsFetched = 0;
+  let itemsInserted = 0;
+  let itemsSkipped = 0;
 
   await logger.info("normalize_google_email_start", {
     operation: "normalize_data",
@@ -64,74 +69,129 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   });
 
   try {
-    const typedPayload = job.payload as GmailPayload;
-    if (!isGmailPayload(typedPayload)) {
-      throw new Error("Invalid Gmail payload structure");
+    const db = await getDb();
+
+    // Build query conditions for batch processing, filtering out undefined
+    const conditions = [eq(rawEvents.userId, job.userId), eq(rawEvents.provider, "gmail")];
+
+    if (batchId) {
+      conditions.push(eq(rawEvents.batchId, batchId));
     }
 
-    // Extract rich metadata using enhanced extraction methods
-    const messageId = extractMessageId(typedPayload);
-    const threadId = extractThreadId(typedPayload);
-    const subject = extractSubject(typedPayload);
-    const bodyText = extractBodyText(typedPayload);
-    const fromEmail = extractFromEmail(typedPayload);
-    const toEmails = extractToEmails(typedPayload);
-    const labels = extractLabels(typedPayload);
-    const isOutbound = isOutboundMessage(typedPayload);
-    const historyId = extractHistoryId(typedPayload);
+    const rows: RawEvent[] = await db
+      .select()
+      .from(rawEvents)
+      .where(and(...conditions))
+      .limit(Math.min(1000, maxItems));
 
-    // Create enriched source metadata
-    const enrichedSourceMeta = {
-      ...typedPayload,
-      extractedMetadata: {
-        threadId,
-        fromEmail,
-        toEmails,
-        labels,
-        isOutbound,
-        historyId,
-        extractedAt: new Date().toISOString(),
+    await logger.info("normalize_google_email_processing", {
+      operation: "normalize_data",
+      additionalData: {
+        jobId: job.id,
+        userId: job.userId,
+        totalRows: rows.length,
+        batchId,
       },
-    };
-
-    // Create the raw event record
-    const r = {
-      userId: job.userId,
-      source: "gmail",
-      sourceId: messageId,
-      occurredAt: new Date(),
-      sourceMeta: enrichedSourceMeta,
-      batchId,
-    };
-
-    // Upsert the interaction with rich metadata
-    const upsertRes = await drizzleAdminGuard.upsert("interactions", {
-      userId: job.userId,
-      contactId: null,
-      type: "email",
-      subject: subject ?? undefined,
-      bodyText: bodyText ?? undefined,
-      bodyRaw: null,
-      occurredAt: r.occurredAt instanceof Date ? r.occurredAt : new Date(String(r.occurredAt)),
-      source: "gmail",
-      sourceId: messageId ?? undefined,
-      sourceMeta: r.sourceMeta as Record<string, unknown> | null | undefined,
-      batchId: (r.batchId ?? undefined) as string | undefined,
     });
+
+    for (const event of rows) {
+      if (Date.now() > deadlineMs) {
+        await logger.warn("normalize_google_email_timeout", {
+          operation: "normalize_data",
+          additionalData: {
+            jobId: job.id,
+            userId: job.userId,
+            itemsFetched,
+            itemsInserted,
+            itemsSkipped,
+          },
+        });
+        break;
+      }
+
+      try {
+        const typedPayload = event.payload as GmailPayload;
+
+        if (!isGmailPayload(typedPayload)) {
+          await logger.warn("normalize_google_email_invalid_payload", {
+            operation: "normalize_data",
+            additionalData: {
+              jobId: job.id,
+              userId: job.userId,
+              rawEventId: event.id,
+            },
+          });
+          itemsSkipped++;
+          continue;
+        }
+
+        // Extract rich metadata using enhanced extraction methods
+        const messageId = extractMessageId(typedPayload);
+        const threadId = extractThreadId(typedPayload);
+        const subject = extractSubject(typedPayload);
+        const bodyText = extractBodyText(typedPayload);
+        const fromEmail = extractFromEmail(typedPayload);
+        const toEmails = extractToEmails(typedPayload);
+        const labels = extractLabels(typedPayload);
+        const isOutbound = isOutboundMessage(typedPayload);
+        const historyId = extractHistoryId(typedPayload);
+
+        // Create enriched source metadata
+        const enrichedSourceMeta = {
+          ...typedPayload,
+          extractedMetadata: {
+            threadId,
+            fromEmail,
+            toEmails,
+            labels,
+            isOutbound,
+            historyId,
+            extractedAt: new Date().toISOString(),
+          },
+        };
+
+        // Upsert the interaction with rich metadata
+        await drizzleAdminGuard.upsert("interactions", {
+          userId: job.userId,
+          contactId: null,
+          type: "email",
+          subject: subject ?? undefined,
+          bodyText: bodyText ?? undefined,
+          bodyRaw: null,
+          occurredAt: event.occurredAt instanceof Date ? event.occurredAt : new Date(String(event.occurredAt)),
+          source: "gmail",
+          sourceId: messageId ?? undefined,
+          sourceMeta: enrichedSourceMeta as Record<string, unknown> | null | undefined,
+          batchId: event.batchId ?? undefined,
+        });
+
+        itemsInserted++;
+        itemsFetched++;
+      } catch (error) {
+        await logger.error(
+          "normalize_google_email_item_error",
+          {
+            operation: "normalize_data",
+            additionalData: {
+              jobId: job.id,
+              userId: job.userId,
+              rawEventId: event.id,
+            },
+          },
+          ensureError(error),
+        );
+        itemsSkipped++;
+      }
+    }
 
     await logger.info("normalize_google_email_complete", {
       operation: "normalize_data",
       additionalData: {
         jobId: job.id,
         userId: job.userId,
-        messageId,
-        threadId,
-        subject: subject?.substring(0, 50),
-        fromEmail,
-        toEmailsCount: toEmails.length,
-        labelsCount: labels.length,
-        isOutbound,
-        upserted: upsertRes.length > 0,
+        itemsFetched,
+        itemsInserted,
+        itemsSkipped,
         durationMs: Date.now() - startedAt,
         batchId,
       },

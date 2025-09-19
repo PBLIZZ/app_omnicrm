@@ -25,7 +25,7 @@ const CreateTaskSchema = z.object({
   taggedContacts: z.array(z.string().uuid()).optional(),
   dueDate: z.string().datetime().optional(),
   estimatedMinutes: z.number().int().min(0).optional(),
-  aiContext: z.record(z.unknown()).optional(),
+  aiContext: z.record(z.string(), z.unknown()).optional(),
 });
 
 const taskFiltersSchema = z.object({

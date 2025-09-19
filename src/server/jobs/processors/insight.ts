@@ -1,4 +1,4 @@
-import { JobRecord } from "@/server/jobs/types";
+import type { JobRecord } from "@/server/jobs/types";
 import { getDb } from "@/server/db/client";
 import { contacts, interactions } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";

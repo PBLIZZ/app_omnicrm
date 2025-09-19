@@ -53,7 +53,7 @@ export const GET = createRouteHandler({
             console.warn(`Skipping invalid calendar item: ${validationResult.error.message}`, {
               itemId: item.id,
               itemSummary: item.summary,
-              validationErrors: validationResult.error.errors,
+              validationErrors: validationResult.error.issues,
             });
             skippedCount++;
             return null;

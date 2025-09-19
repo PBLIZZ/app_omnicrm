@@ -105,7 +105,8 @@ export function useBulkEnrichOmniClients(): UseMutationResult<unknown, Error, st
     mutationFn: async (clientIds: string[]) => {
       return await apiClient.post(`/api/omni-clients/bulk-enrich`, { ids: clientIds });
     },
-    onSuccess: (_, clientIds) => {
+    onSuccess: (data, clientIds) => {
+      void data;
       toast.success(
         `Successfully enriched ${clientIds.length} client${clientIds.length === 1 ? "" : "s"} with AI insights`,
       );

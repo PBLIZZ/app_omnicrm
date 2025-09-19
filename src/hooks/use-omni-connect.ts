@@ -10,8 +10,9 @@
  * - Individual job status hooks
  */
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
+import { shouldRetry } from "@/lib/queries/error-handling";
 import type {
   OmniConnectDashboardState,
   GmailConnectionStatus,
@@ -34,7 +35,7 @@ export interface UseOmniConnectResult {
     status: GmailConnectionStatus;
     stats: GmailStats | undefined;
     isLoading: boolean;
-    error: string | null;
+    error: Error | null;
     connect: () => void;
     isConnecting: boolean;
     refetch: () => void;
@@ -49,15 +50,74 @@ export interface UseOmniConnectResult {
   };
 }
 
-export function useOmniConnect(refreshTrigger?: number): UseOmniConnectResult {
+export function useOmniConnect(): UseOmniConnectResult {
   // Main unified query
   const { data, error, isLoading, refetch } = useQuery({
-    queryKey: ["omniConnectDashboard", refreshTrigger],
+    queryKey: queryKeys.omniConnect.dashboard(),
     queryFn: async (): Promise<OmniConnectDashboardState> => {
       return apiClient.get("/api/omni-connect/dashboard");
     },
     staleTime: 30000, // 30 seconds - refetch in background after this
-    retry: 2,
+    retry: (failureCount, error) => shouldRetry(error, failureCount),
+    // Optimistic loading: assume connected state initially for better UX
+    initialData: {
+      connection: {
+        isConnected: true,
+        emailCount: 0,
+        contactCount: 0,
+      },
+      emailPreview: {
+        emails: [],
+        range: null,
+        previewRange: null,
+      },
+      activeJobs: {
+        jobs: [],
+        currentBatch: null,
+      },
+      jobs: {
+        active: [],
+        summary: {
+          queued: 0,
+          running: 0,
+          completed: 0,
+          failed: 0,
+        },
+        currentBatch: null,
+      },
+      syncStatus: {
+        googleConnected: true,
+        serviceTokens: {
+          google: true,
+          gmail: true,
+          calendar: true,
+          unified: true,
+        },
+        flags: {
+          gmail: true,
+          calendar: true,
+        },
+        lastSync: {
+          gmail: null,
+          calendar: null,
+        },
+        lastBatchId: null,
+        grantedScopes: {
+          gmail: null,
+          calendar: null,
+        },
+        jobs: {
+          queued: 0,
+          done: 0,
+          error: 0,
+        },
+        embedJobs: {
+          queued: 0,
+          done: 0,
+          error: 0,
+        },
+      },
+    },
   });
 
   // OAuth connection mutation
@@ -65,9 +125,6 @@ export function useOmniConnect(refreshTrigger?: number): UseOmniConnectResult {
     mutationFn: async () => {
       // Redirect to Gmail OAuth
       window.location.href = "/api/google/gmail/oauth";
-    },
-    onError: () => {
-      toast.error("Failed to start Gmail OAuth");
     },
   });
 
@@ -104,7 +161,7 @@ export function useOmniConnect(refreshTrigger?: number): UseOmniConnectResult {
       status: connectionStatus,
       stats,
       isLoading,
-      error: error ? "Failed to load Gmail statistics" : null,
+      error: error instanceof Error ? error : null,
       connect: connectMutation.mutate,
       isConnecting: connectMutation.isPending,
       refetch,
@@ -122,19 +179,17 @@ export function useOmniConnect(refreshTrigger?: number): UseOmniConnectResult {
 }
 
 // Convenience hooks for components that only need specific data slices
-export function useOmniConnectConnection(
-  refreshTrigger?: number,
-): ConnectConnectionStatus | undefined {
-  const { data } = useOmniConnect(refreshTrigger);
+export function useOmniConnectConnection(): ConnectConnectionStatus | undefined {
+  const { data } = useOmniConnect();
   return data?.connection;
 }
 
-export function useOmniConnectEmails(refreshTrigger?: number): EmailPreview[] | undefined {
-  const { emails } = useOmniConnect(refreshTrigger);
+export function useOmniConnectEmails(): EmailPreview[] | undefined {
+  const { emails } = useOmniConnect();
   return emails.emails;
 }
 
-export function useOmniConnectJobs(refreshTrigger?: number): {
+export function useOmniConnectJobs(): {
   jobs: JobStatusResponse[];
   currentBatch: string | null;
   totalEmails?: number;
@@ -143,7 +198,7 @@ export function useOmniConnectJobs(refreshTrigger?: number): {
   error: Error | null;
   refetch: () => void;
 } {
-  const { data, isLoading, error, refetch } = useOmniConnect(refreshTrigger);
+  const { data, isLoading, error, refetch } = useOmniConnect();
   return {
     jobs: data?.activeJobs?.jobs ?? [],
     currentBatch: data?.activeJobs?.currentBatch ?? null,
@@ -159,13 +214,13 @@ export function useOmniConnectJobs(refreshTrigger?: number): {
   };
 }
 
-export function useOmniConnectSyncStatus(refreshTrigger?: number): {
+export function useOmniConnectSyncStatus(): {
   syncStatus: NonNullable<OmniConnectDashboardState["syncStatus"]> | undefined;
   isLoading: boolean;
   error: Error | null;
   refetch: () => void;
 } {
-  const { data, isLoading, error, refetch } = useOmniConnect(refreshTrigger);
+  const { data, isLoading, error, refetch } = useOmniConnect();
   return {
     syncStatus: data?.syncStatus,
     isLoading,

@@ -43,10 +43,12 @@ import {
   CheckSquare,
 } from "lucide-react";
 import { format } from "date-fns";
-import type { Momentum } from "@/server/db/schema";
+import { type MomentumDTO } from "@omnicrm/contracts";
 
 interface MomentumListViewProps {
-  momentums: Array<Momentum & { taggedContactsData?: Array<{ id: string; displayName: string }> }>;
+  momentums: Array<
+    MomentumDTO & { taggedContactsData?: Array<{ id: string; displayName: string }> }
+  >;
   isLoading: boolean;
 }
 
@@ -96,7 +98,7 @@ export function MomentumListView({ momentums, isLoading }: MomentumListViewProps
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
 
   const columns: ColumnDef<
-    Momentum & { taggedContactsData?: Array<{ id: string; displayName: string }> }
+    MomentumDTO & { taggedContactsData?: Array<{ id: string; displayName: string }> }
   >[] = [
     {
       id: "select",
@@ -222,12 +224,12 @@ export function MomentumListView({ momentums, isLoading }: MomentumListViewProps
 
         return (
           <div className="flex items-center gap-1">
-            {contacts.slice(0, 3).map((contact) => (
+            {contacts.slice(0, 3).map((contact: { id: string; displayName: string }) => (
               <Avatar key={contact.id} className="h-6 w-6">
                 <AvatarFallback className="text-xs">
                   {contact.displayName
                     .split(" ")
-                    .map((n) => n[0])
+                    .map((n: string) => n[0])
                     .join("")
                     .slice(0, 2)}
                 </AvatarFallback>
@@ -341,7 +343,7 @@ export function MomentumListView({ momentums, isLoading }: MomentumListViewProps
   if (isLoading) {
     return (
       <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {[...Array(5).keys()].map((i) => (
           <Skeleton key={i} className="w-full h-16" />
         ))}
       </div>

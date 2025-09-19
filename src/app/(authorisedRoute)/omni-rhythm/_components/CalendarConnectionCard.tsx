@@ -23,12 +23,12 @@ export function CalendarConnectionCard({
 }: CalendarConnectionCardProps): JSX.Element {
   if (!isConnected) {
     return (
-      <Card>
+      <Card data-testid="calendar-connection-prompt">
         <CardHeader className="text-center">
           <CardTitle>Connect Your Google Calendar</CardTitle>
         </CardHeader>
         <CardContent className="text-center">
-          <Button onClick={onConnect} disabled={isConnecting} size="lg">
+          <Button onClick={onConnect} disabled={isConnecting} size="lg" data-testid="connect-calendar-button">
             <Link className="h-4 w-4 mr-2" />
             {isConnecting ? "Connecting..." : "Connect Google Calendar"}
           </Button>
@@ -38,10 +38,10 @@ export function CalendarConnectionCard({
   }
 
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="h-full flex flex-col" data-testid="calendar-connection-card">
       <CardHeader className="pb-1">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600" data-testid="connection-status">
             <CheckCircle className="h-4 w-4" />
             Google Calendar Connected
           </CardTitle>
@@ -49,6 +49,7 @@ export function CalendarConnectionCard({
             variant="outline"
             className="cursor-pointer hover:bg-accent transition-colors px-2 py-1"
             onClick={onSync}
+            data-testid="sync-calendar-button"
           >
             <RefreshCw className={`h-3 w-3 mr-1 ${isSyncing ? "animate-spin" : ""}`} />
             {isSyncing ? "Syncing..." : "Sync Now"}
@@ -60,7 +61,7 @@ export function CalendarConnectionCard({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Last Sync</span>
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs" data-testid="last-sync-date">
               {lastSync ? format(new Date(lastSync), "MMM d, yyyy HH:mm") : "—"}
             </Badge>
           </div>
@@ -69,11 +70,11 @@ export function CalendarConnectionCard({
         <Separator className="my-3" />
 
         {/* Metrics Section */}
-        <div className="space-y-2">
+        <div className="space-y-2" data-testid="calendar-metrics">
           {/* Total Events Imported */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Total Events Imported</span>
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs" data-testid="imported-events-count">
               {typeof importedEventsCount === "number" ? importedEventsCount : 0}
             </Badge>
           </div>
@@ -81,7 +82,7 @@ export function CalendarConnectionCard({
           {/* Sessions in Next 7 Days */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Sessions in Next 7 Days</span>
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs" data-testid="sessions-next-7-days">
               {sessionsNext7Days}
             </Badge>
           </div>
@@ -89,7 +90,7 @@ export function CalendarConnectionCard({
           {/* Sessions This Month */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Sessions This Month</span>
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs" data-testid="sessions-this-month">
               {sessionsThisMonth}
             </Badge>
           </div>
@@ -97,7 +98,7 @@ export function CalendarConnectionCard({
 
         {/* Error Alert */}
         {error && (
-          <Alert className="mt-4" variant="destructive">
+          <Alert className="mt-4" variant="destructive" data-testid="calendar-error">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               {error.includes("authentication expired") || error.includes("invalid_grant")

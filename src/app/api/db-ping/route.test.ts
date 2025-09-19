@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { NextRequest } from "next/server";
+import { makeRouteContext } from "@/__tests__/helpers/routeContext";
 
 describe("/api/db-ping", () => {
   beforeEach(() => {
@@ -24,7 +25,7 @@ describe("/api/db-ping", () => {
 
     const { GET } = await import("./route");
     const req = new NextRequest("http://localhost:3000/api/db-ping");
-    const res = await GET(req);
+    const res = await GET(req, makeRouteContext());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
@@ -47,7 +48,7 @@ describe("/api/db-ping", () => {
 
     const { GET } = await import("./route");
     const req = new NextRequest("http://localhost:3000/api/db-ping");
-    const res = await GET(req);
+    const res = await GET(req, makeRouteContext());
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.ok).toBe(false);

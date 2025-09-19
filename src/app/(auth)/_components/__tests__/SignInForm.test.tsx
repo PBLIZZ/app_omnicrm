@@ -1,4 +1,4 @@
-import React from "react";
+// React component testing
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -436,7 +436,7 @@ describe("SignInForm", () => {
       const emailInput = screen.getByPlaceholderText("Email");
 
       // Rapid typing should call onChange for each character
-      await user.type(emailInput, "test", { delay: 1 });
+      await user.type(emailInput, "test");
 
       expect(defaultProps.onFormDataChange).toHaveBeenCalledTimes(4);
     });

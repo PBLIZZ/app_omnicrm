@@ -39,14 +39,14 @@ export default function CalendarLoading(): JSX.Element {
             <CardContent className="p-6">
               {/* Calendar header days */}
               <div className="grid grid-cols-7 gap-1 mb-4">
-                {Array.from({ length: 7 }, (_, i) => (
+                {[...Array(7).keys()].map((i) => (
                   <Skeleton key={i} className="h-8 w-full" />
                 ))}
               </div>
 
               {/* Calendar grid */}
               <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 35 }, (_, i) => (
+                {[...Array(35).keys()].map((i) => (
                   <Skeleton key={i} className="aspect-square" />
                 ))}
               </div>
@@ -65,7 +65,7 @@ export default function CalendarLoading(): JSX.Element {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {Array.from({ length: 3 }, (_, i) => (
+              {[...Array(3).keys()].map((i) => (
                 <div key={i} className="flex items-start gap-3">
                   <Skeleton className="w-3 h-3 rounded-full mt-1.5" />
                   <div className="flex-1 space-y-2">
@@ -90,7 +90,7 @@ export default function CalendarLoading(): JSX.Element {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {Array.from({ length: 3 }, (_, i) => (
+              {[...Array(3).keys()].map((i) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Skeleton className="w-3 h-3 rounded-full" />

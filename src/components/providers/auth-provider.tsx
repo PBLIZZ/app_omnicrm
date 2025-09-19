@@ -6,6 +6,7 @@ import { useAuth, type UseAuthResult } from "@/hooks/use-auth"; // Import from o
 const AuthContext = createContext<UseAuthResult>({
   user: null,
   isLoading: true,
+  error: null,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }): JSX.Element {

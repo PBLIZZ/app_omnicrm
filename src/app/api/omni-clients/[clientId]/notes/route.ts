@@ -1,11 +1,10 @@
-import { eq, and } from "drizzle-orm";
-import { getDb } from "@/server/db/client";
-import { notes } from "@/server/db/schema";
 import { createRouteHandler } from "@/server/api/handler";
 import { ApiResponseBuilder } from "@/server/api/response";
 import { CreateNoteSchema } from "@/lib/validation/schemas/omniClients";
+import { NotesRepository } from "@repo";
 import { logger } from "@/lib/observability";
 import { z } from "zod";
+import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * OmniClient Notes endpoint
@@ -29,20 +28,8 @@ export const GET = createRouteHandler({
   const { clientId } = validated.params;
 
   try {
-    const dbo = await getDb();
-
     // Get all notes for this client (contactId in DB = clientId from API)
-    const clientNotes = await dbo
-      .select({
-        id: notes.id,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      })
-      .from(notes)
-      .where(and(eq(notes.userId, userId), eq(notes.contactId, clientId)))
-      .orderBy(notes.createdAt);
+    const clientNotes = await NotesRepository.getNotesByContactId(userId, clientId);
 
     const formattedNotes = clientNotes.map((note) => ({
       id: note.id,
@@ -69,7 +56,7 @@ export const GET = createRouteHandler({
       "Failed to fetch client notes",
       "INTERNAL_ERROR",
       undefined,
-      error instanceof Error ? error : undefined,
+      ensureError(error),
     );
   }
 });
@@ -84,20 +71,12 @@ export const POST = createRouteHandler({
   const { clientId } = validated.params;
 
   try {
-    const dbo = await getDb();
-
-    // Create note for client (contactId in DB = clientId from API)
-    const [newNote] = await dbo
-      .insert(notes)
-      .values({
-        contactId: clientId,
-        userId,
-        title: validated.body.title,
-        content: validated.body.content,
-      })
-      .returning();
-
-    if (!newNote) return api.error("Failed to create note", "INTERNAL_ERROR");
+    // Create note for client using repository
+    const newNote = await NotesRepository.createNote(userId, {
+      contactId: clientId,
+      title: validated.body.title,
+      content: validated.body.content,
+    });
 
     const formattedNote = {
       id: newNote.id,
@@ -124,7 +103,7 @@ export const POST = createRouteHandler({
       "Failed to create client note",
       "INTERNAL_ERROR",
       undefined,
-      error instanceof Error ? error : undefined,
+      ensureError(error),
     );
   }
 });

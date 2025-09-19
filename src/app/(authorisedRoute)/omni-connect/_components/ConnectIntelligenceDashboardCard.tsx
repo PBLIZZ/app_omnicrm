@@ -23,6 +23,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useGmailAI } from "@/hooks/use-gmail-ai";
+import { useOmniConnect } from "@/hooks/use-omni-connect";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import type { WeeklyDigest, MarketingWikiItem } from "./types";
@@ -52,13 +53,18 @@ export function IntelligenceDashboardCard({
   const [selectedDigest, setSelectedDigest] = useState<WeeklyDigest | null>(null);
   const [isDigestSheetOpen, setIsDigestSheetOpen] = useState(false);
 
-  // TODO: Get real data from useOmniConnect hook when insights are available
+  // Get real data from useOmniConnect hook
+  const { connection } = useOmniConnect();
 
   // Get semantic search functionality
   const { searchQuery, setSearchQuery, searchGmail, isSearching, searchResults } = useGmailAI();
 
   // Use real data if available, fallback to mock data
-  const realDigests = weeklyDigests; // TODO: Hook up to real insights data when available
+  const realDigests = weeklyDigests;
+  
+  // Show stats if we have email data, even without AI insights
+  const hasEmailData = connection.status.emailCount && connection.status.emailCount > 0;
+  const shouldShowStats = hasEmailData || weeklyDigests.length > 0 || mockWikiItems.length > 0;
 
   const handleDigestClick = (digest: WeeklyDigest): void => {
     setSelectedDigest(digest);
@@ -113,19 +119,23 @@ export function IntelligenceDashboardCard({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {weeklyDigests.length === 0 && mockWikiItems.length === 0 ? (
-            // Empty state when no AI insights are available
+          {!shouldShowStats ? (
+            // Empty state when no data is available
             <div className="text-center py-8">
               <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-semibold mb-2">AI Intelligence Not Available</h3>
+              <h3 className="font-semibold mb-2">Email Intelligence Hub</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Email intelligence requires LLM processing of your Gmail data. Start by syncing
-                emails to generate insights.
+                {!hasEmailData 
+                  ? "Connect and sync your Gmail to start building your email intelligence."
+                  : "AI insights will appear here as your emails are processed."
+                }
               </p>
-              <Button variant="outline" size="sm" onClick={onGenerateNewDigest}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Process Emails for Insights
-              </Button>
+              {hasEmailData && (
+                <Button variant="outline" size="sm" onClick={onGenerateNewDigest}>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Process Emails for Insights
+                </Button>
+              )}
             </div>
           ) : (
             <>

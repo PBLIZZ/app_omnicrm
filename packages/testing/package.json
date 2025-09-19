@@ -1,0 +1,64 @@
+{
+  "name": "@packages/testing",
+  "version": "1.0.0",
+  "description": "Testing utilities and factories for OmniCRM application",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./factories": {
+      "import": "./src/factories.ts",
+      "types": "./src/factories.ts"
+    },
+    "./fakes": {
+      "import": "./src/fakes.ts",
+      "types": "./src/fakes.ts"
+    }
+  },
+  "files": [
+    "src/**/*",
+    "README.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.0.0",
+    "vitest-mock-extended": "^3.1.0"
+  },
+  "peerDependencies": {
+    "vitest": "^3.2.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  },
+  "keywords": [
+    "testing",
+    "factories",
+    "mocks",
+    "vitest",
+    "faker",
+    "omnicrm"
+  ],
+  "author": "OmniCRM Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/app_omnicrm.git",
+    "directory": "packages/testing"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/app_omnicrm/issues"
+  },
+  "homepage": "https://github.com/your-org/app_omnicrm/tree/main/packages/testing#readme"
+}

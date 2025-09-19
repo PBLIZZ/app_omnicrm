@@ -28,7 +28,7 @@ vi.mock("@/server/db/client", () => {
     insert: (table: unknown) => ({
       values: (data: unknown) => {
         lastSql = `insert into jobs (kind, payload, user_id, status${
-          (data as any)?.batchId ? ", batch_id" : ""
+          (data as { batchId?: string } | null)?.batchId ? ", batch_id" : ""
         })`;
         return Promise.resolve([{ id: "new-job-id" }]);
       },
@@ -138,7 +138,7 @@ describe("jobs runner dispatch", () => {
       },
     });
 
-    const res = await runJobs(mockRequest);
+    const res = await runJobs(mockRequest, { params: Promise.resolve({}) });
     const body = await res.json();
     expect(body.data.processed).toBe(3);
 

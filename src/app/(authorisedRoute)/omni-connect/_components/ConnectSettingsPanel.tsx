@@ -52,7 +52,7 @@ export function GmailSettingsPanel({
         gmailQuery?: string;
         gmailLabelIncludes?: unknown;
         gmailLabelExcludes?: unknown;
-      }>("/api/settings/sync/prefs");
+      }>("/api/google/prefs");
 
       if (data.gmailQuery || data.gmailLabelIncludes || data.gmailLabelExcludes) {
         setSettings({
@@ -125,7 +125,7 @@ export function GmailSettingsPanel({
         onInitialSyncStarted?.();
       } else {
         // Call the regular settings API endpoint
-        await put("/api/settings/sync/prefs", payload);
+        await put("/api/google/prefs", payload);
         toast({
           title: "Success",
           description: "Gmail settings saved successfully",

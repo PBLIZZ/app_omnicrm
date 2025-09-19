@@ -1,4 +1,4 @@
-import React from "react";
+// React testing utilities;
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import { AIInsightsCard } from "../AIInsightsCard";
@@ -168,13 +168,14 @@ describe("AIInsightsCard", () => {
       renderWithProviders(<AIInsightsCard />);
 
       // Verify exact text content to ensure no unintended changes
-      const insights = [
+      const expectedInsights = [
         "Follow up on 5 high‑value leads with no reply in 3 days.",
         'Clients mention "evening availability" 12× — consider adding later classes.',
         "Recurring billing questions up 18% — add a short FAQ to onboarding.",
       ];
 
       // Check each insight individually with more flexible matching
+      expect(expectedInsights).toHaveLength(3);
       expect(
         screen.getByText(/Follow up on 5 high‑value leads with no reply in 3 days/),
       ).toBeInTheDocument();

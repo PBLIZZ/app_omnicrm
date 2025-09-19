@@ -1,8 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { GmailApiService } from "./gmail-api.service";
 import type {
-  GmailConnectionStatus,
-  EmailPreview,
   JobStatus,
   SearchResult,
   EmailInsights as GmailInsights,
@@ -33,7 +31,16 @@ Object.defineProperty(window, "location", {
 });
 
 describe("GmailApiService", () => {
-  const { apiClient } = require("@/lib/api/client");
+  // Get references to the mocked modules
+  let apiClient: { get: any; post: any };
+  let logger: { error: any };
+
+  beforeAll(async () => {
+    const apiModule = await import("@/lib/api/client");
+    const loggerModule = await import("@/lib/observability");
+    apiClient = apiModule.apiClient;
+    logger = loggerModule.logger;
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -70,7 +77,7 @@ describe("GmailApiService", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/api/google/gmail/status", {
         showErrorToast: false,
       });
-      expect(apiClient.get).toHaveBeenCalledWith("/api/settings/sync/status", {
+      expect(apiClient.get).toHaveBeenCalledWith("/api/google/status", {
         showErrorToast: false,
       });
     });
@@ -82,11 +89,7 @@ describe("GmailApiService", () => {
         hasRefreshToken: true,
       };
 
-      const mockSyncData = {
-        lastSync: {},
-      };
-
-      apiClient.get.mockResolvedValueOnce(mockStatusData).mockResolvedValueOnce(mockSyncData);
+      apiClient.get.mockResolvedValueOnce(mockStatusData).mockResolvedValueOnce({ lastSync: {} });
 
       const result = await GmailApiService.checkGmailStatus();
 
@@ -98,12 +101,10 @@ describe("GmailApiService", () => {
     });
 
     it("returns disconnected status with token expired error", async () => {
-      const mockStatusData = {
+      apiClient.get.mockResolvedValueOnce({
         isConnected: false,
         reason: "token_expired",
-      };
-
-      apiClient.get.mockResolvedValueOnce(mockStatusData);
+      });
 
       const result = await GmailApiService.checkGmailStatus();
 
@@ -116,12 +117,10 @@ describe("GmailApiService", () => {
     });
 
     it("returns disconnected status without specific error", async () => {
-      const mockStatusData = {
+      apiClient.get.mockResolvedValueOnce({
         isConnected: false,
         reason: "no_tokens",
-      };
-
-      apiClient.get.mockResolvedValueOnce(mockStatusData);
+      });
 
       const result = await GmailApiService.checkGmailStatus();
 
@@ -141,7 +140,6 @@ describe("GmailApiService", () => {
         error: "Failed to check status",
       });
 
-      const { logger } = require("@/lib/observability");
       expect(logger.error).toHaveBeenCalledWith(
         "Failed to check Gmail status",
         expect.objectContaining({
@@ -155,10 +153,7 @@ describe("GmailApiService", () => {
     });
 
     it("handles sync status API errors gracefully", async () => {
-      const mockStatusData = { isConnected: true };
-      const mockSyncError = new Error("Sync API error");
-
-      apiClient.get.mockResolvedValueOnce(mockStatusData).mockRejectedValueOnce(mockSyncError);
+      apiClient.get.mockResolvedValueOnce({ isConnected: true }).mockRejectedValueOnce(new Error("Sync API error"));
 
       // Should still return connected status even if sync data fails
       const result = await GmailApiService.checkGmailStatus();
@@ -220,7 +215,7 @@ describe("GmailApiService", () => {
     });
 
     it("fallbacks to sample subjects when no sample emails", async () => {
-      const mockPreviewData = {
+      apiClient.post.mockResolvedValueOnce({
         sampleEmails: [],
         sampleSubjects: [
           {
@@ -236,9 +231,7 @@ describe("GmailApiService", () => {
             date: "2024-01-14T12:00:00Z",
           },
         ],
-      };
-
-      apiClient.post.mockResolvedValueOnce(mockPreviewData);
+      });
 
       const result = await GmailApiService.fetchRecentEmails();
 
@@ -255,7 +248,7 @@ describe("GmailApiService", () => {
     });
 
     it("handles missing data with sensible defaults", async () => {
-      const mockPreviewData = {
+      apiClient.post.mockResolvedValueOnce({
         sampleEmails: [
           {
             // Missing most fields
@@ -265,9 +258,7 @@ describe("GmailApiService", () => {
             // Empty object
           },
         ],
-      };
-
-      apiClient.post.mockResolvedValueOnce(mockPreviewData);
+      });
 
       const result = await GmailApiService.fetchRecentEmails();
 
@@ -294,16 +285,14 @@ describe("GmailApiService", () => {
     });
 
     it("limits emails to maximum of 5", async () => {
-      const mockPreviewData = {
+      apiClient.post.mockResolvedValueOnce({
         sampleEmails: Array.from({ length: 10 }, (_, i) => ({
           id: `email-${i}`,
           subject: `Email ${i + 1}`,
           from: `sender${i}@example.com`,
           date: new Date(Date.now() - i * 86400000).toISOString(),
         })),
-      };
-
-      apiClient.post.mockResolvedValueOnce(mockPreviewData);
+      });
 
       const result = await GmailApiService.fetchRecentEmails();
 
@@ -311,7 +300,7 @@ describe("GmailApiService", () => {
     });
 
     it("calculates date range from email dates when not provided", async () => {
-      const mockPreviewData = {
+      apiClient.post.mockResolvedValueOnce({
         sampleEmails: [
           {
             id: "email-1",
@@ -324,9 +313,7 @@ describe("GmailApiService", () => {
             date: "2024-01-20T15:00:00Z",
           },
         ],
-      };
-
-      apiClient.post.mockResolvedValueOnce(mockPreviewData);
+      });
 
       const result = await GmailApiService.fetchRecentEmails();
 
@@ -337,12 +324,10 @@ describe("GmailApiService", () => {
     });
 
     it("returns null date range when no emails", async () => {
-      const mockPreviewData = {
+      apiClient.post.mockResolvedValueOnce({
         sampleEmails: [],
         sampleSubjects: [],
-      };
-
-      apiClient.post.mockResolvedValueOnce(mockPreviewData);
+      });
 
       const result = await GmailApiService.fetchRecentEmails();
 
@@ -356,7 +341,6 @@ describe("GmailApiService", () => {
 
       await expect(GmailApiService.fetchRecentEmails()).rejects.toThrow("Preview API failed");
 
-      const { logger } = require("@/lib/observability");
       expect(logger.error).toHaveBeenCalledWith(
         "Failed to fetch recent emails",
         expect.objectContaining({
@@ -369,17 +353,14 @@ describe("GmailApiService", () => {
 
   describe("updateProcessedCounts", () => {
     it("returns email and contact counts", async () => {
-      const mockEventsData = { total: 150 };
-      const mockSuggestionsData = {
+      apiClient.get.mockResolvedValueOnce({ total: 150 });
+      apiClient.post.mockResolvedValueOnce({
         suggestions: [
           { id: "contact-1", name: "John Doe" },
           { id: "contact-2", name: "Jane Smith" },
           { id: "contact-3", name: "Bob Wilson" },
         ],
-      };
-
-      apiClient.get.mockResolvedValueOnce(mockEventsData);
-      apiClient.post.mockResolvedValueOnce(mockSuggestionsData);
+      });
 
       const result = await GmailApiService.updateProcessedCounts();
 
@@ -400,11 +381,8 @@ describe("GmailApiService", () => {
     });
 
     it("handles missing totals gracefully", async () => {
-      const mockEventsData = {}; // No total field
-      const mockSuggestionsData = { suggestions: null }; // Not an array
-
-      apiClient.get.mockResolvedValueOnce(mockEventsData);
-      apiClient.post.mockResolvedValueOnce(mockSuggestionsData);
+      apiClient.get.mockResolvedValueOnce({}); // No total field
+      apiClient.post.mockResolvedValueOnce({ suggestions: null }); // Not an array
 
       const result = await GmailApiService.updateProcessedCounts();
 
@@ -425,7 +403,6 @@ describe("GmailApiService", () => {
         contactCount: 0,
       });
 
-      const { logger } = require("@/lib/observability");
       expect(logger.error).toHaveBeenCalledWith(
         "Failed to update processed counts",
         expect.objectContaining({
@@ -436,11 +413,8 @@ describe("GmailApiService", () => {
     });
 
     it("handles partial API failures", async () => {
-      const mockEventsData = { total: 100 };
-      const mockError = new Error("Suggestions API failed");
-
-      apiClient.get.mockResolvedValueOnce(mockEventsData);
-      apiClient.post.mockRejectedValueOnce(mockError);
+      apiClient.get.mockResolvedValueOnce({ total: 100 });
+      apiClient.post.mockRejectedValueOnce(new Error("Suggestions API failed"));
 
       const result = await GmailApiService.updateProcessedCounts();
 
@@ -461,8 +435,7 @@ describe("GmailApiService", () => {
 
   describe("syncApprove", () => {
     it("calls sync approve API", async () => {
-      const mockResponse = { success: true };
-      apiClient.post.mockResolvedValueOnce(mockResponse);
+      apiClient.post.mockResolvedValueOnce({ success: true });
 
       await GmailApiService.syncApprove();
 
@@ -479,8 +452,7 @@ describe("GmailApiService", () => {
 
   describe("runJobProcessor", () => {
     it("calls job runner API", async () => {
-      const mockResponse = { message: "Jobs processed" };
-      apiClient.post.mockResolvedValueOnce(mockResponse);
+      apiClient.post.mockResolvedValueOnce({ message: "Jobs processed" });
 
       await GmailApiService.runJobProcessor();
 
@@ -505,6 +477,7 @@ describe("GmailApiService", () => {
             status: "completed",
             progress: 100,
             createdAt: "2024-01-15T10:00:00Z",
+            updatedAt: "2024-01-15T10:00:00Z",
           },
           {
             id: "job-2",
@@ -512,14 +485,10 @@ describe("GmailApiService", () => {
             status: "running",
             progress: 75,
             createdAt: "2024-01-15T10:05:00Z",
+            updatedAt: "2024-01-15T10:05:00Z",
           },
         ],
-        currentBatch: {
-          id: "batch-123",
-          status: "in_progress",
-          total: 10,
-          completed: 7,
-        },
+        currentBatch: "batch-123",
       };
 
       apiClient.get.mockResolvedValueOnce(mockJobStatus);
@@ -541,7 +510,6 @@ describe("GmailApiService", () => {
         currentBatch: null,
       });
 
-      const { logger } = require("@/lib/observability");
       expect(logger.error).toHaveBeenCalledWith(
         "Failed to check job status",
         expect.objectContaining({
@@ -556,18 +524,16 @@ describe("GmailApiService", () => {
     it("searches emails with query and limit", async () => {
       const mockSearchResults: SearchResult[] = [
         {
-          id: "result-1",
           subject: "Meeting Notes",
-          from: "john@example.com",
           date: "2024-01-15T10:00:00Z",
           snippet: "Notes from our team meeting...",
+          similarity: 0.95,
         },
         {
-          id: "result-2",
           subject: "Project Update",
-          from: "sarah@example.com",
           date: "2024-01-14T15:30:00Z",
           snippet: "Latest project status update...",
+          similarity: 0.88,
         },
       ];
 
@@ -584,8 +550,7 @@ describe("GmailApiService", () => {
     });
 
     it("uses default limit when not specified", async () => {
-      const mockResponse = { results: [] };
-      apiClient.post.mockResolvedValueOnce(mockResponse);
+      apiClient.post.mockResolvedValueOnce({ results: [] });
 
       await GmailApiService.searchGmail("test query");
 
@@ -596,8 +561,7 @@ describe("GmailApiService", () => {
     });
 
     it("handles empty search results", async () => {
-      const mockResponse = { results: null };
-      apiClient.post.mockResolvedValueOnce(mockResponse);
+      apiClient.post.mockResolvedValueOnce({ results: null });
 
       const result = await GmailApiService.searchGmail("nonexistent");
 
@@ -615,18 +579,19 @@ describe("GmailApiService", () => {
   describe("loadInsights", () => {
     it("returns Gmail insights", async () => {
       const mockInsights: GmailInsights = {
-        totalEmails: 1250,
-        unreadCount: 45,
-        topSenders: [
-          { email: "john@example.com", count: 25 },
-          { email: "sarah@example.com", count: 18 },
+        patterns: ["Weekly reports", "Project updates"],
+        emailVolume: {
+          total: 1250,
+          thisWeek: 32,
+          trend: "up" as const,
+        },
+        topContacts: [
+          { email: "john@example.com", displayName: "John Doe", emailCount: 25 },
+          { email: "sarah@example.com", displayName: "Sarah Smith", emailCount: 18 },
         ],
-        emailsThisWeek: 32,
-        averageResponseTime: "2h 15m",
       };
 
-      const mockResponse = { insights: mockInsights };
-      apiClient.get.mockResolvedValueOnce(mockResponse);
+      apiClient.get.mockResolvedValueOnce({ insights: mockInsights });
 
       const result = await GmailApiService.loadInsights();
 
@@ -644,12 +609,12 @@ describe("GmailApiService", () => {
 
   describe("generateEmbeddings", () => {
     it("generates embeddings without regeneration", async () => {
-      const mockResponse = { message: "Embeddings generated successfully" };
-      apiClient.post.mockResolvedValueOnce(mockResponse);
+      const expectedResponse = { message: "Embeddings generated successfully" };
+      apiClient.post.mockResolvedValueOnce(expectedResponse);
 
       const result = await GmailApiService.generateEmbeddings();
 
-      expect(result).toEqual(mockResponse);
+      expect(result).toEqual(expectedResponse);
       expect(apiClient.post).toHaveBeenCalledWith("/api/gmail/embed", { regenerate: false });
     });
 
@@ -665,12 +630,12 @@ describe("GmailApiService", () => {
 
   describe("processContacts", () => {
     it("processes contacts successfully", async () => {
-      const mockResponse = { message: "Contacts processed successfully" };
-      apiClient.post.mockResolvedValueOnce(mockResponse);
+      const expectedResponse = { message: "Contacts processed successfully" };
+      apiClient.post.mockResolvedValueOnce(expectedResponse);
 
       const result = await GmailApiService.processContacts();
 
-      expect(result).toEqual(mockResponse);
+      expect(result).toEqual(expectedResponse);
       expect(apiClient.post).toHaveBeenCalledWith("/api/gmail/process-contacts", {});
     });
 
@@ -691,7 +656,6 @@ describe("GmailApiService", () => {
 
       expect(result.isConnected).toBe(false);
 
-      const { logger } = require("@/lib/observability");
       expect(logger.error).toHaveBeenCalledWith(
         "Failed to check Gmail status",
         expect.objectContaining({
@@ -711,7 +675,6 @@ describe("GmailApiService", () => {
 
       expect(result.isConnected).toBe(false);
 
-      const { logger } = require("@/lib/observability");
       expect(logger.error).toHaveBeenCalledWith(
         "Failed to check Gmail status",
         expect.objectContaining({

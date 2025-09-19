@@ -1,11 +1,10 @@
-import { and, eq, inArray } from "drizzle-orm";
 import { createRouteHandler } from "@/server/api/handler";
-import { getDb } from "@/server/db/client";
-import { contacts } from "@/server/db/schema";
 import { ApiResponseBuilder } from "@/server/api/response";
 import { BulkDeleteBodySchema } from "@/lib/validation/schemas/omniClients";
 import { ContactIntelligenceService } from "@/server/services/contact-intelligence.service";
+import { ContactsRepository } from "@repo";
 import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * OmniClients Bulk Enrich API
@@ -22,18 +21,10 @@ export const POST = createRouteHandler({
   const api = new ApiResponseBuilder("omni_clients_bulk_enrich", requestId);
 
   try {
-    const dbo = await getDb();
     const { ids } = validated.body;
 
-    // Get contacts to enrich with their emails
-    const clientsToEnrich = await dbo
-      .select({
-        id: contacts.id,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-      })
-      .from(contacts)
-      .where(and(eq(contacts.userId, userId), inArray(contacts.id, ids)));
+    // Get contacts to enrich with their emails using repository
+    const clientsToEnrich = await ContactsRepository.getContactsByIds(userId, ids);
 
     if (clientsToEnrich.length === 0) {
       return api.success({
@@ -60,16 +51,12 @@ export const POST = createRouteHandler({
           client.primaryEmail,
         );
 
-        // Update the client with AI insights
-        await dbo
-          .update(contacts)
-          .set({
-            stage: insights.stage,
-            tags: insights.tags ? JSON.stringify(insights.tags) : null,
-            confidenceScore: insights.confidenceScore?.toString(),
-            updatedAt: new Date(),
-          })
-          .where(eq(contacts.id, client.id));
+        // Update the client with AI insights using repository
+        await ContactsRepository.updateContact(userId, client.id, {
+          stage: insights.stage,
+          tags: insights.tags,
+          confidenceScore: insights.confidenceScore?.toString(),
+        });
 
         enrichedCount++;
       } catch (error) {
@@ -126,7 +113,7 @@ export const POST = createRouteHandler({
       "Failed to enrich clients",
       "INTERNAL_ERROR",
       undefined,
-      error instanceof Error ? error : undefined,
+      ensureError(error),
     );
   }
 });

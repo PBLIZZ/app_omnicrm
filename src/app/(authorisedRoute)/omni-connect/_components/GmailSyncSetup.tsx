@@ -82,7 +82,7 @@ export function GmailSyncSetup(): JSX.Element {
   if (syncStats) {
     return (
       <div className="container mx-auto max-w-2xl p-6">
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-green-200 bg-green-50" data-testid="sync-summary">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <CheckCircle className="h-12 w-12 text-green-600" />
@@ -93,7 +93,7 @@ export function GmailSyncSetup(): JSX.Element {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-4 text-sm" data-testid="sync-results">
               <div className="flex items-center space-x-2">
                 <Database className="h-4 w-4 text-green-600" />
                 <span>Processed: {syncStats.processed}</span>
@@ -123,7 +123,7 @@ export function GmailSyncSetup(): JSX.Element {
 
   return (
     <div className="container mx-auto max-w-2xl p-6">
-      <Card>
+      <Card data-testid="preferences-modal">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <Mail className="h-12 w-12 text-blue-600" />
@@ -133,7 +133,7 @@ export function GmailSyncSetup(): JSX.Element {
         </CardHeader>
         <CardContent className="space-y-6">
           {isStarting && (
-            <div className="space-y-4">
+            <div className="space-y-4" data-testid="sync-progress-modal">
               {progress === -1 ? (
                 <div className="w-full bg-muted rounded-full h-2">
                   <div className="h-2 bg-primary rounded-full animate-pulse"></div>
@@ -141,7 +141,7 @@ export function GmailSyncSetup(): JSX.Element {
               ) : (
                 <Progress value={progress} className="w-full" />
               )}
-              <p className="text-sm text-muted-foreground text-center">
+              <p className="text-sm text-muted-foreground text-center" data-testid="sync-progress-text">
                 {progress === -1
                   ? "Fetching and processing your emails... This may take several minutes depending on your email volume."
                   : "Import complete!"}
@@ -149,7 +149,7 @@ export function GmailSyncSetup(): JSX.Element {
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-4" data-testid="time-range-section">
             <h3 className="font-semibold">What will be imported:</h3>
             <div className="grid gap-3 text-sm text-muted-foreground">
               <div className="flex items-center space-x-3">
@@ -179,7 +179,7 @@ export function GmailSyncSetup(): JSX.Element {
           </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={startSync} disabled={isStarting} className="w-full" size="lg">
+          <Button onClick={startSync} disabled={isStarting} className="w-full" size="lg" data-testid="complete-setup-button">
             {isStarting ? "Importing..." : "Start Email Import"}
           </Button>
         </CardFooter>

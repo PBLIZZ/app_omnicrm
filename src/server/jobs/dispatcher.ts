@@ -29,6 +29,8 @@ export class JobDispatcher {
       const payload = job.payload as { provider?: string };
       if (payload?.provider === "gmail") {
         return runNormalizeGoogleEmail(job);
+      } else if (payload?.provider === "google_calendar") {
+        return runNormalizeGoogleEvent(job);
       } else {
         return runNormalizeGoogleEvent(job); // Default to calendar for backward compatibility
       }

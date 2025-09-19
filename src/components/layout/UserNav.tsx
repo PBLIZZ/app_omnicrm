@@ -33,7 +33,7 @@ interface UserMetadata {
 
 export function UserNav(): JSX.Element | null {
   // 1. Fetch user data internally using the useUser hook
-  const { user, isLoading } = useUser();
+  const { user, isLoading, error } = useUser();
   const router = useRouter();
   const { isMobile } = useSidebar();
 
@@ -47,6 +47,26 @@ export function UserNav(): JSX.Element | null {
             <div className="flex-1 space-y-2">
               <Skeleton className="h-3 w-3/4" />
               <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
+
+  // 3. Handle error state
+  if (error) {
+    console.error("[UserNav] Auth error:", error.message);
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <div className="flex items-center gap-3 p-2 text-red-500">
+            <div className="h-8 w-8 rounded-lg bg-red-100 flex items-center justify-center">
+              <span className="text-xs">!</span>
+            </div>
+            <div className="flex-1">
+              <div className="text-xs">Auth Error</div>
+              <div className="text-xs opacity-75">Please refresh</div>
             </div>
           </div>
         </SidebarMenuItem>
@@ -78,7 +98,7 @@ export function UserNav(): JSX.Element | null {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={userDetails.avatar} alt={userDetails.name} />
+                <AvatarImage src={userDetails.avatar} />
                 <AvatarFallback className="rounded-lg">{userInitial}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">

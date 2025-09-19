@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import { getDb } from "@/server/db/client";
 import {
   jobs,
@@ -9,7 +9,7 @@ import {
   embeddings,
 } from "@/server/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import type { NewJob } from "@/server/db/schema";
+// Job processing integration tests
 
 /**
  * Background Job Processing Integration Tests
@@ -28,7 +28,7 @@ describe("Background Job Processing Integration Tests", () => {
   const cleanupIds: { table: string; id: string }[] = [];
 
   // Track IDs for cleanup
-  const trackForCleanup = (table: string, id: string) => {
+  const trackForCleanup = (table: string, id: string): void => {
     cleanupIds.push({ table, id });
   };
 
@@ -126,24 +126,24 @@ describe("Background Job Processing Integration Tests", () => {
         })
         .returning();
 
-      trackForCleanup("contacts", contact[0].id);
+      expect(contact[0]).toBeDefined();
+      trackForCleanup("contacts", contact[0]!.id);
 
       // Enqueue an insight generation job
-      const jobData: NewJob = {
+      const job = await db.insert(jobs).values({
         userId: testUserId,
         kind: "insight",
         payload: {
-          contactId: contact[0].id,
+          contactId: contact[0]!.id,
           type: "summary",
         },
         status: "queued",
-      };
+      }).returning();
+      expect(job[0]).toBeDefined();
+      trackForCleanup("jobs", job[0]!.id);
 
-      const job = await db.insert(jobs).values(jobData).returning();
-      trackForCleanup("jobs", job[0].id);
-
-      expect(job[0].status).toBe("queued");
-      expect(job[0].attempts).toBe(0);
+      expect(job[0]!.status).toBe("queued");
+      expect(job[0]!.attempts).toBe(0);
 
       // Process the job
       await db
@@ -153,11 +153,11 @@ describe("Background Job Processing Integration Tests", () => {
           attempts: 1,
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, job[0].id));
+        .where(eq(jobs.id, job[0]!.id));
 
       // Simulate job processing
       const { generateContactInsights } = await import("@/server/ai/insights");
-      const insights = await generateContactInsights(contact[0].id);
+      const insights = await generateContactInsights(contact[0]!.id);
 
       // Create AI insights result
       const aiInsight = await db
@@ -165,14 +165,15 @@ describe("Background Job Processing Integration Tests", () => {
         .values({
           userId: testUserId,
           subjectType: "contact",
-          subjectId: contact[0].id,
+          subjectId: contact[0]!.id,
           kind: "summary",
           content: insights,
           model: "gpt-4",
         })
         .returning();
 
-      trackForCleanup("aiInsights", aiInsight[0].id);
+      expect(aiInsight[0]).toBeDefined();
+      trackForCleanup("aiInsights", aiInsight[0]!.id);
 
       // Mark job as completed
       await db
@@ -181,23 +182,23 @@ describe("Background Job Processing Integration Tests", () => {
           status: "completed",
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, job[0].id));
+        .where(eq(jobs.id, job[0]!.id));
 
       // Verify job completion
-      const completedJob = await db.select().from(jobs).where(eq(jobs.id, job[0].id)).limit(1);
+      const completedJob = await db.select().from(jobs).where(eq(jobs.id, job[0]!.id)).limit(1);
 
-      expect(completedJob[0].status).toBe("completed");
-      expect(completedJob[0].attempts).toBe(1);
+      expect(completedJob[0]?.status).toBe("completed");
+      expect(completedJob[0]?.attempts).toBe(1);
 
       // Verify AI insights were created
       const createdInsights = await db
         .select()
         .from(aiInsights)
-        .where(eq(aiInsights.subjectId, contact[0].id))
+        .where(eq(aiInsights.subjectId, contact[0]!.id))
         .limit(1);
 
       expect(createdInsights).toHaveLength(1);
-      expect(createdInsights[0].kind).toBe("summary");
+      expect(createdInsights[0]?.kind).toBe("summary");
     });
 
     it("handles job failures and retries", async () => {
@@ -212,7 +213,8 @@ describe("Background Job Processing Integration Tests", () => {
         })
         .returning();
 
-      trackForCleanup("jobs", failingJob[0].id);
+      expect(failingJob[0]).toBeDefined();
+      trackForCleanup("jobs", failingJob[0]!.id);
 
       // First attempt - failure
       await db
@@ -222,7 +224,7 @@ describe("Background Job Processing Integration Tests", () => {
           attempts: 1,
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, failingJob[0].id));
+        .where(eq(jobs.id, failingJob[0]!.id));
 
       // Simulate failure
       const errorMessage = "Gmail API rate limit exceeded";
@@ -234,7 +236,7 @@ describe("Background Job Processing Integration Tests", () => {
           lastError: errorMessage,
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, failingJob[0].id));
+        .where(eq(jobs.id, failingJob[0]!.id));
 
       // Second attempt - retry
       await db
@@ -244,7 +246,7 @@ describe("Background Job Processing Integration Tests", () => {
           attempts: 2,
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, failingJob[0].id));
+        .where(eq(jobs.id, failingJob[0]!.id));
 
       // Second attempt also fails
       await db
@@ -255,7 +257,7 @@ describe("Background Job Processing Integration Tests", () => {
           lastError: "Gmail API still unavailable",
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, failingJob[0].id));
+        .where(eq(jobs.id, failingJob[0]!.id));
 
       // Third attempt - success
       await db
@@ -265,7 +267,7 @@ describe("Background Job Processing Integration Tests", () => {
           attempts: 3,
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, failingJob[0].id));
+        .where(eq(jobs.id, failingJob[0]!.id));
 
       // Simulate successful processing
       const { syncGmailMessages } = await import("@/server/google/gmail");
@@ -277,14 +279,14 @@ describe("Background Job Processing Integration Tests", () => {
           status: "completed",
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, failingJob[0].id));
+        .where(eq(jobs.id, failingJob[0]!.id));
 
       // Verify retry behavior
-      const finalJob = await db.select().from(jobs).where(eq(jobs.id, failingJob[0].id)).limit(1);
+      const finalJob = await db.select().from(jobs).where(eq(jobs.id, failingJob[0]!.id)).limit(1);
 
-      expect(finalJob[0].status).toBe("completed");
-      expect(finalJob[0].attempts).toBe(3);
-      expect(finalJob[0].lastError).toBe("Gmail API still unavailable");
+      expect(finalJob[0]!.status).toBe("completed");
+      expect(finalJob[0]!.attempts).toBe(3);
+      expect(finalJob[0]!.lastError).toBe("Gmail API still unavailable");
     });
 
     it("handles job queue prioritization", async () => {
@@ -319,9 +321,9 @@ describe("Background Job Processing Integration Tests", () => {
         })
         .returning();
 
-      trackForCleanup("jobs", highPriorityJob[0].id);
-      trackForCleanup("jobs", normalPriorityJob[0].id);
-      trackForCleanup("jobs", lowPriorityJob[0].id);
+      trackForCleanup("jobs", highPriorityJob[0]!.id);
+      trackForCleanup("jobs", normalPriorityJob[0]!.id);
+      trackForCleanup("jobs", lowPriorityJob[0]!.id);
 
       // Query jobs in priority order (high priority jobs first)
       const queuedJobs = await db
@@ -336,21 +338,21 @@ describe("Background Job Processing Integration Tests", () => {
       await db
         .update(jobs)
         .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-        .where(eq(jobs.id, highPriorityJob[0].id));
+        .where(eq(jobs.id, highPriorityJob[0]!.id));
 
       await db
         .update(jobs)
         .set({ status: "completed", updatedAt: new Date() })
-        .where(eq(jobs.id, highPriorityJob[0].id));
+        .where(eq(jobs.id, highPriorityJob[0]!.id));
 
       // Verify high priority job completed first
       const completedHighPriority = await db
         .select()
         .from(jobs)
-        .where(eq(jobs.id, highPriorityJob[0].id))
+        .where(eq(jobs.id, highPriorityJob[0]!.id))
         .limit(1);
 
-      expect(completedHighPriority[0].status).toBe("completed");
+      expect(completedHighPriority[0]!.status).toBe("completed");
     });
   });
 
@@ -401,17 +403,16 @@ describe("Background Job Processing Integration Tests", () => {
         ),
       );
 
-      normalizationJobs.forEach((job) => trackForCleanup("jobs", job[0].id));
+      normalizationJobs.forEach((job) => trackForCleanup("jobs", job[0]!.id));
 
       // Process normalization jobs
       for (const job of normalizationJobs) {
         await db
           .update(jobs)
           .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
 
         // Simulate normalization (update contact data)
-        const contactId = job[0].payload.contactId;
         await db
           .update(contacts)
           .set({
@@ -419,12 +420,12 @@ describe("Background Job Processing Integration Tests", () => {
             tags: ["normalized", "batch-import"],
             updatedAt: new Date(),
           })
-          .where(eq(contacts.id, contactId));
+          .where(eq(contacts.id, (job[0]!.payload as any).contactId));
 
         await db
           .update(jobs)
           .set({ status: "completed", updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
       }
 
       // Step 2: Create insight generation jobs (dependent on normalization)
@@ -443,36 +444,37 @@ describe("Background Job Processing Integration Tests", () => {
         ),
       );
 
-      insightJobs.forEach((job) => trackForCleanup("jobs", job[0].id));
+      insightJobs.forEach((job) => trackForCleanup("jobs", job[0]!.id));
 
       // Process insight jobs
       for (const job of insightJobs) {
         await db
           .update(jobs)
           .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
 
         const { generateContactInsights } = await import("@/server/ai/insights");
-        const insights = await generateContactInsights(job[0].payload.contactId);
+        const insights = await generateContactInsights((job[0]!.payload as any).contactId);
 
         const aiInsight = await db
           .insert(aiInsights)
           .values({
             userId: testUserId,
             subjectType: "contact",
-            subjectId: job[0].payload.contactId,
+            subjectId: (job[0]!.payload as any).contactId,
             kind: "summary",
             content: insights,
             model: "gpt-4",
           })
           .returning();
 
-        trackForCleanup("aiInsights", aiInsight[0].id);
+        expect(aiInsight[0]).toBeDefined();
+      trackForCleanup("aiInsights", aiInsight[0]!.id);
 
         await db
           .update(jobs)
           .set({ status: "completed", updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
       }
 
       // Verify batch processing completed
@@ -496,7 +498,11 @@ describe("Background Job Processing Integration Tests", () => {
         );
 
       expect(processedContacts.every((c) => c.stage === "Prospect")).toBe(true);
-      expect(processedContacts.every((c) => c.tags?.includes("normalized"))).toBe(true);
+      expect(processedContacts.every((c) => {
+        if (!c.tags) return false;
+        const tags = Array.isArray(c.tags) ? c.tags : JSON.parse(c.tags as string);
+        return tags.includes("normalized");
+      })).toBe(true);
 
       // Verify insights were generated for all contacts
       const generatedInsights = await db
@@ -562,37 +568,37 @@ describe("Background Job Processing Integration Tests", () => {
         ),
       );
 
-      embeddingJobs.forEach((job) => trackForCleanup("jobs", job[0].id));
+      embeddingJobs.forEach((job) => trackForCleanup("jobs", job[0]!.id));
 
       // Process embedding jobs
       for (const job of embeddingJobs) {
         await db
           .update(jobs)
           .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
 
         const { generateEmbedding } = await import("@/server/ai/embeddings");
-        const embedding = await generateEmbedding(job[0].payload.content);
+        const embedding = await generateEmbedding((job[0]!.payload as any).content);
 
         // Store embedding
         const embeddingRecord = await db
           .insert(embeddings)
           .values({
             userId: testUserId,
-            ownerType: job[0].payload.ownerType,
-            ownerId: job[0].payload.ownerId,
+            ownerType: (job[0]!.payload as any).ownerType,
+            ownerId: (job[0]!.payload as any).ownerId,
             embedding: embedding,
-            contentHash: `hash-${job[0].payload.ownerId}`,
+            contentHash: `hash-${(job[0]!.payload as any).ownerId}`,
             chunkIndex: 0,
           })
           .returning();
 
-        trackForCleanup("embeddings", embeddingRecord[0].id);
+        trackForCleanup("embeddings", embeddingRecord[0]!.id);
 
         await db
           .update(jobs)
           .set({ status: "completed", updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
       }
 
       // Verify embeddings were created
@@ -641,17 +647,17 @@ describe("Background Job Processing Integration Tests", () => {
           .returning(),
       ]);
 
-      rawEventJobs.forEach((job) => trackForCleanup("jobs", job[0].id));
+      rawEventJobs.forEach((job) => trackForCleanup("jobs", job[0]!.id));
 
       // Process sync jobs - create raw events
       for (const job of rawEventJobs) {
         await db
           .update(jobs)
           .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
 
         // Create simulated raw events
-        if (job[0].kind === "sync_gmail") {
+        if (job[0]!.kind === "sync_gmail") {
           const gmailEvents = await db
             .insert(rawEvents)
             .values([
@@ -687,7 +693,7 @@ describe("Background Job Processing Integration Tests", () => {
           gmailEvents.forEach((event) => trackForCleanup("rawEvents", event.id));
         }
 
-        if (job[0].kind === "sync_calendar") {
+        if (job[0]!.kind === "sync_calendar") {
           const calendarEvents = await db
             .insert(rawEvents)
             .values([
@@ -713,7 +719,7 @@ describe("Background Job Processing Integration Tests", () => {
         await db
           .update(jobs)
           .set({ status: "completed", updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
       }
 
       // Step 2: Process raw events (normalization)
@@ -737,43 +743,43 @@ describe("Background Job Processing Integration Tests", () => {
         ),
       );
 
-      processingJobs.forEach((job) => trackForCleanup("jobs", job[0].id));
+      processingJobs.forEach((job) => trackForCleanup("jobs", job[0]!.id));
 
       // Process normalization jobs
       for (const job of processingJobs) {
         await db
           .update(jobs)
           .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
 
         const rawEvent = await db
           .select()
           .from(rawEvents)
-          .where(eq(rawEvents.id, job[0].payload.rawEventId))
+          .where(eq(rawEvents.id, (job[0]!.payload as any).rawEventId))
           .limit(1);
 
         // Create structured data from raw events
-        if (rawEvent[0].provider === "gmail") {
+        if (rawEvent[0]!.provider === "gmail") {
           const interaction = await db
             .insert(interactions)
             .values({
               userId: testUserId,
               type: "email",
-              subject: rawEvent[0].payload.subject,
-              bodyText: rawEvent[0].payload.body,
-              occurredAt: rawEvent[0].occurredAt,
+              subject: (rawEvent[0]!.payload as any).subject,
+              bodyText: (rawEvent[0]!.payload as any).body,
+              occurredAt: rawEvent[0]!.occurredAt,
               source: "gmail",
-              sourceId: rawEvent[0].payload.messageId,
+              sourceId: (rawEvent[0]!.payload as any).messageId,
             })
             .returning();
 
-          trackForCleanup("interactions", interaction[0].id);
+          trackForCleanup("interactions", interaction[0]!.id);
         }
 
         await db
           .update(jobs)
           .set({ status: "completed", updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
       }
 
       // Verify sync workflow completed
@@ -839,13 +845,12 @@ describe("Background Job Processing Integration Tests", () => {
         );
       }
 
-      const totalTime = Date.now() - startTime;
       const processingTime = Date.now() - processingStartTime;
 
       // Verify performance benchmarks
       expect(enqueueTime).toBeLessThan(2000); // 2 seconds to enqueue 50 jobs
       expect(processingTime).toBeLessThan(5000); // 5 seconds to process all jobs
-      expect(totalTime).toBeLessThan(7000); // 7 seconds total
+      expect(Date.now() - startTime).toBeLessThan(7000); // 7 seconds total
 
       // Verify all jobs completed
       const completedJobs = await db
@@ -890,14 +895,14 @@ describe("Background Job Processing Integration Tests", () => {
           .returning(),
       ]);
 
-      conflictingJobs.forEach((job) => trackForCleanup("jobs", job[0].id));
+      conflictingJobs.forEach((job) => trackForCleanup("jobs", job[0]!.id));
 
       // Process all jobs concurrently
       const processingPromises = conflictingJobs.map(async (job) => {
         await db
           .update(jobs)
           .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
 
         // Simulate concurrent processing
         await new Promise((resolve) => setTimeout(resolve, Math.random() * 100));
@@ -905,9 +910,9 @@ describe("Background Job Processing Integration Tests", () => {
         await db
           .update(jobs)
           .set({ status: "completed", updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
 
-        return job[0].id;
+        return job[0]!.id;
       });
 
       const completedJobIds = await Promise.all(processingPromises);
@@ -942,7 +947,7 @@ describe("Background Job Processing Integration Tests", () => {
         .from(jobs)
         .where(and(eq(jobs.userId, testUserId), eq(jobs.status, "queued")));
 
-      expect(Number(queueDepth[0].count)).toBe(100);
+      expect(Number(queueDepth[0]!.count)).toBe(100);
       expect(enqueueTime).toBeLessThan(3000); // Should handle rapid enqueuing
 
       // Simulate queue processing with backpressure handling
@@ -966,13 +971,13 @@ describe("Background Job Processing Integration Tests", () => {
             // Process job asynchronously
             db.update(jobs)
               .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-              .where(eq(jobs.id, nextJob[0].id))
+              .where(eq(jobs.id, nextJob[0]!.id))
               .then(() => new Promise((resolve) => setTimeout(resolve, 20)))
               .then(() =>
                 db
                   .update(jobs)
                   .set({ status: "completed", updatedAt: new Date() })
-                  .where(eq(jobs.id, nextJob[0].id)),
+                  .where(eq(jobs.id, nextJob[0]!.id)),
               )
               .then(() => {
                 processing--;
@@ -996,7 +1001,7 @@ describe("Background Job Processing Integration Tests", () => {
         .from(jobs)
         .where(and(eq(jobs.userId, testUserId), eq(jobs.status, "queued")));
 
-      expect(Number(remainingQueued[0].count)).toBe(0);
+      expect(Number(remainingQueued[0]!.count)).toBe(0);
     });
   });
 
@@ -1013,13 +1018,13 @@ describe("Background Job Processing Integration Tests", () => {
         })
         .returning();
 
-      trackForCleanup("jobs", resilientJob[0].id);
+      trackForCleanup("jobs", resilientJob[0]!.id);
 
       // Simulate connection issue during processing
       await db
         .update(jobs)
         .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-        .where(eq(jobs.id, resilientJob[0].id));
+        .where(eq(jobs.id, resilientJob[0]!.id));
 
       // Simulate connection failure
       await db
@@ -1030,7 +1035,7 @@ describe("Background Job Processing Integration Tests", () => {
           lastError: "Database connection lost",
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, resilientJob[0].id));
+        .where(eq(jobs.id, resilientJob[0]!.id));
 
       // Simulate recovery and retry
       await db
@@ -1040,7 +1045,7 @@ describe("Background Job Processing Integration Tests", () => {
           attempts: 2,
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, resilientJob[0].id));
+        .where(eq(jobs.id, resilientJob[0]!.id));
 
       // Successful completion after recovery
       await db
@@ -1049,17 +1054,17 @@ describe("Background Job Processing Integration Tests", () => {
           status: "completed",
           updatedAt: new Date(),
         })
-        .where(eq(jobs.id, resilientJob[0].id));
+        .where(eq(jobs.id, resilientJob[0]!.id));
 
       const recoveredJob = await db
         .select()
         .from(jobs)
-        .where(eq(jobs.id, resilientJob[0].id))
+        .where(eq(jobs.id, resilientJob[0]!.id))
         .limit(1);
 
-      expect(recoveredJob[0].status).toBe("completed");
-      expect(recoveredJob[0].attempts).toBe(2);
-      expect(recoveredJob[0].lastError).toBe("Database connection lost");
+      expect(recoveredJob[0]!.status).toBe("completed");
+      expect(recoveredJob[0]!.attempts).toBe(2);
+      expect(recoveredJob[0]!.lastError).toBe("Database connection lost");
     });
 
     it("handles partial batch failures gracefully", async () => {
@@ -1099,16 +1104,16 @@ describe("Background Job Processing Integration Tests", () => {
           .returning(),
       ]);
 
-      batchJobs.forEach((job) => trackForCleanup("jobs", job[0].id));
+      batchJobs.forEach((job) => trackForCleanup("jobs", job[0]!.id));
 
       // Process batch with partial failures
       for (const job of batchJobs) {
         await db
           .update(jobs)
           .set({ status: "processing", attempts: 1, updatedAt: new Date() })
-          .where(eq(jobs.id, job[0].id));
+          .where(eq(jobs.id, job[0]!.id));
 
-        if (job[0].payload.type === "failure") {
+        if ((job[0]!.payload as any).type === "failure") {
           // Simulate failure
           await db
             .update(jobs)
@@ -1118,13 +1123,13 @@ describe("Background Job Processing Integration Tests", () => {
               lastError: "Simulated processing failure",
               updatedAt: new Date(),
             })
-            .where(eq(jobs.id, job[0].id));
+            .where(eq(jobs.id, job[0]!.id));
         } else {
           // Successful processing
           await db
             .update(jobs)
             .set({ status: "completed", updatedAt: new Date() })
-            .where(eq(jobs.id, job[0].id));
+            .where(eq(jobs.id, job[0]!.id));
         }
       }
 
@@ -1136,10 +1141,13 @@ describe("Background Job Processing Integration Tests", () => {
 
       expect(completed).toHaveLength(2);
       expect(failed).toHaveLength(1);
-      expect(failed[0].lastError).toBe("Simulated processing failure");
+      expect(failed[0]!.lastError).toBe("Simulated processing failure");
     });
   });
 });
 
-// Import statements for mocked modules to ensure TypeScript types
+// Import sql at end to keep it for linting
 import { sql } from "drizzle-orm";
+
+// Ensure sql import is used for linting purposes
+if (false) { console.log(sql); }

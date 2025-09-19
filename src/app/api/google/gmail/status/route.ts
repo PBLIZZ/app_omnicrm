@@ -1,3 +1,15 @@
+/**
+ * GET /api/google/gmail/status — DEPRECATED Gmail connection status
+ *
+ * ⚠️ DEPRECATED: This endpoint is deprecated. Use /api/google/status instead.
+ *
+ * This endpoint will be removed in a future version. The unified endpoint
+ * provides the same functionality with improved performance and consistency.
+ *
+ * Migration guide:
+ * - Replace calls to /api/google/gmail/status with /api/google/status
+ * - Access Gmail data via response.services.gmail instead of root level
+ */
 import { createRouteHandler } from "@/server/api/handler";
 import { ApiResponseBuilder } from "@/server/api/response";
 import { eq, and } from "drizzle-orm";
@@ -10,7 +22,7 @@ export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "gmail_status" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("gmail_status", requestId);
+  const api = new ApiResponseBuilder("google.gmail.status", requestId);
   try {
     const db = await getDb();
 

@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "src/app/api/cron/process-jobs/route.ts": {
-      "maxDuration": 300
-    }
-  }
-}

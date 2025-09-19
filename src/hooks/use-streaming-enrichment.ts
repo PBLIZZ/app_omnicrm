@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queries/keys";
 import type { Contact } from "@/server/db/schema";
 
 export interface EnrichmentProgress {
@@ -166,7 +167,7 @@ export function useStreamingEnrichment(): EnrichmentState & {
                     }
 
                     // Invalidate queries to refresh data
-                    void queryClient.invalidateQueries({ queryKey: ["/api/omni-clients"] });
+                    void queryClient.invalidateQueries({ queryKey: queryKeys.clients.list() });
 
                     return {
                       ...prev,

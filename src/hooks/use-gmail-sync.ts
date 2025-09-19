@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
+import { createErrorHandler, showSyncSuccessToast } from "@/lib/queries/error-handling";
 
 type UseGmailSyncReturn = {
   // State
@@ -32,16 +34,16 @@ export function useGmailSync(): UseGmailSyncReturn {
         ...(result.batchId && { batchId: result.batchId }),
       };
     },
-    onSuccess: (data) => {
-      toast.success(data.message);
+    onSuccess: () => {
+      showSyncSuccessToast("Gmail", { count: 0 });
       toast.info("Your incremental Gmail sync is running in the background.");
 
-      // Invalidate unified dashboard data to refresh job status
-      void queryClient.invalidateQueries({ queryKey: ["omniConnectDashboard"] });
+      // Invalidate all Gmail-related queries using centralized utilities
+      void queryClient.invalidateQueries({ queryKey: queryKeys.omniConnect.dashboard() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.google.gmail.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.google.status() });
     },
-    onError: () => {
-      toast.error("Failed to start Gmail sync");
-    },
+    onError: createErrorHandler("Gmail Sync"),
   });
 
   // Generate embeddings mutation
@@ -58,9 +60,7 @@ export function useGmailSync(): UseGmailSyncReturn {
     onSuccess: (data) => {
       toast.success(data.message ?? "Embeddings generated successfully");
     },
-    onError: () => {
-      toast.error("Network error during embedding generation");
-    },
+    onError: createErrorHandler("Gmail Embeddings"),
     onSettled: () => {
       setIsEmbedding(false);
     },
@@ -77,12 +77,13 @@ export function useGmailSync(): UseGmailSyncReturn {
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      // Invalidate unified dashboard data
-      void queryClient.invalidateQueries({ queryKey: ["omniConnectDashboard"] });
+      // Invalidate contact-related queries
+      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.clients.all });
+      // Also invalidate dashboard
+      void queryClient.invalidateQueries({ queryKey: queryKeys.omniConnect.dashboard() });
     },
-    onError: () => {
-      toast.error("Failed to process contacts");
-    },
+    onError: createErrorHandler("Contact Processing"),
     onSettled: () => {
       setIsProcessingContacts(false);
     },

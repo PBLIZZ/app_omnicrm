@@ -25,9 +25,19 @@ function getCsrf(): string {
 }
 
 /** ---- Contact API calls ---- */
+// Debug logging helper
+function debugLog(message: string, data?: unknown): void {
+  if (process.env.NODE_ENV === "development") {
+    // Using console.warn instead of console.log for ESLint compliance
+    console.warn(`[CONTACTS-DEBUG] ${message}`, data ? data : "");
+  }
+}
+
 export async function fetchContacts(
   params: FetchContactsParams = {},
 ): Promise<ContactListResponse> {
+  debugLog("Starting fetchContacts with params:", params);
+
   const url = new URL("/api/omni-clients", window.location.origin);
   if (params.search) url.searchParams.set("search", params.search);
   if (params.sort) url.searchParams.set("sort", params.sort);
@@ -37,20 +47,29 @@ export async function fetchContacts(
   if (params.createdAtFilter)
     url.searchParams.set("createdAtFilter", JSON.stringify(params.createdAtFilter));
 
+  debugLog("Making request to:", url.toString());
+
   try {
     const res = await fetch(url.toString(), {
       credentials: "same-origin",
       headers: { "x-csrf-token": getCsrf() },
     });
 
+    debugLog("Response status:", res.status);
+
     if (res.status === 429) {
+      debugLog("Rate limited response");
       throw new Error('{"error":"rate_limited"}');
     }
 
-    return await parseJson<ContactListResponse>(res);
+    const result = await parseJson<ContactListResponse>(res);
+    debugLog("Successfully parsed contacts response, items count:", result.items?.length ?? 0);
+    return result;
   } catch (error) {
     // Re-throw with more specific error information
     const errorMessage = error instanceof Error ? error.message : String(error);
+    debugLog("Contacts fetch error:", errorMessage);
+
     if (errorMessage.includes("rate_limited")) {
       throw new Error('{"error":"rate_limited"}');
     }

@@ -36,24 +36,6 @@ export const NormalizedInteractionSchema = z.object({
   batchId: z.string().uuid().nullable().optional(),
 });
 
-// Interaction types enum
-export const InteractionType = {
-  EMAIL_RECEIVED: "email_received",
-  EMAIL_SENT: "email_sent",
-  SMS_RECEIVED: "sms_received",
-  SMS_SENT: "sms_sent",
-  DM_RECEIVED: "dm_received",
-  DM_SENT: "dm_sent",
-  MEETING_CREATED: "meeting_created",
-  MEETING_ATTENDED: "meeting_attended",
-  CALL_LOGGED: "call_logged",
-  NOTE_ADDED: "note_added",
-  FORM_SUBMISSION: "form_submission",
-  WEB_CHAT: "web_chat",
-  SYSTEM_EVENT: "system_event",
-} as const;
-
 export type Interaction = z.infer<typeof InteractionSchema>;
 export type NewInteraction = z.infer<typeof NewInteractionSchema>;
 export type NormalizedInteraction = z.infer<typeof NormalizedInteractionSchema>;
-export type InteractionType = (typeof InteractionType)[keyof typeof InteractionType];

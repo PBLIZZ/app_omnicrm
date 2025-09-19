@@ -2,12 +2,50 @@
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowser } from "@/lib/supabase/browser-client";
 
+// Debug logging helper
+function debugLog(message: string, data?: unknown): void {
+  if (process.env.NODE_ENV === "development") {
+    // Using console.warn instead of console.log for ESLint compliance
+    console.warn(`[AUTH-DEBUG] ${message}`, data ? data : "");
+  }
+}
+
+// Timeout promise helper
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>(() =>
+      setTimeout(() => new Error(`Operation timed out after ${timeoutMs}ms`), timeoutMs),
+    ),
+  ]);
+}
+
 export async function fetchCurrentUser(): Promise<{ user: User | null; error: Error | null }> {
+  debugLog("Starting fetchCurrentUser...");
+
   try {
-    const { data, error } = await getSupabaseBrowser().auth.getUser();
-    if (error) return { user: null, error } as { user: null; error: Error };
+    // Add timeout to prevent infinite hanging
+    const authPromise = getSupabaseBrowser().auth.getUser();
+    debugLog("Calling Supabase auth.getUser() with 10s timeout...");
+
+    const { data, error } = await withTimeout(authPromise, 10000); // 10 second timeout
+
+    if (error) {
+      debugLog("Supabase auth error:", error);
+      return { user: null, error } as { user: null; error: Error };
+    }
+
+    debugLog("Auth successful, user:", data.user ? "found" : "null");
     return { user: data.user, error: null };
   } catch (e) {
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    debugLog("Auth exception caught:", errorMessage);
+
+    // Provide more specific error messages
+    if (errorMessage.includes("timed out")) {
+      debugLog("Auth operation timed out - possible network or Supabase connection issue");
+    }
+
     return { user: null, error: e instanceof Error ? e : new Error(String(e)) };
   }
 }

@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 // Import middleware after setting env per test to ensure it reads current env
-async function loadMiddleware() {
+async function loadMiddleware(): Promise<(req: NextRequest) => Promise<Response>> {
   const mod = await import("./middleware");
   return mod.middleware as (req: NextRequest) => Promise<Response>;
 }
 
-function makeReq(path: string, opts?: { method?: string; headers?: Record<string, string> }) {
+function makeReq(path: string, opts?: { method?: string; headers?: Record<string, string> }): NextRequest {
   const method = opts?.method ?? "GET";
   const headers = new Headers(opts?.headers ?? {});
   return new NextRequest(new URL(`https://example.com${path}`), { method, headers });
@@ -16,7 +16,7 @@ function makeReq(path: string, opts?: { method?: string; headers?: Record<string
 describe("middleware: API method allow-list", () => {
   beforeEach(() => {
     // Stable env each test
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
   });
 
   it("allows POST on /api/sync/approve/* and sets Allow header for disallowed methods", async () => {

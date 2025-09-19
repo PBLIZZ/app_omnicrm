@@ -1,12 +1,12 @@
 "use client";
 
-import { Search, Zap } from "lucide-react";
+import { Search, Zap, Cog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { RhythmHeaderProps } from "./types";
 
-export function RhythmHeader({ onLoadInsights, onSearch }: RhythmHeaderProps): JSX.Element {
+export function RhythmHeader({ onLoadInsights, onProcessJobs, onSearch }: RhythmHeaderProps): JSX.Element {
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleSearchSubmit = (e: React.FormEvent): void => {
@@ -34,6 +34,14 @@ export function RhythmHeader({ onLoadInsights, onSearch }: RhythmHeaderProps): J
             className="pl-10 w-64"
           />
         </form>
+
+        {/* Process Jobs Button */}
+        {onProcessJobs && (
+          <Button onClick={onProcessJobs} variant="outline">
+            <Cog className="h-4 w-4 mr-2" />
+            Process Jobs
+          </Button>
+        )}
 
         {/* Insights Button */}
         {onLoadInsights && (

@@ -113,33 +113,79 @@ vi.mock("postgres", () => ({
 }));
 
 vi.mock("drizzle-orm/postgres-js", () => ({
-  drizzle: vi.fn().mockImplementation(() => ({
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([]),
+  drizzle: vi.fn().mockImplementation(() => {
+    // Create reusable chainable mock functions
+    const createChainableMock = (finalValue = []) => {
+      const mock = vi.fn();
+
+      // Create chainable object with proper recursive structure
+      const chainable: any = {};
+
+      // Populate the chainable object
+      Object.assign(chainable, {
+        from: vi.fn().mockReturnValue(chainable),
+        where: vi.fn().mockReturnValue(chainable),
+        orderBy: vi.fn().mockReturnValue(chainable),
+        limit: vi.fn().mockReturnValue(chainable),
+        offset: vi.fn().mockReturnValue(chainable),
+        values: vi.fn().mockReturnValue(chainable),
+        set: vi.fn().mockReturnValue(chainable),
+        returning: vi.fn().mockResolvedValue(finalValue),
+        execute: vi.fn().mockResolvedValue(finalValue),
+        then: vi.fn().mockImplementation((resolve) => Promise.resolve(resolve(finalValue))),
+      });
+
+      // Make the base function return the chainable object
+      mock.mockReturnValue(chainable);
+
+      // Also make the chainable object itself callable to handle edge cases
+      Object.setPrototypeOf(chainable, Function.prototype);
+      Object.assign(chainable, mock);
+
+      return mock;
+    };
+
+    return {
+      select: createChainableMock([]),
+      insert: createChainableMock([{ id: "test-id" }]),
+      update: createChainableMock([{ id: "test-id" }]),
+      delete: createChainableMock([{ id: "test-id" }]),
+      execute: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
+      transaction: vi.fn((cb) => {
+        const txMocks = {
+          select: createChainableMock([]),
+          insert: createChainableMock([{ id: "test-id" }]),
+          update: createChainableMock([{ id: "test-id" }]),
+          delete: createChainableMock([{ id: "test-id" }]),
+        };
+        return Promise.resolve(cb(txMocks));
       }),
-    }),
-    insert: vi.fn().mockReturnValue({
-      values: vi.fn().mockResolvedValue({ rowCount: 1 }),
-    }),
-    update: vi.fn().mockReturnValue({
-      set: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue({ rowCount: 1 }),
-      }),
-    }),
-    delete: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue({ rowCount: 1 }),
-    }),
-    execute: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
-    transaction: vi.fn((cb) =>
-      cb({
-        select: vi.fn().mockResolvedValue([]),
-        insert: vi.fn().mockResolvedValue({ rowCount: 1 }),
-        update: vi.fn().mockResolvedValue({ rowCount: 1 }),
-        delete: vi.fn().mockResolvedValue({ rowCount: 1 }),
-      }),
-    ),
-  })),
+      // Add Drizzle query API support
+      query: {
+        momentumWorkspaces: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "default-workspace",
+            name: "Default Workspace",
+            userId: "test-user",
+            isDefault: true,
+          }),
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        momentumProjects: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        contacts: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        jobs: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      },
+    };
+  }),
 }));
 
 // Mock ResizeObserver

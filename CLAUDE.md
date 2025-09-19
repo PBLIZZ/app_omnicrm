@@ -63,7 +63,7 @@ The table will reset to default column visibility with Notes column enabled.
 - **Styling**: Tailwind CSS v4 + shadcn components
 - **Testing**: Vitest (unit) + Playwright (E2E)
 - **State Management**: TanStack React Query
-- **AI**: OpenRouter integration for LLM features, Anthropic for chat and openai for Insights. Need to swithc to an embeddings model for embeddings.
+- **AI**: OpenRouter integration for LLM features, Anthropic for chat and openai for Insights. Need to switch to an embeddings model for embeddings.
 
 ### Database Philosophy
 

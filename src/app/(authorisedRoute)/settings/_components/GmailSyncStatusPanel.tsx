@@ -1,39 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail, Play, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 
-// Job status tracking types
-interface JobStatus {
-  id: string;
-  kind: string;
-  status: "queued" | "running" | "completed" | "error";
-  progress?: number;
-  message?: string;
-  batchId?: string;
-  createdAt: string;
-  updatedAt: string;
-  totalEmails?: number;
-  processedEmails?: number;
-  newEmails?: number;
-  chunkSize?: number;
-  chunksTotal?: number;
-  chunksProcessed?: number;
-}
 
-interface SyncJobsResponse {
-  jobs: JobStatus[];
-  currentBatch?: string;
-  totalEmails?: number;
-  processedEmails?: number;
-}
 
 // Job flow status phases for Gmail sync
 type SyncPhase =
@@ -57,7 +34,7 @@ interface SyncPhaseStatus {
 
 export function GmailSyncStatusPanel(): JSX.Element {
   const [isPolling, setIsPolling] = useState(false);
-  const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
+  const [, setCurrentBatchId] = useState<string | null>(null);
   const [syncPhase, setSyncPhase] = useState<SyncPhase>("idle");
   const [emailsProcessed, setEmailsProcessed] = useState(0);
   const [totalEmails, setTotalEmails] = useState(0);
@@ -65,21 +42,22 @@ export function GmailSyncStatusPanel(): JSX.Element {
 
   const queryClient = useQueryClient();
 
-  // Poll for job status updates when sync is active
-  const { data: jobsData, error: jobsError } = useQuery({
-    queryKey: ["jobs", "status", currentBatchId],
-    queryFn: async (): Promise<SyncJobsResponse> =>
-      await apiClient.get<SyncJobsResponse>("/api/jobs/status", { showErrorToast: false }),
-    enabled: isPolling && !!currentBatchId,
-    refetchInterval: 2000, // Poll every 2 seconds during sync
-    staleTime: 1000,
-  });
+  // Direct sync mode - no job polling needed
 
-  // Mutation to start Gmail sync
+  // Mutation to start Gmail sync using new consolidated endpoint
   const startSyncMutation = useMutation({
     mutationFn: async () =>
-      await apiClient.post<{ batchId: string }>(
-        "/api/sync/approve/gmail",
+      await apiClient.post<{
+        message: string;
+        stats: {
+          totalFound: number;
+          processed: number;
+          inserted: number;
+          errors: number;
+          batchId: string;
+        };
+      }>(
+        "/api/google/gmail/sync",
         {},
         {
           showErrorToast: false,
@@ -87,15 +65,24 @@ export function GmailSyncStatusPanel(): JSX.Element {
         },
       ),
     onSuccess: (data) => {
-      setCurrentBatchId(data.batchId);
-      setIsPolling(true);
-      setSyncPhase("starting");
-      setEmailsProcessed(0);
-      setTotalEmails(0);
-      setNewEmails(0);
+      setCurrentBatchId(data.stats.batchId);
+      setTotalEmails(data.stats.totalFound);
+      setEmailsProcessed(data.stats.processed);
+      setNewEmails(data.stats.inserted);
+
+      // Direct sync completed immediately - show completion
+      setSyncPhase("completed");
+      setIsPolling(false);
 
       // Invalidate sync status to refresh connection state
       void queryClient.invalidateQueries({ queryKey: ["sync", "status"] });
+      void queryClient.invalidateQueries({ queryKey: ["google", "gmail", "status"] });
+
+      // Auto-clear after 10 seconds
+      setTimeout(() => {
+        setSyncPhase("idle");
+        setCurrentBatchId(null);
+      }, 10000);
     },
     onError: (error) => {
       console.error("Gmail sync error:", error);
@@ -104,57 +91,8 @@ export function GmailSyncStatusPanel(): JSX.Element {
     },
   });
 
-  // Update sync phase based on job status
-  useEffect(() => {
-    if (!jobsData?.jobs.length) return;
-
-    const jobs = jobsData.jobs;
-    const gmailSyncJob = jobs.find((job) => job.kind === "google_gmail_sync");
-    const normalizeJob = jobs.find((job) => job.kind === "normalize_google_email");
-    const embedJob = jobs.find((job) => job.kind === "embed");
-    const extractJob = jobs.find((job) => job.kind === "extract_contacts");
-
-    // Update totals if available
-    if (gmailSyncJob?.totalEmails) setTotalEmails(gmailSyncJob.totalEmails);
-    if (gmailSyncJob?.processedEmails) setEmailsProcessed(gmailSyncJob.processedEmails);
-    if (gmailSyncJob?.newEmails !== undefined) setNewEmails(gmailSyncJob.newEmails);
-
-    // Determine current phase based on job statuses
-    if (
-      gmailSyncJob?.status === "error" ||
-      normalizeJob?.status === "error" ||
-      embedJob?.status === "error"
-    ) {
-      setSyncPhase("error");
-      setIsPolling(false);
-    } else if (gmailSyncJob?.status === "running") {
-      setSyncPhase("syncing_gmail");
-    } else if (gmailSyncJob?.status === "completed" && normalizeJob?.status === "running") {
-      setSyncPhase("processing_data");
-    } else if (normalizeJob?.status === "completed" && extractJob?.status === "running") {
-      setSyncPhase("structuring_data");
-    } else if (extractJob?.status === "completed" && embedJob?.status === "running") {
-      setSyncPhase("embedding_data");
-    } else if (embedJob?.status === "completed") {
-      setSyncPhase("completed");
-      setIsPolling(false);
-      // Auto-clear after 10 seconds
-      setTimeout(() => {
-        setSyncPhase("idle");
-        setCurrentBatchId(null);
-      }, 10000);
-    }
-  }, [jobsData]);
-
-  // Kick the job runner once when polling starts
-  useEffect(() => {
-    if (!isPolling) return;
-    void apiClient.post<{ message: string }>(
-      "/api/jobs/runner",
-      {},
-      { showErrorToast: false, errorToastTitle: "Job runner failed" },
-    );
-  }, [isPolling]);
+  // Note: Direct sync mode - no complex job polling needed
+  // Background normalization jobs may still run but sync completes immediately
 
   const getSyncPhaseStatus = (phase: SyncPhase): SyncPhaseStatus => {
     const phases: Record<SyncPhase, SyncPhaseStatus> = {
@@ -307,8 +245,7 @@ export function GmailSyncStatusPanel(): JSX.Element {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {jobsError?.message ??
-                "An error occurred during sync. Please check your Gmail connection and try again."}
+              An error occurred during sync. Please check your Gmail connection and try again.
             </AlertDescription>
           </Alert>
         )}

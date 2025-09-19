@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 
 export interface ChatMessage {
   id: string;
@@ -37,7 +38,7 @@ export function useChatMessages(threadId: string | null): {
   refetch: () => Promise<{ data: ChatMessage[] | undefined; error: Error | null }>;
 } {
   const { data, isLoading, isFetching, isError, refetch } = useQuery<ChatMessage[]>({
-    queryKey: ["chat", "messages", threadId],
+    queryKey: queryKeys.chat.messages(threadId ?? 'none'),
     queryFn: async (): Promise<ChatMessage[]> => {
       if (!threadId) return [];
       const json = await apiClient.get<MessageResponse>(`/api/chat/threads/${threadId}/messages`);

@@ -342,13 +342,13 @@ export function OmniBot(): JSX.Element {
             className="flex-1"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSendText()}
+            onKeyDown={(e) => e.key === "Enter" && void handleSendText()}
           />
-          <Button onClick={handleSendText} aria-label="Send message">
+          <Button onClick={() => void handleSendText()} aria-label="Send message">
             <Send className="h-4 w-4" />
           </Button>
           <Button
-            onClick={handleMicToggle}
+            onClick={() => void handleMicToggle()}
             size="icon"
             variant={isRecording ? "destructive" : "outline"}
             aria-label={isRecording ? "Stop recording" : "Start recording"}

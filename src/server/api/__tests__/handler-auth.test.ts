@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { createRouteHandler, withAuth, withRateLimit } from "../handler";
-import { apiOk, apiError, API_ERROR_CODES } from "../response";
+import { createRouteHandler, withAuth } from "../handler";
+import { apiOk } from "../response";
+import { makeRouteContext } from "@/__tests__/helpers/routeContext";
 
 // Mock dependencies
 vi.mock("@/server/auth/user", () => ({
@@ -33,7 +34,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(401);
       const body = await res.json();
@@ -57,7 +58,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -78,7 +79,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(403);
       const body = await res.json();
@@ -103,7 +104,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -119,7 +120,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(vi.mocked(getServerUserId)).not.toHaveBeenCalled();
       expect(res.status).toBe(200);
@@ -137,7 +138,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -154,7 +155,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/wrapped");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -173,7 +174,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/wrapped");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(401);
       const body = await res.json();
@@ -199,7 +200,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(429);
       expect(res.headers.get("Retry-After")).toBeDefined();
@@ -234,7 +235,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      await handler(req);
+      await handler(req, makeRouteContext());
 
       expect(RateLimiter.checkRateLimit).toHaveBeenCalledWith("test_operation", mockUserId);
     });
@@ -258,7 +259,7 @@ describe("Handler Authentication System", () => {
           "x-forwarded-for": "192.168.1.1",
         },
       });
-      await handler(req);
+      await handler(req, makeRouteContext());
 
       expect(RateLimiter.checkRateLimit).toHaveBeenCalledWith(
         "public_operation",
@@ -281,7 +282,7 @@ describe("Handler Authentication System", () => {
           "x-correlation-id": correlationId,
         },
       });
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       const body = await res.json();
       expect(body.data.requestId).toBe(correlationId);
@@ -300,7 +301,7 @@ describe("Handler Authentication System", () => {
           "x-request-id": requestId,
         },
       });
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       const body = await res.json();
       expect(body.data.requestId).toBe(requestId);
@@ -314,7 +315,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       const body = await res.json();
       expect(body.data.requestId).toMatch(
@@ -332,7 +333,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(401);
       const body = await res.json();
@@ -350,7 +351,7 @@ describe("Handler Authentication System", () => {
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
-      const res = await handler(req);
+      const res = await handler(req, makeRouteContext());
 
       expect(res.status).toBe(418);
       const body = await res.json();

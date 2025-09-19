@@ -645,7 +645,7 @@ export async function runCalendarSync(
               op: "calendar.sync.insert_failed",
               eventId: eventForDebug?.id,
               eventTitle: eventForDebug?.summary,
-              error: error,
+              error,
               reason: (r as PromiseRejectedResult).reason,
             },
           });

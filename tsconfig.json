@@ -35,6 +35,18 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@omnicrm/contracts": [
+        "./packages/contracts/src"
+      ],
+      "@contracts/*": [
+        "./packages/contracts/src/*"
+      ],
+      "@packages/testing": [
+        "./packages/testing/src"
+      ],
+      "@repo": [
+        "./packages/repo/src"
       ]
     }
   },
@@ -45,16 +57,11 @@
     ".next/types/**/*.ts",
     "playwright.config.ts",
   ],
+  "types": ["vitest/globals", "@testing-library/jest-dom"],
   "exclude": [
     "drizzle/**",
     "node_modules",
     "e2e/**",
-    "tests/**",
-    "src/**/*.test.ts",
-    "src/**/*.spec.ts",
-    "src/**/*.test.tsx",
-    "src/**/*.spec.tsx",
-    "src/**/__tests__/**",
-    "src/**/_tests_/**"
+    "tests/**"
   ]
 }

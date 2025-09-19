@@ -31,7 +31,7 @@ export default function MessagesLoading(): JSX.Element {
 
             <CardContent className="flex-1 p-0 overflow-hidden">
               <div className="space-y-1 p-3">
-                {Array.from({ length: 6 }, (_, i) => (
+                {[...Array(6).keys()].map((i) => (
                   <div key={i} className="flex items-start gap-3 p-3">
                     <div className="relative">
                       <Skeleton className="h-10 w-10 rounded-full" />
@@ -82,7 +82,7 @@ export default function MessagesLoading(): JSX.Element {
 
             {/* Messages Loading */}
             <CardContent className="flex-1 p-4 space-y-4">
-              {Array.from({ length: 4 }, (_, i) => (
+              {[...Array(4).keys()].map((i) => (
                 <div
                   key={i}
                   className={`flex gap-3 ${i % 2 === 0 ? "justify-start" : "justify-end"}`}

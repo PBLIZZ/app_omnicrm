@@ -39,7 +39,7 @@ function getClientIdentifier(request: NextRequest): string {
 // Authentication wrapper that improves on existing pattern (extracted from api-helpers.ts lines 276-326)
 export function withAuth<T extends unknown[]>(
   handler: (userId: string, requestId: string, ...args: T) => Promise<NextResponse>,
-) {
+): (...args: T) => Promise<NextResponse> {
   return async (...args: T): Promise<NextResponse> => {
     // Type guard to ensure first argument is a NextRequest
     function isNextRequest(arg: unknown): arg is NextRequest {
@@ -113,7 +113,17 @@ export function withValidation<
   TQuery extends z.ZodSchema = z.ZodVoid,
   TBody extends z.ZodSchema = z.ZodVoid,
   TParams extends z.ZodSchema = z.ZodVoid,
->(schemas: { query?: TQuery; body?: TBody; params?: TParams }) {
+>(schemas: { query?: TQuery; body?: TBody; params?: TParams }): <T extends unknown[]>(
+  handler: (
+    validated: {
+      query: TQuery extends z.ZodVoid ? undefined : z.infer<TQuery>;
+      body: TBody extends z.ZodVoid ? undefined : z.infer<TBody>;
+      params: TParams extends z.ZodVoid ? undefined : z.infer<TParams>;
+    },
+    requestId: string,
+    ...args: T
+  ) => Promise<NextResponse>,
+) => (...args: T) => Promise<NextResponse> {
   return function <T extends unknown[]>(
     handler: (
       validated: {
@@ -124,7 +134,7 @@ export function withValidation<
       requestId: string,
       ...args: T
     ) => Promise<NextResponse>,
-  ) {
+  ): (...args: T) => Promise<NextResponse> {
     return async (...args: T): Promise<NextResponse> => {
       const [request, routeParams] = args as unknown as [
         NextRequest,
@@ -189,7 +199,7 @@ export function withValidation<
       } catch (error) {
         if (error instanceof z.ZodError) {
           return apiError(API_ERROR_CODES.VALIDATION_ERROR, "Validation failed", 400, requestId, {
-            issues: error.errors,
+            issues: error.issues,
           });
         }
 
@@ -232,8 +242,8 @@ interface AdvancedRateLimitConfig {
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 // Legacy rate limiting wrapper (kept for backward compatibility)
-export function withRateLimit(options: RateLimitOptions) {
-  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>) {
+export function withRateLimit(options: RateLimitOptions): <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>) => (...args: T) => Promise<NextResponse> {
+  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>): (...args: T) => Promise<NextResponse> {
     return async (...args: T): Promise<NextResponse> => {
       const [request] = args as unknown as [NextRequest, ...unknown[]];
       const requestId = getCorrelationId(request);
@@ -340,8 +350,8 @@ interface CacheOptions {
 // Simple in-memory cache - replace with Redis in production
 const cache = new Map<string, { data: unknown; expires: number }>();
 
-export function withCache(options: CacheOptions) {
-  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>) {
+export function withCache(options: CacheOptions): <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>) => (...args: T) => Promise<NextResponse> {
+  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>): (...args: T) => Promise<NextResponse> {
     return async (...args: T): Promise<NextResponse> => {
       const [request] = args as unknown as [NextRequest, ...unknown[]];
       const requestId = getCorrelationId(request);
@@ -456,7 +466,20 @@ export function createRouteHandler<
   };
   rateLimit?: RateLimitOptions | AdvancedRateLimitConfig;
   cache?: CacheOptions;
-}) {
+}): (
+  handler: (
+    context: AuthenticatedContext<TAuth> & {
+      validated: {
+        query: TQuery extends z.ZodVoid ? undefined : z.infer<TQuery>;
+        body: TBody extends z.ZodVoid ? undefined : z.infer<TBody>;
+        params: TParams extends z.ZodVoid ? undefined : z.infer<TParams>;
+      };
+      requestId: string;
+    },
+    request: NextRequest,
+    routeParams?: { params?: Promise<SegmentParams> },
+  ) => Promise<NextResponse | Response>,
+) => (request: NextRequest, routeContext: RouteContext) => Promise<NextResponse> {
   return function (
     handler: (
       context: AuthenticatedContext<TAuth> & {
@@ -470,7 +493,7 @@ export function createRouteHandler<
       request: NextRequest,
       routeParams?: { params?: Promise<SegmentParams> },
     ) => Promise<NextResponse | Response>,
-  ) {
+  ): (request: NextRequest, routeContext: RouteContext) => Promise<NextResponse> {
     let wrappedHandler = async (
       request: NextRequest,
       routeContext: RouteContext,
@@ -508,7 +531,7 @@ export function createRouteHandler<
         } catch (error) {
           if (error instanceof z.ZodError) {
             return apiError(API_ERROR_CODES.VALIDATION_ERROR, "Validation failed", 400, requestId, {
-              issues: error.errors,
+              issues: error.issues,
             });
           }
           throw error;

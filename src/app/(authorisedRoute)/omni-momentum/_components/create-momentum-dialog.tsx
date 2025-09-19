@@ -29,7 +29,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
-import type { MomentumWorkspace, MomentumProject, Contact } from "@/server/db/schema";
+import { type MomentumWorkspaceDTO, type MomentumProjectDTO, type ContactDTO } from "@omnicrm/contracts";
 
 const createTaskSchema = z.object({
   workspaceId: z.string().optional(),
@@ -47,8 +47,8 @@ type CreateTaskFormData = z.infer<typeof createTaskSchema>;
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaces: MomentumWorkspace[];
-  projects: MomentumProject[];
+  workspaces: MomentumWorkspaceDTO[];
+  projects: MomentumProjectDTO[];
 }
 
 export function CreateMomentumDialog({
@@ -57,7 +57,7 @@ export function CreateMomentumDialog({
   workspaces,
   projects,
 }: CreateTaskDialogProps): JSX.Element {
-  const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<ContactDTO[]>([]);
   const [contactSearch, setContactSearch] = useState("");
   const [showContactSearch, setShowContactSearch] = useState(false);
 
@@ -73,7 +73,7 @@ export function CreateMomentumDialog({
   });
 
   interface ContactsResponse {
-    contacts: Contact[];
+    contacts: ContactDTO[];
   }
 
   const { data: contactsData } = useQuery<ContactsResponse>({
@@ -89,7 +89,7 @@ export function CreateMomentumDialog({
   const contacts = contactsData?.contacts ?? [];
 
   const filteredContacts = contacts.filter(
-    (contact: Contact) =>
+    (contact: ContactDTO) =>
       contact.displayName.toLowerCase().includes(contactSearch.toLowerCase()) ??
       contact.primaryEmail?.toLowerCase().includes(contactSearch.toLowerCase()),
   );
@@ -112,8 +112,7 @@ export function CreateMomentumDialog({
       });
       handleClose();
     },
-    onError: (error) => {
-      console.error("Failed to create task:", error);
+    onError: () => {
       toast({
         title: "Error",
         description: "Failed to create task. Please try again.",
@@ -138,7 +137,7 @@ export function CreateMomentumDialog({
     onOpenChange(false);
   };
 
-  const addContact = (contact: Contact): void => {
+  const addContact = (contact: ContactDTO): void => {
     if (!selectedContacts.find((c) => c.id === contact.id)) {
       setSelectedContacts([...selectedContacts, contact]);
     }
@@ -285,7 +284,7 @@ export function CreateMomentumDialog({
                         <AvatarFallback className="text-xs">
                           {contact.displayName
                             .split(" ")
-                            .map((n) => n[0])
+                            .map((n: string) => n[0])
                             .join("")
                             .slice(0, 2)}
                         </AvatarFallback>
@@ -326,7 +325,7 @@ export function CreateMomentumDialog({
                       />
                     </div>
                     <div className="max-h-32 overflow-y-auto">
-                      {filteredContacts.slice(0, 10).map((contact: Contact) => (
+                      {filteredContacts.slice(0, 10).map((contact: ContactDTO) => (
                         <button
                           key={contact.id}
                           type="button"

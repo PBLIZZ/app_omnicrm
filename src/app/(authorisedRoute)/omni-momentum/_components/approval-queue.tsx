@@ -19,7 +19,7 @@ import { format } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { useToast } from "@/hooks/use-toast";
-import type { Momentum } from "@/server/db/schema";
+import { type MomentumDTO } from "@omnicrm/contracts";
 
 interface TaskActionRequestBody {
   notes?: string;
@@ -28,11 +28,11 @@ interface TaskActionRequestBody {
 interface ApprovalQueueProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  pendingTasks: Momentum[];
+  pendingTasks: MomentumDTO[];
 }
 
 interface TaskApprovalCardProps {
-  task: Momentum;
+  task: MomentumDTO;
   isSelected: boolean;
   onSelect: (selected: boolean) => void;
   onApprove: (taskId: string, notes?: string) => void;
@@ -221,8 +221,7 @@ export function ApprovalQueue({
         description: "The task has been approved successfully.",
       });
     },
-    onError: (error) => {
-      console.error("Failed to approve task:", error);
+    onError: () => {
       toast({
         title: "Error",
         description: "Failed to approve task. Please try again.",
@@ -247,8 +246,7 @@ export function ApprovalQueue({
         description: "The task has been rejected.",
       });
     },
-    onError: (error) => {
-      console.error("Failed to reject task:", error);
+    onError: () => {
       toast({
         title: "Error",
         description: "Failed to reject task. Please try again.",

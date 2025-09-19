@@ -1,2 +1,45 @@
 #!/usr/bin/env sh
+
+# Set Node.js memory limit for local development
+export NODE_OPTIONS="--max_old_space_size=8192"
+
+# Run lint-staged first for formatting and basic linting
 npx --no-install lint-staged
+
+# Skip CI guardrails in CI environment (they run in GitHub Actions)
+if [ "$CI" = "true" ]; then
+  echo "🚀 Running in CI, skipping pre-commit guardrails (will run in CI pipeline)"
+  exit 0
+fi
+
+# Run CI guardrails locally
+echo "Running CI guardrails locally..."
+
+# Type checking with strict build config (gracefully handle memory issues)
+echo "✓ Running strict type checking..."
+if ! npm run build:types; then
+  echo "⚠️  Type check failed or out of memory - will be validated in CI"
+fi
+
+# Architecture boundary validation
+echo "✓ Validating architecture boundaries..."
+if ! npm run lint:architecture; then
+  echo "❌ Architecture validation failed"
+  exit 1
+fi
+
+# Verify database import patterns
+echo "✓ Verifying database imports..."
+if ! npm run verify:db-imports; then
+  echo "❌ Database import validation failed"
+  exit 1
+fi
+
+# Verify DTO usage patterns
+echo "✓ Verifying DTO usage..."
+if ! npm run verify:dto-usage; then
+  echo "❌ DTO usage validation failed"
+  exit 1
+fi
+
+echo "✅ All CI guardrails passed!"

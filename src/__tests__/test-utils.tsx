@@ -3,29 +3,33 @@
  * Provides common test setup, mocks, and utilities for component testing
  */
 
-import React, { ReactElement, ReactNode } from "react";
+import { ReactElement, ReactNode } from "react";
 import { render, RenderOptions } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi } from "vitest";
 
 // Mock data factories
-export const createMockContact = (overrides = {}) => ({
+const baseMockContact = {
   id: "contact-1",
   userId: "user-1",
   displayName: "John Doe",
   primaryEmail: "john@example.com",
   primaryPhone: "+1234567890",
-  source: "manual",
-  stage: "Core Client",
+  source: "manual" as const,
+  stage: "Core Client" as const,
   tags: ["yoga", "regular"],
   confidenceScore: "0.85",
   slug: "john-doe",
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",
+};
+
+export const createMockContact = (overrides = {}): typeof baseMockContact & typeof overrides => ({
+  ...baseMockContact,
   ...overrides,
 });
 
-export const createMockNote = (overrides = {}) => ({
+const baseMockNote = {
   id: "note-1",
   userId: "user-1",
   contactId: "contact-1",
@@ -33,10 +37,14 @@ export const createMockNote = (overrides = {}) => ({
   content: "Discussed yoga practices and preferences",
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",
+};
+
+export const createMockNote = (overrides = {}): typeof baseMockNote & typeof overrides => ({
+  ...baseMockNote,
   ...overrides,
 });
 
-export const createMockMomentum = (overrides = {}) => ({
+const baseMockMomentum = {
   id: "momentum-1",
   userId: "user-1",
   momentumWorkspaceId: "workspace-1",
@@ -44,11 +52,11 @@ export const createMockMomentum = (overrides = {}) => ({
   parentMomentumId: null,
   title: "Follow up with John",
   description: "Schedule next session",
-  status: "todo",
-  priority: "medium",
-  assignee: "user",
-  source: "user",
-  approvalStatus: "approved",
+  status: "todo" as const,
+  priority: "medium" as const,
+  assignee: "user" as const,
+  source: "user" as const,
+  approvalStatus: "approved" as const,
   taggedContacts: ["contact-1"],
   dueDate: "2024-01-15T00:00:00Z",
   completedAt: null,
@@ -57,15 +65,19 @@ export const createMockMomentum = (overrides = {}) => ({
   aiContext: null,
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",
+};
+
+export const createMockMomentum = (overrides = {}): typeof baseMockMomentum & typeof overrides => ({
+  ...baseMockMomentum,
   ...overrides,
 });
 
-export const createMockAiInsight = (overrides = {}) => ({
+const baseMockAiInsight = {
   id: "insight-1",
   userId: "user-1",
-  subjectType: "contact",
+  subjectType: "contact" as const,
   subjectId: "contact-1",
-  kind: "summary",
+  kind: "summary" as const,
   content: {
     summary: "Regular yoga practitioner with strong engagement",
     confidence: 0.85,
@@ -74,11 +86,15 @@ export const createMockAiInsight = (overrides = {}) => ({
   model: "gpt-4",
   createdAt: "2024-01-01T00:00:00Z",
   fingerprint: "abc123",
+};
+
+export const createMockAiInsight = (overrides = {}): typeof baseMockAiInsight & typeof overrides => ({
+  ...baseMockAiInsight,
   ...overrides,
 });
 
 // Mock React Query setup
-export const createTestQueryClient = () =>
+export const createTestQueryClient = (): QueryClient =>
   new QueryClient({
     defaultOptions: {
       queries: {
@@ -108,11 +124,11 @@ interface CustomRenderOptions extends Omit<RenderOptions, "wrapper"> {
   queryClient?: QueryClient;
 }
 
-export const renderWithProviders = (ui: ReactElement, options: CustomRenderOptions = {}) => {
+export const renderWithProviders = (ui: ReactElement, options: CustomRenderOptions = {}): ReturnType<typeof render> => {
   const { queryClient, ...renderOptions } = options;
 
   return render(ui, {
-    wrapper: ({ children }) => <TestWrapper queryClient={queryClient}>{children}</TestWrapper>,
+    wrapper: ({ children }) => <TestWrapper queryClient={queryClient || new QueryClient()}>{children}</TestWrapper>,
     ...renderOptions,
   });
 };
@@ -173,7 +189,7 @@ export const createMockUseQuery = (
 });
 
 // Accessibility testing helpers
-export const getByLabelText = (container: HTMLElement, text: string) => {
+export const getByLabelText = (container: HTMLElement, text: string): Element => {
   const element = container.querySelector(`[aria-label="${text}"]`);
   if (!element) {
     throw new Error(`Unable to find element with aria-label: ${text}`);
@@ -181,7 +197,7 @@ export const getByLabelText = (container: HTMLElement, text: string) => {
   return element;
 };
 
-export const getByTestId = (container: HTMLElement, testId: string) => {
+export const getByTestId = (container: HTMLElement, testId: string): Element => {
   const element = container.querySelector(`[data-testid="${testId}"]`);
   if (!element) {
     throw new Error(`Unable to find element with data-testid: ${testId}`);
@@ -190,13 +206,13 @@ export const getByTestId = (container: HTMLElement, testId: string) => {
 };
 
 // User event helpers
-export const createUserEvent = async () => {
+export const createUserEvent = async (): Promise<ReturnType<typeof import('@testing-library/user-event').default.setup>> => {
   const userEvent = await import("@testing-library/user-event");
   return userEvent.default.setup();
 };
 
 // Form testing utilities
-export const fillForm = async (form: HTMLFormElement, data: Record<string, string>) => {
+export const fillForm = async (form: HTMLFormElement, data: Record<string, string>): Promise<void> => {
   const user = await createUserEvent();
 
   for (const [field, value] of Object.entries(data)) {
@@ -209,7 +225,7 @@ export const fillForm = async (form: HTMLFormElement, data: Record<string, strin
 };
 
 // Wait for element helpers
-export const waitForLoadingToFinish = async () => {
+export const waitForLoadingToFinish = async (): Promise<void> => {
   const { waitForElementToBeRemoved, screen } = await import("@testing-library/react");
 
   try {
@@ -222,7 +238,7 @@ export const waitForLoadingToFinish = async () => {
 };
 
 // Mock localStorage
-export const mockLocalStorage = () => {
+export const mockLocalStorage = (): { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn>; removeItem: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn> } => {
   const store: Record<string, string> = {};
 
   return {
@@ -248,6 +264,32 @@ export const mockToast = {
   loading: vi.fn(),
   dismiss: vi.fn(),
 };
+
+// Mock database for integration tests
+const createMockTable = (tableName: string) => ({
+  select: vi.fn().mockReturnThis(),
+  where: vi.fn().mockReturnThis(),
+  del: vi.fn().mockResolvedValue(1),
+  insert: vi.fn().mockResolvedValue([{ id: 1 }]),
+  update: vi.fn().mockResolvedValue(1),
+});
+
+// Create a proper mock database object
+export const testDb = Object.assign(
+  vi.fn().mockImplementation((tableName: string) => createMockTable(tableName)),
+  {
+    migrate: {
+      latest: vi.fn().mockResolvedValue(undefined),
+    },
+    destroy: vi.fn().mockResolvedValue(undefined),
+    raw: vi.fn().mockResolvedValue([]),
+    select: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    del: vi.fn().mockResolvedValue(1),
+    insert: vi.fn().mockResolvedValue([{ id: 1 }]),
+    update: vi.fn().mockResolvedValue(1),
+  }
+);
 
 // Re-export common testing library utilities
 export * from "@testing-library/react";

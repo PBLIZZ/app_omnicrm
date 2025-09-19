@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
+import { makeRouteContext } from "@/__tests__/helpers/routeContext";
 
 // Mock dependencies
 vi.mock("@/server/auth/user", () => ({
@@ -42,7 +43,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -62,7 +63,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      await POST(request, {});
+      await POST(request, makeRouteContext());
 
       expect(require("@/lib/observability").logger.progress).toHaveBeenCalledWith(
         "Processing jobs...",
@@ -97,7 +98,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      await POST(request, {});
+      await POST(request, makeRouteContext());
 
       expect(JobRunnerMock).toHaveBeenCalledTimes(1);
       expect(mockInstance.processPendingJobs).toHaveBeenCalledWith(50);
@@ -119,7 +120,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -145,7 +146,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -167,7 +168,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
 
       expect(response.status).toBe(401);
       const data = await response.json();
@@ -187,7 +188,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
       const data = await response.json();
 
       expect(response.status).toBe(500);
@@ -208,7 +209,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
       const data = await response.json();
 
       expect(response.status).toBe(500);
@@ -225,7 +226,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -245,7 +246,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
 
       expect(response.status).toBe(200);
       // If rate limiting headers were set, they would be visible here
@@ -263,7 +264,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      await POST(request, {});
+      await POST(request, makeRouteContext());
 
       expect(mockInstance.processPendingJobs).toHaveBeenCalledWith(50);
     });
@@ -276,7 +277,7 @@ describe("/api/jobs/process", () => {
         },
       }) as unknown as NextRequest;
 
-      const response = await POST(request, {});
+      const response = await POST(request, makeRouteContext());
       const data = await response.json();
 
       expect(data).toHaveProperty("ok");

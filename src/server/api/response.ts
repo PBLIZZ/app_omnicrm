@@ -353,10 +353,12 @@ export class ApiResponseBuilder {
 /**
  * Middleware wrapper for API routes with standardized responses
  */
-export function withApiResponse(operation: string) {
+export function withApiResponse(operation: string): <T extends unknown[]>(
+  handler: (apiResponse: ApiResponseBuilder, ...args: T) => Promise<Response>,
+) => (...args: T) => Promise<Response> {
   return function <T extends unknown[]>(
     handler: (apiResponse: ApiResponseBuilder, ...args: T) => Promise<Response>,
-  ) {
+  ): (...args: T) => Promise<Response> {
     return async (...args: T): Promise<Response> => {
       const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const apiResponse = new ApiResponseBuilder(operation, requestId);

@@ -18,7 +18,7 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
       expect(columnsMap).toContain("slug");
 
       // Verify slug column properties
-      const slugColumn = (contacts as any).slug;
+      const slugColumn = contacts.slug as { dataType: string };
       expect(slugColumn).toBeDefined();
       expect(slugColumn.dataType).toBe("string");
     });

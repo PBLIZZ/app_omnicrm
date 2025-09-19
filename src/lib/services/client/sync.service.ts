@@ -106,76 +106,67 @@ export interface GmailLabelsResponse {
  * Get sync status
  */
 export async function getSyncStatus(): Promise<SyncStatus> {
-  return apiClient.get<SyncStatus>("/api/settings/sync/status");
+  return apiClient.get<SyncStatus>("/api/google/status");
 }
 
 /**
  * Get sync preferences
  */
 export async function getSyncPreferences(): Promise<SyncPreferences> {
-  return apiClient.get<SyncPreferences>("/api/settings/sync/prefs");
+  return apiClient.get<SyncPreferences>("/api/google/prefs");
 }
 
 /**
  * Update sync preferences
  */
 export async function updateSyncPreferences(prefs: SyncPreferences): Promise<SyncPreferences> {
-  return apiClient.post<SyncPreferences>("/api/settings/sync/prefs", prefs, {
-    errorToastTitle: "Failed to save preferences",
-  });
+  return apiClient.put<SyncPreferences>("/api/google/prefs", prefs);
 }
 
 /**
- * Preview Gmail sync
+ * Gmail sync - Direct sync using new consolidated endpoint
  */
-export async function previewGmailSync(): Promise<PreviewGmailResponse> {
-  return apiClient.post<PreviewGmailResponse>(
-    "/api/sync/preview/gmail",
+export async function syncGmail(): Promise<{
+  message: string;
+  stats: {
+    totalFound: number;
+    processed: number;
+    inserted: number;
+    errors: number;
+    batchId: string;
+  };
+}> {
+  return apiClient.post(
+    "/api/google/gmail/sync",
     {},
     {
-      errorToastTitle: "Gmail preview failed",
+      errorToastTitle: "Gmail sync failed",
     },
   );
 }
 
 /**
- * Preview Calendar sync
+ * Calendar sync - Direct sync using new consolidated endpoint
  */
-export async function previewCalendarSync(): Promise<PreviewCalendarResponse> {
-  return apiClient.post<PreviewCalendarResponse>(
-    "/api/sync/preview/calendar",
+export async function syncCalendar(): Promise<{
+  message: string;
+  stats: {
+    syncedEvents: number;
+    daysPast: number;
+    daysFuture: number;
+    maxResults: number;
+    batchId: string;
+  };
+}> {
+  return apiClient.post(
+    "/api/google/calendar/sync",
     {},
     {
-      errorToastTitle: "Calendar preview failed",
+      errorToastTitle: "Calendar sync failed",
     },
   );
 }
 
-/**
- * Approve Gmail sync
- */
-export async function approveGmailSync(): Promise<ApprovalResponse> {
-  return apiClient.post<ApprovalResponse>(
-    "/api/sync/approve/gmail",
-    {},
-    {
-      errorToastTitle: "Gmail sync approval failed",
-    },
-  );
-}
-
-/**
- * Approve Calendar sync
- */
-export async function approveCalendarSync(): Promise<ApprovalResponse> {
-  return apiClient.post<ApprovalResponse>(
-    "/api/sync/approve/calendar",
-    {},
-    {
-      errorToastTitle: "Calendar sync approval failed",
-    },
-  );
-}
 
 /**
  * Run background jobs

@@ -21,7 +21,7 @@ export function CalendarSidebar(): JSX.Element {
 
   const handleCreateEvent = async (eventData: CalendarEventCreateData): Promise<void> => {
     try {
-      const response = await fetch("/api/calendar/create", {
+      const response = await fetch("/api/google/calendar/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

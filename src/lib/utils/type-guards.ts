@@ -136,51 +136,7 @@ export function isErrorApiEnvelope(
   return isApiEnvelope(value) && value.ok === false;
 }
 
-// ============================================================================
-// JSON PARSING WITH VALIDATION
-// ============================================================================
 
-/**
- * Safely parse JSON with optional validation
- */
-export function safeJsonParse<T>(
-  json: string,
-  validator?: (value: unknown) => value is T,
-): { success: true; data: T } | { success: false; error: string } {
-  try {
-    const parsed = JSON.parse(json) as unknown;
-    if (validator && !validator(parsed)) {
-      return { success: false, error: "Parsed JSON does not match expected type" };
-    }
-    return { success: true, data: parsed as T };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown JSON parse error",
-    };
-  }
-}
-
-// ============================================================================
-// ARRAY VALIDATION HELPERS
-// ============================================================================
-
-/**
- * Filter array to only include items that pass the type guard
- */
-export function filterByTypeGuard<T>(array: unknown[], guard: (item: unknown) => item is T): T[] {
-  return array.filter(guard);
-}
-
-/**
- * Validate that all items in array pass the type guard
- */
-export function validateArrayItems<T>(
-  array: unknown[],
-  guard: (item: unknown) => item is T,
-): array is T[] {
-  return array.every(guard);
-}
 
 // ============================================================================
 // ERROR HANDLING UTILITIES
@@ -231,96 +187,119 @@ export function validationError<T>(errors: string[]): ValidationResult<T> {
 }
 
 // ============================================================================
-// FORM DATA VALIDATION
+// DOMAIN-SPECIFIC TYPE GUARDS
 // ============================================================================
 
 /**
- * Validate form data object structure
+ * Type guard for Contact Insights data
  */
-export interface FormValidationRule<T> {
-  required?: boolean;
-  type?: "string" | "number" | "boolean" | "array";
-  validator?: (value: unknown) => value is T;
-  transform?: (value: unknown) => T | undefined;
+export interface ContactInsightsData {
+  summary: string;
+  tags: string[];
+  stage: string;
+  confidenceScore: number;
+  lastUpdated: string;
+  insights: Array<{
+    type: string;
+    content: string;
+    confidence: number;
+  }>;
 }
 
-export function validateFormData<T extends Record<string, unknown>>(
-  data: unknown,
-  rules: Record<keyof T, FormValidationRule<T[keyof T]>>,
-): ValidationResult<T> {
-  if (!isObject(data)) {
-    return validationError(["Data must be an object"]);
-  }
+export function isContactInsights(value: unknown): value is ContactInsightsData {
+  if (!isObject(value)) return false;
 
-  const errors: string[] = [];
-  const result: Partial<T> = {};
+  const summary = getString(value, "summary");
+  const tags = getStringArray(value, "tags");
+  const stage = getString(value, "stage");
+  const confidenceScore = getNumber(value, "confidenceScore");
+  const lastUpdated = getString(value, "lastUpdated");
+  const insights = getArray(value, "insights");
 
-  for (const [key, rule] of Object.entries(rules) as [keyof T, FormValidationRule<T[keyof T]>][]) {
-    const value = data[key as string];
-
-    // Check if required field is missing
-    if (rule.required && (value === undefined || value === null)) {
-      errors.push(`Field '${String(key)}' is required`);
-      continue;
-    }
-
-    // Skip validation for optional missing fields
-    if (!rule.required && (value === undefined || value === null)) {
-      continue;
-    }
-
-    // Apply transformation if provided
-    let processedValue = value;
-    if (rule.transform) {
-      processedValue = rule.transform(value);
-      if (processedValue === undefined) {
-        errors.push(`Field '${String(key)}' transformation failed`);
-        continue;
-      }
-    }
-
-    // Type validation
-    if (rule.type) {
-      switch (rule.type) {
-        case "string":
-          if (!isString(processedValue)) {
-            errors.push(`Field '${String(key)}' must be a string`);
-            continue;
-          }
-          break;
-        case "number":
-          if (!isNumber(processedValue)) {
-            errors.push(`Field '${String(key)}' must be a number`);
-            continue;
-          }
-          break;
-        case "boolean":
-          if (!isBoolean(processedValue)) {
-            errors.push(`Field '${String(key)}' must be a boolean`);
-            continue;
-          }
-          break;
-        case "array":
-          if (!isArray(processedValue)) {
-            errors.push(`Field '${String(key)}' must be an array`);
-            continue;
-          }
-          break;
-      }
-    }
-
-    // Custom validator
-    if (rule.validator && !rule.validator(processedValue)) {
-      errors.push(`Field '${String(key)}' failed custom validation`);
-      continue;
-    }
-
-    result[key] = processedValue as T[keyof T];
-  }
-
-  if (errors.length > 0) {
-    return validationError(errors);
-  }
-
-  return validationSuccess(result as T);
+  return !!(summary && tags && stage &&
+           typeof confidenceScore === "number" &&
+           lastUpdated && insights &&
+           insights.every(insight => isObject(insight) &&
+             getString(insight, "type") &&
+             getString(insight, "content") &&
+             typeof getNumber(insight, "confidence") === "number"));
 }
+
+/**
+ * Type guard for sync session progress data
+ */
+export interface SyncProgressData {
+  sessionId: string;
+  service: "gmail" | "calendar";
+  status: "started" | "importing" | "processing" | "completed" | "failed" | "cancelled";
+  progress: {
+    percentage: number;
+    currentStep: string;
+    totalItems: number;
+    importedItems: number;
+    processedItems: number;
+    failedItems: number;
+  };
+}
+
+export function isSyncProgress(value: unknown): value is SyncProgressData {
+  if (!isObject(value)) return false;
+
+  const sessionId = getString(value, "sessionId");
+  const service = getString(value, "service");
+  const status = getString(value, "status");
+  const progress = getObject(value, "progress");
+
+  if (!sessionId || !service || !status || !progress) return false;
+
+  const validServices = ["gmail", "calendar"];
+  const validStatuses = ["started", "importing", "processing", "completed", "failed", "cancelled"];
+
+  if (!validServices.includes(service) || !validStatuses.includes(status)) return false;
+
+  // Validate progress object
+  const percentage = getNumber(progress, "percentage");
+  const currentStep = getString(progress, "currentStep");
+  const totalItems = getNumber(progress, "totalItems");
+  const importedItems = getNumber(progress, "importedItems");
+  const processedItems = getNumber(progress, "processedItems");
+  const failedItems = getNumber(progress, "failedItems");
+
+  return !!(typeof percentage === "number" && currentStep &&
+           typeof totalItems === "number" && typeof importedItems === "number" &&
+           typeof processedItems === "number" && typeof failedItems === "number");
+}
+
+/**
+ * Type guard for job status data
+ */
+export interface JobStatusData {
+  id: string;
+  kind: string;
+  status: "queued" | "processing" | "done" | "error";
+  batchId?: string;
+  createdAt: string;
+  message?: string;
+}
+
+export function isJobStatus(value: unknown): value is JobStatusData {
+  if (!isObject(value)) return false;
+
+  const id = getString(value, "id");
+  const kind = getString(value, "kind");
+  const status = getString(value, "status");
+  const createdAt = getString(value, "createdAt");
+
+  if (!id || !kind || !status || !createdAt) return false;
+
+  const validStatuses = ["queued", "processing", "done", "error"];
+  return validStatuses.includes(status);
+}
+
+/**
+ * Type guard for array of job statuses
+ */
+export function isJobStatusArray(value: unknown): value is JobStatusData[] {
+  return isArray(value) && value.every(isJobStatus);
+}
+

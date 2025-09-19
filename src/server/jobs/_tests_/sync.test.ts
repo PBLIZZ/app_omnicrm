@@ -14,21 +14,29 @@ const shared = vi.hoisted(() => {
 vi.mock("@/server/db/client", () => {
   const db = {
     select: () => ({
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      from: (_table: unknown) => ({
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        where: (_cond: unknown) => ({
+      from: (table: unknown) => {
+        // Mock implementation acknowledges table parameter for type compliance
+        void table;
+        return {
+        where: (cond: unknown) => {
+          // Mock implementation acknowledges cond parameter for type compliance
+          void cond;
+          return {
           orderBy: () => ({
             limit: async () => [],
           }),
           limit: async () => {
             return shared.prefsStore.length ? [shared.prefsStore[0]!] : [];
           },
-        }),
-      }),
+        };
+        },
+      };
+      },
     }),
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    insert: (_table: unknown) => ({
+    insert: (table: unknown) => {
+      // Mock implementation acknowledges table parameter for type compliance
+      void table;
+      return {
       values: async (row: Record<string, unknown>) => {
         if ((row as { provider?: unknown }).provider) {
           shared.rawEvents.push(row);
@@ -36,7 +44,8 @@ vi.mock("@/server/db/client", () => {
           shared.jobs.push(row);
         }
       },
-    }),
+    };
+    },
   } as const;
   return {
     __esModule: true,
@@ -81,7 +90,7 @@ vi.mock("@/lib/supabase/admin", () => {
           return [] as unknown[];
         }
         if (table === "interactions") {
-          const key = `${values.user_id as string}|${values.source as string}|${(values.source_id as string) ?? ""}`;
+          const key = `${values['user_id'] as string}|${values['source'] as string}|${(values['source_id'] as string) ?? ""}`;
           if (shared.interactions.has(key)) {
             // conflict; ignore
             return [] as unknown[];
@@ -98,7 +107,7 @@ vi.mock("@/lib/supabase/admin", () => {
   };
 });
 
-import * as syncModule from "../processors/sync";
+// syncModule import removed to fix unused variable warning
 import { runGmailSync, runCalendarSync } from "../processors/sync";
 import * as dbModule from "../../db/client";
 const mockDbState = (
@@ -286,7 +295,7 @@ describe("sync processors with injected clients", () => {
         __esModule: true,
         log: {
           info: (bindings?: Record<string, unknown>, message?: string) => {
-            logCalls.push({ bindings: bindings ?? {}, message });
+            logCalls.push({ bindings: bindings ?? {}, message: message ?? undefined });
           },
           warn: () => {},
           error: () => {},

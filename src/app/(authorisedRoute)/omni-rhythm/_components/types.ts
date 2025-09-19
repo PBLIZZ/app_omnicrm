@@ -150,6 +150,7 @@ export interface QuickActionsProps {
 
 export interface RhythmHeaderProps {
   onLoadInsights?: () => void;
+  onProcessJobs?: () => void;
   onSearch?: (query: string) => void;
 }
 

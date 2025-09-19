@@ -30,11 +30,11 @@ import { MomentumListView } from "./momentum-list-view";
 import { MomentumKanbanView } from "./momentum-kanban-view";
 import { CreateMomentumDialog } from "./create-momentum-dialog";
 import { ApprovalQueue } from "./approval-queue";
-import type { Momentum, MomentumWorkspace, MomentumProject } from "@/server/db/schema";
+import { type MomentumDTO, type MomentumWorkspaceDTO, type MomentumProjectDTO } from "@omnicrm/contracts";
 
-// Type definitions for API responses - using proper database schema types
-type Workspace = MomentumWorkspace;
-type Project = MomentumProject;
+// Type definitions for API responses - using proper DTO types
+type Workspace = MomentumWorkspaceDTO;
+type Project = MomentumProjectDTO;
 
 // Specific API response interfaces for better type safety
 interface WorkspacesApiResponse {
@@ -46,7 +46,7 @@ interface ProjectsApiResponse {
 }
 
 interface MomentumsApiResponse {
-  momentums: Momentum[];
+  momentums: MomentumDTO[];
 }
 
 export default function MomentumClientWrapper(): JSX.Element {
@@ -127,7 +127,7 @@ export default function MomentumClientWrapper(): JSX.Element {
 
   // Filter momentums by search query
   const filteredMomentums = momentums.filter(
-    (momentum: Momentum) =>
+    (momentum: MomentumDTO) =>
       momentum.title?.toLowerCase().includes(searchQuery.toLowerCase()) ??
       momentum.description?.toLowerCase().includes(searchQuery.toLowerCase()) ??
       false,
@@ -202,7 +202,7 @@ export default function MomentumClientWrapper(): JSX.Element {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {momentums.filter((m: Momentum) => m.status === "in_progress").length}
+                {momentums.filter((m: MomentumDTO) => m.status === "in_progress").length}
               </div>
               <p className="text-xs text-muted-foreground">Currently active</p>
             </CardContent>
@@ -215,7 +215,7 @@ export default function MomentumClientWrapper(): JSX.Element {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {momentums.filter((m: Momentum) => m.source === "ai_generated").length}
+                {momentums.filter((m: MomentumDTO) => m.source === "ai_generated").length}
               </div>
               <p className="text-xs text-muted-foreground">Approved suggestions</p>
             </CardContent>

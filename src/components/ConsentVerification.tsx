@@ -57,7 +57,7 @@ const ConsentVerification = ({ profile }: ConsentVerificationProps): JSX.Element
           </p>
           {!hasConsent && (
             <button
-              onClick={handleGrantConsent}
+              onClick={() => void handleGrantConsent()}
               className="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
             >
               Grant Consent

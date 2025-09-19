@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
 import { createRouteHandler } from "@/server/api/handler";
 import { ApiResponseBuilder } from "@/server/api/response";
-import { getDb } from "@/server/db/client";
-import { contacts } from "@/server/db/schema";
+import { ContactsRepository } from "@repo";
+import type { UpdateContactDTO } from "@contracts/contact";
 import { UpdateOmniClientSchema } from "@/lib/validation/schemas/omniClients";
 import { toOmniClient } from "@/server/adapters/omniClients";
 import { ensureError } from "@/lib/utils/error-handler";
@@ -11,9 +10,9 @@ import { ensureError } from "@/lib/utils/error-handler";
 // --- helpers ---
 const IdParams = z.object({ clientId: z.string().uuid() });
 
-function toNull(v: string | null | undefined): string | null {
-  if (typeof v === "string" && v.trim().length === 0) return null;
-  return v ?? null;
+function toOptional(v: string | null | undefined): string | undefined {
+  if (typeof v === "string" && v.trim().length === 0) return undefined;
+  return v ?? undefined;
 }
 
 // --- GET /api/omni-clients/[clientId] ---
@@ -27,31 +26,13 @@ export const GET = createRouteHandler({
   const api = new ApiResponseBuilder("omni_client_get", requestId);
 
   try {
-    const dbo = await getDb();
-    const [row] = await dbo
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        slug: contacts.slug,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
-      .from(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.id, validated.params.clientId)))
-      .limit(1);
+    const contact = await ContactsRepository.getContactById(userId, validated.params.clientId);
 
-    if (!row) {
+    if (!contact) {
       return api.notFound("Client not found");
     }
 
-    return api.success({ item: toOmniClient(row) });
+    return api.success({ item: toOmniClient(contact) });
   } catch (error) {
     return api.error(
       "Failed to fetch omni client",
@@ -74,52 +55,38 @@ export const PATCH = createRouteHandler({
   const api = new ApiResponseBuilder("omni_client_update", requestId);
 
   try {
-    const dbo = await getDb();
-
-    const updates: Partial<{
-      displayName: string;
-      primaryEmail: string | null;
-      primaryPhone: string | null;
-      stage: string | null;
-      tags: unknown;
-    }> = {};
+    const updates: UpdateContactDTO = {};
 
     if (validated.body.displayName !== undefined) updates.displayName = validated.body.displayName;
     if (validated.body.primaryEmail !== undefined)
-      updates.primaryEmail = toNull(validated.body.primaryEmail);
+      updates.primaryEmail = toOptional(validated.body.primaryEmail);
     if (validated.body.primaryPhone !== undefined)
-      updates.primaryPhone = toNull(validated.body.primaryPhone);
-    if (validated.body.stage !== undefined) updates.stage = toNull(validated.body.stage);
-    if (validated.body.tags !== undefined) updates.tags = validated.body.tags;
+      updates.primaryPhone = toOptional(validated.body.primaryPhone);
+    if (validated.body.stage !== undefined) {
+      const stageValue = toOptional(validated.body.stage);
+      if (stageValue !== undefined) {
+        updates.stage = stageValue as "New Client" | "VIP Client" | "Core Client" | "Prospect" | "At Risk Client" | "Lost Client" | "Referring Client";
+      }
+    }
+    if (validated.body.tags !== undefined) {
+      updates.tags = validated.body.tags ?? undefined;
+    }
 
     if (Object.keys(updates).length === 0) {
       return api.validationError("No valid updates provided");
     }
 
-    const [row] = await dbo
-      .update(contacts)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(and(eq(contacts.userId, userId), eq(contacts.id, validated.params.clientId)))
-      .returning({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        slug: contacts.slug,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      });
+    const updatedContact = await ContactsRepository.updateContact(
+      userId,
+      validated.params.clientId,
+      updates
+    );
 
-    if (!row) {
+    if (!updatedContact) {
       return api.notFound("Client not found");
     }
 
-    return api.success({ item: toOmniClient(row) });
+    return api.success({ item: toOmniClient(updatedContact) });
   } catch (error) {
     return api.error(
       "Failed to update omni client",
@@ -144,13 +111,10 @@ export const DELETE = createRouteHandler({
   const api = new ApiResponseBuilder("omni_client_delete", requestId);
 
   try {
-    const dbo = await getDb();
-    await dbo
-      .delete(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.id, validated.params.clientId)));
+    const deleted = await ContactsRepository.deleteContact(userId, validated.params.clientId);
 
-    // idempotent delete
-    return api.success({ deleted: 1 });
+    // idempotent delete - return success even if contact didn't exist
+    return api.success({ deleted: deleted ? 1 : 0 });
   } catch (error) {
     return api.error(
       "Failed to delete omni client",

@@ -227,7 +227,7 @@ export async function runEmailIntelligenceBatch(
 
     const avgBusinessRelevance = results
       .filter((r) => r.success && r.businessRelevance !== undefined)
-      .reduce((sum, r, _, arr) => sum + r.businessRelevance! / arr.length, 0);
+      .reduce((sum, r) => sum + r.businessRelevance! / results.length, 0);
 
     await logger.info("Batch processing summary", {
       operation: "email_intelligence",

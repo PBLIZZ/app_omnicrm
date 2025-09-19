@@ -145,7 +145,7 @@ export const ClientSearchSchema = z.object({
 export const ClientBulkOperationSchema = z.object({
   operation: z.enum(["delete", "enrich", "tag", "stage", "export"]),
   clientIds: z.array(z.string().uuid()).min(1, "At least one client must be selected"),
-  options: z.record(z.unknown()).optional(),
+  options: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const ClientTagUpdateSchema = z.object({
@@ -181,7 +181,8 @@ export const ClientExportSchema = z.object({
 
 export const ClientImportSchema = z.object({
   source: z.enum(["csv", "excel", "google_contacts", "calendar"]),
-  mapping: z.record(z.string()).optional(),
+  // string -> string mapping
+  mapping: z.record(z.string(), z.string()).optional(),
   skipDuplicates: z.boolean().optional(),
   updateExisting: z.boolean().optional(),
   defaultTags: z.array(z.string().max(50, "Tag too long")).max(20, "Too many tags").optional(),
@@ -295,7 +296,7 @@ export const validationHelpers = {
       return { success: true, data: ClientFormSchema.parse(data) };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return { success: false, errors: error.errors };
+        return { success: false, errors: error.issues };
       }
       return { success: false, errors: [{ message: "Validation failed" }] };
     }
@@ -309,7 +310,7 @@ export const validationHelpers = {
       return { success: true, data: ClientQuickAddSchema.parse(data) };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return { success: false, errors: error.errors };
+        return { success: false, errors: error.issues };
       }
       return { success: false, errors: [{ message: "Validation failed" }] };
     }
@@ -323,7 +324,7 @@ export const validationHelpers = {
       return { success: true, data: ClientSearchSchema.parse(data) };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return { success: false, errors: error.errors };
+        return { success: false, errors: error.issues };
       }
       return { success: false, errors: [{ message: "Validation failed" }] };
     }
@@ -337,7 +338,7 @@ export const validationHelpers = {
       return { success: true, data: ClientNoteFormSchema.parse(data) };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return { success: false, errors: error.errors };
+        return { success: false, errors: error.issues };
       }
       return { success: false, errors: [{ message: "Validation failed" }] };
     }
@@ -351,7 +352,7 @@ export const validationHelpers = {
       return { success: true, data: ClientEmailFormSchema.parse(data) };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return { success: false, errors: error.errors };
+        return { success: false, errors: error.issues };
       }
       return { success: false, errors: [{ message: "Validation failed" }] };
     }
@@ -365,7 +366,7 @@ export const validationHelpers = {
       return { success: true, data: ClientBulkOperationSchema.parse(data) };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return { success: false, errors: error.errors };
+        return { success: false, errors: error.issues };
       }
       return { success: false, errors: [{ message: "Validation failed" }] };
     }

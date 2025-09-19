@@ -1,10 +1,9 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
 import { createRouteHandler } from "@/server/api/handler";
-import { getDb } from "@/server/db/client";
-import { contacts } from "@/server/db/schema";
 import { ApiResponseBuilder } from "@/server/api/response";
 import { BulkDeleteBodySchema } from "@/lib/validation/schemas/omniClients";
+import { ContactsRepository } from "@repo";
 import { logger } from "@/lib/observability";
+import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * OmniClients Bulk Delete API
@@ -21,39 +20,30 @@ export const POST = createRouteHandler({
   const api = new ApiResponseBuilder("omni_clients_bulk_delete", requestId);
 
   try {
-    const dbo = await getDb();
     const { ids } = validated.body;
 
-    // Count contacts to delete first
-    const countRows = await dbo
-      .select({ n: sql<number>`count(*)` })
-      .from(contacts)
-      .where(and(eq(contacts.userId, userId), inArray(contacts.id, ids)))
-      .limit(1);
-    const n = countRows[0]?.n ?? 0;
+    // Delete contacts using repository
+    const deletedCount = await ContactsRepository.deleteContactsByIds(userId, ids);
 
-    if (n === 0) {
+    if (deletedCount === 0) {
       return api.success({
         deleted: 0,
         message: "No clients found to delete",
       });
     }
 
-    // Delete the contacts
-    await dbo.delete(contacts).where(and(eq(contacts.userId, userId), inArray(contacts.id, ids)));
-
     await logger.info("Bulk deleted OmniClients", {
       operation: "omni_clients_bulk_delete",
       additionalData: {
         userId: userId.slice(0, 8) + "...",
-        deletedCount: n,
+        deletedCount: deletedCount,
         requestedIds: ids.length,
       },
     });
 
     return api.success({
-      deleted: n,
-      message: `Successfully deleted ${n} client${n === 1 ? "" : "s"}`,
+      deleted: deletedCount,
+      message: `Successfully deleted ${deletedCount} client${deletedCount === 1 ? "" : "s"}`,
     });
   } catch (error) {
     await logger.error(
@@ -73,7 +63,7 @@ export const POST = createRouteHandler({
       "Failed to delete clients",
       "INTERNAL_ERROR",
       undefined,
-      error instanceof Error ? error : undefined,
+      ensureError(error),
     );
   }
 });

@@ -20,9 +20,8 @@ export function useOmniClientCount(): number {
         if (isMounted) {
           setCount(data.count);
         }
-      } catch (error) {
-        // Log error for debugging
-        console.error("Failed to load OmniClients count:", error);
+      } catch {
+        // Silent error handling - set count to 0 on failure
         if (isMounted) {
           setCount(0);
         }

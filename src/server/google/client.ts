@@ -1,7 +1,5 @@
 import { google } from "googleapis";
-import { getDb } from "@/server/db/client";
-import { and, eq } from "drizzle-orm";
-import { userIntegrations } from "@/server/db/schema";
+import { UserIntegrationsRepository } from "@repo";
 import { decryptString, encryptString, isEncrypted } from "@/server/utils/crypto";
 import type { GmailClient } from "./gmail";
 
@@ -23,11 +21,7 @@ export function makeCalendarClient(auth: InstanceType<typeof google.auth.OAuth2>
 }
 
 export async function getGoogleClients(userId: string): Promise<GoogleApisClients> {
-  const dbo = await getDb();
-  const rows = await dbo
-    .select()
-    .from(userIntegrations)
-    .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")));
+  const rows = await UserIntegrationsRepository.getRawIntegrationData(userId, "google");
 
   console.warn(
     `getGoogleClients: Found ${rows?.length || 0} Google integrations for user ${userId}`,
@@ -39,7 +33,16 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
   }
 
   function buildOAuthFromRow(
-    r: typeof userIntegrations.$inferSelect,
+    r: {
+      userId: string;
+      provider: string;
+      service: string;
+      accessToken: string;
+      refreshToken: string | null;
+      expiryDate: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+    },
   ): InstanceType<typeof google.auth.OAuth2> {
     console.warn(`buildOAuthFromRow: Creating OAuth client for service ${r.service}`);
 
@@ -65,25 +68,15 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
     // Backfill encryption once read (row-scoped)
     if (!isEncrypted(r.accessToken) || (r.refreshToken && !isEncrypted(r.refreshToken))) {
-      void dbo
-        .update(userIntegrations)
-        .set({
-          accessToken: isEncrypted(r.accessToken) ? r.accessToken : encryptString(decryptedAccess),
-          refreshToken:
-            r.refreshToken == null
-              ? null
-              : isEncrypted(r.refreshToken)
-                ? r.refreshToken
-                : encryptString(decryptedRefresh as string),
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(userIntegrations.userId, userId),
-            eq(userIntegrations.provider, "google"),
-            eq(userIntegrations.service, r.service),
-          ),
-        );
+      void UserIntegrationsRepository.updateRawTokens(userId, "google", r.service, {
+        accessToken: isEncrypted(r.accessToken) ? r.accessToken : encryptString(decryptedAccess),
+        refreshToken:
+          r.refreshToken == null
+            ? null
+            : isEncrypted(r.refreshToken)
+              ? r.refreshToken
+              : encryptString(decryptedRefresh as string),
+      });
     }
 
     auth.setCredentials({
@@ -94,53 +87,29 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
     auth.on("tokens", async (tokens) => {
       if (!(tokens.access_token || tokens.refresh_token)) return;
-      const dboInner = await getDb();
-      await dboInner
-        .update(userIntegrations)
-        .set({
-          accessToken:
-            tokens.access_token != null ? encryptString(tokens.access_token) : r.accessToken,
-          refreshToken:
-            tokens.refresh_token != null ? encryptString(tokens.refresh_token) : r.refreshToken,
-          expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : r.expiryDate,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(userIntegrations.userId, userId),
-            eq(userIntegrations.provider, "google"),
-            eq(userIntegrations.service, r.service),
-          ),
-        );
+      await UserIntegrationsRepository.updateRawTokens(userId, "google", r.service, {
+        accessToken:
+          tokens.access_token != null ? encryptString(tokens.access_token) : r.accessToken,
+        refreshToken:
+          tokens.refresh_token != null ? encryptString(tokens.refresh_token) : r.refreshToken,
+        expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : r.expiryDate,
+      });
     });
 
     return auth;
   }
 
-  function selectServiceRowOrFallback(
-    service: "gmail" | "calendar",
-  ): typeof userIntegrations.$inferSelect {
-    if (rows.length === 0) {
-      throw new Error(`No Google integrations found for user ${userId}`);
-    }
+  // Strict service-specific token enforcement - no fallbacks
+  const gmailRow = rows.find((r: { service: string }) => r.service === "gmail");
+  const calendarRow = rows.find((r: { service: string }) => r.service === "calendar");
 
-    // Priority order: 1) unified (new), 2) specific service, 3) auth fallback, 4) any row
-    const unified = rows.find((r) => r.service === "unified");
-    const match =
-      unified ??
-      rows.find((r) => r.service === service) ??
-      rows.find((r) => r.service === "auth") ??
-      rows[0];
-
-    if (!match) {
-      throw new Error(`Failed to select integration row for service: ${service}`);
-    }
-
-    return match;
+  if (!gmailRow) {
+    throw Object.assign(new Error("Gmail access not approved by user"), { status: 403 });
   }
 
-  const gmailRow = selectServiceRowOrFallback("gmail");
-  const calendarRow = selectServiceRowOrFallback("calendar");
+  if (!calendarRow) {
+    throw Object.assign(new Error("Calendar access not approved by user"), { status: 403 });
+  }
 
   const gmailAuth = buildOAuthFromRow(gmailRow);
   const calendarAuth = buildOAuthFromRow(calendarRow);
@@ -168,6 +137,20 @@ export async function getGoogleCalendarClient(userId: string): Promise<CalendarC
   } catch (error) {
     console.error(
       `getGoogleCalendarClient: Failed to get calendar client for user ${userId}:`,
+      error,
+    );
+    return null;
+  }
+}
+
+// Specific helper for Gmail client
+export async function getGoogleGmailClient(userId: string): Promise<GmailClient | null> {
+  try {
+    const { gmail } = await getGoogleClients(userId);
+    return gmail;
+  } catch (error) {
+    console.error(
+      `getGoogleGmailClient: Failed to get Gmail client for user ${userId}:`,
       error,
     );
     return null;

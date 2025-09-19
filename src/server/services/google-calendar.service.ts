@@ -52,12 +52,13 @@ export class GoogleCalendarService {
   public static async getAuth(userId: string): Promise<OAuth2Type> {
     const db = await getDb();
 
-    // Get user integration using Drizzle ORM
+    // Get user integration using Drizzle ORM - require explicit calendar service approval
     const result = await db
       .select({
         accessToken: userIntegrations.accessToken,
         refreshToken: userIntegrations.refreshToken,
         expiryDate: userIntegrations.expiryDate,
+        service: userIntegrations.service,
       })
       .from(userIntegrations)
       .where(
@@ -107,6 +108,41 @@ export class GoogleCalendarService {
       expiry_date: expiryDate,
     });
 
+    // Add automatic token refresh listener (same as getGoogleClients)
+    oauth2Client.on("tokens", async (tokens) => {
+      if (!(tokens.access_token || tokens.refresh_token)) return;
+      try {
+        await db
+          .update(userIntegrations)
+          .set({
+            accessToken: tokens.access_token
+              ? encryptString(tokens.access_token)
+              : integration.accessToken,
+            refreshToken: tokens.refresh_token
+              ? encryptString(tokens.refresh_token)
+              : integration.refreshToken,
+            expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : integration.expiryDate,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(userIntegrations.userId, userId),
+              eq(userIntegrations.provider, "google"),
+              eq(userIntegrations.service, integration.service),
+            ),
+          );
+      } catch (error) {
+        await logger.error(
+          "Failed to update tokens from automatic refresh",
+          {
+            operation: "oauth",
+            additionalData: { userId, service: integration.service },
+          },
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    });
+
     // Check if token is near expiry and refresh if needed
     const now = Date.now();
     const tokenExpiresIn = expiryDate ? expiryDate - now : 0;
@@ -126,7 +162,7 @@ export class GoogleCalendarService {
         const { credentials } = await oauth2Client.refreshAccessToken();
 
         if (credentials.access_token) {
-          // Update database with new tokens
+          // Update database with new tokens (use actual service name)
           await db
             .update(userIntegrations)
             .set({
@@ -138,7 +174,7 @@ export class GoogleCalendarService {
               and(
                 eq(userIntegrations.userId, userId),
                 eq(userIntegrations.provider, "google"),
-                eq(userIntegrations.service, "calendar"),
+                eq(userIntegrations.service, integration.service),
               ),
             );
 
@@ -230,15 +266,10 @@ export class GoogleCalendarService {
     const db = await getDb();
 
     try {
+      // Clear all Google integrations for the user since tokens may be shared
       await db
         .delete(userIntegrations)
-        .where(
-          and(
-            eq(userIntegrations.userId, userId),
-            eq(userIntegrations.provider, "google"),
-            eq(userIntegrations.service, "calendar"),
-          ),
-        );
+        .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google")));
 
       await logger.info("Cleared invalid Google Calendar tokens", {
         operation: "oauth",
@@ -273,6 +304,14 @@ export class GoogleCalendarService {
       daysFuture?: number;
       maxResults?: number;
       batchId?: string;
+      sessionId?: string;
+      onProgress?: (progress: {
+        currentStep: string;
+        progressPercentage: number;
+        totalItems?: number;
+        importedItems?: number;
+        failedItems?: number;
+      }) => Promise<void>;
     } = {},
   ): Promise<{
     success: boolean;
@@ -283,29 +322,57 @@ export class GoogleCalendarService {
       const auth = await this.getAuth(userId);
       const calendar = google.calendar({ version: "v3", auth });
 
+      // Report progress: discovering calendars
+      await options.onProgress?.({
+        currentStep: "Discovering calendars...",
+        progressPercentage: 10,
+      });
+
       // Get list of calendars with rate limiting
       const rateLimitedCalendarList = withRateLimit("calendar")(() => calendar.calendarList.list());
       const calendarsResponse = await rateLimitedCalendarList(userId);
       const calendars = calendarsResponse.data.items ?? [];
 
       let totalSyncedEvents = 0;
+      let totalFailedEvents = 0;
+      const totalCalendars = calendars.length;
+
+      // Report progress: starting calendar sync
+      await options.onProgress?.({
+        currentStep: `Syncing ${totalCalendars} calendars...`,
+        progressPercentage: 15,
+        totalItems: totalCalendars,
+        importedItems: 0,
+        failedItems: 0,
+      });
 
       // Sync events from each calendar
-      for (const cal of calendars) {
-        if (!cal.id) continue;
+      for (let i = 0; i < calendars.length; i++) {
+        const cal = calendars[i];
+        if (!cal?.id) continue;
 
         try {
+          // Report progress for this calendar
+          await options.onProgress?.({
+            currentStep: `Syncing calendar "${cal.summary ?? cal.id}"...`,
+            progressPercentage: 15 + Math.floor((i / totalCalendars) * 55), // 15% to 70%
+            totalItems: totalCalendars,
+            importedItems: i,
+            failedItems: totalFailedEvents,
+          });
+
           const events = await this.syncCalendarEvents(userId, cal.id, calendar, options);
           totalSyncedEvents += events;
         } catch (error: unknown) {
+          totalFailedEvents++;
           await logger.error(
-            `Error syncing calendar ${cal.id}`,
+            `Error syncing calendar ${cal.id || "unknown"}`,
             {
               operation: "api_call",
               additionalData: {
                 op: "google_calendar.calendar_sync_error",
                 userId,
-                calendarId: cal.id,
+                calendarId: cal.id || "unknown",
                 error: error instanceof Error ? error.message : String(error),
               },
             },
@@ -319,6 +386,15 @@ export class GoogleCalendarService {
           // Continue with other calendars for non-auth errors
         }
       }
+
+      // Report progress: calendar sync completed
+      await options.onProgress?.({
+        currentStep: `Completed syncing ${totalSyncedEvents} events from ${totalCalendars} calendars`,
+        progressPercentage: 70,
+        totalItems: totalCalendars,
+        importedItems: totalCalendars - totalFailedEvents,
+        failedItems: totalFailedEvents,
+      });
 
       // Enqueue normalization jobs for the synced events
       if (totalSyncedEvents > 0 && options.batchId) {
@@ -433,10 +509,12 @@ export class GoogleCalendarService {
     for (const event of events) {
       try {
         await this.writeToRawEvents(userId, calendarId, event, options.batchId);
+        // Also write directly to calendarEvents for immediate UI availability
+        await this.writeToCalendarEvents(userId, calendarId, event);
         syncedCount++;
       } catch (error) {
         await logger.error(
-          "Error writing event to raw_events",
+          "Error writing event to database",
           {
             operation: "calendar.sync.write_event",
             additionalData: {
@@ -534,6 +612,87 @@ export class GoogleCalendarService {
       } else {
         throw error; // Re-throw if it's not a unique constraint violation
       }
+    }
+  }
+
+  /**
+   * Write calendar event directly to calendarEvents table for immediate UI availability
+   */
+  private static async writeToCalendarEvents(
+    userId: string,
+    calendarId: string,
+    event: calendar_v3.Schema$Event,
+  ): Promise<void> {
+    if (!event.id || !event.start || !event.end) {
+      return; // Skip events without required data
+    }
+
+    // Determine start and end times
+    const startTime = event.start.dateTime
+      ? new Date(event.start.dateTime)
+      : new Date(event.start.date!);
+    const endTime = event.end.dateTime ? new Date(event.end.dateTime) : new Date(event.end.date!);
+
+    const db = await getDb();
+
+    // Transform Google Calendar event to our schema format
+    const calendarEventData = {
+      userId,
+      googleEventId: event.id,
+      title: event.summary ?? "Untitled Event",
+      description: event.description ?? null,
+      startTime,
+      endTime,
+      location: event.location ?? null,
+      status: event.status ?? null,
+      attendees: event.attendees ?? [],
+      timeZone: event.start.timeZone ?? null,
+      isAllDay: !event.start.dateTime,
+      visibility: event.visibility ?? null,
+      eventType: null, // Can be enhanced with business logic
+      businessCategory: null, // Can be enhanced with business logic
+      keywords: [], // Can be enhanced with content analysis
+      googleUpdated: event.updated ? new Date(event.updated) : new Date(),
+      lastSynced: new Date(),
+    };
+
+    // Use upsert to handle duplicates gracefully
+    try {
+      await db
+        .insert(calendarEvents)
+        .values(calendarEventData)
+        .onConflictDoUpdate({
+          target: [calendarEvents.userId, calendarEvents.googleEventId],
+          set: {
+            title: calendarEventData.title,
+            description: calendarEventData.description,
+            startTime: calendarEventData.startTime,
+            endTime: calendarEventData.endTime,
+            location: calendarEventData.location,
+            status: calendarEventData.status,
+            attendees: calendarEventData.attendees,
+            timeZone: calendarEventData.timeZone,
+            isAllDay: calendarEventData.isAllDay,
+            visibility: calendarEventData.visibility,
+            googleUpdated: calendarEventData.googleUpdated,
+            lastSynced: calendarEventData.lastSynced,
+            updatedAt: new Date(),
+          },
+        });
+    } catch (error: unknown) {
+      // Log error but don't throw to avoid breaking the sync process
+      await logger.error(
+        "Failed to write calendar event directly to calendarEvents",
+        {
+          operation: "calendar.sync.write_calendar_event",
+          additionalData: {
+            userId: userId.slice(0, 8) + "...",
+            eventId: event.id,
+            calendarId,
+          },
+        },
+        error instanceof Error ? error : undefined,
+      );
     }
   }
 

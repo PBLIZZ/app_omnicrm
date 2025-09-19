@@ -16,9 +16,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchContacts } from "@/lib/services/client/contacts.service";
-import type { ContactDTO } from "@/lib/validation/schemas/omniClients";
+import { type ContactDTO } from "@/lib/validation/schemas/omniClients";
 import MonthlySessionsKpi from "./MonthlySessionsKpi";
 import { getSyncStatus } from "@/lib/services/client/sync.service";
+import { ManualJobProcessor } from "@/components/debug/ManualJobProcessor";
+import { SupabaseDiagnostic } from "@/components/debug/SupabaseDiagnostic";
 
 import {
   Alert,
@@ -59,6 +61,11 @@ export default function DashboardContent(): JSX.Element {
     queryKey: ["contacts", "dashboard", "recent"],
     queryFn: () => fetchContacts({ page: 1, pageSize: 50, sort: "createdAt", order: "desc" }),
     staleTime: 30_000,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    gcTime: 5 * 60 * 1000, // 5 minutes cache
+    refetchOnWindowFocus: false,
+    networkMode: "online",
   });
   const contacts: ContactDTO[] = data?.items ?? [];
 
@@ -84,13 +91,22 @@ export default function DashboardContent(): JSX.Element {
 
   // Error state
   if (error) {
+    console.error("[DashboardContent] Contact fetch error:", error);
     return (
       <div className="py-6">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>
-            Failed to load dashboard data: {error instanceof Error ? error.message : String(error)}
+          <AlertTitle>Error Loading Dashboard</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <div>Failed to load dashboard data: {error instanceof Error ? error.message : String(error)}</div>
+            {process.env.NODE_ENV === "development" && (
+              <div className="mt-2 text-xs bg-red-50 p-2 rounded border">
+                <div>Debug Info:</div>
+                <div>• Check browser console for detailed logs</div>
+                <div>• Verify Supabase connection</div>
+                <div>• Check environment variables</div>
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       </div>
@@ -210,6 +226,14 @@ export default function DashboardContent(): JSX.Element {
 
           <MonthlySessionsKpi />
         </div>
+
+        {/* Debug Components - Development Only */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="space-y-4">
+            <SupabaseDiagnostic />
+            <ManualJobProcessor />
+          </div>
+        )}
 
         {/* Tabs for different dashboard sections */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

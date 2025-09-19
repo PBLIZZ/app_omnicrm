@@ -98,7 +98,9 @@ export async function getDb(): Promise<PostgresJsDatabase<typeof schema>> {
 export const db: PostgresJsDatabase<typeof schema> = new Proxy(
   {} as PostgresJsDatabase<typeof schema>,
   {
-    get(_target, propertyKey: string | symbol) {
+    get(target, propertyKey: string | symbol) {
+      // Proxy handler acknowledges target parameter for type compliance
+      void target;
       return (...args: unknown[]) =>
         getDb().then((resolvedDb: PostgresJsDatabase<typeof schema>) => {
           // Safe member access on resolved database instance

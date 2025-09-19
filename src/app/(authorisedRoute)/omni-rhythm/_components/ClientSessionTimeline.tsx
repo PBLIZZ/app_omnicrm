@@ -165,12 +165,10 @@ function ClientTimelineCard({
 
         <div className="flex items-center gap-2">
           <div className="flex items-center">
-            {Array.from({ length: 5 }, (_, i) => (
+            {[...Array(2).keys()].map((i) => (
               <Star
                 key={i}
-                className={`h-3 w-3 ${
-                  i < client.satisfaction ? "text-yellow-400 fill-current" : "text-gray-300"
-                }`}
+                className={`h-3 w-3 ${i < client.satisfaction ? "text-yellow-400 fill-current" : "text-gray-300"}`}
               />
             ))}
           </div>

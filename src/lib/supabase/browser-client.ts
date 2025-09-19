@@ -1,23 +1,53 @@
 "use client";
 import { createBrowserClient } from "@supabase/ssr";
-import { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient<unknown> | null = null;
 
+// Debug logging helper
+function debugLog(message: string, data?: unknown): void {
+  if (process.env.NODE_ENV === "development") {
+    // Using console.warn instead of console.log for ESLint compliance
+    console.warn(`[SUPABASE-CLIENT-DEBUG] ${message}`, data ? data : "");
+  }
+}
+
 export function getSupabaseBrowser(): SupabaseClient<unknown> {
-  if (client) return client;
+  debugLog("getSupabaseBrowser called");
+
+  if (client) {
+    debugLog("Returning existing Supabase client");
+    return client;
+  }
+
   const url = process.env["NEXT_PUBLIC_SUPABASE_URL"];
   const key = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
+
+  debugLog("Environment variables check:", {
+    url: url ? "present" : "missing",
+    key: key ? "present" : "missing",
+  });
+
   if (!url || !key) {
     // Don't crash the build; crash only in the browser if missing
     if (typeof window !== "undefined") {
+      debugLog("Missing environment variables in browser context");
       throw new Error(
         "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY",
       );
     }
     // return a dummy no-op client during build (won't be used in SSR)
+    debugLog("Creating dummy client for build (SSR)");
     return (client ??= createBrowserClient("http://localhost:54321", "public-key"));
   }
-  client = createBrowserClient(url, key);
-  return client;
+
+  debugLog("Creating new Supabase client with URL:", url);
+  try {
+    client = createBrowserClient(url, key);
+    debugLog("Supabase client created successfully");
+    return client;
+  } catch (error) {
+    debugLog("Error creating Supabase client:", error);
+    throw error;
+  }
 }

@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
-import { NextRequest, NextResponse } from "next/server";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
+import { NextRequest } from "next/server";
 import { getDb } from "@/server/db/client";
 import { userIntegrations, userSyncPrefs, contacts, jobs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
-// Import middleware and auth utilities
-import { middleware } from "@/middleware";
+// Import auth utilities
 import { getServerUserId } from "@/server/auth/user";
 
 /**
@@ -65,15 +64,15 @@ describe("Authentication Flow Integration Tests", () => {
         getServerUserId: mockGetUserId,
       }));
 
-      // Test access to protected API route
-      const protectedRequest = new NextRequest("http://localhost:3000/api/omni-clients");
-
       // Simulate middleware check
       const middlewareRequest = new NextRequest("http://localhost:3000/api/omni-clients", {
         headers: {
           cookie: "supabase-auth-token=valid-token",
         },
       });
+
+      // Verify middleware request contains expected headers
+      expect(middlewareRequest.headers.get("cookie")).toBe("supabase-auth-token=valid-token");
 
       // Test that authenticated requests pass through
       expect(async () => {
@@ -120,16 +119,6 @@ describe("Authentication Flow Integration Tests", () => {
       vi.doMock("@/server/auth/csrf", () => ({
         validateCsrfToken: mockValidateCsrf,
       }));
-
-      // Test valid CSRF token
-      const validRequest = new NextRequest("http://localhost:3000/api/omni-clients", {
-        method: "POST",
-        headers: {
-          "x-csrf-token": validToken,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ displayName: "Test" }),
-      });
 
       const { validateCsrfToken } = await import("@/server/auth/csrf");
       const validResult = await validateCsrfToken(validToken);
@@ -227,13 +216,13 @@ describe("Authentication Flow Integration Tests", () => {
         .limit(1);
 
       expect(syncPrefs).toHaveLength(1);
-      expect(syncPrefs[0].gmailQuery).toBe("category:primary newer_than:30d");
-      expect(syncPrefs[0].calendarIncludeOrganizerSelf).toBe(true);
+      expect(syncPrefs[0]?.gmailQuery).toBe("category:primary newer_than:30d");
+      expect(syncPrefs[0]?.calendarIncludeOrganizerSelf).toBe(true);
     });
 
     it("handles OAuth token refresh workflow", async () => {
       // Setup expired tokens
-      const expiredTokens = await db
+      await db
         .insert(userIntegrations)
         .values([
           {
@@ -255,26 +244,18 @@ describe("Authentication Flow Integration Tests", () => {
           expiryDate: new Date(Date.now() + 3600000), // New expiry 1 hour from now
           updatedAt: new Date(),
         })
-        .where(
-          eq(userIntegrations.userId, testUserId) &&
-            eq(userIntegrations.provider, "google") &&
-            eq(userIntegrations.service, "gmail"),
-        );
+        .where(eq(userIntegrations.userId, testUserId));
 
       // Verify token was refreshed
       const refreshedToken = await db
         .select()
         .from(userIntegrations)
-        .where(
-          eq(userIntegrations.userId, testUserId) &&
-            eq(userIntegrations.provider, "google") &&
-            eq(userIntegrations.service, "gmail"),
-        )
+        .where(eq(userIntegrations.userId, testUserId))
         .limit(1);
 
       expect(refreshedToken).toHaveLength(1);
-      expect(refreshedToken[0].accessToken).toBe("new-refreshed-access-token");
-      expect(refreshedToken[0].expiryDate!.getTime()).toBeGreaterThan(Date.now());
+      expect(refreshedToken[0]?.accessToken).toBe("new-refreshed-access-token");
+      expect(refreshedToken[0]?.expiryDate?.getTime()).toBeGreaterThan(Date.now());
     });
 
     it("handles OAuth disconnection workflow", async () => {
@@ -346,8 +327,8 @@ describe("Authentication Flow Integration Tests", () => {
         })
         .returning();
 
-      cleanupIds.push({ table: "contacts", id: user1Contact[0].id });
-      cleanupIds.push({ table: "contacts", id: user2Contact[0].id });
+      if (user1Contact[0]) cleanupIds.push({ table: "contacts", id: user1Contact[0].id });
+      if (user2Contact[0]) cleanupIds.push({ table: "contacts", id: user2Contact[0].id });
 
       // User 1 should only see their data
       const user1Data = await db.select().from(contacts).where(eq(contacts.userId, user1Id));
@@ -362,7 +343,7 @@ describe("Authentication Flow Integration Tests", () => {
       const crossAccess = await db
         .select()
         .from(contacts)
-        .where(eq(contacts.userId, user1Id) && eq(contacts.id, user2Contact[0].id));
+        .where(eq(contacts.userId, user1Id) && eq(contacts.id, user2Contact[0]?.id ?? ""));
 
       expect(crossAccess).toHaveLength(0);
 
@@ -399,8 +380,8 @@ describe("Authentication Flow Integration Tests", () => {
         })
         .returning();
 
-      cleanupIds.push({ table: "contacts", id: adminContact[0].id });
-      cleanupIds.push({ table: "contacts", id: regularContact[0].id });
+      if (adminContact[0]) cleanupIds.push({ table: "contacts", id: adminContact[0].id });
+      if (regularContact[0]) cleanupIds.push({ table: "contacts", id: regularContact[0].id });
 
       // Verify data isolation is maintained regardless of "role"
       const adminData = await db.select().from(contacts).where(eq(contacts.userId, adminUserId));
@@ -412,8 +393,8 @@ describe("Authentication Flow Integration Tests", () => {
 
       expect(adminData).toHaveLength(1);
       expect(regularData).toHaveLength(1);
-      expect(adminData[0].userId).toBe(adminUserId);
-      expect(regularData[0].userId).toBe(regularUserId);
+      expect(adminData[0]?.userId).toBe(adminUserId);
+      expect(regularData[0]?.userId).toBe(regularUserId);
 
       // Clean up admin data
       await db.delete(contacts).where(eq(contacts.userId, adminUserId));
@@ -439,7 +420,7 @@ describe("Authentication Flow Integration Tests", () => {
         })
         .returning();
 
-      cleanupIds.push({ table: "contacts", id: testContact[0].id });
+      if (testContact[0]) cleanupIds.push({ table: "contacts", id: testContact[0].id });
 
       // Verify that API calls properly use authenticated user context
       const { getServerUserId } = await import("@/server/auth/user");
@@ -450,7 +431,7 @@ describe("Authentication Flow Integration Tests", () => {
       // Verify that queries are scoped to the authenticated user
       const userContacts = await db.select().from(contacts).where(eq(contacts.userId, apiUserId));
 
-      expect(userContacts.some((c) => c.id === testContact[0].id)).toBe(true);
+      expect(userContacts.some((c) => c.id === testContact[0]?.id)).toBe(true);
     });
   });
 
@@ -478,7 +459,7 @@ describe("Authentication Flow Integration Tests", () => {
         .returning();
 
       expect(defaultSyncPrefs).toHaveLength(1);
-      expect(defaultSyncPrefs[0].userId).toBe(newUserId);
+      expect(defaultSyncPrefs[0]?.userId).toBe(newUserId);
 
       // Step 3: User completes OAuth setup (simulated)
       const oauthSetup = await db
@@ -505,8 +486,8 @@ describe("Authentication Flow Integration Tests", () => {
 
       expect(syncPrefs).toHaveLength(1);
       expect(integrations).toHaveLength(1);
-      expect(syncPrefs[0].gmailQuery).toBe("category:primary -in:chats -in:drafts newer_than:30d");
-      expect(integrations[0].provider).toBe("google");
+      expect(syncPrefs[0]?.gmailQuery).toBe("category:primary -in:chats -in:drafts newer_than:30d");
+      expect(integrations[0]?.provider).toBe("google");
 
       // Clean up new user data
       await db.delete(userIntegrations).where(eq(userIntegrations.userId, newUserId));
@@ -518,7 +499,8 @@ describe("Authentication Flow Integration Tests", () => {
       const newUserId = "new-user-migration-test";
 
       // Step 1: Create data under old user ID
-      const oldUserData = await Promise.all([
+      // Get old user data for potential migration verification
+      await Promise.all([
         db
           .insert(contacts)
           .values({
@@ -538,7 +520,7 @@ describe("Authentication Flow Integration Tests", () => {
           .returning(),
       ]);
 
-      const [oldContacts, oldSyncPrefs] = oldUserData;
+      // Variables captured for potential data migration verification
 
       // Step 2: Migrate data to new user ID
       await Promise.all([
@@ -567,8 +549,8 @@ describe("Authentication Flow Integration Tests", () => {
       expect(remainingOldContacts).toHaveLength(0);
       expect(remainingOldSyncPrefs).toHaveLength(0);
 
-      expect(newContacts[0].displayName).toBe("Old User Contact");
-      expect(newSyncPrefs[0].gmailQuery).toBe("custom query");
+      expect(newContacts[0]?.displayName).toBe("Old User Contact");
+      expect(newSyncPrefs[0]?.gmailQuery).toBe("custom query");
 
       // Clean up migrated data
       await db.delete(contacts).where(eq(contacts.userId, newUserId));
@@ -601,7 +583,7 @@ describe("Authentication Flow Integration Tests", () => {
         .from(userIntegrations)
         .where(eq(userIntegrations.userId, testUserId) && eq(userIntegrations.provider, "google"));
 
-      expect(expiredTokens[0].expiryDate!.getTime()).toBeLessThan(Date.now());
+      expect(expiredTokens[0]?.expiryDate?.getTime()).toBeLessThan(Date.now());
 
       // Step 3: Re-authenticate (refresh or re-authorize)
       await db
@@ -620,24 +602,22 @@ describe("Authentication Flow Integration Tests", () => {
         .from(userIntegrations)
         .where(eq(userIntegrations.userId, testUserId));
 
-      expect(reAuthenticatedTokens[0].accessToken).toBe("re-authenticated-token");
-      expect(reAuthenticatedTokens[0].expiryDate!.getTime()).toBeGreaterThan(Date.now());
+      expect(reAuthenticatedTokens[0]?.accessToken).toBe("re-authenticated-token");
+      expect(reAuthenticatedTokens[0]?.expiryDate?.getTime()).toBeGreaterThan(Date.now());
     });
   });
 
   describe("Security Validation Workflows", () => {
     it("validates secure token storage", async () => {
       // OAuth tokens should be encrypted when stored
-      const tokenData = {
+      await db.insert(userIntegrations).values({
         userId: testUserId,
         provider: "google" as const,
         service: "auth" as const,
         accessToken: "sensitive-access-token",
         refreshToken: "sensitive-refresh-token",
         expiryDate: new Date(Date.now() + 3600000),
-      };
-
-      await db.insert(userIntegrations).values(tokenData);
+      });
 
       const storedToken = await db
         .select()
@@ -648,14 +628,14 @@ describe("Authentication Flow Integration Tests", () => {
       expect(storedToken).toHaveLength(1);
       // In production, these would be encrypted and not match the plain text
       // For testing, we just verify they're stored
-      expect(storedToken[0].accessToken).toBeDefined();
-      expect(storedToken[0].refreshToken).toBeDefined();
+      expect(storedToken[0]?.accessToken).toBeDefined();
+      expect(storedToken[0]?.refreshToken).toBeDefined();
     });
 
     it("validates session timeout handling", async () => {
       // Mock session timeout scenario
-      const sessionStartTime = Date.now();
       const sessionTimeoutMs = 24 * 60 * 60 * 1000; // 24 hours
+      const sessionStartTime = Date.now();
 
       // Simulate long session
       const longSessionTime = sessionStartTime + sessionTimeoutMs + 1000;
@@ -669,12 +649,13 @@ describe("Authentication Flow Integration Tests", () => {
 
     it("validates concurrent session handling", async () => {
       // Test that multiple active sessions are handled correctly
+      const timeoutWindow = 24 * 60 * 60 * 1000; // 24 hours
       const session1Time = new Date();
       const session2Time = new Date(Date.now() + 1000);
 
       // Both sessions should be valid if within timeout window
-      expect(session1Time.getTime()).toBeLessThan(Date.now() + 24 * 60 * 60 * 1000);
-      expect(session2Time.getTime()).toBeLessThan(Date.now() + 24 * 60 * 60 * 1000);
+      expect(session1Time.getTime()).toBeLessThan(Date.now() + timeoutWindow);
+      expect(session2Time.getTime()).toBeLessThan(Date.now() + timeoutWindow);
 
       // In practice, the system should handle multiple valid sessions
       // or implement session invalidation policies

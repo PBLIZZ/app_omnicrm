@@ -1,9 +1,33 @@
-import React from "react";
+// React testing utilities;
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MomentumKanbanView } from "../momentum-kanban-view";
-import { renderWithProviders, createMockMomentum, mockToast } from "@/__tests__/test-utils";
+import { renderWithProviders, mockToast } from "@/__tests__/test-utils";
+import {
+  setupRepoMocks,
+  resetRepoMocks,
+  testUtils,
+  type AllRepoFakes
+} from "@packages/testing";
+
+// Helper to create momentum test data
+const createMockMomentum = (overrides: any = {}) => ({
+  id: "momentum-1",
+  userId: testUtils.defaultUserId,
+  title: "Mock Task",
+  description: "Mock description",
+  status: "todo",
+  priority: "medium",
+  assignee: "user",
+  source: "user",
+  dueDate: null,
+  estimatedMinutes: null,
+  taggedContactsData: [],
+  createdAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
+  ...overrides,
+});
 
 // Mock dependencies
 vi.mock("@/lib/api/client", () => ({
@@ -51,6 +75,7 @@ vi.mock("@dnd-kit/utilities", () => ({
 
 describe("MomentumKanbanView", () => {
   let mockApiClient: any;
+  let fakes: AllRepoFakes;
   const user = userEvent.setup();
 
   beforeAll(async () => {
@@ -110,6 +135,8 @@ describe("MomentumKanbanView", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes = setupRepoMocks();
+    resetRepoMocks(fakes);
   });
 
   describe("Rendering", () => {

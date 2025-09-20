@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError, API_ERROR_CODES } from "@/server/api/response";
 import { ContactSuggestionService } from "@/server/services/contact-suggestion.service";
 import { ensureError } from "@/lib/utils/error-handler";
 
@@ -20,7 +21,6 @@ export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "omni_clients_suggestions_list" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients_suggestions_list", requestId);
 
   try {
     // Get contact suggestions from calendar attendees
@@ -28,11 +28,11 @@ export const GET = createRouteHandler({
 
     // Transform ContactSuggestion[] to match OmniClients terminology
     // (The types are already aligned, so no transformation needed)
-    return api.success({
+    return NextResponse.json({
       suggestions,
     });
   } catch (error) {
-    return api.error(
+    return apiError(
       "Failed to fetch client suggestions",
       "INTERNAL_ERROR",
       undefined,
@@ -48,7 +48,6 @@ export const POST = createRouteHandler({
     body: CreateFromSuggestionsSchema,
   },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients_suggestions_create", requestId);
 
   try {
     // Create contacts from suggestions
@@ -58,17 +57,23 @@ export const POST = createRouteHandler({
     );
 
     if (!result.success && result.createdCount === 0) {
-      return api.validationError("Failed to create clients", { errors: result.errors });
+      return apiError(
+        API_ERROR_CODES.VALIDATION_ERROR,
+        "Failed to create clients",
+        400,
+        requestId,
+        { errors: result.errors }
+      );
     }
 
-    return api.success({
+    return NextResponse.json({
       success: result.success,
       createdCount: result.createdCount,
       message: `Successfully created ${result.createdCount} OmniClient${result.createdCount === 1 ? "" : "s"}`,
       errors: result.errors.length > 0 ? result.errors : undefined,
     });
   } catch (error) {
-    return api.error(
+    return apiError(
       "Failed to create clients from suggestions",
       "INTERNAL_ERROR",
       undefined,

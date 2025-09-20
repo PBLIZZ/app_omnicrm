@@ -46,7 +46,7 @@ export {
   type ErrorCategory,
   type ErrorAction,
   type ErrorClassification,
-} from "./error-classification";
+} from "../errors/error-classification";
 
 /**
  * Quick setup for new components

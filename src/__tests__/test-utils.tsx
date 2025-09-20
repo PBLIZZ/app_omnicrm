@@ -176,7 +176,7 @@ export const createMockUseMutation = (
 });
 
 export const createMockUseQuery = (
-  data: any = null,
+  data: unknown = null,
   options: { isLoading?: boolean; isError?: boolean; error?: Error } = {},
 ) => ({
   data: options.isError ? null : data,

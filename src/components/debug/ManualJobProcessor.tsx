@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Play, Database, Calendar, Mail, Zap, Terminal } from 'lucide-react';
+import { fetchGet, fetchPost } from '@/lib/api';
 
 interface JobResult {
   success: boolean;
   message: string;
-  processed?: number;
-  errors?: string[];
+  processed: number | undefined;
+  errors: string[] | undefined;
 }
 
 interface JobStatus {
@@ -40,13 +41,8 @@ export function ManualJobProcessor(): React.JSX.Element | null {
 
   const fetchJobStatus = async () => {
     try {
-      const response = await fetch('/api/jobs/status', {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setJobQueue(data.jobs || []);
-      }
+      const data = await fetchGet<{ jobs: JobStatus[] }>('/api/jobs/status');
+      setJobQueue(data.jobs || []);
     } catch (error) {
       console.error('Failed to fetch job status:', error);
     }
@@ -76,47 +72,41 @@ export function ManualJobProcessor(): React.JSX.Element | null {
   const processJob = async (jobType: string, endpoint: string) => {
     setIsProcessing(jobType);
     addLog(`Starting ${jobType} processing...`);
-    
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include cookies for authentication
-      });
 
-      const result = await response.json();
-      
-      if (response.ok) {
-        addLog(`${jobType} completed successfully. Processed: ${result.processed ?? 0}`, 'success');
-        if (result.errors?.length > 0) {
-          result.errors.forEach((error: string) => {
-            addLog(`Error: ${error}`, 'error');
-          });
-        }
-      } else {
-        addLog(`${jobType} failed: ${result.message ?? result.error ?? 'Unknown error'}`, 'error');
+    try {
+      const result = await fetchPost<{
+        processed?: number;
+        errors?: string[];
+        message?: string;
+      }>(endpoint, {});
+
+      addLog(`${jobType} completed successfully. Processed: ${result.processed ?? 0}`, 'success');
+      if (result.errors?.length && result.errors.length > 0) {
+        result.errors.forEach((error: string) => {
+          addLog(`Error: ${error}`, 'error');
+        });
       }
-      
+
       setResults(prev => ({
         ...prev,
         [jobType]: {
-          success: response.ok,
-          message: result.message || (response.ok ? 'Success' : 'Failed'),
-          processed: result.processed,
-          errors: result.errors,
+          success: true,
+          message: result.message || 'Success',
+          processed: result.processed ?? undefined,
+          errors: result.errors ?? undefined,
         }
       }));
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addLog(`${jobType} failed with exception: ${errorMsg}`, 'error');
-      
+
       setResults(prev => ({
         ...prev,
         [jobType]: {
           success: false,
           message: errorMsg,
+          processed: undefined,
+          errors: undefined,
         }
       }));
     } finally {

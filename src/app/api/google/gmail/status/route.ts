@@ -10,19 +10,18 @@
  * - Replace calls to /api/google/gmail/status with /api/google/status
  * - Access Gmail data via response.services.gmail instead of root level
  */
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError, API_ERROR_CODES } from "@/server/api/response";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
-import { ensureError } from "@/lib/utils/error-handler";
 
 export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "gmail_status" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("google.gmail.status", requestId);
   try {
     const db = await getDb();
 
@@ -56,7 +55,7 @@ export const GET = createRouteHandler({
     const integration = unifiedIntegration[0] ?? gmailIntegration[0];
 
     if (!integration) {
-      return api.success({
+      return NextResponse.json({
         isConnected: false,
         reason: "no_integration",
       });
@@ -89,13 +88,16 @@ export const GET = createRouteHandler({
           const stillExpired =
             refreshedIntegration[0].expiryDate && refreshedIntegration[0].expiryDate < now;
 
-          return api.success({
-            isConnected: !stillExpired,
-            reason: stillExpired ? "token_expired" : "connected",
-            expiryDate: refreshedIntegration[0].expiryDate?.toISOString() ?? null,
-            hasRefreshToken: !!refreshedIntegration[0].refreshToken,
-            autoRefreshed: !stillExpired, // Indicate that auto-refresh was attempted
-            service: integration.service,
+          return NextResponse.json({
+            ok: true,
+            data: {
+              isConnected: !stillExpired,
+              reason: stillExpired ? "token_expired" : "connected",
+              expiryDate: refreshedIntegration[0].expiryDate?.toISOString() ?? null,
+              hasRefreshToken: !!refreshedIntegration[0].refreshToken,
+              autoRefreshed: !stillExpired, // Indicate that auto-refresh was attempted
+              service: integration.service,
+            }
           });
         }
       } catch (refreshError) {
@@ -104,19 +106,22 @@ export const GET = createRouteHandler({
       }
     }
 
-    return api.success({
-      isConnected: !isExpired,
-      reason: isExpired ? "token_expired" : "connected",
-      expiryDate: integration.expiryDate?.toISOString() ?? null,
-      hasRefreshToken: !!integration.refreshToken,
-      service: integration.service, // Indicate which integration type is being used
+    return NextResponse.json({
+      ok: true,
+      data: {
+        isConnected: !isExpired,
+        reason: isExpired ? "token_expired" : "connected",
+        expiryDate: integration.expiryDate?.toISOString() ?? null,
+        hasRefreshToken: !!integration.refreshToken,
+        service: integration.service, // Indicate which integration type is being used
+      }
     });
   } catch (error) {
-    return api.error(
+    return apiError(
+      API_ERROR_CODES.DATABASE_ERROR,
       "Failed to check Gmail status",
-      "DATABASE_ERROR",
-      undefined,
-      ensureError(error),
+      500,
+      requestId
     );
   }
 });

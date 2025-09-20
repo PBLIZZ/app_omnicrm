@@ -66,9 +66,18 @@ function getInitials(displayName: string): string {
   const names = displayName.trim().split(/\s+/).filter(Boolean);
   if (names.length === 0) return "?";
   if (names.length === 1) {
-    return names[0]!.charAt(0).toUpperCase();
+    const firstName = names[0];
+    if (firstName) {
+      return firstName.charAt(0).toUpperCase();
+    }
+    return "?";
   }
-  return `${names[0]!.charAt(0)}${names[names.length - 1]!.charAt(0)}`.toUpperCase();
+  const firstName = names[0];
+  const lastName = names[names.length - 1];
+  if (firstName && lastName) {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  }
+  return "?";
 }
 
 /**

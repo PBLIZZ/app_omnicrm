@@ -11,8 +11,9 @@
  * - Automatic normalization job enqueuing
  * - Rate limiting and auth validation
  */
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError, API_ERROR_CODES } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -37,7 +38,6 @@ export const POST = createRouteHandler({
   rateLimit: { operation: "calendar_sync" },
   validation: { body: syncSchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("google.calendar.sync", requestId);
   const { daysPast, daysFuture, maxResults } = validated.body;
 
   try {
@@ -57,9 +57,11 @@ export const POST = createRouteHandler({
       .limit(1);
 
     if (!integration[0]) {
-      return api.error(
+      return apiError(
+        API_ERROR_CODES.INTEGRATION_ERROR,
         "Google Calendar access not approved. Please connect Calendar in Settings.",
-        "INTEGRATION_ERROR"
+        502,
+        requestId
       );
     }
 
@@ -94,9 +96,11 @@ export const POST = createRouteHandler({
         },
       });
 
-      return api.error(
+      return apiError(
+        API_ERROR_CODES.INTEGRATION_ERROR,
         result.error ?? "Failed to sync calendar events",
-        "INTEGRATION_ERROR"
+        502,
+        requestId
       );
     }
 
@@ -111,7 +115,7 @@ export const POST = createRouteHandler({
       },
     });
 
-    return api.success({
+    return NextResponse.json({
       message: `Successfully synced ${result.syncedEvents} calendar events`,
       stats: {
         syncedEvents: result.syncedEvents,
@@ -131,11 +135,11 @@ export const POST = createRouteHandler({
       ensureError(error),
     );
 
-    return api.error(
+    return apiError(
+      API_ERROR_CODES.INTERNAL_ERROR,
       "Failed to sync calendar events",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+      500,
+      requestId
     );
   }
 });

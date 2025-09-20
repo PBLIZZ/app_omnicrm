@@ -19,8 +19,18 @@ vi.mock("date-fns", () => ({
   formatDistanceToNow: vi.fn(() => "2 days ago"),
 }));
 
+// Helper function to safely get the trigger element
+function getTriggerElement(): HTMLElement {
+  const textElement = screen.getByText("Hover trigger");
+  const parentElement = textElement.parentElement;
+  if (!parentElement) {
+    throw new Error("Trigger element's parentElement is null");
+  }
+  return parentElement;
+}
+
 describe("NotesHoverCard", () => {
-  let mockGet: any;
+  let mockGet: ReturnType<typeof vi.fn>;
   let fakes: AllRepoFakes;
   const user = userEvent.setup();
 
@@ -68,7 +78,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       expect(mockGet).toHaveBeenCalledWith("/api/omni-clients/client-1/notes");
@@ -79,7 +89,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       // Hover card should appear
@@ -95,7 +105,7 @@ describe("NotesHoverCard", () => {
     it("does not fetch notes if clientId is empty", async () => {
       renderWithProviders(<NotesHoverCard {...defaultProps} clientId="" />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       expect(mockGet).not.toHaveBeenCalled();
@@ -125,7 +135,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -157,7 +167,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -171,7 +181,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -184,7 +194,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -206,7 +216,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -223,7 +233,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -236,7 +246,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -251,7 +261,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
 
       // First hover - should show error
       await user.hover(trigger);
@@ -275,7 +285,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -298,7 +308,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -311,7 +321,7 @@ describe("NotesHoverCard", () => {
     it("maintains focus management for keyboard users", async () => {
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
 
       // Should be focusable
       trigger.focus();
@@ -333,7 +343,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -349,7 +359,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
       await user.hover(trigger);
 
       await waitFor(() => {
@@ -369,7 +379,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
 
       // First hover
       await user.hover(trigger);
@@ -391,7 +401,7 @@ describe("NotesHoverCard", () => {
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
-      const trigger = screen.getByText("Hover trigger").parentElement!;
+      const trigger = getTriggerElement();
 
       // Rapid hovers
       await user.hover(trigger);

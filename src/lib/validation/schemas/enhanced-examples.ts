@@ -131,27 +131,13 @@ export const EnhancedFileUploadSchema = z.object({
     ),
 });
 
-// Example 7: Using Zod 4's new error function with issue inspection
+// Example 7: Using Zod 4's error message parameter
 export const EnhancedUserInputSchema = z
   .string({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    error: (issue: any) => {
-      switch (issue.code) {
-        case "invalid_type":
-          return issue.input === undefined 
-            ? "This field is required" 
-            : "Please enter text only";
-        case "too_small":
-          return `Please enter at least ${issue['minimum']} characters`;
-        case "too_big":
-          return `Please keep it under ${issue['maximum']} characters`;
-        default:
-          return "Invalid input";
-      }
-    }
+    message: "Please enter valid text",
   })
-  .min(3)
-  .max(100);
+  .min(3, { message: "Please enter at least 3 characters" })
+  .max(100, { message: "Please keep it under 100 characters" });
 
 // Export types for use in your application
 export type EnhancedUserSyncPrefsUpdate = z.infer<typeof EnhancedUserSyncPrefsUpdateSchema>;

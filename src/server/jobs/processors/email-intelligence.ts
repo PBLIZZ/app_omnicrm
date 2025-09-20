@@ -219,7 +219,9 @@ export async function runEmailIntelligenceBatch(
       .filter((r) => r.success && r.category)
       .reduce(
         (acc, r) => {
-          acc[r.category!] = (acc[r.category!] ?? 0) + 1;
+          if (r.category) {
+            acc[r.category] = (acc[r.category] ?? 0) + 1;
+          }
           return acc;
         },
         {} as Record<string, number>,

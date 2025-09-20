@@ -4,7 +4,7 @@ import { DrivePreferencesSchema } from '@/lib/validation/schemas/sync';
 
 // Mock dependencies
 vi.mock('@/server/api/handler', () => ({
-  createRouteHandler: (config: any) => (handler: any) => handler,
+  createRouteHandler: (config: unknown) => (handler: unknown) => handler,
 }));
 vi.mock('@/server/api/response', () => ({
   ApiResponseBuilder: vi.fn().mockImplementation((operation, requestId) => ({

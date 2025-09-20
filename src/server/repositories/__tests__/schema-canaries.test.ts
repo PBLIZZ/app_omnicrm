@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { contacts } from "@/server/db/schema";
 import type { Contact } from "@/server/db/schema";
+import type { OmniClientDTO } from "@/lib/validation/schemas/omniClients";
 
 /**
  * Schema Canary Tests
@@ -135,18 +136,20 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
   describe("Adapter Contract", () => {
     it("toOmniClient adapter must preserve slug field", () => {
       // Mock adapter function for testing
-      const toOmniClient = (row: Partial<Contact>): any => {
+      const toOmniClient = (row: Partial<Contact>): OmniClientDTO => {
         return {
-          id: row.id,
+          id: row.id ?? 'test-id',
+          userId: row.userId ?? 'test-user-id',
           slug: row.slug, // CRITICAL: This must be included
-          displayName: row.displayName,
-          primaryEmail: row.primaryEmail,
-          primaryPhone: row.primaryPhone,
-          stage: row.stage,
-          tags: row.tags,
-          confidenceScore: row.confidenceScore,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
+          displayName: row.displayName ?? 'Test Name',
+          primaryEmail: row.primaryEmail ?? null,
+          primaryPhone: row.primaryPhone ?? null,
+          source: row.source ?? null,
+          stage: row.stage ?? null,
+          tags: row.tags as string[] | null ?? null,
+          confidenceScore: row.confidenceScore ?? null,
+          createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
+          updatedAt: row.updatedAt?.toISOString() ?? new Date().toISOString(),
         };
       };
 
@@ -170,7 +173,7 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
     });
 
     it("fromOmniClient adapter must handle null slug", () => {
-      const fromOmniClient = (client: any): Partial<Contact> => {
+      const fromOmniClient = (client: OmniClientDTO): Partial<Contact> => {
         return {
           id: client.id,
           slug: client.slug ?? null, // Must handle null

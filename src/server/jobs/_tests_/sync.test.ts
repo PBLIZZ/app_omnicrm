@@ -26,7 +26,8 @@ vi.mock("@/server/db/client", () => {
             limit: async () => [],
           }),
           limit: async () => {
-            return shared.prefsStore.length ? [shared.prefsStore[0]!] : [];
+            const first = shared.prefsStore[0];
+            return first ? [first] : [];
           },
         };
         },

@@ -67,7 +67,11 @@ export async function storeEmbedding(
     })
     .returning({ id: embeddings.id });
 
-  return result[0]!.id;
+  const inserted = result[0];
+  if (!inserted) {
+    throw new Error("Failed to insert embedding record");
+  }
+  return inserted.id;
 }
 
 /**
@@ -140,9 +144,13 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   let normB = 0;
 
   for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i]! * b[i]!;
-    normA += a[i]! * a[i]!;
-    normB += b[i]! * b[i]!;
+    const aVal = a[i];
+    const bVal = b[i];
+    if (aVal !== undefined && bVal !== undefined) {
+      dotProduct += aVal * bVal;
+      normA += aVal * aVal;
+      normB += bVal * bVal;
+    }
   }
 
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));

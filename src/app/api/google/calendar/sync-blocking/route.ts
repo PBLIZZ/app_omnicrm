@@ -15,8 +15,8 @@
  * - Error resilience with partial failure handling
  * - Cache invalidation triggers
  */
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { userIntegrations, syncSessions } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -49,7 +49,6 @@ export const POST = createRouteHandler({
   rateLimit: { operation: "calendar_sync_blocking" },
   validation: { body: syncBlockingSchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("google.calendar.sync-blocking", requestId);
   const { preferences, daysPast, daysFuture, maxResults } = validated.body;
 
   let sessionId: string | null = null;
@@ -71,9 +70,9 @@ export const POST = createRouteHandler({
       .limit(1);
 
     if (!integration[0]) {
-      return api.error(
-        "Google Calendar access not approved. Please connect Calendar in Settings.",
-        "INTEGRATION_ERROR"
+      return NextResponse.json(
+        { error: "Google Calendar access not approved. Please connect Calendar in Settings." },
+        { status: 502 }
       );
     }
 
@@ -92,7 +91,10 @@ export const POST = createRouteHandler({
 
     sessionId = sessionInsert[0]?.id || null;
     if (!sessionId) {
-      return api.error("Failed to create sync session", "INTERNAL_ERROR");
+      return NextResponse.json(
+        { error: "Failed to create sync session" },
+        { status: 500 }
+      );
     }
 
     // Calculate sync parameters from preferences
@@ -138,16 +140,18 @@ export const POST = createRouteHandler({
         failedItems?: number;
       }) => {
         // Update session progress in real-time
-        await db
-          .update(syncSessions)
-          .set({
-            currentStep: progress.currentStep,
-            progressPercentage: progress.progressPercentage,
-            ...(progress.totalItems !== undefined && { totalItems: progress.totalItems }),
-            ...(progress.importedItems !== undefined && { importedItems: progress.importedItems }),
-            ...(progress.failedItems !== undefined && { failedItems: progress.failedItems }),
-          })
-          .where(eq(syncSessions.id, sessionId!));
+        if (sessionId) {
+          await db
+            .update(syncSessions)
+            .set({
+              currentStep: progress.currentStep,
+              progressPercentage: progress.progressPercentage,
+              ...(progress.totalItems !== undefined && { totalItems: progress.totalItems }),
+              ...(progress.importedItems !== undefined && { importedItems: progress.importedItems }),
+              ...(progress.failedItems !== undefined && { failedItems: progress.failedItems }),
+            })
+            .where(eq(syncSessions.id, sessionId));
+        }
       },
     };
 
@@ -179,9 +183,9 @@ export const POST = createRouteHandler({
         },
       });
 
-      return api.error(
-        result.error ?? "Failed to sync calendar events",
-        "INTEGRATION_ERROR"
+      return NextResponse.json(
+        { error: result.error ?? "Failed to sync calendar events" },
+        { status: 502 }
       );
     }
 
@@ -267,7 +271,7 @@ export const POST = createRouteHandler({
       message = `Calendar sync completed - no new events found in the specified date range`;
     }
 
-    return api.success({
+    return NextResponse.json({
       sessionId,
       message,
       stats: {
@@ -315,11 +319,9 @@ export const POST = createRouteHandler({
       ensureError(error),
     );
 
-    return api.error(
-      "Failed to sync calendar events",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to sync calendar events" },
+      { status: 500 }
     );
   }
 });

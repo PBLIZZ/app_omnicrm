@@ -51,10 +51,14 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
       throw new Error("Missing Google OAuth configuration");
     }
 
-    const auth = new google.auth.OAuth2(
-      process.env["GOOGLE_CLIENT_ID"]!,
-      process.env["GOOGLE_CLIENT_SECRET"]!,
-    );
+    const clientId = process.env["GOOGLE_CLIENT_ID"];
+    const clientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+
+    if (!clientId || !clientSecret) {
+      throw new Error("Missing Google OAuth credentials in environment variables");
+    }
+
+    const auth = new google.auth.OAuth2(clientId, clientSecret);
 
     // Decrypt and backfill if previously stored in plaintext
     const decryptedAccess = isEncrypted(r.accessToken)

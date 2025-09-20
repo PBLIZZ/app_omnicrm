@@ -1,5 +1,6 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError } from "@/server/api/response";
 import { CreateNoteSchema } from "@/lib/validation/schemas/omniClients";
 import { NotesRepository } from "@repo";
 import { logger } from "@/lib/observability";
@@ -23,7 +24,6 @@ export const GET = createRouteHandler({
   rateLimit: { operation: "omni_clients_notes_list" },
   validation: { params: paramsSchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients.notes.list", requestId);
 
   const { clientId } = validated.params;
 
@@ -39,7 +39,7 @@ export const GET = createRouteHandler({
       updatedAt: note.updatedAt.toISOString(),
     }));
 
-    return api.success({ notes: formattedNotes });
+    return NextResponse.json({ notes: formattedNotes });
   } catch (error) {
     await logger.error(
       "Failed to fetch OmniClient notes",
@@ -52,7 +52,7 @@ export const GET = createRouteHandler({
       },
       error instanceof Error ? error : undefined,
     );
-    return api.error(
+    return apiError(
       "Failed to fetch client notes",
       "INTERNAL_ERROR",
       undefined,
@@ -66,7 +66,6 @@ export const POST = createRouteHandler({
   rateLimit: { operation: "omni_clients_notes_create" },
   validation: { params: paramsSchema, body: CreateNoteSchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients.notes.create", requestId);
 
   const { clientId } = validated.params;
 
@@ -86,7 +85,7 @@ export const POST = createRouteHandler({
       updatedAt: newNote.updatedAt.toISOString(),
     };
 
-    return api.success(formattedNote, undefined, 201);
+    return NextResponse.json(formattedNote, undefined, 201);
   } catch (error) {
     await logger.error(
       "Failed to create OmniClient note",
@@ -99,7 +98,7 @@ export const POST = createRouteHandler({
       },
       error instanceof Error ? error : undefined,
     );
-    return api.error(
+    return apiError(
       "Failed to create client note",
       "INTERNAL_ERROR",
       undefined,

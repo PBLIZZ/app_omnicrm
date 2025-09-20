@@ -1,8 +1,8 @@
 // src/app/api/openrouter/route.ts
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
 import { withGuardrails } from "@/server/ai/with-guardrails";
 import { logger } from "@/lib/observability";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { ChatRequestSchema } from "@/lib/validation/schemas/chat";
 import {
   getOpenRouterConfig,
@@ -15,7 +15,6 @@ export const POST = createRouteHandler({
   rateLimit: { operation: "openrouter_chat" },
   validation: { body: ChatRequestSchema },
 })(async ({ userId, validated, requestId }): Promise<Response> => {
-  const api = new ApiResponseBuilder("openrouter.chat", requestId);
 
   // Feature gating: if provider not configured, return error
   if (!isOpenRouterConfigured()) {
@@ -23,7 +22,7 @@ export const POST = createRouteHandler({
       operation: "openrouter.chat",
       additionalData: { reason: "provider_not_configured" },
     });
-    return api.error("service_unavailable", "INTEGRATION_ERROR");
+    return NextResponse.json({ error: "service_unavailable" }, { status: 502 });
   }
 
   // Body validation is handled by createRouteHandler
@@ -105,10 +104,13 @@ export const POST = createRouteHandler({
         error: result.error,
       },
     });
-    const errorCode = result.error === "rate_limited_minute" ? "RATE_LIMITED" : "INTEGRATION_ERROR";
-    return api.error(result.error, errorCode);
+    const status = result.error === "rate_limited_minute" ? 429 : 502;
+    return NextResponse.json({ error: result.error }, { status });
   }
 
   // Success - return the AI response as plain text (matching original behavior)
-  return api.raw(result.data, "application/json");
+  return new Response(result.data, {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
 });

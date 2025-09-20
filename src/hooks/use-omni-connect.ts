@@ -12,28 +12,26 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { shouldRetry } from "@/lib/queries/error-handling";
+import { shouldRetry } from "@/lib/errors/error-handling";
 import type {
-  OmniConnectDashboardState,
-  GmailConnectionStatus,
-  GmailStats,
   EmailPreview,
   PreviewRange,
   ConnectConnectionStatus,
-  JobStatusResponse,
+  ConnectDashboardState,
+  Job,
 } from "@/app/(authorisedRoute)/omni-connect/_components/types";
 
 export interface UseOmniConnectResult {
   // Main dashboard data
-  data: OmniConnectDashboardState | undefined;
+  data: ConnectDashboardState | undefined;
   isLoading: boolean;
   error: Error | null;
   refetch: () => void;
 
   // Backward compatibility methods for existing components
   connection: {
-    status: GmailConnectionStatus;
-    stats: GmailStats | undefined;
+    status: ConnectConnectionStatus;
+    stats: ConnectConnectionStatus | undefined;
     isLoading: boolean;
     error: Error | null;
     connect: () => void;
@@ -54,7 +52,7 @@ export function useOmniConnect(): UseOmniConnectResult {
   // Main unified query
   const { data, error, isLoading, refetch } = useQuery({
     queryKey: queryKeys.omniConnect.dashboard(),
-    queryFn: async (): Promise<OmniConnectDashboardState> => {
+    queryFn: async (): Promise<ConnectDashboardState> => {
       return apiClient.get("/api/omni-connect/dashboard");
     },
     staleTime: 30000, // 30 seconds - refetch in background after this
@@ -130,7 +128,7 @@ export function useOmniConnect(): UseOmniConnectResult {
 
   // Backward compatibility: Convert unified data to old hook formats
   const connectionData = data?.connection;
-  const connectionStatus: GmailConnectionStatus = connectionData
+  const connectionStatus: ConnectConnectionStatus = connectionData
     ? {
         isConnected: connectionData.isConnected,
         ...(connectionData.lastSync && { lastSync: connectionData.lastSync }),
@@ -140,7 +138,7 @@ export function useOmniConnect(): UseOmniConnectResult {
       }
     : { isConnected: false };
 
-  const stats: GmailStats | undefined = connectionData
+  const stats: ConnectConnectionStatus | undefined = connectionData
     ? {
         emailsProcessed: connectionData.emailCount ?? 0,
         suggestedContacts: connectionData.contactCount ?? 0,
@@ -190,7 +188,7 @@ export function useOmniConnectEmails(): EmailPreview[] | undefined {
 }
 
 export function useOmniConnectJobs(): {
-  jobs: JobStatusResponse[];
+  jobs: Job[];
   currentBatch: string | null;
   totalEmails?: number;
   processedEmails?: number;
@@ -215,7 +213,7 @@ export function useOmniConnectJobs(): {
 }
 
 export function useOmniConnectSyncStatus(): {
-  syncStatus: NonNullable<OmniConnectDashboardState["syncStatus"]> | undefined;
+  syncStatus: NonNullable<ConnectDashboardState["syncStatus"]> | undefined;
   isLoading: boolean;
   error: Error | null;
   refetch: () => void;

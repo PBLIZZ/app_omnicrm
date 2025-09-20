@@ -69,7 +69,10 @@ export class UserIntegrationsRepository {
       return null;
     }
 
-    const row = rows[0]!; // Non-null assertion since we checked length above
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
     return {
       provider: row.provider as "google",
       service: row.service as "auth" | "gmail" | "calendar" | "drive",

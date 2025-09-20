@@ -83,10 +83,15 @@ export function decryptString(value: string): string {
     return value;
   }
   const [, ivB64, ctB64, tagB64] = parts as [string, string, string, string];
+
+  if (!ivB64 || !ctB64 || !tagB64) {
+    throw new Error("Invalid encrypted format: missing required components");
+  }
+
   const key = deriveKey("enc").subarray(0, 32);
-  const iv = base64urlDecode(ivB64!);
-  const ciphertext = base64urlDecode(ctB64!);
-  const tag = base64urlDecode(tagB64!);
+  const iv = base64urlDecode(ivB64);
+  const ciphertext = base64urlDecode(ctB64);
+  const tag = base64urlDecode(tagB64);
   const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(tag);
   const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");

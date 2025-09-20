@@ -1,5 +1,6 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError } from "@/server/api/response";
 import { JobRunner } from "@/server/jobs/runner";
 import { logger } from "@/lib/observability";
 import { ensureError } from "@/lib/utils/error-handler";
@@ -12,7 +13,6 @@ export const POST = createRouteHandler({
   auth: true,
   rateLimit: { operation: "manual_job_processing" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("manual_job_processing", requestId);
 
   try {
     logger.progress("Processing jobs...", "Manual job processing started");
@@ -34,13 +34,13 @@ export const POST = createRouteHandler({
       },
     );
 
-    return api.success({
+    return NextResponse.json({
       success: true,
       message: "Jobs processed successfully",
       ...result,
     });
   } catch (error) {
-    return api.error(
+    return apiError(
       "Manual job processing failed",
       "INTERNAL_ERROR",
       undefined,

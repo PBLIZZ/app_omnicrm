@@ -17,6 +17,7 @@ import {
   Checkbox,
 } from "@/components/ui";
 import { apiClient } from "@/lib/api/client";
+import { del } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 interface AccountDeletionDialogProps {
@@ -82,27 +83,9 @@ export function AccountDeletionDialog({
       setIsDeleting(true);
 
       try {
-        const response = await fetch("/api/user/delete", {
-          method: "DELETE",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-            "x-csrf-token":
-              document.cookie
-                .split("; ")
-                .find((row) => row.startsWith("csrf="))
-                ?.split("=")[1] ?? "",
-          },
-          body: JSON.stringify({
-            confirmation: "DELETE MY DATA",
-            acknowledgeIrreversible: true,
-          }),
+        await del("/api/user/delete", {
+          showErrorToast: false, // Handle error manually
         });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Deletion failed: ${errorText}`);
-        }
 
         // Deletion successful - redirect after short delay
         setTimeout(() => {

@@ -6,7 +6,7 @@ import { SyncPreviewResponseSchema } from '@/lib/validation/schemas/sync';
 // Mock dependencies
 vi.mock('@/server/google/client');
 vi.mock('@/server/api/handler', () => ({
-  createRouteHandler: (config: any) => (handler: any) => handler,
+  createRouteHandler: (config: unknown) => (handler: unknown) => handler,
 }));
 vi.mock('@/server/api/response', () => {
   const { NextResponse } = require('next/server');

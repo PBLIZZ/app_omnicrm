@@ -30,7 +30,8 @@ export function DataExportDialog({ open, onOpenChange }: DataExportDialogProps):
     setExportComplete(false);
     void (async (): Promise<void> => {
       try {
-        // Use the comprehensive data export API endpoint
+        // Note: Using raw fetch here is appropriate for blob downloads
+        // The centralized API utilities don't support direct access to response headers and blob()
         const response = await fetch("/api/user/export", {
           method: "GET",
           credentials: "same-origin",

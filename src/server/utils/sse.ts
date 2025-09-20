@@ -4,7 +4,6 @@
  */
 
 import { logger } from "@/lib/observability";
-import { ApiResponseBuilder } from "@/server/api/response";
 
 export interface ContactCreationEvent {
   type: "contact_created" | "contact_updated" | "sync_progress" | "sync_complete";
@@ -31,45 +30,44 @@ const activeStreams = new Map<string, Set<ReadableStreamDefaultController>>();
  * Create an SSE response for a user
  */
 export function createEventStreamResponse(userId: string): Response {
-  const apiResponse = new ApiResponseBuilder("sse.contact_stream");
   let streamController: ReadableStreamDefaultController;
+  const encoder = new TextEncoder();
 
-  return apiResponse.serverSentEvents((encoder, controller) => {
-    streamController = controller;
+  const stream = new ReadableStream({
+    start(controller) {
+      streamController = controller;
 
-    // Register this controller for the user
-    if (!activeStreams.has(userId)) {
-      activeStreams.set(userId, new Set());
-    }
-    const userStreams = activeStreams.get(userId);
-    if (!userStreams) {
-      throw new Error(`Failed to create or retrieve stream set for user: ${userId}`);
-    }
-    userStreams.add(controller);
+      // Register this controller for the user
+      if (!activeStreams.has(userId)) {
+        activeStreams.set(userId, new Set());
+      }
+      const userStreams = activeStreams.get(userId);
+      if (!userStreams) {
+        throw new Error(`Failed to create or retrieve stream set for user: ${userId}`);
+      }
+      userStreams.add(controller);
 
-    // Send initial connection event
-    const connectEvent = {
-      type: "connection",
-      message: "Connected to contact creation stream",
-      timestamp: new Date().toISOString(),
-    };
+      // Send initial connection event
+      const connectEvent = {
+        type: "connection",
+        message: "Connected to contact creation stream",
+        timestamp: new Date().toISOString(),
+      };
 
-    const data = `data: ${JSON.stringify(connectEvent)}\n\n`;
-    controller.enqueue(encoder.encode(data));
+      const data = `data: ${JSON.stringify(connectEvent)}\n\n`;
+      controller.enqueue(encoder.encode(data));
 
-    // Log connection (fire-and-forget async)
-    void logger
-      .info(`SSE connection opened for user ${userId}`, {
-        operation: "sse.connection_opened",
-        additionalData: { userId, streamCount: activeStreams.size },
-      })
-      .catch(() => {
-        // Failed to log SSE connection - ignore to avoid cascading errors
-      });
-
-    // Set up cleanup for connection close
-    const originalCancel = controller.close;
-    controller.close = function () {
+      // Log connection (fire-and-forget async)
+      void logger
+        .info(`SSE connection opened for user ${userId}`, {
+          operation: "sse.connection_opened",
+          additionalData: { userId, streamCount: activeStreams.size },
+        })
+        .catch(() => {
+          // Failed to log SSE connection - ignore to avoid cascading errors
+        });
+    },
+    cancel() {
       // Clean up on connection close
       const userStreams = activeStreams.get(userId);
       if (userStreams) {
@@ -88,10 +86,18 @@ export function createEventStreamResponse(userId: string): Response {
         .catch(() => {
           // Failed to log SSE connection close - ignore to avoid cascading errors
         });
+    }
+  });
 
-      return originalCancel.call(this);
-    };
-  }, userId);
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Cache-Control",
+    },
+  });
 }
 
 /**

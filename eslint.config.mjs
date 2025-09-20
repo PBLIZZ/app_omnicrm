@@ -76,30 +76,7 @@ export default [
     },
   },
 
-  // 3) API routes rule: restrict NextResponse EXCEPT oauth/callback/enrich
-  {
-    files: ["src/app/api/**/route.ts"],
-    ignores: [
-      "src/app/api/auth/**/route.ts",
-      "src/app/api/google/**/oauth/route.ts",
-      "src/app/api/google/**/callback/route.ts",
-      "src/app/api/**/enrich/route.ts",
-    ],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "next/server",
-              importNames: ["NextResponse"],
-              message: "Prefer your ApiResponse helper over raw NextResponse.json.",
-            },
-          ],
-        },
-      ],
-    },
-  },
+  // 3) API routes: NextResponse allowed universally (no restrictions)
 
   // 4) Tests: explicitly turn off unsafe rules that mocks trigger
   {

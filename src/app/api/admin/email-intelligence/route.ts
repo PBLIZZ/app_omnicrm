@@ -1,8 +1,8 @@
 // Admin API endpoint for email intelligence processing
 // For testing and manual triggering of email intelligence jobs
 
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 
 /**
  * POST /api/admin/email-intelligence
@@ -11,9 +11,8 @@ import { ApiResponseBuilder } from "@/server/api/response";
 export const POST = createRouteHandler({
   auth: false,
   rateLimit: { operation: "email_intelligence_trigger" },
-})(async ({ requestId }) => {
-  const api = new ApiResponseBuilder("email_intelligence.trigger", requestId);
-  return api.error("Temporarily disabled for build fix", "INTERNAL_ERROR", undefined, undefined);
+})(async ({}) => {
+  return NextResponse.json({ error: "Temporarily disabled for build fix" }, { status: 500 });
 });
 
 /**
@@ -23,7 +22,6 @@ export const POST = createRouteHandler({
 export const GET = createRouteHandler({
   auth: false,
   rateLimit: { operation: "email_intelligence_stats" },
-})(async ({ requestId }) => {
-  const api = new ApiResponseBuilder("email_intelligence.stats", requestId);
-  return api.error("Temporarily disabled for build fix", "INTERNAL_ERROR", undefined, undefined);
+})(async ({}) => {
+  return NextResponse.json({ error: "Temporarily disabled for build fix" }, { status: 500 });
 });

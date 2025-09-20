@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { enqueue } from "@/server/jobs/enqueue";
 import { randomUUID } from "node:crypto";
@@ -15,8 +15,7 @@ export const POST = createRouteHandler({
   auth: true,
   validation: { body: BodySchema },
   rateLimit: { operation: "google_calendar_import" },
-})(async ({ userId, requestId, validated: { body } }) => {
-  const api = new ApiResponseBuilder("google.calendar.import", requestId);
+})(async ({ userId, requestId: _requestId, validated: { body } }) => {
   try {
     const daysPast = body?.daysPast ?? 365; // default: last 365 days
     const daysFuture = body?.daysFuture ?? 90; // default: next 90 days
@@ -28,7 +27,7 @@ export const POST = createRouteHandler({
     });
 
     if (!result.success) {
-      return api.error(result.error ?? "Calendar import failed", "INTEGRATION_ERROR");
+      return NextResponse.json({ error: result.error ?? "Calendar import failed" }, { status: 400 });
     }
 
     // Enqueue normalization and downstream jobs for the imported raw events
@@ -40,12 +39,13 @@ export const POST = createRouteHandler({
       // Non-fatal for initial import; raw events written successfully
     }
 
-    return api.success({
+    return NextResponse.json({
       message: "Calendar import completed",
       syncedEvents: result.syncedEvents,
       batchId,
     });
   } catch (error) {
-    return api.error("Calendar import failed", "INTERNAL_ERROR", undefined, error as Error);
+    console.error("Calendar import failed:", error);
+    return NextResponse.json({ error: "Calendar import failed" }, { status: 500 });
   }
 });

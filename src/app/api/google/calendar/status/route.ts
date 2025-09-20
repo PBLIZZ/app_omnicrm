@@ -10,20 +10,18 @@
  * - Replace calls to /api/google/calendar/status with /api/google/status
  * - Access Calendar data via response.services.calendar instead of root level
  */
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { rawEvents, userIntegrations } from "@/server/db/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { google } from "googleapis";
-import { ensureError } from "@/lib/utils/error-handler";
 
 export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "calendar_status" },
-})(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("google.calendar.status", requestId);
+})(async ({ userId, requestId: _requestId }) => {
   try {
     const db = await getDb();
 
@@ -41,7 +39,7 @@ export const GET = createRouteHandler({
       .limit(1);
 
     if (!integration[0]) {
-      return api.success({
+      return NextResponse.json({
         isConnected: false,
         reason: "no_integration",
       });
@@ -100,7 +98,7 @@ export const GET = createRouteHandler({
             }
           }
 
-          return api.success({
+          return NextResponse.json({
             isConnected: !stillExpired,
             reason: stillExpired ? "token_expired" : "connected",
             expiryDate: refreshedIntegration[0].expiryDate?.toISOString() ?? null,
@@ -156,7 +154,7 @@ export const GET = createRouteHandler({
       }
     }
 
-    return api.success({
+    return NextResponse.json({
       isConnected: !isExpired,
       reason: isExpired ? "token_expired" : "connected",
       expiryDate: integration[0].expiryDate?.toISOString() ?? null,
@@ -166,11 +164,7 @@ export const GET = createRouteHandler({
       upcomingEventsCount,
     });
   } catch (error) {
-    return api.error(
-      "Failed to check calendar status",
-      "DATABASE_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    console.error("Failed to check calendar status:", error);
+    return NextResponse.json({ error: "Failed to check calendar status" }, { status: 500 });
   }
 });

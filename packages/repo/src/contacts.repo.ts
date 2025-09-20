@@ -357,4 +357,19 @@ export class ContactsRepository {
 
     return n;
   }
+
+  /**
+   * Count contacts for a user
+   */
+  static async countContacts(userId: string): Promise<number> {
+    const db = await getDb();
+
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(contacts)
+      .where(eq(contacts.userId, userId))
+      .limit(1);
+
+    return result[0]?.count ?? 0;
+  }
 }

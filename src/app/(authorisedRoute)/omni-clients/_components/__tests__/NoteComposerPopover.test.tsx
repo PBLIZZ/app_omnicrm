@@ -24,7 +24,7 @@ vi.mock("sonner", () => ({
 }));
 
 describe("NoteComposerPopover", () => {
-  let mockPost: any;
+  let mockPost: ReturnType<typeof vi.fn>;
   let fakes: AllRepoFakes;
   const user = userEvent.setup();
 

@@ -19,8 +19,6 @@ import { fetchContacts } from "@/lib/services/client/contacts.service";
 import { type ContactDTO } from "@/lib/validation/schemas/omniClients";
 import MonthlySessionsKpi from "./MonthlySessionsKpi";
 import { getSyncStatus } from "@/lib/services/client/sync.service";
-import { ManualJobProcessor } from "@/components/debug/ManualJobProcessor";
-import { SupabaseDiagnostic } from "@/components/debug/SupabaseDiagnostic";
 
 import {
   Alert,
@@ -98,7 +96,10 @@ export default function DashboardContent(): JSX.Element {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error Loading Dashboard</AlertTitle>
           <AlertDescription className="space-y-2">
-            <div>Failed to load dashboard data: {error instanceof Error ? error.message : String(error)}</div>
+            <div>
+              Failed to load dashboard data:{" "}
+              {error instanceof Error ? error.message : String(error)}
+            </div>
             {process.env.NODE_ENV === "development" && (
               <div className="mt-2 text-xs bg-red-50 p-2 rounded border">
                 <div>Debug Info:</div>
@@ -226,14 +227,6 @@ export default function DashboardContent(): JSX.Element {
 
           <MonthlySessionsKpi />
         </div>
-
-        {/* Debug Components - Development Only */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="space-y-4">
-            <SupabaseDiagnostic />
-            <ManualJobProcessor />
-          </div>
-        )}
 
         {/* Tabs for different dashboard sections */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

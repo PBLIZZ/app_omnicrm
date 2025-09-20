@@ -151,6 +151,11 @@ export async function decryptString(value: string): Promise<string> {
     return value;
   }
   const [, ivB64, ctB64, tagB64] = parts as [string, string, string, string];
+
+  if (!ivB64 || !ctB64 || !tagB64) {
+    throw new Error("Invalid encrypted format: missing required components");
+  }
+
   const keyBytes = (await deriveKeyBytes("enc")).slice(0, 32);
   const aesKey = await crypto.subtle.importKey(
     "raw",
@@ -159,9 +164,9 @@ export async function decryptString(value: string): Promise<string> {
     false,
     ["decrypt"],
   );
-  const iv = base64urlDecodeToBytes(ivB64!);
-  const ct = base64urlDecodeToBytes(ctB64!);
-  const tag = base64urlDecodeToBytes(tagB64!);
+  const iv = base64urlDecodeToBytes(ivB64);
+  const ct = base64urlDecodeToBytes(ctB64);
+  const tag = base64urlDecodeToBytes(tagB64);
   const combined = new Uint8Array(ct.length + tag.length);
   combined.set(ct, 0);
   combined.set(tag, ct.length);

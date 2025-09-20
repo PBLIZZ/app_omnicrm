@@ -1,6 +1,6 @@
 import { ContactAIActionsService } from "@/server/services/contact-ai-actions.service";
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { logger } from "@/lib/observability";
 import { ensureError } from "@/lib/utils/error-handler";
 import { z } from "zod";
@@ -23,8 +23,6 @@ export const POST = createRouteHandler({
     params: ParamsSchema,
   },
 })(async ({ userId, validated, requestId }) => {
-  const apiResponse = new ApiResponseBuilder("omni_clients.ai_insights", requestId);
-
   try {
     const { clientId } = validated.params;
 
@@ -32,7 +30,7 @@ export const POST = createRouteHandler({
     const insights = await ContactAIActionsService.askAIAboutContact(userId, clientId);
 
     // Transform response to match OmniClient terminology (minimal changes needed)
-    return apiResponse.success(insights);
+    return NextResponse.json(insights);
   } catch (error) {
     await logger.error(
       "OmniClient AI insights generation failed",
@@ -46,14 +44,9 @@ export const POST = createRouteHandler({
     );
 
     if (error instanceof Error && error.message === "Contact not found") {
-      return apiResponse.error("OmniClient not found", "NOT_FOUND");
+      return NextResponse.json({ error: "OmniClient not found" }, { status: 404 });
     }
 
-    return apiResponse.error(
-      "Failed to generate AI insights for OmniClient",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    return NextResponse.json({ error: "Failed to generate AI insights for OmniClient" }, { status: 500 });
   }
 });

@@ -1,19 +1,17 @@
 /** GET /api/auth/user — get current authenticated user data */
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 
 export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "auth_user" },
-})(async ({ userId, requestId }) => {
-  const apiResponse = new ApiResponseBuilder("auth.user", requestId);
-
+})(async ({ userId }) => {
   try {
     // For E2E mode, return minimal user data
     if (process.env["NODE_ENV"] !== "production" && process.env["E2E_USER_ID"]) {
-      return apiResponse.success({
+      return NextResponse.json({
         id: userId,
         email: "test-e2e@example.com",
         user_metadata: {
@@ -29,7 +27,7 @@ export const GET = createRouteHandler({
     const supabasePublishableKey = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
 
     if (!supabaseUrl || !supabasePublishableKey) {
-      return apiResponse.error("Server misconfigured", "INTERNAL_ERROR");
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
 
     const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
@@ -54,11 +52,11 @@ export const GET = createRouteHandler({
     const { data, error } = await supabase.auth.getUser();
 
     if (error || !data?.user) {
-      return apiResponse.error("Unauthorized", "UNAUTHORIZED");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Return user data (safe to expose to client)
-    return apiResponse.success({
+    return NextResponse.json({
       id: data.user.id,
       email: data.user.email,
       user_metadata: data.user.user_metadata,
@@ -70,11 +68,6 @@ export const GET = createRouteHandler({
         ? (error as { status: number }).status
         : 401;
     const message = error instanceof Error ? error.message : "Unauthorized";
-    return apiResponse.error(
-      message,
-      status === 401 ? "UNAUTHORIZED" : "INTERNAL_ERROR",
-      undefined,
-      error instanceof Error ? error : undefined,
-    );
+    return NextResponse.json({ error: message }, { status });
   }
 });

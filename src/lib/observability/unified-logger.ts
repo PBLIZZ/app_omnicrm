@@ -9,7 +9,7 @@ import {
   type ErrorContext,
   type ErrorSeverity,
   type ErrorCategory,
-} from "./error-classification";
+} from "../errors/error-classification";
 // Note: Server-side logging functionality commented out to avoid circular deps
 // TODO: Re-enable when pino-logger and log-context are properly set up
 // import { log as pinoLogger, type LogBindings } from "@/server/lib/pino-logger";

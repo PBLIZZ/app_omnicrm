@@ -32,8 +32,8 @@ Object.defineProperty(window, "location", {
 
 describe("GmailApiService", () => {
   // Get references to the mocked modules
-  let apiClient: { get: any; post: any };
-  let logger: { error: any };
+  let apiClient: { get: ReturnType<typeof vi.fn>; post: ReturnType<typeof vi.fn> };
+  let logger: { error: ReturnType<typeof vi.fn> };
 
   beforeAll(async () => {
     const apiModule = await import("@/lib/api/client");

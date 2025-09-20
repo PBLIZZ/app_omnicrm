@@ -175,9 +175,14 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
 
     if (result.success) {
       // Sync completed successfully
+      if (!currentPreferences) {
+        setError("Sync completed but preferences are missing");
+        return;
+      }
+
       const setupData: SyncPreferencesSetup = {
         service,
-        [service]: currentPreferences!,
+        [service]: currentPreferences,
       };
       onComplete(setupData);
       onClose();

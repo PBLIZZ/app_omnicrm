@@ -18,13 +18,12 @@ import {
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError, API_ERROR_CODES } from "@/server/api/response";
 
 export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "user_export" },
 })(async ({ userId, requestId }): Promise<Response> => {
-  const api = new ApiResponseBuilder("user.export", requestId);
 
   try {
     const db = await getDb();
@@ -211,12 +210,24 @@ export const GET = createRouteHandler({
     // Return as downloadable JSON
     const fileName = `omnicrm-data-export-${new Date().toISOString().split("T")[0]}.json`;
 
-    return api.fileDownload(JSON.stringify(exportPayload, null, 2), fileName, "application/json");
+    // Return as downloadable JSON file
+    return new Response(JSON.stringify(exportPayload, null, 2), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return api.databaseError(
+    return apiError(
+      API_ERROR_CODES.DATABASE_ERROR,
       `Data export failed: ${errorMessage}`,
-      error instanceof Error ? error : undefined,
+      500,
+      requestId
     );
   }
 });

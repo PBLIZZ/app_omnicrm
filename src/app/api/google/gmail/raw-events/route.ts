@@ -1,6 +1,6 @@
 // src/app/api/google/gmail/raw-events/route.ts
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { GetRawEventsQuerySchema } from "@/lib/validation/schemas";
 import { toDateRange, type CreatedAtFilter } from "@/lib/validation/schemas/omniClients";
 import { listRawEventsService } from "@/server/services/raw-events.service";
@@ -10,7 +10,6 @@ export const GET = createRouteHandler({
   rateLimit: { operation: "google_gmail_raw_events" },
   validation: { query: GetRawEventsQuerySchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("google.gmail.raw_events", requestId);
 
   const parsed = validated.query;
 
@@ -32,19 +31,22 @@ export const GET = createRouteHandler({
 
   const { items, total } = await listRawEventsService(userId, params);
 
-  return api.success({
-    items: items.map((r) => ({
-      id: r.id,
-      userId: r.userId,
-      provider: r.provider,
-      payload: r.payload,
-      contactId: r.contactId,
-      occurredAt: r.occurredAt.toISOString(),
-      sourceMeta: r.sourceMeta ?? undefined,
-      batchId: r.batchId,
-      sourceId: r.sourceId,
-      createdAt: r.createdAt.toISOString(),
-    })),
-    total,
+  return NextResponse.json({
+    ok: true,
+    data: {
+      items: items.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        provider: r.provider,
+        payload: r.payload,
+        contactId: r.contactId,
+        occurredAt: r.occurredAt.toISOString(),
+        sourceMeta: r.sourceMeta ?? undefined,
+        batchId: r.batchId,
+        sourceId: r.sourceId,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      total,
+    }
   });
 });

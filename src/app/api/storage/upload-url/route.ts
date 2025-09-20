@@ -1,5 +1,6 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError } from "@/server/api/response";
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
 import { z } from "zod";
 import { ensureError } from "@/lib/utils/error-handler";
@@ -21,7 +22,6 @@ export const POST = createRouteHandler({
     body: uploadUrlSchema,
   },
 })(async ({ validated, requestId }) => {
-  const api = new ApiResponseBuilder("storage.upload_url", requestId);
 
   try {
     const { fileName, folderPath, bucket } = validated.body;
@@ -30,20 +30,18 @@ export const POST = createRouteHandler({
 
     const client = supabaseServerAdmin ?? supabaseServerPublishable;
     if (!client) {
-      return api.error("Supabase server client not available", "INTERNAL_ERROR");
+      return NextResponse.json({ error: "Supabase server client not available" }, { status: 500 });
     }
 
     const { data, error } = await client.storage.from(bucket).createSignedUploadUrl(path);
 
     if (error) {
-      return api.error("Failed to create signed upload URL", "INTERNAL_ERROR", {
-        details: error.message,
-      });
+      return NextResponse.json({ error: "Failed to create signed upload URL" }, { status: 500 });
     }
 
-    return api.success({ signedUrl: data?.signedUrl ?? null, path });
+    return NextResponse.json({ signedUrl: data?.signedUrl ?? null, path });
   } catch (error: unknown) {
-    return api.error(
+    return apiError(
       "Unexpected error creating upload URL",
       "INTERNAL_ERROR",
       undefined,

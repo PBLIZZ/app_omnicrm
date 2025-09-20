@@ -24,6 +24,7 @@ export {
   SelectLabel,
 } from "./select";
 export { Switch } from "./switch";
+export { Slider } from "./slider";
 
 // Navigation components
 export {

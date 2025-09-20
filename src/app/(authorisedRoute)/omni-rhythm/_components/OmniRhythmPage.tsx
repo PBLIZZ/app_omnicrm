@@ -21,10 +21,10 @@ import { PreparationWorkflow } from "@/app/(authorisedRoute)/omni-rhythm/_compon
 // Custom Components
 import { CalendarConnectionCard } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarConnectionCard";
 import { CalendarSyncSetup } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarSyncSetup";
-import { CalendarConnectionPrompt } from "@/components/calendar/CalendarConnectionPrompt";
+import { CalendarConnectionPrompt } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarConnectionPrompt";
 import { RhythmHeader } from "@/app/(authorisedRoute)/omni-rhythm/_components/RhythmHeader";
 import { ensureError } from "@/lib/utils/error-handler";
-import { post } from "@/lib/api/client";
+import { post, get } from "@/lib/api/client";
 
 export function OmniRhythmPage(): JSX.Element {
   const searchParams = useSearchParams();
@@ -38,13 +38,8 @@ export function OmniRhythmPage(): JSX.Element {
 
   const handleLoadInsights = async (): Promise<void> => {
     try {
-      const response = await fetch("/api/google/calendar/insights");
-      if (response.ok) {
-        const result = (await response.json()) as { insights?: Record<string, unknown> };
-        alert(`Insights loaded: ${Object.keys(result.insights ?? {}).length} categories available`);
-      } else {
-        alert("Failed to load insights");
-      }
+      const result = await get<{ insights?: Record<string, unknown> }>("/api/google/calendar/insights");
+      alert(`Insights loaded: ${Object.keys(result.insights ?? {}).length} categories available`);
     } catch (error) {
       await logger.error(
         "insights_loading_failed",

@@ -1,28 +1,16 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 
 const postHandler = createRouteHandler({
   auth: true,
 })(async () => {
-  const apiResponse = new ApiResponseBuilder("admin-replay-post");
-  return apiResponse.error(
-    "Temporarily disabled for build fix",
-    "INTERNAL_ERROR",
-    undefined,
-    undefined,
-  );
+  return NextResponse.json({ error: "Temporarily disabled for build fix" }, { status: 500 });
 });
 
 const getHandler = createRouteHandler({
   auth: true,
 })(async () => {
-  const apiResponse = new ApiResponseBuilder("admin-replay-get");
-  return apiResponse.error(
-    "Temporarily disabled for build fix",
-    "INTERNAL_ERROR",
-    undefined,
-    undefined,
-  );
+  return NextResponse.json({ error: "Temporarily disabled for build fix" }, { status: 500 });
 });
 
 export const POST = postHandler;

@@ -1,5 +1,6 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError } from "@/server/api/response";
 import { JobRunner } from "@/server/jobs/runner";
 import { getDb } from "@/server/db/client";
 import { jobs } from "@/server/db/schema";
@@ -15,7 +16,6 @@ export const POST = createRouteHandler({
   auth: true,
   rateLimit: { operation: "manual_job_process" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("manual_normalize_processor", requestId);
 
   try {
     const db = await getDb();
@@ -35,7 +35,7 @@ export const POST = createRouteHandler({
       .limit(20); // Process in smaller batches for manual processing
 
     if (normalizeJobs.length === 0) {
-      return api.success({
+      return NextResponse.json({
         message: "No normalize jobs found to process",
         processed: 0,
       });
@@ -60,7 +60,7 @@ export const POST = createRouteHandler({
       },
     });
 
-    return api.success({
+    return NextResponse.json({
       message: `Processed ${result.processed} normalize jobs. Success: ${result.succeeded}, Failed: ${result.failed}`,
       ...result,
     });
@@ -77,7 +77,7 @@ export const POST = createRouteHandler({
       ensureError(error),
     );
     
-    return api.error(
+    return apiError(
       "Failed to process normalize jobs",
       "INTERNAL_ERROR",
       { message: error instanceof Error ? error.message : "Unknown error" },

@@ -62,6 +62,8 @@ export function useStreamingEnrichment(): EnrichmentState & {
     });
 
     try {
+      // Note: Using raw fetch here is appropriate for streaming SSE responses
+      // The centralized API utilities don't support direct access to response.body.getReader()
       const response = await fetch("/api/omni-clients/enrich?stream=true", {
         method: "POST",
         headers: {
@@ -206,11 +208,11 @@ export function useStreamingEnrichment(): EnrichmentState & {
   };
 }
 
-// Helper to get CSRF token from cookie
+// Helper to get CSRF token from cookie (matches pattern from centralized API utilities)
 function getCsrf(): string {
   if (typeof document === "undefined") return "";
-  const m = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
-  return m ? decodeURIComponent(m[1] ?? "") : "";
+  const match = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
+  return match ? decodeURIComponent(match[1] ?? "") : "";
 }
 
 // Type guard for enrichment progress SSE payloads

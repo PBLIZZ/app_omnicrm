@@ -4,10 +4,10 @@ import { usePathname } from "next/navigation";
 
 import { ClientsSidebar } from "@/app/(authorisedRoute)/omni-clients/_components/ClientsSidebar";
 import { DashboardSidebar } from "@/app/(authorisedRoute)/omni-flow/_components/DashboardSidebar";
-import { MomentumSidebar } from "@/app/(authorisedRoute)/omni-momentum/_components/MomentumSidebar";
 import { MarketingSidebar } from "@/app/(authorisedRoute)/omni-reach/_components/MarketingSidebar";
 import { ConnectSidebar } from "@/app/(authorisedRoute)/omni-connect/_components/ConnectSidebar";
 import { CalendarSidebar } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarSidebar";
+import { MomentumSidebar } from "@/app/(authorisedRoute)/omni-momentum/_components/MomentumSidebar";
 import { SettingsSidebar } from "@/app/(authorisedRoute)/settings/_components/SettingsSidebar";
 import { AnalyticsSidebar } from "@/app/(authorisedRoute)/analytics/AnalyticsSidebar";
 

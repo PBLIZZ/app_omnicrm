@@ -5,11 +5,11 @@
  * Does not perform actual sync, only provides estimates for user confirmation.
  */
 
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError, API_ERROR_CODES } from "@/server/api/response";
 import { GmailPreferencesSchema, SyncPreviewResponseSchema } from "@/lib/validation/schemas/sync";
 import { getGoogleGmailClient } from "@/server/google/client";
-import { ensureError } from "@/lib/utils/error-handler";
 
 export const POST = createRouteHandler({
   auth: true,
@@ -18,12 +18,11 @@ export const POST = createRouteHandler({
     body: GmailPreferencesSchema,
   },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("google.gmail.preview", requestId);
 
   try {
     const gmailClient = await getGoogleGmailClient(userId);
     if (!gmailClient) {
-      return api.error("Gmail not connected", "INTEGRATION_ERROR");
+      return NextResponse.json({ error: "Gmail not connected" }, { status: 502 });
     }
 
     const prefs = validated.body;
@@ -83,28 +82,28 @@ export const POST = createRouteHandler({
     const validationResult = SyncPreviewResponseSchema.safeParse(preview);
     if (!validationResult.success) {
       console.error("Preview response validation failed:", validationResult.error);
-      return api.error("Invalid preview response generated", "INTERNAL_ERROR");
+      return NextResponse.json({ error: "Invalid preview response generated" }, { status: 500 });
     }
 
-    return api.success(validationResult.data);
+    return NextResponse.json(validationResult.data);
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
 
     // Handle specific Gmail API errors
     if (errorMessage.includes("invalid_grant") || errorMessage.includes("unauthorized")) {
-      return api.error("Gmail authorization expired. Please reconnect.", "INTEGRATION_ERROR");
+      return NextResponse.json({ error: "Gmail authorization expired. Please reconnect." }, { status: 502 });
     }
 
     if (errorMessage.includes("rate") || errorMessage.includes("quota")) {
-      return api.error("Rate limit exceeded. Please try again later.", "INTERNAL_ERROR");
+      return NextResponse.json({ error: "Rate limit exceeded. Please try again later." }, { status: 500 });
     }
 
-    return api.error(
+    return apiError(
+      API_ERROR_CODES.INTERNAL_ERROR,
       "Failed to generate Gmail sync preview",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+      500,
+      requestId
     );
   }
 });

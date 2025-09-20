@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { shouldRetry } from "@/lib/queries/error-handling";
+import { shouldRetry } from "@/lib/errors/error-handling";
 import type { Note } from "@/server/db/schema";
 
 interface UseNotesOptions {

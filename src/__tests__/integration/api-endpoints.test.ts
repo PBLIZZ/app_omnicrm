@@ -248,7 +248,7 @@ describe("API Endpoints Integration Tests", () => {
 
       expect(response.status).toBe(200);
       expect(data.data.items.length).toBeGreaterThanOrEqual(1);
-      expect(data.data.items.some((item: any) => item.displayName.includes("Searchable"))).toBe(true);
+      expect(data.data.items.some((item: { displayName: string }) => item.displayName.includes("Searchable"))).toBe(true);
     });
 
     it("creates new omni client with validation", async () => {
@@ -403,7 +403,7 @@ describe("API Endpoints Integration Tests", () => {
       expect(response.status).toBe(200);
       expect(data.data.projects.length).toBeGreaterThanOrEqual(1);
       expect(
-        data.data.projects.every((p: any) => p.momentumWorkspaceId === workspace[0]!.id),
+        data.data.projects.every((p: { momentumWorkspaceId: string }) => p.momentumWorkspaceId === workspace[0]!.id),
       ).toBe(true);
     });
   });

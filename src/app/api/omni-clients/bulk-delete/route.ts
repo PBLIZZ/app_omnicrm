@@ -1,9 +1,8 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { BulkDeleteBodySchema } from "@/lib/validation/schemas/omniClients";
 import { ContactsRepository } from "@repo";
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * OmniClients Bulk Delete API
@@ -17,8 +16,6 @@ export const POST = createRouteHandler({
   rateLimit: { operation: "omni_clients_bulk_delete" },
   validation: { body: BulkDeleteBodySchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients_bulk_delete", requestId);
-
   try {
     const { ids } = validated.body;
 
@@ -26,7 +23,7 @@ export const POST = createRouteHandler({
     const deletedCount = await ContactsRepository.deleteContactsByIds(userId, ids);
 
     if (deletedCount === 0) {
-      return api.success({
+      return NextResponse.json({
         deleted: 0,
         message: "No clients found to delete",
       });
@@ -41,7 +38,7 @@ export const POST = createRouteHandler({
       },
     });
 
-    return api.success({
+    return NextResponse.json({
       deleted: deletedCount,
       message: `Successfully deleted ${deletedCount} client${deletedCount === 1 ? "" : "s"}`,
     });
@@ -59,11 +56,9 @@ export const POST = createRouteHandler({
       error instanceof Error ? error : undefined,
     );
 
-    return api.error(
-      "Failed to delete clients",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to delete clients" },
+      { status: 500 }
     );
   }
 });

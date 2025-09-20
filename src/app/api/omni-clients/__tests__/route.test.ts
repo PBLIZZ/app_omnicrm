@@ -17,7 +17,7 @@ import {
 vi.mock('@/server/services/contacts.service');
 vi.mock('@/server/adapters/omniClients');
 vi.mock('@/server/api/handler', () => ({
-  createRouteHandler: (config: any) => (handler: any) => handler,
+  createRouteHandler: (config: unknown) => (handler: unknown) => handler,
 }));
 
 describe('/api/omni-clients API Routes', () => {

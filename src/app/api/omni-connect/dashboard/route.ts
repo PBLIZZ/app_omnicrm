@@ -6,8 +6,9 @@
  * - /api/google/calendar/status (CONSOLIDATED)
  * - /api/jobs/status
  */
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError } from "@/server/api/response";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { userIntegrations, rawEvents, syncAudit, jobs } from "@/server/db/schema";
@@ -23,7 +24,6 @@ export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "omni_connect_dashboard" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("omni_connect_dashboard", requestId);
 
   try {
     const db = await getDb();
@@ -59,9 +59,9 @@ export const GET = createRouteHandler({
       hasConfiguredSettings: true, // Always true now - no settings needed
     };
 
-    return api.success(dashboardState);
+    return NextResponse.json(dashboardState);
   } catch (error) {
-    return api.error(
+    return apiError(
       "Failed to load dashboard data",
       "INTERNAL_ERROR",
       undefined,

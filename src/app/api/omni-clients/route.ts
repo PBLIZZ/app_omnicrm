@@ -1,5 +1,5 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import {
   GetOmniClientsQuerySchema,
   CreateOmniClientSchema,
@@ -10,7 +10,6 @@ import {
   fromOmniClientInput,
 } from "@/server/adapters/omniClients";
 import { listContactsService, createContactService } from "@/server/services/contacts.service";
-import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * OmniClients API - List and Create
@@ -26,8 +25,6 @@ export const GET = createRouteHandler({
     query: GetOmniClientsQuerySchema,
   },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients_list", requestId);
-
   try {
     const page = validated.query.page ?? 1;
     const pageSize = validated.query.pageSize ?? validated.query.limit ?? 50;
@@ -47,17 +44,15 @@ export const GET = createRouteHandler({
     // Transform Contact[] to OmniClientWithNotes[] using adapter
     const omniClients = toOmniClientsWithNotes(items);
 
-    return api.success({
+    return NextResponse.json({
       items: omniClients,
       total,
       nextCursor: null, // Add nextCursor to match schema
     });
   } catch (error) {
-    return api.error(
-      "Failed to fetch omni clients",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to fetch omni clients" },
+      { status: 500 }
     );
   }
 });
@@ -69,8 +64,6 @@ export const POST = createRouteHandler({
     body: CreateOmniClientSchema,
   },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients_create", requestId);
-
   try {
     // Transform OmniClient input to Contact input using adapter
     const contactInput = fromOmniClientInput(validated.body);
@@ -78,19 +71,20 @@ export const POST = createRouteHandler({
     const row = await createContactService(userId, contactInput);
 
     if (!row) {
-      return api.error("Failed to create client", "INTERNAL_ERROR");
+      return NextResponse.json(
+        { error: "Failed to create client" },
+        { status: 500 }
+      );
     }
 
     // Transform Contact back to OmniClient for response
     const omniClient = toOmniClient(row);
 
-    return api.success({ item: omniClient }, undefined, 201);
+    return NextResponse.json({ item: omniClient }, { status: 201 });
   } catch (error) {
-    return api.error(
-      "Failed to create omni client",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to create omni client" },
+      { status: 500 }
     );
   }
 });

@@ -1,7 +1,6 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { listContactsService } from "@/server/services/contacts.service";
-import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * OmniClients Count API - Get total count only
@@ -10,7 +9,6 @@ export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "omni_clients_list" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients_count", requestId);
 
   try {
     // Use minimal query to get just the count
@@ -21,13 +19,8 @@ export const GET = createRouteHandler({
       order: "asc",
     });
 
-    return api.success({ count: total });
+    return NextResponse.json({ count: total });
   } catch (error) {
-    return api.error(
-      "Failed to fetch omni clients count",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    return NextResponse.json({ error: "Failed to fetch omni clients count" }, { status: 500 });
   }
 });

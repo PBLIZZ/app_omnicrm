@@ -1,14 +1,15 @@
 "use client";
+
 import { Mail, Calendar, Palette, Gift, Users, HelpCircle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
 
 // Import widget components
-import { EmailMarketing } from "./widgets/EmailMarketing";
-import { CreatorStudio } from "./widgets/CreatorStudio";
-import { ContentCalendar } from "./widgets/ContentCalendar";
-import { LeadMagnetStudio } from "./widgets/LeadMagnetStudio";
-import { MembershipLoyalty } from "./widgets/MembershipLoyalty";
-import { QuizCreator } from "./widgets/QuizCreator";
+import { EmailMarketing } from "@/app/(authorisedRoute)/omni-reach/_components/widgets/EmailMarketing";
+import { CreatorStudio } from "@/app/(authorisedRoute)/omni-reach/_components/widgets/CreatorStudio";
+import { ContentCalendar } from "@/app/(authorisedRoute)/omni-reach/_components/widgets/ContentCalendar";
+import { LeadMagnetStudio } from "@/app/(authorisedRoute)/omni-reach/_components/widgets/LeadMagnetStudio";
+import { MembershipLoyalty } from "@/app/(authorisedRoute)/omni-reach/_components/widgets/MembershipLoyalty";
+import { QuizCreator } from "@/app/(authorisedRoute)/omni-reach/_components/widgets/QuizCreator";
 
 export function MarketingWidgets(): JSX.Element {
   return (

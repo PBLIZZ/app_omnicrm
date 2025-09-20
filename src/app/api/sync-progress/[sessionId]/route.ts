@@ -13,8 +13,9 @@
  * - Session completion detection
  * - User-scoped security (RLS)
  */
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { syncSessions } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -32,7 +33,6 @@ export const GET = createRouteHandler({
   rateLimit: { operation: "sync_progress" },
   validation: { params: paramsSchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("sync.progress", requestId);
   const { sessionId } = validated.params;
 
   try {
@@ -51,7 +51,7 @@ export const GET = createRouteHandler({
       .limit(1);
 
     if (!session[0]) {
-      return api.error("Sync session not found", "NOT_FOUND");
+      return NextResponse.json({ error: "Sync session not found" }, { status: 404 });
     }
 
     const sessionData = session[0];
@@ -112,7 +112,7 @@ export const GET = createRouteHandler({
       },
     });
 
-    return api.success(progressData);
+    return NextResponse.json(progressData);
   } catch (error) {
     await logger.error(
       "Failed to get sync progress",
@@ -123,7 +123,7 @@ export const GET = createRouteHandler({
       ensureError(error),
     );
 
-    return api.error(
+    return apiError(
       "Failed to retrieve sync progress",
       "INTERNAL_ERROR",
       undefined,
@@ -149,7 +149,6 @@ export const DELETE = createRouteHandler({
   rateLimit: { operation: "sync_cancel" },
   validation: { params: paramsSchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("sync.cancel", requestId);
   const { sessionId } = validated.params;
 
   try {
@@ -168,14 +167,14 @@ export const DELETE = createRouteHandler({
       .limit(1);
 
     if (!session[0]) {
-      return api.error("Sync session not found", "NOT_FOUND");
+      return NextResponse.json({ error: "Sync session not found" }, { status: 404 });
     }
 
     const sessionData = session[0];
 
     // Only allow cancellation of active sessions
     if (!["started", "importing", "processing"].includes(sessionData.status)) {
-      return api.error(
+      return apiError(
         `Cannot cancel ${sessionData.status} sync session`,
         "VALIDATION_ERROR"
       );
@@ -207,7 +206,7 @@ export const DELETE = createRouteHandler({
       },
     });
 
-    return api.success({
+    return NextResponse.json({
       sessionId,
       message: "Sync session cancelled",
       status: "cancelled",
@@ -222,7 +221,7 @@ export const DELETE = createRouteHandler({
       ensureError(error),
     );
 
-    return api.error(
+    return apiError(
       "Failed to cancel sync session",
       "INTERNAL_ERROR",
       undefined,

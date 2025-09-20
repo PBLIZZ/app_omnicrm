@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { google } from 'https://esm.sh/googleapis@128'
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 interface Job {
   id: string
@@ -45,7 +46,7 @@ interface CalendarEvent {
   updated?: string
 }
 
-export async function processGoogleCalendarSync(job: Job, supabase: any): Promise<void> {
+export async function processGoogleCalendarSync(job: Job, supabase: SupabaseClient): Promise<void> {
   console.log(`Processing Google Calendar sync job ${job.id} for user ${job.userId}`)
 
   try {

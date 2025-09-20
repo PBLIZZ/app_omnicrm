@@ -1,10 +1,7 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { BulkDeleteBodySchema } from "@/lib/validation/schemas/omniClients";
-import { ContactIntelligenceService } from "@/server/services/contact-intelligence.service";
-import { ContactsRepository } from "@repo";
-import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
+import { ClientEnrichmentService } from "@/server/services/client-enrichment.service";
 
 /**
  * OmniClients Bulk Enrich API
@@ -18,102 +15,15 @@ export const POST = createRouteHandler({
   rateLimit: { operation: "omni_clients_bulk_enrich" },
   validation: { body: BulkDeleteBodySchema },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_clients_bulk_enrich", requestId);
-
   try {
     const { ids } = validated.body;
 
-    // Get contacts to enrich with their emails using repository
-    const clientsToEnrich = await ContactsRepository.getContactsByIds(userId, ids);
+    const result = await ClientEnrichmentService.enrichClientsByIds(userId, ids);
 
-    if (clientsToEnrich.length === 0) {
-      return api.success({
-        enrichedCount: 0,
-        message: "No clients found to enrich",
-      });
-    }
-
-    let enrichedCount = 0;
-    const errors: string[] = [];
-
-    // Process each client
-    for (const client of clientsToEnrich) {
-      try {
-        // Skip clients without email addresses (can't analyze without email for calendar events)
-        if (!client.primaryEmail) {
-          errors.push(`${client.displayName}: No email address to analyze`);
-          continue;
-        }
-
-        // Generate AI insights for this client
-        const insights = await ContactIntelligenceService.generateContactInsights(
-          userId,
-          client.primaryEmail,
-        );
-
-        // Update the client with AI insights using repository
-        await ContactsRepository.updateContact(userId, client.id, {
-          stage: insights.stage,
-          tags: insights.tags,
-          confidenceScore: insights.confidenceScore?.toString(),
-        });
-
-        enrichedCount++;
-      } catch (error) {
-        const errorMsg = `${client.displayName}: ${error instanceof Error ? error.message : "Unknown error"}`;
-        errors.push(errorMsg);
-
-        await logger.error(
-          "Failed to enrich individual OmniClient",
-          {
-            operation: "omni_clients_bulk_enrich",
-            additionalData: {
-              userId: userId.slice(0, 8) + "...",
-              clientId: client.id,
-              clientName: client.displayName,
-              errorType: error instanceof Error ? error.constructor.name : typeof error,
-            },
-          },
-          error instanceof Error ? error : undefined,
-        );
-      }
-    }
-
-    await logger.info("Bulk enriched OmniClients", {
-      operation: "omni_clients_bulk_enrich",
-      additionalData: {
-        userId: userId.slice(0, 8) + "...",
-        requestedCount: ids.length,
-        enrichedCount,
-        errorCount: errors.length,
-      },
-    });
-
-    return api.success({
-      enrichedCount,
-      totalRequested: ids.length,
-      errors: errors.length > 0 ? errors : undefined,
-      message: `Successfully enriched ${enrichedCount} of ${ids.length} client${ids.length === 1 ? "" : "s"} with AI insights`,
-    });
+    return NextResponse.json(result);
   } catch (error) {
-    await logger.error(
-      "Failed to bulk enrich OmniClients",
-      {
-        operation: "omni_clients_bulk_enrich",
-        additionalData: {
-          userId: userId.slice(0, 8) + "...",
-          requestedIds: validated.body?.ids?.length ?? 0,
-          errorType: error instanceof Error ? error.constructor.name : typeof error,
-        },
-      },
-      error instanceof Error ? error : undefined,
-    );
-
-    return api.error(
-      "Failed to enrich clients",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    return NextResponse.json({
+      error: "Failed to enrich clients"
+    }, { status: 500 });
   }
 });

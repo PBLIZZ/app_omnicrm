@@ -5,8 +5,8 @@
  * Currently scaffolded for future implementation - Drive sync is not yet implemented.
  */
 
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { DrivePreferencesSchema } from "@/lib/validation/schemas/sync";
 
 export const POST = createRouteHandler({
@@ -16,12 +16,7 @@ export const POST = createRouteHandler({
     body: DrivePreferencesSchema,
   },
 })(async ({ requestId }) => {
-  const api = new ApiResponseBuilder("google.drive.preview", requestId);
 
   // SCAFFOLD: Drive integration not yet implemented
-  return api.error(
-    "Drive integration coming soon",
-    "INTERNAL_ERROR",
-    "Drive sync preview will be available in a future update"
-  );
+  return NextResponse.json({ error: "Drive integration coming soon" }, { status: 500 });
 });

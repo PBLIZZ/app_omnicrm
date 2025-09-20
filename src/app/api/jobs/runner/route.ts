@@ -1,5 +1,6 @@
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError } from "@/server/api/response";
 import { logger } from "@/lib/observability";
 import { JobRunner } from "@/server/jobs/runner";
 import { ensureError } from "@/lib/utils/error-handler";
@@ -8,7 +9,6 @@ export const POST = createRouteHandler({
   auth: true,
   rateLimit: { operation: "job_runner" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("job_runner", requestId);
 
   try {
     // Use the new JobRunner to process queued jobs
@@ -28,7 +28,7 @@ export const POST = createRouteHandler({
       },
     });
 
-    return api.success({
+    return NextResponse.json({
       message: `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
       runner: "job_runner",
       processed: result.processed,
@@ -50,7 +50,7 @@ export const POST = createRouteHandler({
     );
 
     // SECURITY: Don't expose internal error details to client
-    return api.error(
+    return apiError(
       "Job processing failed due to internal error",
       "INTERNAL_ERROR",
       undefined,

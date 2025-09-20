@@ -13,7 +13,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { shouldRetry } from "@/lib/queries/error-handling";
+import { shouldRetry } from "@/lib/errors/error-handling";
 import type { CalendarEvent, Client } from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
 
 export interface CalendarStats {
@@ -137,9 +137,10 @@ export function useCalendarData(): UseCalendarDataResult {
         ...(calendarService.autoRefreshed !== undefined && {
           autoRefreshed: calendarService.autoRefreshed,
         }),
-        ...(calendarService.lastSync !== undefined && calendarService.lastSync !== null && {
-          lastSync: calendarService.lastSync,
-        }),
+        ...(calendarService.lastSync !== undefined &&
+          calendarService.lastSync !== null && {
+            lastSync: calendarService.lastSync,
+          }),
       };
     },
     staleTime: 15_000,
@@ -212,7 +213,6 @@ function mapCalendarEvent(e: unknown): CalendarEvent {
     ...(businessCategory !== undefined ? { businessCategory } : {}),
   };
 }
-
 
 // Helper function to map clients data with proper typing
 function mapClientsData(json: unknown): Client[] {

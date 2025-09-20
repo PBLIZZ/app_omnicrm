@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, lte, inArray, count } from "drizzle-orm";
 import { interactions } from "./schema";
 import { getDb } from "./db";
 import type {
@@ -278,5 +278,42 @@ export class InteractionsRepository {
       });
 
     return newInteractions.map(row => InteractionDTOSchema.parse(row));
+  }
+
+  /**
+   * Count interactions for a user
+   */
+  static async countInteractions(userId: string, filters?: InteractionFilters): Promise<number> {
+    const db = await getDb();
+
+    // Build conditions array
+    const conditions = [eq(interactions.userId, userId)];
+
+    if (filters?.contactId) {
+      conditions.push(eq(interactions.contactId, filters.contactId));
+    }
+
+    if (filters?.type && filters.type.length > 0) {
+      conditions.push(inArray(interactions.type, filters.type));
+    }
+
+    if (filters?.source && filters.source.length > 0) {
+      conditions.push(inArray(interactions.source, filters.source));
+    }
+
+    if (filters?.occurredAfter) {
+      conditions.push(gte(interactions.occurredAt, filters.occurredAfter));
+    }
+
+    if (filters?.occurredBefore) {
+      conditions.push(lte(interactions.occurredAt, filters.occurredBefore));
+    }
+
+    const result = await db
+      .select({ count: count() })
+      .from(interactions)
+      .where(and(...conditions));
+
+    return result[0]?.count ?? 0;
   }
 }

@@ -130,7 +130,12 @@ export function createOmniClientsRepoFakes(): OmniClientsRepoFakes {
     ),
 
     createContactsBatch: vi.fn().mockImplementation(
-      async (userId: string, contactsData: any[]) => {
+      async (userId: string, contactsData: Array<{
+        displayName: string;
+        primaryEmail?: string | null;
+        primaryPhone?: string | null;
+        source: "gmail_import" | "manual" | "upload";
+      }>) => {
         const created = contactsData.map(data =>
           makeOmniClientWithNotes({
             userId,

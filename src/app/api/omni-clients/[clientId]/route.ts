@@ -1,11 +1,10 @@
 import { z } from "zod";
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { ContactsRepository } from "@repo";
 import type { UpdateContactDTO } from "@contracts/contact";
 import { UpdateOmniClientSchema } from "@/lib/validation/schemas/omniClients";
 import { toOmniClient } from "@/server/adapters/omniClients";
-import { ensureError } from "@/lib/utils/error-handler";
 
 // --- helpers ---
 const IdParams = z.object({ clientId: z.string().uuid() });
@@ -23,22 +22,18 @@ export const GET = createRouteHandler({
     params: IdParams,
   },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_client_get", requestId);
-
   try {
     const contact = await ContactsRepository.getContactById(userId, validated.params.clientId);
 
     if (!contact) {
-      return api.notFound("Client not found");
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    return api.success({ item: toOmniClient(contact) });
+    return NextResponse.json({ item: toOmniClient(contact) });
   } catch (error) {
-    return api.error(
-      "Failed to fetch omni client",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to fetch omni client" },
+      { status: 500 }
     );
   }
 });
@@ -52,8 +47,6 @@ export const PATCH = createRouteHandler({
     body: UpdateOmniClientSchema,
   },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_client_update", requestId);
-
   try {
     const updates: UpdateContactDTO = {};
 
@@ -73,7 +66,10 @@ export const PATCH = createRouteHandler({
     }
 
     if (Object.keys(updates).length === 0) {
-      return api.validationError("No valid updates provided");
+      return NextResponse.json(
+        { error: "No valid updates provided" },
+        { status: 400 }
+      );
     }
 
     const updatedContact = await ContactsRepository.updateContact(
@@ -83,16 +79,14 @@ export const PATCH = createRouteHandler({
     );
 
     if (!updatedContact) {
-      return api.notFound("Client not found");
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    return api.success({ item: toOmniClient(updatedContact) });
+    return NextResponse.json({ item: toOmniClient(updatedContact) });
   } catch (error) {
-    return api.error(
-      "Failed to update omni client",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to update omni client" },
+      { status: 500 }
     );
   }
 });
@@ -108,19 +102,15 @@ export const DELETE = createRouteHandler({
     params: IdParams,
   },
 })(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("omni_client_delete", requestId);
-
   try {
     const deleted = await ContactsRepository.deleteContact(userId, validated.params.clientId);
 
     // idempotent delete - return success even if contact didn't exist
-    return api.success({ deleted: deleted ? 1 : 0 });
+    return NextResponse.json({ deleted: deleted ? 1 : 0 });
   } catch (error) {
-    return api.error(
-      "Failed to delete omni client",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to delete omni client" },
+      { status: 500 }
     );
   }
 });

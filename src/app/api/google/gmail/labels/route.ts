@@ -1,7 +1,8 @@
 /** GET /api/google/gmail/labels — fetch Gmail labels for authenticated user */
 
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
+import { apiError } from "@/server/api/response";
 import { gmail_v1, google } from "googleapis";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 import { logger } from "@/lib/observability";
@@ -25,7 +26,6 @@ export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "gmail_labels" },
 })(async ({ userId, requestId }) => {
-  const api = new ApiResponseBuilder("google.gmail.labels", requestId);
 
   try {
     // Get authenticated OAuth2 client using the new service
@@ -40,7 +40,7 @@ export const GET = createRouteHandler({
     });
 
     if (!response.data.labels) {
-      return api.success({ labels: [], totalLabels: 0 });
+      return NextResponse.json({ labels: [], totalLabels: 0 });
     }
 
     // Transform labels to our format
@@ -80,7 +80,7 @@ export const GET = createRouteHandler({
       totalLabels: labels.length,
     };
 
-    return api.success(result);
+    return NextResponse.json(result);
   } catch (error: unknown) {
     await logger.error(
       "Gmail labels fetch failed",
@@ -97,7 +97,7 @@ export const GET = createRouteHandler({
     if (error instanceof Error) {
       // Handle specific Google API errors
       if (error.message.includes("insufficient authentication scopes")) {
-        return api.error(
+        return apiError(
           "Insufficient Gmail permissions. Please reconnect your Gmail account.",
           "FORBIDDEN",
         );
@@ -107,18 +107,13 @@ export const GET = createRouteHandler({
         error.message.includes("invalid_grant") ||
         error.message.includes("Token has been expired or revoked")
       ) {
-        return api.error(
+        return apiError(
           "Gmail access token has expired. Please reconnect your account.",
           "UNAUTHORIZED",
         );
       }
     }
 
-    return api.error(
-      "Failed to fetch Gmail labels",
-      "INTERNAL_ERROR",
-      undefined,
-      error instanceof Error ? error : undefined,
-    );
+    return NextResponse.json({ error: "Failed to fetch Gmail labels" }, { status: 500 });
   }
 });

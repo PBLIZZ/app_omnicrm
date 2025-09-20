@@ -1,4 +1,5 @@
 import { useQuery, QueryKey } from "@tanstack/react-query";
+import { fetchGet, fetchPost, buildUrl } from "@/lib/api";
 
 export interface GetFileUrlResponse {
   signedUrl: string | null;
@@ -6,45 +7,16 @@ export interface GetFileUrlResponse {
   details?: string;
 }
 
-// Define API error response type
-interface ApiErrorResponse {
-  error?: string;
-  details?: string;
-}
-
-// Type guard for API error response
-function isApiErrorResponse(payload: unknown): payload is ApiErrorResponse {
-  return (
-    typeof payload === "object" && payload !== null && ("error" in payload || "details" in payload)
-  );
-}
-
 export async function getFileUrl(filePath: string): Promise<GetFileUrlResponse> {
-  const url = new URL(
-    "/api/storage/file-url",
-    typeof window === "undefined" ? "http://localhost" : window.location.origin,
-  );
-  url.searchParams.set("filePath", filePath);
-
-  const res = await fetch(url.toString(), { method: "GET" });
-  if (!res.ok) {
-    let payload: unknown;
-    try {
-      payload = await res.json();
-    } catch {
-      // ignore
-    }
-    const errorResponse = isApiErrorResponse(payload) ? payload : {};
-    const result: GetFileUrlResponse = {
+  try {
+    const url = buildUrl("/api/storage/file-url", { filePath });
+    return await fetchGet<GetFileUrlResponse>(url);
+  } catch (error) {
+    return {
       signedUrl: null,
-      error: errorResponse.error ?? `http_error_${res.status}`,
+      error: error instanceof Error ? error.message : "Failed to get file URL",
     };
-    if (errorResponse.details) {
-      result.details = errorResponse.details;
-    }
-    return result;
   }
-  return (await res.json()) as GetFileUrlResponse;
 }
 
 export function useFileUrl(
@@ -76,29 +48,13 @@ export interface GetUploadUrlResponse {
 }
 
 export async function getUploadUrl(args: GetUploadUrlArgs): Promise<GetUploadUrlResponse> {
-  const base = typeof window === "undefined" ? "http://localhost" : window.location.origin;
-  const res = await fetch(new URL("/api/storage/upload-url", base).toString(), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
-  });
-  if (!res.ok) {
-    let payload: unknown;
-    try {
-      payload = await res.json();
-    } catch {
-      // ignore
-    }
-    const errorResponse = isApiErrorResponse(payload) ? payload : {};
-    const result: GetUploadUrlResponse = {
+  try {
+    return await fetchPost<GetUploadUrlResponse>("/api/storage/upload-url", args);
+  } catch (error) {
+    return {
       signedUrl: null,
       path: args.folderPath ? `${args.folderPath}/${args.fileName}` : args.fileName,
-      error: errorResponse.error ?? `http_error_${res.status}`,
+      error: error instanceof Error ? error.message : "Failed to get upload URL",
     };
-    if (errorResponse.details) {
-      result.details = errorResponse.details;
-    }
-    return result;
   }
-  return (await res.json()) as GetUploadUrlResponse;
 }

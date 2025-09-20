@@ -1,162 +1,263 @@
+/**
+ * OmniMomentum DTOs and Validation Schemas
+ *
+ * Complete task and project management system for wellness practitioners
+ * including projects (pathways), tasks (hierarchical), and goals.
+ */
+
 import { z } from "zod";
 
-/**
- * Momentum Workspace DTO Schema
- *
- * Stable UI-focused contract for workspace data.
- */
-export const MomentumWorkspaceDTOSchema = z.object({
+// ENUMs that match database constraints
+export const ProjectStatusSchema = z.enum(["active", "on_hold", "completed", "archived"]);
+export const TaskStatusSchema = z.enum(["todo", "in_progress", "done", "canceled"]);
+export const TaskPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
+export const GoalTypeSchema = z.enum(["practitioner_business", "practitioner_personal", "client_wellness"]);
+export const GoalStatusSchema = z.enum(["on_track", "at_risk", "achieved", "abandoned"]);
+
+// Project DTOs (Pathways)
+export const ProjectDTOSchema = z.object({
   id: z.string().uuid(),
-  name: z.string(),
-  description: z.string().nullable(),
-  color: z.string().default("#6366f1"),
-  isDefault: z.boolean().default(false),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-});
-
-export type MomentumWorkspaceDTO = z.infer<typeof MomentumWorkspaceDTOSchema>;
-
-/**
- * Momentum Project DTO Schema
- *
- * Stable UI-focused contract for project data.
- */
-export const MomentumProjectDTOSchema = z.object({
-  id: z.string().uuid(),
-  momentumWorkspaceId: z.string().uuid(),
-  name: z.string(),
-  description: z.string().nullable(),
-  color: z.string().default("#10b981"),
-  status: z.enum(["active", "completed", "on_hold", "cancelled"]).default("active"),
-  dueDate: z.coerce.date().nullable(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-});
-
-export type MomentumProjectDTO = z.infer<typeof MomentumProjectDTOSchema>;
-
-/**
- * Momentum Task DTO Schema
- *
- * Stable UI-focused contract for momentum task data.
- */
-export const MomentumDTOSchema = z.object({
-  id: z.string().uuid(),
-  momentumWorkspaceId: z.string().uuid().nullable(),
-  momentumProjectId: z.string().uuid().nullable(),
-  parentMomentumId: z.string().uuid().nullable(),
-  title: z.string(),
-  description: z.string().nullable(),
-  status: z.enum(["todo", "in_progress", "waiting", "done", "cancelled"]).default("todo"),
-  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
-  assignee: z.enum(["user", "ai"]).default("user"),
-  source: z.enum(["user", "ai_generated"]).default("user"),
-  approvalStatus: z.enum(["pending_approval", "approved", "rejected"]).default("approved"),
-  taggedContacts: z.array(z.string().uuid()).nullable(),
-  dueDate: z.coerce.date().nullable(),
-  completedAt: z.coerce.date().nullable(),
-  estimatedMinutes: z.number().int().positive().nullable(),
-  actualMinutes: z.number().int().positive().nullable(),
-  aiContext: z.unknown().nullable(), // JSON blob with AI reasoning/context
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-});
-
-export type MomentumDTO = z.infer<typeof MomentumDTOSchema>;
-
-/**
- * Momentum Action DTO Schema
- *
- * Audit trail for momentum task actions
- */
-export const MomentumActionDTOSchema = z.object({
-  id: z.string().uuid(),
-  momentumId: z.string().uuid(),
-  action: z.enum(["approved", "rejected", "edited", "completed", "deleted"]),
-  previousData: z.unknown().nullable(), // JSON blob
-  newData: z.unknown().nullable(), // JSON blob
-  notes: z.string().nullable(),
-  createdAt: z.coerce.date(),
-});
-
-export type MomentumActionDTO = z.infer<typeof MomentumActionDTOSchema>;
-
-/**
- * Create Workspace DTO Schema
- */
-export const CreateMomentumWorkspaceDTOSchema = z.object({
-  name: z.string().min(1, "Workspace name is required"),
-  description: z.string().optional(),
-  color: z.string().default("#6366f1"),
-  isDefault: z.boolean().default(false),
-});
-
-export type CreateMomentumWorkspaceDTO = z.infer<typeof CreateMomentumWorkspaceDTOSchema>;
-
-/**
- * Create Project DTO Schema
- */
-export const CreateMomentumProjectDTOSchema = z.object({
-  momentumWorkspaceId: z.string().uuid(),
+  userId: z.string().uuid(),
+  zoneId: z.number().nullable(),
   name: z.string().min(1, "Project name is required"),
-  description: z.string().optional(),
-  color: z.string().default("#10b981"),
-  status: z.enum(["active", "completed", "on_hold", "cancelled"]).default("active"),
-  dueDate: z.coerce.date().optional(),
+  status: ProjectStatusSchema,
+  dueDate: z.date().nullable(),
+  details: z.record(z.unknown()).default({}), // JSONB metadata
+  createdAt: z.date(),
+  updatedAt: z.date(),
 });
 
-export type CreateMomentumProjectDTO = z.infer<typeof CreateMomentumProjectDTOSchema>;
-
-/**
- * Create Momentum Task DTO Schema
- */
-export const CreateMomentumDTOSchema = z.object({
-  momentumWorkspaceId: z.string().uuid().optional(),
-  momentumProjectId: z.string().uuid().optional(),
-  parentMomentumId: z.string().uuid().optional(),
-  title: z.string().min(1, "Task title is required"),
-  description: z.string().optional(),
-  status: z.enum(["todo", "in_progress", "waiting", "done", "cancelled"]).default("todo"),
-  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
-  assignee: z.enum(["user", "ai"]).default("user"),
-  source: z.enum(["user", "ai_generated"]).default("user"),
-  approvalStatus: z.enum(["pending_approval", "approved", "rejected"]).default("approved"),
-  taggedContacts: z.array(z.string().uuid()).optional(),
-  dueDate: z.coerce.date().optional(),
-  estimatedMinutes: z.number().int().positive().optional(),
-  aiContext: z.unknown().optional(),
+export const CreateProjectDTOSchema = z.object({
+  name: z.string().min(1, "Project name is required").max(200, "Project name too long"),
+  zoneId: z.number().optional(),
+  status: ProjectStatusSchema.optional(),
+  dueDate: z.date().optional(),
+  details: z.object({
+    description: z.string().optional(),
+    icon: z.string().optional(),
+    color: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }).optional(),
 });
 
-export type CreateMomentumDTO = z.infer<typeof CreateMomentumDTOSchema>;
+export const UpdateProjectDTOSchema = CreateProjectDTOSchema.partial();
 
-/**
- * Update DTOs - All fields optional for partial updates
- */
-export const UpdateMomentumWorkspaceDTOSchema = CreateMomentumWorkspaceDTOSchema.partial();
-export type UpdateMomentumWorkspaceDTO = z.infer<typeof UpdateMomentumWorkspaceDTOSchema>;
-
-export const UpdateMomentumProjectDTOSchema = CreateMomentumProjectDTOSchema.partial();
-export type UpdateMomentumProjectDTO = z.infer<typeof UpdateMomentumProjectDTOSchema>;
-
-export const UpdateMomentumDTOSchema = CreateMomentumDTOSchema.partial();
-export type UpdateMomentumDTO = z.infer<typeof UpdateMomentumDTOSchema>;
-
-/**
- * Create Momentum Action DTO Schema
- */
-export const CreateMomentumActionDTOSchema = z.object({
-  momentumId: z.string().uuid(),
-  action: z.enum(["approved", "rejected", "edited", "completed", "deleted"]),
-  previousData: z.unknown().optional(),
-  newData: z.unknown().optional(),
-  notes: z.string().optional(),
+// Task DTOs (Hierarchical structure)
+export const TaskDTOSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  projectId: z.string().uuid().nullable(),
+  parentTaskId: z.string().uuid().nullable(),
+  name: z.string().min(1, "Task name is required"),
+  status: TaskStatusSchema,
+  priority: TaskPrioritySchema,
+  dueDate: z.date().nullable(),
+  details: z.record(z.unknown()).default({}), // JSONB metadata
+  completedAt: z.date().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
 });
 
-export type CreateMomentumActionDTO = z.infer<typeof CreateMomentumActionDTOSchema>;
+export const CreateTaskDTOSchema = z.object({
+  name: z.string().min(1, "Task name is required").max(300, "Task name too long"),
+  projectId: z.string().uuid().optional(),
+  parentTaskId: z.string().uuid().optional(),
+  status: TaskStatusSchema.optional(),
+  priority: TaskPrioritySchema.optional(),
+  dueDate: z.date().optional(),
+  details: z.object({
+    description: z.string().optional(),
+    steps: z.array(z.string()).optional(),
+    blockers: z.array(z.string()).optional(),
+    estimatedMinutes: z.number().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  taggedContactIds: z.array(z.string().uuid()).optional(),
+});
 
-// Legacy aliases for backward compatibility
-export const WorkspaceDTOSchema = MomentumWorkspaceDTOSchema;
-export const ProjectDTOSchema = MomentumProjectDTOSchema;
-export type WorkspaceDTO = MomentumWorkspaceDTO;
-export type ProjectDTO = MomentumProjectDTO;
+export const UpdateTaskDTOSchema = CreateTaskDTOSchema.partial();
+
+// Task with relationships - for full task display
+export const TaskWithRelationsDTOSchema = TaskDTOSchema.extend({
+  project: ProjectDTOSchema.nullable(),
+  parentTask: TaskDTOSchema.nullable(),
+  subtasks: z.array(TaskDTOSchema),
+  taggedContacts: z.array(z.object({
+    id: z.string().uuid(),
+    displayName: z.string(),
+    primaryEmail: z.string().optional(),
+  })),
+  zone: z.object({
+    id: z.number(),
+    name: z.string(),
+    color: z.string().nullable(),
+    iconName: z.string().nullable(),
+  }).nullable(),
+});
+
+// Goal DTOs
+export const GoalDTOSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  contactId: z.string().uuid().nullable(),
+  goalType: GoalTypeSchema,
+  name: z.string().min(1, "Goal name is required"),
+  status: GoalStatusSchema,
+  targetDate: z.date().nullable(),
+  details: z.record(z.unknown()).default({}), // JSONB metadata
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const CreateGoalDTOSchema = z.object({
+  contactId: z.string().uuid().optional(),
+  goalType: GoalTypeSchema,
+  name: z.string().min(1, "Goal name is required").max(200, "Goal name too long"),
+  status: GoalStatusSchema.optional(),
+  targetDate: z.date().optional(),
+  details: z.object({
+    description: z.string().optional(),
+    metrics: z.array(z.object({
+      name: z.string(),
+      target: z.number(),
+      current: z.number().optional(),
+      unit: z.string(),
+    })).optional(),
+    milestones: z.array(z.object({
+      name: z.string(),
+      targetDate: z.date(),
+      completed: z.boolean().default(false),
+    })).optional(),
+  }).optional(),
+});
+
+export const UpdateGoalDTOSchema = CreateGoalDTOSchema.partial();
+
+// Daily Pulse Log DTOs
+export const DailyPulseLogDTOSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  logDate: z.date(),
+  details: z.record(z.unknown()).default({}), // JSONB metadata
+  createdAt: z.date(),
+});
+
+export const CreateDailyPulseLogDTOSchema = z.object({
+  logDate: z.date().optional(), // Defaults to today
+  details: z.object({
+    energy: z.number().min(1).max(5),
+    sleep: z.number().min(3).max(10), // Hours of sleep
+    nap: z.number().min(0).max(120).optional(), // Minutes of nap
+    mood: z.string().optional(),
+    notes: z.string().optional(),
+    customMetrics: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  }),
+});
+
+export const UpdateDailyPulseLogDTOSchema = z.object({
+  details: CreateDailyPulseLogDTOSchema.shape.details.partial(),
+});
+
+// Filter schemas
+export const ProjectFiltersSchema = z.object({
+  search: z.string().optional(),
+  status: z.array(ProjectStatusSchema).optional(),
+  zoneId: z.number().optional(),
+  dueAfter: z.date().optional(),
+  dueBefore: z.date().optional(),
+});
+
+export const TaskFiltersSchema = z.object({
+  search: z.string().optional(),
+  status: z.array(TaskStatusSchema).optional(),
+  priority: z.array(TaskPrioritySchema).optional(),
+  projectId: z.string().uuid().optional(),
+  parentTaskId: z.string().uuid().optional(),
+  taggedContactId: z.string().uuid().optional(),
+  dueAfter: z.date().optional(),
+  dueBefore: z.date().optional(),
+  hasSubtasks: z.boolean().optional(),
+});
+
+export const GoalFiltersSchema = z.object({
+  search: z.string().optional(),
+  goalType: z.array(GoalTypeSchema).optional(),
+  status: z.array(GoalStatusSchema).optional(),
+  contactId: z.string().uuid().optional(),
+  targetAfter: z.date().optional(),
+  targetBefore: z.date().optional(),
+});
+
+// Quick action DTOs - for common UI operations
+export const QuickTaskCreateDTOSchema = z.object({
+  name: z.string().min(1, "Task name is required"),
+  priority: TaskPrioritySchema.optional(),
+  dueDate: z.date().optional(),
+  projectId: z.string().uuid().optional(),
+  parentTaskId: z.string().uuid().optional(),
+});
+
+export const BulkTaskUpdateDTOSchema = z.object({
+  taskIds: z.array(z.string().uuid()).min(1, "Select at least one task"),
+  updates: z.object({
+    status: TaskStatusSchema.optional(),
+    priority: TaskPrioritySchema.optional(),
+    projectId: z.string().uuid().optional(),
+    dueDate: z.date().optional(),
+  }),
+});
+
+// Type exports
+export type ProjectDTO = z.infer<typeof ProjectDTOSchema>;
+export type CreateProjectDTO = z.infer<typeof CreateProjectDTOSchema>;
+export type UpdateProjectDTO = z.infer<typeof UpdateProjectDTOSchema>;
+
+export type TaskDTO = z.infer<typeof TaskDTOSchema>;
+export type CreateTaskDTO = z.infer<typeof CreateTaskDTOSchema>;
+export type UpdateTaskDTO = z.infer<typeof UpdateTaskDTOSchema>;
+export type TaskWithRelationsDTO = z.infer<typeof TaskWithRelationsDTOSchema>;
+
+export type GoalDTO = z.infer<typeof GoalDTOSchema>;
+export type CreateGoalDTO = z.infer<typeof CreateGoalDTOSchema>;
+export type UpdateGoalDTO = z.infer<typeof UpdateGoalDTOSchema>;
+
+export type DailyPulseLogDTO = z.infer<typeof DailyPulseLogDTOSchema>;
+export type CreateDailyPulseLogDTO = z.infer<typeof CreateDailyPulseLogDTOSchema>;
+export type UpdateDailyPulseLogDTO = z.infer<typeof UpdateDailyPulseLogDTOSchema>;
+
+export type ProjectFilters = z.infer<typeof ProjectFiltersSchema>;
+export type TaskFilters = z.infer<typeof TaskFiltersSchema>;
+export type GoalFilters = z.infer<typeof GoalFiltersSchema>;
+
+export type QuickTaskCreateDTO = z.infer<typeof QuickTaskCreateDTOSchema>;
+export type BulkTaskUpdateDTO = z.infer<typeof BulkTaskUpdateDTOSchema>;
+
+// Status and Priority type exports
+export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+export type TaskPriority = z.infer<typeof TaskPrioritySchema>;
+export type GoalType = z.infer<typeof GoalTypeSchema>;
+export type GoalStatus = z.infer<typeof GoalStatusSchema>;
+
+// Legacy aliases for backward compatibility (temporary)
+export const MomentumWorkspaceDTOSchema = ProjectDTOSchema;
+export const MomentumProjectDTOSchema = ProjectDTOSchema;
+export const MomentumDTOSchema = TaskDTOSchema;
+export const CreateMomentumWorkspaceDTOSchema = CreateProjectDTOSchema;
+export const CreateMomentumProjectDTOSchema = CreateProjectDTOSchema;
+export const CreateMomentumDTOSchema = CreateTaskDTOSchema;
+export const UpdateMomentumWorkspaceDTOSchema = UpdateProjectDTOSchema;
+export const UpdateMomentumProjectDTOSchema = UpdateProjectDTOSchema;
+export const UpdateMomentumDTOSchema = UpdateTaskDTOSchema;
+export const WorkspaceDTOSchema = ProjectDTOSchema;
+
+export type MomentumWorkspaceDTO = ProjectDTO;
+export type MomentumProjectDTO = ProjectDTO;
+export type MomentumDTO = TaskDTO;
+export type CreateMomentumWorkspaceDTO = CreateProjectDTO;
+export type CreateMomentumProjectDTO = CreateProjectDTO;
+export type CreateMomentumDTO = CreateTaskDTO;
+export type UpdateMomentumWorkspaceDTO = UpdateProjectDTO;
+export type UpdateMomentumProjectDTO = UpdateProjectDTO;
+export type UpdateMomentumDTO = UpdateTaskDTO;
+export type WorkspaceDTO = ProjectDTO;

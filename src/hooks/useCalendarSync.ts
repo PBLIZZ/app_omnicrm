@@ -15,7 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { createErrorHandler, showSyncSuccessToast } from "@/lib/queries/error-handling";
+import { createErrorHandler, showSyncSuccessToast } from "@/lib/errors/error-handling";
 
 export interface CalendarSyncStats {
   syncedEvents: number;

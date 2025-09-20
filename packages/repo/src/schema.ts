@@ -16,6 +16,8 @@ import {
   pgEnum,
   uniqueIndex,
   index,
+  serial,
+  date,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -434,6 +436,86 @@ export const momentumActions = pgTable("momentum_actions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// ---------- OmniMomentum Management ----------
+
+// Table: zones (Lookup Table for Life-Business Zones)
+export const zones = pgTable("zones", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  color: text("color"),
+  iconName: text("icon_name"),
+});
+
+// Table: inbox_items (The AI Quick Capture "Dump Everything" Zone)
+export const inboxItems = pgTable("inbox_items", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  rawText: text("raw_text").notNull(),
+  status: text("status", { enum: ["unprocessed", "processed", "archived"] }).notNull().default("unprocessed"),
+  createdTaskId: uuid("created_task_id"), // Nullable, will be populated after processing
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Table: projects (The "Pathways" top-level containers)
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  zoneId: integer("zone_id"), // References zones.id but FK defined in SQL
+  name: text("name").notNull(),
+  status: text("status", { enum: ["active", "on_hold", "completed", "archived"] }).notNull().default("active"),
+  dueDate: date("due_date"),
+  details: jsonb("details").default(sql`'{}'::jsonb`), // For description, icon, metadata
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Table: tasks (Core table for tasks and subtasks via self-reference)
+export const tasks = pgTable("tasks", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  projectId: uuid("project_id"), // References projects.id but FK defined in SQL
+  parentTaskId: uuid("parent_task_id"), // References tasks.id but FK defined in SQL
+  name: text("name").notNull(),
+  status: text("status", { enum: ["todo", "in_progress", "done", "canceled"] }).notNull().default("todo"),
+  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("medium"),
+  dueDate: timestamp("due_date", { withTimezone: true }),
+  details: jsonb("details").default(sql`'{}'::jsonb`), // For description, steps, blockers
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Table: task_contact_tags (Many-to-Many Join Table)
+export const taskContactTags = pgTable("task_contact_tags", {
+  taskId: uuid("task_id").notNull(), // References tasks.id but FK defined in SQL
+  contactId: uuid("contact_id").notNull(), // References contacts.id but FK defined in SQL
+}, (table) => [primaryKey({ columns: [table.taskId, table.contactId] })]);
+
+// Table: goals (Tracks practitioner and client goals)
+export const goals = pgTable("goals", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  contactId: uuid("contact_id"), // References contacts.id but FK defined in SQL, nullable for practitioner goals
+  goalType: text("goal_type", { enum: ["practitioner_business", "practitioner_personal", "client_wellness"] }).notNull(),
+  name: text("name").notNull(),
+  status: text("status", { enum: ["on_track", "at_risk", "achieved", "abandoned"] }).notNull().default("on_track"),
+  targetDate: date("target_date"),
+  details: jsonb("details").default(sql`'{}'::jsonb`), // For description, metrics, values, etc.
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Table: daily_pulse_logs (Logs the daily self-assessment)
+export const dailyPulseLogs = pgTable("daily_pulse_logs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  logDate: date("log_date").notNull(),
+  details: jsonb("details").default(sql`'{}'::jsonb`), // For energy, sleep, mood, custom questions
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("daily_pulse_logs_user_date_unique").on(table.userId, table.logDate)]);
+
 // ---------- Types ----------
 
 export type AiInsight = typeof aiInsights.$inferSelect;
@@ -511,6 +593,27 @@ export type NewMomentum = typeof momentums.$inferInsert;
 export type MomentumAction = typeof momentumActions.$inferSelect;
 export type NewMomentumAction = typeof momentumActions.$inferInsert;
 
+// OmniMomentum Types
+export type Zone = typeof zones.$inferSelect;
+export type NewZone = typeof zones.$inferInsert;
+
+export type InboxItem = typeof inboxItems.$inferSelect;
+export type NewInboxItem = typeof inboxItems.$inferInsert;
+
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
+
+export type TaskContactTag = typeof taskContactTags.$inferSelect;
+export type NewTaskContactTag = typeof taskContactTags.$inferInsert;
+
+export type Goal = typeof goals.$inferSelect;
+export type NewGoal = typeof goals.$inferInsert;
+
+export type DailyPulseLog = typeof dailyPulseLogs.$inferSelect;
+export type NewDailyPulseLog = typeof dailyPulseLogs.$inferInsert;
+
 // Legacy aliases for backward compatibility
 export type Workspace = MomentumWorkspace;
-export type Project = MomentumProject;

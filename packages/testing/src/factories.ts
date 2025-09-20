@@ -689,7 +689,7 @@ export function makeNewAIInsight(overrides: Partial<NewAIInsight> = {}): NewAIIn
 /**
  * Creates an array of items using the provided factory function
  */
-export function makeBatch<T>(factory: (overrides?: any) => T, count: number, overrides: any = {}): T[] {
+export function makeBatch<T>(factory: (overrides?: Record<string, unknown>) => T, count: number, overrides: Record<string, unknown> = {}): T[] {
   return Array.from({ length: count }, () => factory(overrides));
 }
 

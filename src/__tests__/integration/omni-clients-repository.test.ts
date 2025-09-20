@@ -124,10 +124,14 @@ describe('OmniClientsRepository Integration Tests', () => {
       expect(result?.slug).toBeTruthy();
 
       // Verify it was actually created in the database
+      if (!result?.id) {
+        throw new Error('Expected result to have an id');
+      }
+
       const dbContact = await db
         .select()
         .from(contacts)
-        .where(eq(contacts.id, result!.id!));
+        .where(eq(contacts.id, result.id));
 
       expect(dbContact).toHaveLength(1);
       expect(dbContact[0]?.displayName).toBe('Alice Johnson');

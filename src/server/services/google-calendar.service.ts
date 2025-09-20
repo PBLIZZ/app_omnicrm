@@ -6,6 +6,7 @@ import { withRateLimit } from "@/server/lib/rate-limiter";
 import { logger } from "@/lib/observability";
 import { decryptString, encryptString } from "@/server/utils/crypto";
 import { enqueue } from "@/server/jobs/enqueue";
+import { z } from "zod";
 
 // CalendarEvent type for return values
 export interface CalendarEvent {
@@ -44,6 +45,31 @@ export class GoogleAuthError extends Error {
 }
 
 type OAuth2Type = InstanceType<typeof google.auth.OAuth2>;
+
+// Calendar list types
+export interface CalendarItem {
+  id: string;
+  summary: string;
+  primary: boolean;
+  accessRole: string;
+}
+
+export interface CalendarListResult {
+  calendars: CalendarItem[];
+  meta: {
+    totalProcessed: number;
+    totalSkipped: number;
+    totalRequested: number;
+  };
+}
+
+// Validation schema for CalendarItem
+const CalendarItemSchema = z.object({
+  id: z.string().min(1),
+  summary: z.string().min(1),
+  primary: z.boolean(),
+  accessRole: z.string().min(1),
+});
 
 export class GoogleCalendarService {
   /**
@@ -547,9 +573,15 @@ export class GoogleCalendarService {
     // Determine start and end times
     const startTime = event.start.dateTime
       ? new Date(event.start.dateTime)
-      : new Date(event.start.date!);
+      : event.start.date
+        ? new Date(event.start.date)
+        : new Date(); // fallback to current time
 
-    const endTime = event.end.dateTime ? new Date(event.end.dateTime) : new Date(event.end.date!);
+    const endTime = event.end.dateTime
+      ? new Date(event.end.dateTime)
+      : event.end.date
+        ? new Date(event.end.date)
+        : new Date(); // fallback to current time
 
     const db = await getDb();
 
@@ -630,8 +662,15 @@ export class GoogleCalendarService {
     // Determine start and end times
     const startTime = event.start.dateTime
       ? new Date(event.start.dateTime)
-      : new Date(event.start.date!);
-    const endTime = event.end.dateTime ? new Date(event.end.dateTime) : new Date(event.end.date!);
+      : event.start.date
+        ? new Date(event.start.date)
+        : new Date(); // fallback to current time
+
+    const endTime = event.end.dateTime
+      ? new Date(event.end.dateTime)
+      : event.end.date
+        ? new Date(event.end.date)
+        : new Date(); // fallback to current time
 
     const db = await getDb();
 
@@ -788,5 +827,89 @@ export class GoogleCalendarService {
       lastSynced: event.lastSynced ?? event.updatedAt,
       googleUpdated: event.googleUpdated ?? event.updatedAt,
     })) as CalendarEvent[];
+  }
+
+  /**
+   * List Google Calendar calendars for a user
+   */
+  static async listCalendars(userId: string): Promise<CalendarListResult> {
+    const auth = await this.getAuth(userId);
+    const calendar = google.calendar({ version: "v3", auth });
+
+    const response = await calendar.calendarList.list({
+      maxResults: 250, // Google's max is 250
+      showHidden: false,
+      showDeleted: false,
+    });
+
+    const rawItems = response.data.items ?? [];
+    let processedCount = 0;
+    let skippedCount = 0;
+
+    const calendars: CalendarItem[] = rawItems
+      .map((item: calendar_v3.Schema$CalendarListEntry) => {
+        try {
+          const transformedItem = {
+            id: item.id ?? "",
+            summary: item.summary ?? "Untitled Calendar",
+            primary: item.primary ?? false,
+            accessRole: item.accessRole ?? "reader",
+          };
+
+          // Validate each calendar item
+          const validationResult = CalendarItemSchema.safeParse(transformedItem);
+          if (!validationResult.success) {
+            console.warn(`Skipping invalid calendar item: ${validationResult.error.message}`, {
+              itemId: item.id,
+              itemSummary: item.summary,
+              validationErrors: validationResult.error.issues,
+            });
+            skippedCount++;
+            return null;
+          }
+          processedCount++;
+          return validationResult.data;
+        } catch (error) {
+          console.warn(
+            `Error processing calendar item: ${error instanceof Error ? error.message : "Unknown error"}`,
+            {
+              itemId: item.id,
+              itemSummary: item.summary,
+              error: error instanceof Error ? error.stack : error,
+            },
+          );
+          skippedCount++;
+          return null;
+        }
+      })
+      .filter((item): item is CalendarItem => item !== null);
+
+    // Log processing summary
+    if (skippedCount > 0) {
+      console.warn(
+        `Calendar list processing: ${processedCount} items processed, ${skippedCount} items skipped out of ${rawItems.length} total`,
+      );
+    }
+
+    // Check if we have any valid calendars
+    if (calendars.length === 0 && rawItems.length > 0) {
+      throw new Error(`No valid calendars found after processing ${rawItems.length} items from Google Calendar API`);
+    }
+
+    // Sort calendars: primary first, then by summary
+    calendars.sort((a, b) => {
+      if (a.primary && !b.primary) return -1;
+      if (!a.primary && b.primary) return 1;
+      return a.summary.localeCompare(b.summary);
+    });
+
+    return {
+      calendars,
+      meta: {
+        totalProcessed: processedCount,
+        totalSkipped: skippedCount,
+        totalRequested: rawItems.length,
+      },
+    };
   }
 }

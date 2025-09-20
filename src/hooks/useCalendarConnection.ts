@@ -15,7 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { createErrorHandler } from "@/lib/queries/error-handling";
+import { createErrorHandler } from "@/lib/errors/error-handling";
 
 export interface CalendarConnectionStatus {
   isConnected: boolean;

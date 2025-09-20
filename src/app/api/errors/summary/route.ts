@@ -9,8 +9,8 @@
  * - Critical issues requiring immediate attention
  */
 
+import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { ApiResponseBuilder } from "@/server/api/response";
 import { ErrorTrackingService, type EnhancedErrorRecord, type ErrorSummary } from "@/server/services/error-tracking.service";
 // RecoveryStrategy type from error classification
 import { logger } from "@/lib/observability";
@@ -30,8 +30,8 @@ export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "error_summary" },
   validation: { query: errorSummaryQuerySchema },
-})(async ({ userId, validated, requestId }) => {
-  const api = new ApiResponseBuilder("errors.summary", requestId);
+})(async ({ userId, validated, requestId: _requestId }) => {
+
   const {
     timeRangeHours,
     includeResolved,
@@ -133,7 +133,7 @@ export const GET = createRouteHandler({
       }
     });
 
-    return api.success({
+    return NextResponse.json({
       summary: {
         totalErrors: errorSummary.totalErrors,
         pendingErrors: errorSummary.pendingErrors,
@@ -174,12 +174,7 @@ export const GET = createRouteHandler({
       additionalData: { userId, timeRangeHours, provider, stage }
     }, ensureError(error));
 
-    return api.error(
-      "Failed to retrieve error summary",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error)
-    );
+    return NextResponse.json({ error: "Failed to retrieve error summary" }, { status: 500 });
   }
 });
 

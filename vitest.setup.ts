@@ -119,7 +119,7 @@ vi.mock("drizzle-orm/postgres-js", () => ({
       const mock = vi.fn();
 
       // Create chainable object with proper recursive structure
-      const chainable: any = {};
+      const chainable: Record<string, any> = {};
 
       // Populate the chainable object
       Object.assign(chainable, {

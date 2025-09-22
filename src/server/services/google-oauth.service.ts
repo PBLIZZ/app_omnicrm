@@ -12,13 +12,13 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getDb } from "@/server/db/client";
 
-// Google OAuth token interface
+// Google OAuth token interface - matches Google Credentials type
 interface GoogleTokens {
-  access_token: string;
-  refresh_token?: string;
-  expiry_date?: number;
-  token_type?: string;
-  scope?: string;
+  access_token?: string | null | undefined;
+  refresh_token?: string | null | undefined;
+  expiry_date?: number | null | undefined;
+  token_type?: string | null | undefined;
+  scope?: string | null | undefined;
 }
 import { userIntegrations } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -286,6 +286,11 @@ export class GoogleOAuthService {
     tokens: GoogleTokens
   ): Promise<void> {
     const db = await getDb();
+
+    if (!tokens.access_token) {
+      throw new Error("Access token is required");
+    }
+
     const accessToken = tokens.access_token;
     const refreshToken = tokens.refresh_token ?? null;
     const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : null;

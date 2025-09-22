@@ -1,6 +1,6 @@
 import { ContactAIActionsService } from "@/server/services/contact-ai-actions.service";
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { logger } from "@/lib/observability";
 import { ensureError } from "@/lib/utils/error-handler";
 import { z } from "zod";
@@ -16,15 +16,22 @@ const ParamsSchema = z.object({
   clientId: z.string(),
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_ai_insights" },
-  validation: {
-    params: ParamsSchema,
-  },
-})(async ({ userId, validated, requestId }) => {
+export async function POST(
+  _request: NextRequest,
+  { params }: { params: { clientId: string } }
+): Promise<NextResponse> {
   try {
-    const { clientId } = validated.params;
+    const userId = await getServerUserId();
+
+    const validation = ParamsSchema.safeParse(params);
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Invalid client ID",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    const { clientId } = validation.data;
 
     // Use existing service but present as OmniClient insights
     const insights = await ContactAIActionsService.askAIAboutContact(userId, clientId);
@@ -32,6 +39,7 @@ export const POST = createRouteHandler({
     // Transform response to match OmniClient terminology (minimal changes needed)
     return NextResponse.json(insights);
   } catch (error) {
+    console.error("POST /api/omni-clients/[clientId]/ai-insights error:", error);
     await logger.error(
       "OmniClient AI insights generation failed",
       {
@@ -49,4 +57,4 @@ export const POST = createRouteHandler({
 
     return NextResponse.json({ error: "Failed to generate AI insights for OmniClient" }, { status: 500 });
   }
-});
+}

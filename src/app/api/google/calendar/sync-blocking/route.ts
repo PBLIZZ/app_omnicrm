@@ -15,14 +15,13 @@
  * - Error resilience with partial failure handling
  * - Cache invalidation triggers
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { userIntegrations, syncSessions } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { JobRunner } from "@/server/jobs/runner";
 import { enqueue } from "@/server/jobs/enqueue";
@@ -31,29 +30,44 @@ import { z } from "zod";
 // Request schema: includes sync preferences and parameters
 const syncBlockingSchema = z.object({
   // Sync preferences (from Phase 3)
-  preferences: z.object({
-    calendarIds: z.array(z.string()).optional(),
-    calendarIncludeOrganizerSelf: z.boolean().optional(),
-    calendarIncludePrivate: z.boolean().optional(),
-    calendarTimeWindowDays: z.number().int().min(1).max(730).optional(),
-    calendarFutureDays: z.number().int().min(1).max(730).optional(),
-  }).optional(),
+  preferences: z
+    .object({
+      calendarIds: z.array(z.string()).optional(),
+      calendarIncludeOrganizerSelf: z.boolean().optional(),
+      calendarIncludePrivate: z.boolean().optional(),
+      calendarTimeWindowDays: z.number().int().min(1).max(730).optional(),
+      calendarFutureDays: z.number().int().min(1).max(730).optional(),
+    })
+    .optional(),
   // Sync parameters
   daysPast: z.number().int().min(1).max(730).optional(),
   daysFuture: z.number().int().min(1).max(730).optional(),
   maxResults: z.number().int().min(10).max(2500).optional().default(2500),
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "calendar_sync_blocking" },
-  validation: { body: syncBlockingSchema },
-})(async ({ userId, validated, requestId }) => {
-  const { preferences, daysPast, daysFuture, maxResults } = validated.body;
-
-  let sessionId: string | null = null;
-
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+
+    const validation = syncBlockingSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Validation failed",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    const { preferences, daysPast, daysFuture, maxResults } = validation.data;
+
+    let sessionId: string | null = null;
+
     const db = await getDb();
 
     // Verify Calendar integration exists
@@ -72,7 +86,7 @@ export const POST = createRouteHandler({
     if (!integration[0]) {
       return NextResponse.json(
         { error: "Google Calendar access not approved. Please connect Calendar in Settings." },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
@@ -91,10 +105,7 @@ export const POST = createRouteHandler({
 
     sessionId = sessionInsert[0]?.id || null;
     if (!sessionId) {
-      return NextResponse.json(
-        { error: "Failed to create sync session" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to create sync session" }, { status: 500 });
     }
 
     // Calculate sync parameters from preferences
@@ -147,7 +158,9 @@ export const POST = createRouteHandler({
               currentStep: progress.currentStep,
               progressPercentage: progress.progressPercentage,
               ...(progress.totalItems !== undefined && { totalItems: progress.totalItems }),
-              ...(progress.importedItems !== undefined && { importedItems: progress.importedItems }),
+              ...(progress.importedItems !== undefined && {
+                importedItems: progress.importedItems,
+              }),
               ...(progress.failedItems !== undefined && { failedItems: progress.failedItems }),
             })
             .where(eq(syncSessions.id, sessionId));
@@ -185,7 +198,7 @@ export const POST = createRouteHandler({
 
       return NextResponse.json(
         { error: result.error ?? "Failed to sync calendar events" },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
@@ -285,43 +298,7 @@ export const POST = createRouteHandler({
       partialFailure: false, // Calendar service handles individual failures internally
     });
   } catch (error) {
-    // Update session with error if we have one
-    if (sessionId) {
-      try {
-        const db = await getDb();
-        await db
-          .update(syncSessions)
-          .set({
-            status: "failed",
-            currentStep: "Sync failed",
-            errorDetails: {
-              error: error instanceof Error ? error.message : String(error),
-              timestamp: new Date().toISOString(),
-            },
-            completedAt: new Date(),
-          })
-          .where(eq(syncSessions.id, sessionId));
-      } catch (updateError) {
-        // Log but don't throw - we want to return the original error
-        await logger.error("Failed to update session with error", {
-          operation: "calendar_sync_blocking",
-          additionalData: { sessionId, originalError: String(error) },
-        }, ensureError(updateError));
-      }
-    }
-
-    await logger.error(
-      "Blocking Calendar sync failed",
-      {
-        operation: "calendar_sync_blocking",
-        additionalData: { userId, sessionId },
-      },
-      ensureError(error),
-    );
-
-    return NextResponse.json(
-      { error: "Failed to sync calendar events" },
-      { status: 500 }
-    );
+    console.error("POST /api/google/calendar/sync-blocking error:", error);
+    return NextResponse.json({ error: "Failed to sync calendar events" }, { status: 500 });
   }
-});
+}

@@ -11,18 +11,16 @@
  * - Access Calendar data via response.services.calendar instead of root level
  */
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { rawEvents, userIntegrations } from "@/server/db/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { google } from "googleapis";
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "calendar_status" },
-})(async ({ userId, requestId: _requestId }) => {
+export async function GET(): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
     const db = await getDb();
 
     // Check if user has Google Calendar integration
@@ -164,7 +162,8 @@ export const GET = createRouteHandler({
       upcomingEventsCount,
     });
   } catch (error) {
+    console.error("GET /api/google/calendar/status error:", error);
     console.error("Failed to check calendar status:", error);
     return NextResponse.json({ error: "Failed to check calendar status" }, { status: 500 });
   }
-});
+}

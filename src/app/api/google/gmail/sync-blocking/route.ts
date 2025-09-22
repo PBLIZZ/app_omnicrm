@@ -15,8 +15,8 @@
  * - Error resilience with partial failure handling
  * - Cache invalidation triggers
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { syncSessions } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
@@ -40,16 +40,24 @@ const syncBlockingSchema = z.object({
   overlapHours: z.number().int().min(0).max(72).optional().default(0),
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "gmail_sync_blocking" },
-  validation: { body: syncBlockingSchema },
-})(async ({ userId, validated, requestId }) => {
-  const { preferences, incremental, overlapHours } = validated.body;
+type SyncBlockingRequest = z.infer<typeof syncBlockingSchema>;
 
+export async function POST(request: NextRequest): Promise<NextResponse> {
   let sessionId: string | null = null;
+  let preferences: SyncBlockingRequest['preferences'] = undefined;
+  let incremental: boolean | undefined = undefined;
 
   try {
+    const userId = await getServerUserId();
+
+    // Validate request body
+    const body: unknown = await request.json();
+    const validatedBody = syncBlockingSchema.parse(body);
+    const extractedData = validatedBody;
+    preferences = extractedData.preferences;
+    incremental = extractedData.incremental;
+    const overlapHours = extractedData.overlapHours;
+
     const db = await getDb();
 
     // Create sync session
@@ -149,19 +157,25 @@ export const POST = createRouteHandler({
     });
 
   } catch (error) {
-    // Record the sync failure
-    await ErrorTrackingService.recordError(userId, ensureError(error), {
-      provider: 'gmail',
-      stage: 'ingestion',
-      operation: 'gmail_sync_blocking_failure',
-      sessionId: sessionId ?? undefined,
-      additionalMeta: {
-        syncType: 'blocking_sync',
-        preferences,
-        incremental,
-        overlapHours
-      }
-    });
+    console.error("POST /api/google/gmail/sync-blocking error:", error);
+    // Record the sync failure if we have a userId
+    try {
+      const userId = await getServerUserId();
+      await ErrorTrackingService.recordError(userId, ensureError(error), {
+        provider: 'gmail',
+        stage: 'ingestion',
+        operation: 'gmail_sync_blocking_failure',
+        sessionId: sessionId ?? undefined,
+        additionalMeta: {
+          syncType: 'blocking_sync',
+          preferences,
+          incremental,
+        }
+      });
+    } catch (authError) {
+      // If we can't get userId, just log the original error without recording
+      console.error("Could not record error due to auth failure:", authError);
+    }
 
     // Update session with error if we have one
     if (sessionId) {
@@ -203,4 +217,4 @@ export const POST = createRouteHandler({
       ]
     }, { status: 500 });
   }
-});
+}

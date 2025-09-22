@@ -125,7 +125,7 @@ Rules:
   - Install: `@radix-ui/react-checkbox`
 - Actions: Scaffold `src/components/ui/toast.tsx` component, verify import paths.
 
-2. src/lib/api/consent.ts
+1. src/lib/api/consent.ts
 
 - Status: Reviewed
 - Findings:
@@ -135,7 +135,7 @@ Rules:
   - Ready for use, already mentioned as created.
 - Actions: None
 
-3. src/lib/breadcrumb-config.ts
+1. src/lib/breadcrumb-config.ts
 
 - Status: Reviewed
 - Findings:
@@ -146,7 +146,7 @@ Rules:
   - Ready for use with breadcrumb components.
 - Actions: None
 
-4. src/lib/color-contrast.ts
+1. src/lib/color-contrast.ts
 
 - Status: Reviewed
 - Findings:
@@ -157,7 +157,7 @@ Rules:
   - Depends on design-system.ts which is already integrated.
 - Actions: None
 
-5. src/lib/dateUtils.ts
+1. src/lib/dateUtils.ts
 
 - Status: Reviewed
 - Findings:
@@ -168,7 +168,7 @@ Rules:
   - Ready for use throughout the application.
 - Actions: None
 
-6. src/lib/debug-helper.ts
+1. src/lib/debug-helper.ts
 
 - Status: Reviewed
 - Findings:
@@ -179,7 +179,7 @@ Rules:
   - Ready for use in client components for troubleshooting.
 - Actions: None
 
-7. src/components/ui/avatar-image.tsx
+1. src/components/ui/avatar-image.tsx
 
 - Status: Reviewed
 - Findings:
@@ -191,7 +191,7 @@ Rules:
   - Missing `api.storage.getFileUrl` procedure.
 - Actions: Scaffold tRPC storage API procedure or modify to work without signed URLs.
 
-8. src/components/ui/breadcrumb.tsx
+1. src/components/ui/breadcrumb.tsx
 
 - Status: Reviewed
 - Findings:
@@ -202,7 +202,7 @@ Rules:
   - Requires @radix-ui/react-slot dependency and cn from @/lib/utils.
 - Actions: Verify @radix-ui/react-slot is installed, verify cn utility exists.
 
-9. src/components/ui/checkbox.tsx
+1. src/components/ui/checkbox.tsx
 
 - Status: Reviewed
 - Findings:
@@ -213,7 +213,7 @@ Rules:
   - Requires @radix-ui/react-checkbox dependency and cn from @/lib/utils.
 - Actions: Verify @radix-ui/react-checkbox is installed, verify cn utility exists.
 
-10. src/components/ui/loading-spinner.tsx
+1. src/components/ui/loading-spinner.tsx
 
 - Status: Reviewed
 - Findings:
@@ -238,7 +238,7 @@ Rules:
   - Requires @radix-ui/react-collapsible package.
 - Actions: Verify @radix-ui/react-collapsible is installed.
 
-2. src/components/ui/hover-card.tsx
+1. src/components/ui/hover-card.tsx
 
 - Status: Reviewed
 - Findings:
@@ -249,7 +249,7 @@ Rules:
   - Requires @radix-ui/react-hover-card package and cn from @/lib/utils.
 - Actions: Verify @radix-ui/react-hover-card is installed, verify cn utility exists.
 
-3. src/components/ui/image-upload.tsx
+1. src/components/ui/image-upload.tsx
 
 - Status: Reviewed
 - Findings:
@@ -262,7 +262,7 @@ Rules:
   - Missing tRPC storage API procedures.
 - Actions: Install react-dropzone and uuid packages, scaffold tRPC storage endpoints.
 
-4. src/components/ui/tabs.tsx
+1. src/components/ui/tabs.tsx
 
 - Status: Reviewed
 - Findings:
@@ -273,7 +273,7 @@ Rules:
   - Requires @radix-ui/react-tabs package and cn from @/lib/utils.
 - Actions: Verify @radix-ui/react-tabs is installed, verify cn utility exists.
 
-5. src/components/ui/theme-toggle.tsx
+1. src/components/ui/theme-toggle.tsx
 
 - Status: Reviewed
 - Findings:
@@ -284,7 +284,7 @@ Rules:
   - Requires next-themes package and existing UI components.
 - Actions: Verify next-themes is installed, verify Button and DropdownMenu components exist.
 
-6. src/components/ui/toggle-group.tsx
+1. src/components/ui/toggle-group.tsx
 
 - Status: Reviewed
 - Findings:
@@ -296,7 +296,7 @@ Rules:
   - Requires @radix-ui/react-toggle-group and class-variance-authority packages.
 - Actions: Scaffold toggle component, verify @radix-ui/react-toggle-group and class-variance-authority are installed.
 
-7. src/app/(auth)/components/OneTapComponent.tsx
+1. src/app/(auth)/components/OneTapComponent.tsx
 
 - Status: Reviewed
 - Findings:
@@ -308,7 +308,7 @@ Rules:
   - Requires Supabase client configuration.
 - Actions: Install @sentry/nextjs, add google-one-tap types, verify Supabase client setup.
 
-8. src/app/(auth)/forgot-password/page.tsx
+1. src/app/(auth)/forgot-password/page.tsx
 
 - Status: Reviewed
 - Findings:
@@ -320,7 +320,7 @@ Rules:
   - Missing auth-actions module.
 - Actions: Install @codexcrm/ui or replace with local components, scaffold auth-actions module.
 
-9. src/app/(auth)/log-in/page.tsx
+1. src/app/(auth)/log-in/page.tsx
 
 - Status: Reviewed
 - Findings:
@@ -331,7 +331,7 @@ Rules:
   - Same missing dependencies as forgot-password page.
 - Actions: Install @codexcrm/ui or replace with local components, scaffold auth-actions module.
 
-10. src/app/(auth)/sign-up/page.tsx
+1. src/app/(auth)/sign-up/page.tsx
 
 - Status: Reviewed
 - Findings:
@@ -384,7 +384,6 @@ Rules:
 - Actions: Verify all sidebar components exist in their respective directories.
 
 1. src/components/layout/DynamicBreadcrumb.tsx
-2. src/components/layout/DynamicBreadcrumb.tsx
 
 - Status: Reviewed
 - Findings:
@@ -395,7 +394,7 @@ Rules:
   - Missing dependency: @codexcrm/ui package.
 - Actions: Install @codexcrm/ui or replace with local breadcrumb component.
 
-3. src/components/layout/MainLayout.tsx
+1. src/components/layout/MainLayout.tsx
 
 - Status: Reviewed
 - Findings:
@@ -406,7 +405,7 @@ Rules:
   - Missing: @/components/ui/sidebar components, @codexcrm/ui Separator.
 - Actions: Scaffold sidebar UI components, install @codexcrm/ui or replace Separator.
 
-4. src/components/layout/MainSectionNav.tsx
+1. src/components/layout/MainSectionNav.tsx
 
 - Status: Reviewed
 - Findings:
@@ -417,7 +416,7 @@ Rules:
   - No external dependencies beyond existing tools.
 - Actions: None
 
-5. src/components/layout/MobileMenu.tsx
+1. src/components/layout/MobileMenu.tsx
 
 - Status: Reviewed
 - Findings:
@@ -428,7 +427,7 @@ Rules:
   - Missing dependency: @codexcrm/ui package.
 - Actions: Install @codexcrm/ui or replace with local Sheet components.
 
-6. src/components/layout/OmniBotFloat.tsx
+1. src/components/layout/OmniBotFloat.tsx
 
 - Status: Reviewed
 - Findings:
@@ -439,7 +438,7 @@ Rules:
   - Missing: OmniBot component, @codexcrm/ui Sheet and Button.
 - Actions: Verify OmniBot component exists, install @codexcrm/ui or replace components.
 
-7. src/components/layout/ProjectLinksNav.tsx
+1. src/components/layout/ProjectLinksNav.tsx
 
 - Status: Reviewed
 - Findings:
@@ -450,7 +449,7 @@ Rules:
   - Missing: @codexcrm/ui package, @/components/ui/sidebar components.
 - Actions: Install @codexcrm/ui, scaffold sidebar UI components.
 
-8. src/components/layout/QuickLinksNav.tsx
+1. src/components/layout/QuickLinksNav.tsx
 
 - Status: Reviewed
 - Findings:
@@ -461,7 +460,7 @@ Rules:
   - Missing: @codexcrm/ui package, @/components/ui/sidebar components.
 - Actions: Install @codexcrm/ui, scaffold sidebar UI components.
 
-9. src/components/layout/SidebarBrandHeader.tsx
+1. src/components/layout/SidebarBrandHeader.tsx
 
 - Status: Reviewed
 - Findings:
@@ -472,7 +471,7 @@ Rules:
   - Missing: @/components/ui/sidebar SidebarHeader component.
 - Actions: Scaffold SidebarHeader component.
 
-10. src/components/layout/SidebarFooterControls.tsx
+1. src/components/layout/SidebarFooterControls.tsx
 
 - Status: Reviewed
 - Findings:
@@ -496,7 +495,7 @@ Rules:
   - Missing dependency: @codexcrm/ui package for Tooltip components.
 - Actions: Install @codexcrm/ui or replace with local tooltip components.
 
-2. src/components/layout/UserNav.tsx
+1. src/components/layout/UserNav.tsx
 
 - Status: Reviewed
 - Findings:
@@ -507,7 +506,7 @@ Rules:
   - Missing: useAuth provider, @codexcrm/ui package, sidebar UI components.
 - Actions: Scaffold useAuth provider, install @codexcrm/ui, scaffold sidebar components.
 
-3. src/components/omni-bot/OmniBot.tsx
+1. src/components/omni-bot/OmniBot.tsx
 
 - Status: Reviewed
 - Findings:
@@ -518,7 +517,7 @@ Rules:
   - Missing dependency: @codexcrm/ui package.
 - Actions: Install @codexcrm/ui or replace with local components.
 
-4. src/server/prompts/chat.prompt.ts
+1. src/server/prompts/chat.prompt.ts
 
 - Status: Reviewed
 - Findings:
@@ -529,7 +528,7 @@ Rules:
   - Ready for use in AI services.
 - Actions: None
 
-5. src/server/prompts/embed.prompt.ts
+1. src/server/prompts/embed.prompt.ts
 
 - Status: Reviewed
 - Findings:
@@ -540,7 +539,7 @@ Rules:
   - Ready for use in AI services.
 - Actions: None
 
-6. src/server/providers/openrouter.provider.ts
+1. src/server/providers/openrouter.provider.ts
 
 - Status: Reviewed
 - Findings:
@@ -551,7 +550,7 @@ Rules:
   - Depends on env configuration with AI model environment variables.
 - Actions: Verify @/lib/env exists, add required environment variables to .env.
 
-7. src/server/repositories/contacts.repo.ts
+1. src/server/repositories/contacts.repo.ts
 
 - Status: Reviewed
 - Findings:
@@ -562,7 +561,7 @@ Rules:
   - Missing: database client, schema definitions.
 - Actions: Scaffold database client and contacts schema.
 
-8. src/server/services/chat.service.ts
+1. src/server/services/chat.service.ts
 
 - Status: Reviewed
 - Findings:
@@ -573,7 +572,7 @@ Rules:
   - Missing: logger module, with-guardrails module.
 - Actions: Scaffold logger and guardrails modules.
 
-9. src/server/services/chat.service.test.ts
+1. src/server/services/chat.service.test.ts
 
 - Status: Reviewed
 - Findings:
@@ -584,7 +583,7 @@ Rules:
   - Missing: vitest test runner configuration.
 - Actions: Install vitest and configure test setup.
 
-10. src/server/services/contacts.service.ts
+1. src/server/services/contacts.service.ts
 
 - Status: Reviewed
 - Findings:

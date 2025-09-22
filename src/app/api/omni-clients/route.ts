@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import {
   GetOmniClientsQuerySchema,
   CreateOmniClientSchema,
@@ -18,18 +18,19 @@ import { listContactsService, createContactService } from "@/server/services/con
  * Uses adapter pattern to transform Contact objects to OmniClient objects
  */
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_list" },
-  validation: {
-    query: GetOmniClientsQuerySchema,
-  },
-})(async ({ userId, validated, requestId }) => {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const page = validated.query.page ?? 1;
-    const pageSize = validated.query.pageSize ?? validated.query.limit ?? 50;
-    const sortKey = validated.query.sort ?? "displayName";
-    const sortDir = validated.query.order === "desc" ? "desc" : "asc";
+    const userId = await getServerUserId();
+    const { searchParams } = new URL(request.url);
+
+    // Parse query parameters
+    const queryParams = Object.fromEntries(searchParams.entries());
+    const validatedQuery = GetOmniClientsQuerySchema.parse(queryParams);
+
+    const page = validatedQuery.page ?? 1;
+    const pageSize = validatedQuery.pageSize ?? validatedQuery.limit ?? 50;
+    const sortKey = validatedQuery.sort ?? "displayName";
+    const sortDir = validatedQuery.order === "desc" ? "desc" : "asc";
 
     const params: Parameters<typeof listContactsService>[1] = {
       sort: sortKey,
@@ -37,7 +38,7 @@ export const GET = createRouteHandler({
       page,
       pageSize,
     };
-    if (validated.query.search) params.search = validated.query.search;
+    if (validatedQuery.search) params.search = validatedQuery.search;
 
     const { items, total } = await listContactsService(userId, params);
 
@@ -50,23 +51,41 @@ export const GET = createRouteHandler({
       nextCursor: null, // Add nextCursor to match schema
     });
   } catch (error) {
+    console.error("Failed to fetch omni clients:", error);
+
+    // Handle validation errors
+    if (error instanceof Error && error.name === "ZodError") {
+      return NextResponse.json(
+        { error: "Invalid query parameters", details: error.message },
+        { status: 400 }
+      );
+    }
+
+    // Handle auth errors
+    if (error instanceof Error && "status" in error && error.status === 401) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Failed to fetch omni clients" },
+      { error: "Failed to fetch omni clients", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }
-});
+}
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_create" },
-  validation: {
-    body: CreateOmniClientSchema,
-  },
-})(async ({ userId, validated, requestId }) => {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+    const body: unknown = await request.json();
+
+    // Validate request body
+    const validatedBody = CreateOmniClientSchema.parse(body);
+
     // Transform OmniClient input to Contact input using adapter
-    const contactInput = fromOmniClientInput(validated.body);
+    const contactInput = fromOmniClientInput(validatedBody);
 
     const row = await createContactService(userId, contactInput);
 
@@ -82,9 +101,27 @@ export const POST = createRouteHandler({
 
     return NextResponse.json({ item: omniClient }, { status: 201 });
   } catch (error) {
+    console.error("Failed to create omni client:", error);
+
+    // Handle validation errors
+    if (error instanceof Error && error.name === "ZodError") {
+      return NextResponse.json(
+        { error: "Invalid client data", details: error.message },
+        { status: 400 }
+      );
+    }
+
+    // Handle auth errors
+    if (error instanceof Error && "status" in error && error.status === 401) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Failed to create omni client" },
+      { error: "Failed to create omni client", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }
-});
+}

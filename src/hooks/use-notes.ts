@@ -2,7 +2,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { shouldRetry } from "@/lib/errors/error-handling";
+// Direct retry logic (no abstraction)
+const shouldRetry = (error: unknown, retryCount: number): boolean => {
+  // Don't retry auth errors (401, 403)
+  if (error instanceof Error && error.message.includes("401")) return false;
+  if (error instanceof Error && error.message.includes("403")) return false;
+
+  // Retry network errors up to 3 times
+  if (error instanceof Error && (error.message.includes("fetch") || error.message.includes("network"))) {
+    return retryCount < 3;
+  }
+
+  // Retry other errors up to 2 times
+  return retryCount < 2;
+};
 import type { Note } from "@/server/db/schema";
 
 interface UseNotesOptions {

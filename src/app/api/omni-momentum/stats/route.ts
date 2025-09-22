@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/get-server-user-id";
+import { getServerUserId } from "@/server/auth/user";
+import { momentumService } from "@/server/services/momentum.service";
 
 /**
  * Momentum Statistics API Route
@@ -11,25 +12,25 @@ import { getServerUserId } from "@/server/auth/get-server-user-id";
 /**
  * GET /api/omni-momentum/stats - Get momentum statistics
  */
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function GET(_: NextRequest): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
 
-    // TODO: Implement actual stats calculation when MomentumRepository has the method
-    const stats = {
-      total: 0,
-      todo: 0,
-      inProgress: 0,
-      completed: 0,
-      pendingApproval: 0,
+    const stats = await momentumService.getStats(userId);
+
+    // Format for frontend consumption
+    const formattedStats = {
+      total: stats.tasks.total,
+      todo: stats.tasks.todo,
+      inProgress: stats.tasks.inProgress,
+      completed: stats.tasks.completed,
+      pendingApproval: 0, // TODO: Add pending approval logic
+      projects: stats.projects,
     };
 
-    return NextResponse.json(stats);
+    return NextResponse.json(formattedStats);
   } catch (error) {
     console.error("Failed to get momentum stats:", error);
-    return NextResponse.json(
-      { error: "Failed to retrieve momentum statistics" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to retrieve momentum statistics" }, { status: 500 });
   }
 }

@@ -1,11 +1,9 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { CreateNoteSchema } from "@/lib/validation/schemas/omniClients";
 import { NotesRepository } from "@repo";
 import { logger } from "@/lib/observability";
 import { z } from "zod";
-import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * OmniClient Notes endpoint
@@ -19,15 +17,17 @@ const paramsSchema = z.object({
   clientId: z.string().uuid(),
 });
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_notes_list" },
-  validation: { params: paramsSchema },
-})(async ({ userId, validated, requestId }) => {
-
-  const { clientId } = validated.params;
-
+export async function GET(
+  _: NextRequest,
+  context: { params: { clientId: string } }
+): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    // Validate params
+    const validatedParams = paramsSchema.parse(context.params);
+    const { clientId } = validatedParams;
+
     // Get all notes for this client (contactId in DB = clientId from API)
     const clientNotes = await NotesRepository.getNotesByContactId(userId, clientId);
 
@@ -41,40 +41,41 @@ export const GET = createRouteHandler({
 
     return NextResponse.json({ notes: formattedNotes });
   } catch (error) {
+    console.error("GET /api/omni-clients/[clientId]/notes error:", error);
     await logger.error(
       "Failed to fetch OmniClient notes",
       {
         operation: "api.omni_clients.notes.list",
         additionalData: {
-          userId: userId.slice(0, 8) + "...",
           errorType: error instanceof Error ? error.constructor.name : typeof error,
         },
       },
       error instanceof Error ? error : undefined,
     );
-    return apiError(
-      "Failed to fetch client notes",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    return NextResponse.json({ error: "Failed to fetch client notes" }, { status: 500 });
   }
-});
+}
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_notes_create" },
-  validation: { params: paramsSchema, body: CreateNoteSchema },
-})(async ({ userId, validated, requestId }) => {
-
-  const { clientId } = validated.params;
-
+export async function POST(
+  request: NextRequest,
+  context: { params: { clientId: string } }
+): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    // Validate params
+    const validatedParams = paramsSchema.parse(context.params);
+    const { clientId } = validatedParams;
+
+    // Validate request body
+    const body: unknown = await request.json();
+    const validatedBody = CreateNoteSchema.parse(body);
+
     // Create note for client using repository
     const newNote = await NotesRepository.createNote(userId, {
       contactId: clientId,
-      title: validated.body.title,
-      content: validated.body.content,
+      title: validatedBody.title,
+      content: validatedBody.content,
     });
 
     const formattedNote = {
@@ -85,24 +86,19 @@ export const POST = createRouteHandler({
       updatedAt: newNote.updatedAt.toISOString(),
     };
 
-    return NextResponse.json(formattedNote, undefined, 201);
+    return NextResponse.json(formattedNote, { status: 201 });
   } catch (error) {
+    console.error("POST /api/omni-clients/[clientId]/notes error:", error);
     await logger.error(
       "Failed to create OmniClient note",
       {
         operation: "api.omni_clients.notes.create",
         additionalData: {
-          userId: userId.slice(0, 8) + "...",
           errorType: error instanceof Error ? error.constructor.name : typeof error,
         },
       },
       error instanceof Error ? error : undefined,
     );
-    return apiError(
-      "Failed to create client note",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    return NextResponse.json({ error: "Failed to create client note" }, { status: 500 });
   }
-});
+}

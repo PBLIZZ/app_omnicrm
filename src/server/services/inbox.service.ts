@@ -6,7 +6,7 @@
  * life-business zones and convert them into actionable tasks.
  */
 
-import { InboxRepository, ZonesRepository } from "@omnicrm/repo";
+import { InboxRepository, ZonesRepository } from "@repo";
 import { getOpenRouterConfig, assertOpenRouterConfigured, openRouterHeaders } from "@/server/providers/openrouter.provider";
 import { withGuardrails } from "@/server/ai/with-guardrails";
 import { logger } from "@/lib/observability";
@@ -44,8 +44,8 @@ export interface InboxProcessingContext {
     preferences?: {
       preferredZone?: string;
       workingHours?: {
-        start: string;
-        end: string;
+        start?: string;
+        end?: string;
       };
     };
   };
@@ -153,7 +153,12 @@ export class InboxService {
   /**
    * Get inbox statistics
    */
-  static async getInboxStats(userId: string) {
+  static async getInboxStats(userId: string): Promise<{
+    unprocessed: number;
+    processed: number;
+    archived: number;
+    total: number;
+  }> {
     return await InboxRepository.getInboxStats(userId);
   }
 
@@ -177,10 +182,48 @@ export class InboxService {
       const zones = await ZonesRepository.listZones();
 
       // Process with AI
+      const processingContext: InboxProcessingContext = { zones };
+      if (data.userContext !== undefined) {
+        // Filter out undefined properties for strict optional types
+        const userContext: InboxProcessingContext['userContext'] = {};
+
+        if (data.userContext.currentEnergy !== undefined) {
+          userContext.currentEnergy = data.userContext.currentEnergy;
+        }
+        if (data.userContext.availableTime !== undefined) {
+          userContext.availableTime = data.userContext.availableTime;
+        }
+        if (data.userContext.preferences !== undefined) {
+          const preferences: NonNullable<InboxProcessingContext['userContext']>['preferences'] = {};
+          if (data.userContext.preferences.preferredZone !== undefined) {
+            preferences.preferredZone = data.userContext.preferences.preferredZone;
+          }
+          if (data.userContext.preferences.workingHours !== undefined) {
+            const workingHours: NonNullable<NonNullable<InboxProcessingContext['userContext']>['preferences']>['workingHours'] = {};
+            if (data.userContext.preferences.workingHours.start !== undefined) {
+              workingHours.start = data.userContext.preferences.workingHours.start;
+            }
+            if (data.userContext.preferences.workingHours.end !== undefined) {
+              workingHours.end = data.userContext.preferences.workingHours.end;
+            }
+            if (Object.keys(workingHours).length > 0) {
+              preferences.workingHours = workingHours;
+            }
+          }
+          if (Object.keys(preferences).length > 0) {
+            userContext.preferences = preferences;
+          }
+        }
+
+        if (Object.keys(userContext).length > 0) {
+          processingContext.userContext = userContext;
+        }
+      }
+
       const categorization = await this.aiCategorizeInboxItem(
         userId,
         item.rawText,
-        { userContext: data.userContext, zones }
+        processingContext
       );
 
       await logger.info("Inbox item processed with AI", {
@@ -238,10 +281,48 @@ export class InboxService {
         for (const itemId of data.itemIds) {
           const item = await InboxRepository.getInboxItemById(userId, itemId);
           if (item && item.status === "unprocessed") {
+            const processingContext: InboxProcessingContext = { zones };
+            if (data.userContext !== undefined) {
+              // Filter out undefined properties for strict optional types
+              const userContext: InboxProcessingContext['userContext'] = {};
+
+              if (data.userContext.currentEnergy !== undefined) {
+                userContext.currentEnergy = data.userContext.currentEnergy;
+              }
+              if (data.userContext.availableTime !== undefined) {
+                userContext.availableTime = data.userContext.availableTime;
+              }
+              if (data.userContext.preferences !== undefined) {
+                const preferences: NonNullable<InboxProcessingContext['userContext']>['preferences'] = {};
+                if (data.userContext.preferences.preferredZone !== undefined) {
+                  preferences.preferredZone = data.userContext.preferences.preferredZone;
+                }
+                if (data.userContext.preferences.workingHours !== undefined) {
+                  const workingHours: NonNullable<NonNullable<InboxProcessingContext['userContext']>['preferences']>['workingHours'] = {};
+                  if (data.userContext.preferences.workingHours.start !== undefined) {
+                    workingHours.start = data.userContext.preferences.workingHours.start;
+                  }
+                  if (data.userContext.preferences.workingHours.end !== undefined) {
+                    workingHours.end = data.userContext.preferences.workingHours.end;
+                  }
+                  if (Object.keys(workingHours).length > 0) {
+                    preferences.workingHours = workingHours;
+                  }
+                }
+                if (Object.keys(preferences).length > 0) {
+                  userContext.preferences = preferences;
+                }
+              }
+
+              if (Object.keys(userContext).length > 0) {
+                processingContext.userContext = userContext;
+              }
+            }
+
             const categorization = await this.aiCategorizeInboxItem(
               userId,
               item.rawText,
-              { userContext: data.userContext, zones }
+              processingContext
             );
             results.push(categorization);
 
@@ -392,29 +473,47 @@ Consider the user's current context when making suggestions. Break down the inpu
         throw new Error("No content in OpenRouter response");
       }
 
+      let categorization: InboxProcessingResultDTO;
       try {
         const parsed = JSON.parse(content) as unknown;
-        return parsed as InboxProcessingResultDTO;
+        categorization = parsed as InboxProcessingResultDTO;
       } catch (parseError) {
         await logger.warn("Failed to parse AI categorization response", {
           operation: "inbox_ai_categorization",
           additionalData: { userId, content, parseError },
         });
         // Fallback to default categorization
-        return {
+        categorization = {
           suggestedZone: "Personal Wellness",
           suggestedPriority: "medium" as const,
-          suggestedProject: null,
+          suggestedProject: undefined,
           extractedTasks: [{
             name: rawText.length > 50 ? rawText.substring(0, 50) + "..." : rawText,
             description: rawText,
             estimatedMinutes: 30,
-            dueDate: null,
+            dueDate: undefined,
           }],
           confidence: 0.1,
           reasoning: "Failed to parse AI response, using default categorization",
         };
       }
+
+      // Return in the format expected by withGuardrails
+      const result: { data: typeof categorization; model: string; inputTokens?: number; outputTokens?: number; costUsd?: number } = {
+        data: categorization,
+        model: config.chatModel,
+        costUsd: 0, // Calculate based on token usage if needed
+      };
+
+      // Only include token counts if available
+      if (rawData.usage?.prompt_tokens !== undefined) {
+        result.inputTokens = rawData.usage.prompt_tokens;
+      }
+      if (rawData.usage?.completion_tokens !== undefined) {
+        result.outputTokens = rawData.usage.completion_tokens;
+      }
+
+      return result;
     });
 
     if ("error" in result) {
@@ -425,13 +524,13 @@ Consider the user's current context when making suggestions. Break down the inpu
       operation: "inbox_ai_categorization",
       additionalData: {
         userId,
-        confidence: result.confidence,
-        suggestedZone: result.suggestedZone,
+        confidence: result.data.confidence,
+        suggestedZone: result.data.suggestedZone,
         creditsLeft: result.creditsLeft,
       },
     });
 
-    return result;
+    return result.data;
   }
 
   /**

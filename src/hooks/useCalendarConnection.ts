@@ -15,7 +15,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { createErrorHandler } from "@/lib/errors/error-handling";
+// Direct error handling (no abstraction)
+const createErrorHandler = (context: string) => (error: unknown) => {
+  const message = error instanceof Error ? error.message : "An unknown error occurred";
+  toast.error(`${context} Failed`, { description: message });
+
+  // Log for debugging (development only)
+  if (process.env.NODE_ENV === "development") {
+    console.error(`[${context}] Error:`, error);
+  }
+};
 
 export interface CalendarConnectionStatus {
   isConnected: boolean;

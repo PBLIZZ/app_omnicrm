@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Home, Users, Calendar1, Megaphone, Bot, Mail } from "lucide-react";
+import { Home, Users, Calendar1, Megaphone, Bot, Mail, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useOmniClientCount } from "@/hooks/use-omni-client-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const mainNavItems = [
   { title: "omniFlow", href: "/omni-flow" as const, icon: Home },
   { title: "omniClients", href: "/omni-clients" as const, icon: Users },
+  { title: "omniMomentum", href: "/omni-momentum" as const, icon: Zap },
   { title: "omniRhythm", href: "/omni-rhythm" as const, icon: Calendar1 },
   { title: "omniConnect", href: "/omni-connect" as const, icon: Mail },
   { title: "omniBot", href: "/omni-bot" as const, icon: Bot },

@@ -2,7 +2,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { shouldRetry } from "@/lib/errors/error-handling";
+// Direct retry logic (no abstraction)
+const shouldRetry = (error: unknown, retryCount: number): boolean => {
+  // Don't retry auth errors (401, 403)
+  if (error instanceof Error && error.message.includes("401")) return false;
+  if (error instanceof Error && error.message.includes("403")) return false;
+
+  // Retry network errors up to 3 times
+  if (error instanceof Error && (error.message.includes("fetch") || error.message.includes("network"))) {
+    return retryCount < 3;
+  }
+
+  // Retry other errors up to 2 times
+  return retryCount < 2;
+};
 import type {
   InboxItemDTO,
   CreateInboxItemDTO,
@@ -185,7 +198,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
 
       return { previousItems, previousStats, tempItem };
     },
-    onError: (error, variables, context) => {
+    onError: (...[,, context]) => {
       // Rollback optimistic updates
       if (context?.previousItems) {
         queryClient.setQueryData(queryKeys.inbox.list(filters), context.previousItems);
@@ -199,7 +212,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
         variant: "destructive",
       });
     },
-    onSuccess: (newItem, variables, context) => {
+    onSuccess: (...[newItem,, context]) => {
       // Replace temp item with real item
       queryClient.setQueryData<InboxItemDTO[]>(
         queryKeys.inbox.list(filters),
@@ -407,7 +420,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
 
       return { previousItems, previousStats };
     },
-    onError: (error, itemId, context) => {
+    onError: (...[,, context]) => {
       // Rollback optimistic updates
       if (context?.previousItems) {
         queryClient.setQueryData(queryKeys.inbox.list(filters), context.previousItems);
@@ -453,8 +466,13 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
     bulkProcess: bulkProcessMutation.mutateAsync,
     updateItem: (itemId: string, data: UpdateInboxItemDTO) =>
       updateItemMutation.mutate({ itemId, data }),
-    markAsProcessed: (itemId: string, createdTaskId?: string) =>
-      markAsProcessedMutation.mutate({ itemId, createdTaskId }),
+    markAsProcessed: (itemId: string, createdTaskId?: string) => {
+      const payload: { itemId: string; createdTaskId?: string } = { itemId };
+      if (createdTaskId !== undefined) {
+        payload.createdTaskId = createdTaskId;
+      }
+      markAsProcessedMutation.mutate(payload);
+    },
     deleteItem: deleteItemMutation.mutate,
 
     // Loading states
@@ -493,10 +511,6 @@ export function useInboxStats() {
  * Hook for unprocessed items only (for quick processing flows)
  */
 export function useUnprocessedInboxItems(limit?: number) {
-  const filters: InboxFilters = {
-    status: ["unprocessed"],
-  };
-
   return useQuery({
     queryKey: queryKeys.inbox.unprocessed(limit),
     queryFn: async (): Promise<InboxItemDTO[]> => {

@@ -8,18 +8,18 @@
  * - Recovery tracking and success/failure logging
  */
 
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { ErrorRetryService } from "@/server/services/error-retry.service";
 import { z } from "zod";
 
 const retryRequestSchema = z.object({
   // Retry targets
-  errorIds: z.array(z.string()).optional(), // Specific error IDs to retry
-  retryAll: z.boolean().optional().default(false), // Retry all retryable errors
+  errorIds: z.array(z.string()).default([]), // Specific error IDs to retry
+  retryAll: z.boolean().default(false), // Retry all retryable errors
 
   // Filters for batch retry
-  provider: z.enum(["gmail", "calendar", "drive"]).optional(),
+  provider: z.enum(["gmail", "calendar", "drive"]).optional().or(z.undefined()),
   category: z
     .enum([
       "authentication",
@@ -30,30 +30,46 @@ const retryRequestSchema = z.object({
       "permission",
       "configuration",
     ])
-    .optional(),
-  maxRetries: z.number().int().min(1).max(10).optional().default(3), // Max retry attempts
+    .optional()
+    .or(z.undefined()),
+  maxRetries: z.number().int().min(1).max(10).default(3), // Max retry attempts
 
   // Retry strategy options
-  retryStrategy: z.enum(["immediate", "delayed", "smart"]).optional().default("smart"),
-  delayMinutes: z.number().int().min(0).max(60).optional().default(5), // For delayed retry
+  retryStrategy: z.enum(["immediate", "delayed", "smart"]).default("smart"),
+  delayMinutes: z.number().int().min(0).max(60).default(5), // For delayed retry
 
   // Recovery options
-  includeAuthRefresh: z.boolean().optional().default(true), // Attempt token refresh for auth errors
-  skipFailedJobs: z.boolean().optional().default(false), // Skip errors from failed jobs
+  includeAuthRefresh: z.boolean().default(true), // Attempt token refresh for auth errors
+  skipFailedJobs: z.boolean().default(false), // Skip errors from failed jobs
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "error_retry" },
-  validation: { body: retryRequestSchema },
-})(async ({ userId, validated, requestId }) => {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const result = await ErrorRetryService.retryErrors(userId, validated.body, requestId);
+    const userId = await getServerUserId();
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+
+    const validation = retryRequestSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Validation failed",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    const requestId = request.headers.get('x-request-id') || undefined;
+    const result = await ErrorRetryService.retryErrors(userId, validation.data, requestId);
     return NextResponse.json(result);
-  } catch (error:) {
+  } catch (error) {
+    console.error("POST /api/errors/retry error:", error);
     return NextResponse.json({
       error: "Failed to retry errors"
     }, { status: 500 });
   }
-});
+}
 

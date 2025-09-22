@@ -12,7 +12,6 @@
 import { getDb } from "@/server/db/client";
 import { userIntegrations, jobs, userSyncPrefs, type UserIntegration } from "@/server/db/schema";
 import { desc, eq, and, sql, inArray } from "drizzle-orm";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { logger } from "@/lib/observability";
@@ -91,7 +90,22 @@ export interface GoogleSyncPreferences {
   initialSyncDate: string | null;
 }
 
-export interface GoogleSyncPreferencesUpdate extends Partial<GoogleSyncPreferences> {}
+export interface GoogleSyncPreferencesUpdate {
+  gmailQuery?: string;
+  gmailLabelIncludes?: string[];
+  gmailLabelExcludes?: string[];
+  gmailTimeRangeDays?: number;
+  calendarIncludeOrganizerSelf?: boolean;
+  calendarIncludePrivate?: boolean;
+  calendarTimeWindowDays?: number;
+  calendarIds?: string[];
+  calendarFutureDays?: number;
+  driveIngestionMode?: string;
+  driveFolderIds?: string[];
+  driveMaxSizeMB?: number;
+  initialSyncCompleted?: boolean;
+  initialSyncDate?: string | null;
+}
 
 // Simple in-memory cache to prevent UI flickering
 interface CacheEntry {
@@ -174,20 +188,22 @@ export class GoogleIntegrationService {
     // Check for valid (non-expired) service tokens with auto-refresh
     const now = new Date();
 
-    // Gmail service status
+    // Gmail service status - convert undefined to null for type safety
+    const gmailIntegrationForStatus = unifiedIntegration[0] ?? gmailIntegration[0] ?? null;
     const gmailStatus = await this.checkServiceStatus(
       userId,
       'gmail',
-      unifiedIntegration[0] ?? gmailIntegration[0],
+      gmailIntegrationForStatus,
       now,
       db
     );
 
-    // Calendar service status
+    // Calendar service status - convert undefined to null for type safety
+    const calendarIntegrationForStatus = calendarIntegration[0] ?? null;
     const calendarStatus = await this.checkServiceStatus(
       userId,
       'calendar',
-      calendarIntegration[0],
+      calendarIntegrationForStatus,
       now,
       db
     );
@@ -474,9 +490,9 @@ export class GoogleIntegrationService {
   private static async checkServiceStatus(
     userId: string,
     service: 'gmail' | 'calendar',
-    integration: UserIntegration,
+    integration: UserIntegration | null,
     now: Date,
-    db: PostgresJsDatabase<Record<string, never>>
+    db: Awaited<ReturnType<typeof getDb>>
   ): Promise<{
     connected: boolean;
     autoRefreshed: boolean;
@@ -576,11 +592,13 @@ export class GoogleIntegrationService {
     // Clean up old cache entries to prevent memory leaks
     if (this.statusCache.size > 1000) {
       const now = Date.now();
-      for (const [key, entry] of this.statusCache.entries()) {
+      const keysToDelete: string[] = [];
+      this.statusCache.forEach((entry, key) => {
         if (now - entry.timestamp > this.CACHE_TTL_MS) {
-          this.statusCache.delete(key);
+          keysToDelete.push(key);
         }
-      }
+      });
+      keysToDelete.forEach(key => this.statusCache.delete(key));
     }
   }
 
@@ -616,7 +634,7 @@ export class GoogleIntegrationService {
   /**
    * Get integration details for a specific service
    */
-  static async getServiceIntegration(userId: string, service: string): Promise<typeof userIntegrations.$inferSelect | null> {
+  static async getServiceIntegration(userId: string, service: string): Promise<UserIntegration | null> {
     const db = await getDb();
 
     const integration = await db
@@ -631,6 +649,6 @@ export class GoogleIntegrationService {
       )
       .limit(1);
 
-    return integration[0] || null;
+    return integration[0] ?? null;
   }
 }

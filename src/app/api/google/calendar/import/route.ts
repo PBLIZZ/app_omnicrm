@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { enqueue } from "@/server/jobs/enqueue";
 import { randomUUID } from "node:crypto";
@@ -11,14 +11,27 @@ const BodySchema = z.object({
   daysFuture: z.number().int().min(0).max(365).optional(),
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  validation: { body: BodySchema },
-  rateLimit: { operation: "google_calendar_import" },
-})(async ({ userId, requestId: _requestId, validated: { body } }) => {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const daysPast = body?.daysPast ?? 365; // default: last 365 days
-    const daysFuture = body?.daysFuture ?? 90; // default: next 90 days
+    const userId = await getServerUserId();
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+
+    const validation = BodySchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Validation failed",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    const daysPast = validation.data?.daysPast ?? 365; // default: last 365 days
+    const daysFuture = validation.data?.daysFuture ?? 90; // default: next 90 days
     const batchId = randomUUID();
     const result = await GoogleCalendarService.syncUserCalendars(userId, {
       daysPast,
@@ -45,7 +58,7 @@ export const POST = createRouteHandler({
       batchId,
     });
   } catch (error) {
-    console.error("Calendar import failed:", error);
+    console.error("POST /api/google/calendar/import error:", error);
     return NextResponse.json({ error: "Calendar import failed" }, { status: 500 });
   }
-});
+}

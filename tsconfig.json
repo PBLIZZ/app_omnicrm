@@ -57,7 +57,10 @@
     ".next/types/**/*.ts",
     "playwright.config.ts",
   ],
-  "types": ["vitest/globals", "@testing-library/jest-dom"],
+  "types": [
+    "vitest/globals",
+    "@testing-library/jest-dom"
+  ],
   "exclude": [
     "drizzle/**",
     "node_modules",

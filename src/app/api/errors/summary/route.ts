@@ -9,8 +9,8 @@
  * - Critical issues requiring immediate attention
  */
 
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { ErrorTrackingService, type EnhancedErrorRecord, type ErrorSummary } from "@/server/services/error-tracking.service";
 // RecoveryStrategy type from error classification
 import { logger } from "@/lib/observability";
@@ -26,20 +26,35 @@ const errorSummaryQuerySchema = z.object({
   includeDetails: z.coerce.boolean().optional().default(true),
 });
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "error_summary" },
-  validation: { query: errorSummaryQuerySchema },
-})(async ({ userId, validated, requestId: _requestId }) => {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  try {
+    const userId = await getServerUserId();
+    const { searchParams } = new URL(request.url);
 
-  const {
-    timeRangeHours,
-    includeResolved,
-    provider,
-    stage,
-    severityFilter,
-    includeDetails
-  } = validated.query;
+    const validation = errorSummaryQuerySchema.safeParse({
+      timeRangeHours: searchParams.get('timeRangeHours'),
+      includeResolved: searchParams.get('includeResolved'),
+      provider: searchParams.get('provider'),
+      stage: searchParams.get('stage'),
+      severityFilter: searchParams.get('severityFilter'),
+      includeDetails: searchParams.get('includeDetails'),
+    });
+
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Invalid query parameters",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    const {
+      timeRangeHours,
+      includeResolved,
+      provider,
+      stage,
+      severityFilter,
+      includeDetails
+    } = validation.data;
 
   try {
     // Get comprehensive error summary
@@ -176,7 +191,11 @@ export const GET = createRouteHandler({
 
     return NextResponse.json({ error: "Failed to retrieve error summary" }, { status: 500 });
   }
-});
+  } catch (error) {
+    console.error("GET /api/errors/summary error:", error);
+    return NextResponse.json({ error: "Failed to retrieve error summary" }, { status: 500 });
+  }
+}
 
 // Define error pattern interfaces
 interface ErrorPattern {

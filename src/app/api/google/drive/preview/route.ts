@@ -5,18 +5,34 @@
  * Currently scaffolded for future implementation - Drive sync is not yet implemented.
  */
 
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { DrivePreferencesSchema } from "@/lib/validation/schemas/sync";
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "drive_preview" },
-  validation: {
-    body: DrivePreferencesSchema,
-  },
-})(async ({ requestId }) => {
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    // Validate auth but don't use userId since this is scaffolded
+    await getServerUserId();
 
-  // SCAFFOLD: Drive integration not yet implemented
-  return NextResponse.json({ error: "Drive integration coming soon" }, { status: 500 });
-});
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+
+    const validation = DrivePreferencesSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Validation failed",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    // SCAFFOLD: Drive integration not yet implemented
+    return NextResponse.json({ error: "Drive integration coming soon" }, { status: 500 });
+  } catch (error) {
+    console.error("POST /api/google/drive/preview error:", error);
+    return NextResponse.json({ error: "Failed to preview Drive sync" }, { status: 500 });
+  }
+}

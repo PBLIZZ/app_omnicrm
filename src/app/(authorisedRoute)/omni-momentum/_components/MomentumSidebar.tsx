@@ -52,12 +52,12 @@ export function MomentumSidebar(): JSX.Element {
                 <Inbox className="w-4 h-4" />
                 <span>AI Inbox</span>
               </div>
-              {inboxStats?.unprocessed > 0 && (
+              {inboxStats?.unprocessed && inboxStats.unprocessed > 0 && (
                 <Badge
                   variant="outline"
                   className="ml-auto bg-amber-50 border-amber-200 text-amber-700 text-xs"
                 >
-                  {inboxStats.unprocessed}
+                  {inboxStats?.unprocessed}
                 </Badge>
               )}
             </SidebarMenuButton>

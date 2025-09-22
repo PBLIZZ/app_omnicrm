@@ -18,7 +18,6 @@ let testOverrides: TestOverrides = {};
 
 export function __setDbDriversForTest(overrides: TestOverrides): void {
   testOverrides = overrides;
-  // reset so next call rebuilds with overrides
   dbInstance = null;
   dbInitPromise = null;
   if (sqlInstance) {
@@ -27,27 +26,94 @@ export function __setDbDriversForTest(overrides: TestOverrides): void {
   }
 }
 
+function isManagedHost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return /(supabase|neon|render|timescaledb|aws|amazonaws|gcp|heroku|fly|railway)/i.test(host);
+  } catch {
+    // If URL parsing fails, assume managed to prefer secure defaults
+    return true;
+  }
+}
+
 /**
- * Postgres.js configuration optimized for Supabase Transaction mode
+ * Postgres.js configuration (pgBouncer/transaction-mode friendly)
+ * Note: postgres.js ignores sslmode in the URL; pass ssl here if needed.
  */
-function getPostgresConfig(): {
-  prepare: boolean;
-  max: number;
-  idle_timeout: number;
-  connect_timeout: number;
-  max_lifetime: number;
-  transform: { undefined: null };
-} {
+function getPostgresConfig(databaseUrl: string): Parameters<typeof postgres>[1] {
+  const managed = isManagedHost(databaseUrl);
   return {
-    prepare: false, // CRITICAL: Disable prepared statements for Supabase Transaction mode
-    max: 10, // Maximum connections in pool
-    idle_timeout: 30, // 30 seconds idle timeout
-    connect_timeout: 30, // 30 seconds connection timeout (increased for reliability)
-    max_lifetime: 60 * 60, // 1 hour connection lifetime
-    transform: {
-      undefined: null, // Transform undefined to null
-    },
+    prepare: false, // critical for pgBouncer transaction mode
+    max: 10,
+    idle_timeout: 30,
+    connect_timeout: 30,
+    max_lifetime: 60 * 60,
+    ...(managed ? { ssl: { rejectUnauthorized: false } as const } : {}),
+    transform: { undefined: null },
   };
+}
+
+/** Narrow types without using `any` */
+type AggregateErrorLike = Error & { errors?: unknown[] };
+
+function isAggregateErrorLike(e: unknown): e is AggregateErrorLike {
+  return typeof e === "object" && e !== null && Array.isArray((e as { errors?: unknown[] }).errors);
+}
+
+function getStringProp<T extends string>(obj: unknown, key: T): string | undefined {
+  if (typeof obj === "object" && obj !== null && key in (obj as Record<string, unknown>)) {
+    const v = (obj as Record<string, unknown>)[key];
+    return typeof v === "string" ? v : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Create a readable error message for connection issues, without leaking secrets.
+ */
+export function normalizePgError(err: unknown, databaseUrl: string): Error {
+  const u = new URL(databaseUrl);
+  const where = `${u.hostname}:${u.port || "5432"}/${u.pathname.replace("/", "")}`;
+
+  let first: unknown = err;
+  if (isAggregateErrorLike(err) && err.errors && err.errors.length > 0) {
+    first = err.errors[0];
+  }
+
+  const code = getStringProp(first, "code") ?? getStringProp(first, "errno") ?? "";
+  const name = getStringProp(first, "name") ?? getStringProp(first, "type") ?? "ConnectionError";
+  const msg = getStringProp(first, "message") ?? String(first);
+
+  const e = new Error(
+    `Database connect failed (${name}${code ? `:${code}` : ""}) to ${where}: ${msg}`,
+  );
+
+  // Attach cause (compatible even if lib doesn't include ES2022 typings)
+  try {
+    Object.defineProperty(e, "cause", { value: err, configurable: true });
+  } catch {
+    /* no-op */
+  }
+
+  return e;
+}
+
+/** Small retry helper for transient cold-start/net hiccups */
+async function selectOneWithRetry(sql: ReturnType<typeof postgres>, retries = 2): Promise<void> {
+  let last: unknown;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      await sql`select 1`;
+      return;
+    } catch (e) {
+      last = e;
+      if (i < retries) {
+        // linear backoff: 150ms, 300ms
+        await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+      }
+    }
+  }
+  throw last;
 }
 
 /**
@@ -59,20 +125,22 @@ export async function getDb(): Promise<PostgresJsDatabase<typeof schema>> {
   if (dbInitPromise) return dbInitPromise;
 
   const databaseUrl = process.env["DATABASE_URL"];
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL is not set");
-  }
+  if (!databaseUrl) throw new Error("DATABASE_URL is not set");
 
   dbInitPromise = (async (): Promise<PostgresJsDatabase<typeof schema>> => {
     const postgresFn = testOverrides.postgresFn ?? postgres;
     const drizzleFn = testOverrides.drizzleFn ?? drizzle;
 
-    const config = getPostgresConfig();
+    const config = getPostgresConfig(databaseUrl);
     const sql = postgresFn(databaseUrl, config);
     sqlInstance = sql;
 
-    // Test the connection
-    await sql`SELECT 1`;
+    try {
+      // Force an early connectivity check so later calls don't fail deep inside a request
+      await selectOneWithRetry(sql);
+    } catch (e) {
+      throw normalizePgError(e, databaseUrl);
+    }
 
     const instance = drizzleFn(sql, { schema });
     dbInstance = instance;
@@ -81,9 +149,7 @@ export async function getDb(): Promise<PostgresJsDatabase<typeof schema>> {
 
   try {
     const result = await dbInitPromise;
-    if (!result) {
-      throw new Error("Database initialization failed");
-    }
+    if (!result) throw new Error("Database initialization failed");
     return result;
   } finally {
     // Clear the init promise once resolved so subsequent calls use the cached instance
@@ -92,39 +158,31 @@ export async function getDb(): Promise<PostgresJsDatabase<typeof schema>> {
 }
 
 /**
- * A lightweight proxy that defers method calls to the lazily initialized db.
+ * A lightweight proxy that defers member access/calls to the lazily initialized db.
  * Example: await db.execute(sql`select 1`)
  */
 export const db: PostgresJsDatabase<typeof schema> = new Proxy(
   {} as PostgresJsDatabase<typeof schema>,
   {
     get(target, propertyKey: string | symbol) {
-      // Proxy handler acknowledges target parameter for type compliance
-      void target;
-      return (...args: unknown[]) =>
-        getDb().then((resolvedDb: PostgresJsDatabase<typeof schema>) => {
-          // Safe member access on resolved database instance
-          const memberRecord = resolvedDb as unknown as Record<string | symbol, unknown>;
-          const member = memberRecord[propertyKey];
-          if (typeof member === "function") {
-            return (member as (...args: unknown[]) => unknown).apply(resolvedDb, args);
-          }
-          return member;
-        });
-    },
+        void target;
+        return (...args: unknown[]) =>
+          getDb().then((resolvedDb: PostgresJsDatabase<typeof schema>) => {
+            const member = (resolvedDb as unknown as Record<string | symbol, unknown>)[propertyKey];
+            return typeof member === "function"
+              ? (member as (...a: unknown[]) => unknown).apply(resolvedDb, args)
+              : member;
+          });
+      },
   },
 );
 
-/**
- * Get the underlying SQL instance for advanced operations
- */
+/** Get the underlying SQL instance for advanced operations */
 export function getSql(): ReturnType<typeof postgres> | null {
   return sqlInstance;
 }
 
-/**
- * Gracefully close the database connection
- */
+/** Gracefully close the database connection */
 export async function closeDb(): Promise<void> {
   if (sqlInstance) {
     await sqlInstance.end();
@@ -133,5 +191,3 @@ export async function closeDb(): Promise<void> {
   dbInstance = null;
   dbInitPromise = null;
 }
-
-// use with your table objects from schema.ts

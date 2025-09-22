@@ -1,12 +1,14 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { InboxService } from "@/server/services/inbox.service";
 import { z } from "zod";
 import {
   CreateInboxItemDTOSchema,
-  InboxFiltersSchema,
   VoiceInboxCaptureDTOSchema,
   BulkProcessInboxDTOSchema,
+  type CreateInboxItemDTO,
+  type VoiceInboxCaptureDTO,
+  type BulkProcessInboxDTO,
 } from "@omnicrm/contracts";
 
 /**
@@ -26,16 +28,17 @@ const GetInboxQuerySchema = z.object({
   stats: z.string().optional().transform(val => val === "true"),
 });
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "inbox_list" },
-  validation: {
-    query: GetInboxQuerySchema.optional(),
-  },
-})(async ({ userId, validated }) => {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const filters = validated?.query;
-    const wantsStats = filters?.stats ?? false;
+    const userId = await getServerUserId();
+    const { searchParams } = new URL(request.url);
+
+    // Validate query parameters
+    const validatedQuery = GetInboxQuerySchema.optional().parse(
+      Object.fromEntries(searchParams.entries())
+    );
+
+    const wantsStats = validatedQuery?.stats ?? false;
 
     if (wantsStats) {
       // Return inbox statistics
@@ -43,7 +46,10 @@ export const GET = createRouteHandler({
       return NextResponse.json({ stats });
     } else {
       // Return inbox items with filtering
-      const { stats: _, ...filterParams } = filters || {};
+      // Extract stats and pass remaining params to service
+      const filterParams = validatedQuery ? Object.fromEntries(
+        Object.entries(validatedQuery).filter(([key]) => key !== 'stats')
+      ) : {};
       const items = await InboxService.listInboxItems(userId, filterParams);
       return NextResponse.json({
         items,
@@ -52,18 +58,29 @@ export const GET = createRouteHandler({
     }
   } catch (error) {
     console.error("Failed to fetch inbox items:", error);
+
+    // Handle validation errors
+    if (error instanceof Error && error.name === "ZodError") {
+      return NextResponse.json(
+        { error: "Invalid query parameters", details: error.message },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Failed to fetch inbox items" },
       { status: 500 }
     );
   }
-});
+}
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "inbox_create" },
-  validation: {
-    body: z.discriminatedUnion("type", [
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    const userId = await getServerUserId();
+    const body: unknown = await request.json();
+
+    // Validate request body
+    const validatedBody = z.discriminatedUnion("type", [
       z.object({
         type: z.literal("quick_capture"),
         data: CreateInboxItemDTOSchema,
@@ -76,25 +93,23 @@ export const POST = createRouteHandler({
         type: z.literal("bulk_process"),
         data: BulkProcessInboxDTOSchema,
       }),
-    ]),
-  },
-})(async ({ userId, validated }) => {
-  try {
-    const { type, data } = validated.body;
+    ]).parse(body);
+
+    const { type, data } = validatedBody;
 
     switch (type) {
       case "quick_capture": {
-        const item = await InboxService.quickCapture(userId, data);
+        const item = await InboxService.quickCapture(userId, data as CreateInboxItemDTO);
         return NextResponse.json({ item }, { status: 201 });
       }
 
       case "voice_capture": {
-        const item = await InboxService.voiceCapture(userId, data);
+        const item = await InboxService.voiceCapture(userId, data as VoiceInboxCaptureDTO);
         return NextResponse.json({ item }, { status: 201 });
       }
 
       case "bulk_process": {
-        const result = await InboxService.bulkProcessInbox(userId, data);
+        const result = await InboxService.bulkProcessInbox(userId, data as BulkProcessInboxDTO);
         return NextResponse.json({ result }, { status: 200 });
       }
 
@@ -107,9 +122,18 @@ export const POST = createRouteHandler({
     }
   } catch (error) {
     console.error("Failed to process inbox request:", error);
+
+    // Handle validation errors
+    if (error instanceof Error && error.name === "ZodError") {
+      return NextResponse.json(
+        { error: "Invalid request data", details: error.message },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Failed to process inbox request" },
       { status: 500 }
     );
   }
-});
+}

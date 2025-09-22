@@ -1,13 +1,12 @@
 /** GET /api/google/gmail/oauth — start Gmail OAuth (auth required). Errors: 401 Unauthorized */
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { getServerUserId } from "@/server/auth/user";
 import { GoogleOAuthService } from "@/server/services/google-oauth.service";
 
 // GET /api/google/gmail/oauth - specific Gmail readonly authorization
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "google_gmail_oauth" },
-})(async ({ userId }) => {
+export async function GET(): Promise<NextResponse> {
+  try {
+    const userId = await getServerUserId();
   const result = await GoogleOAuthService.startOAuthFlow(userId, "gmail");
 
   if (!result.success) {
@@ -18,4 +17,11 @@ export const GET = createRouteHandler({
   }
 
   return result.response;
-});
+  } catch (error) {
+    console.error("GET /api/google/gmail/oauth error:", error);
+    return NextResponse.json(
+      { error: "Failed to start Gmail OAuth flow" },
+      { status: 500 }
+    );
+  }
+}

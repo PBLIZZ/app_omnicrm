@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
 import { z } from "zod";
-import { ensureError } from "@/lib/utils/error-handler";
 
 const uploadUrlSchema = z.object({
   fileName: z.string().min(1),
@@ -21,8 +19,7 @@ export const POST = createRouteHandler({
   validation: {
     body: uploadUrlSchema,
   },
-})(async ({ validated, requestId }) => {
-
+})(async ({ validated }) => {
   try {
     const { fileName, folderPath, bucket } = validated.body;
 
@@ -41,11 +38,7 @@ export const POST = createRouteHandler({
 
     return NextResponse.json({ signedUrl: data?.signedUrl ?? null, path });
   } catch (error: unknown) {
-    return apiError(
-      "Unexpected error creating upload URL",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    console.error("Error creating signed upload URL:", error);
+    return NextResponse.json({ error: "unexpected_error" }, { status: 500 });
   }
 });

@@ -1,7 +1,5 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { ZonesRepository } from "@omnicrm/repo";
-import { z } from "zod";
+import { NextRequest, NextResponse } from "next/server";
+import { ZonesRepository } from "@repo";
 
 /**
  * Zones API - List zones and get zones with statistics
@@ -10,17 +8,12 @@ import { z } from "zod";
  * Zone creation/modification is an admin function not exposed here.
  */
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "zones_list" },
-  validation: {
-    query: z.object({
-      withStats: z.string().optional().transform(val => val === "true"),
-    }).optional(),
-  },
-})(async ({ userId, validated }) => {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const withStats = validated?.query?.withStats ?? false;
+    const { searchParams } = new URL(request.url);
+
+    // Parse query parameters
+    const withStats = searchParams.get("withStats") === "true";
 
     if (withStats) {
       const zones = await ZonesRepository.getZonesWithStats();
@@ -42,7 +35,7 @@ export const GET = createRouteHandler({
       { status: 500 }
     );
   }
-});
+}
 
 // Zone creation is an admin function - would be in /api/admin/zones/route.ts
 // Not implementing POST here as zones are predefined for wellness practitioners

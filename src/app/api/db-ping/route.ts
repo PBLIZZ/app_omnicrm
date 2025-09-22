@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 
-export const GET = createRouteHandler({
-  auth: false,
-  rateLimit: { operation: "db_ping" },
-})(async ({}) => {
+export async function GET(): Promise<NextResponse> {
   try {
     const dbo = await getDb();
     await dbo.execute(sql`select 1`);
@@ -15,4 +11,4 @@ export const GET = createRouteHandler({
     console.error("Database ping failed:", error);
     return NextResponse.json({ error: "Database connection failed" }, { status: 500 });
   }
-});
+}

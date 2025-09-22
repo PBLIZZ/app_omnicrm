@@ -13,7 +13,7 @@ import {
 import { Separator } from "@/components/ui";
 import { AppSidebarController } from "./AppSidebarController";
 import { UserNav } from "./UserNav";
-import { OmniBotFloat } from "./OmniBotFloat";
+// import { OmniBotFloat } from "./OmniBotFloat";
 import { DynamicBreadcrumb } from "./DynamicBreadcrumb";
 import { SidebarBrandHeader } from "./SidebarBrandHeader";
 import { SidebarMainSectionNav } from "./SidebarMainSectionNav";
@@ -23,7 +23,6 @@ import { Bot } from "lucide-react";
 import { toast } from "sonner";
 import { useHeaderControls } from "@/hooks/use-header-controls";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { NotificationsMenu } from "@/components/NotificationsMenu";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -43,7 +42,7 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     mounted,
     theme,
     setTheme,
-    notificationCount,
+    // notificationCount,
     // handleSearch, // Temporarily disabled
   } = useHeaderControls();
   return (
@@ -108,15 +107,10 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
 
               {/* Theme Toggle */}
               <ThemeToggle mounted={mounted} theme={theme} setTheme={setTheme} />
-
-              {/* Notifications */}
-              <NotificationsMenu notificationCount={notificationCount} />
             </div>
-            {/* <SearchModal open={isSearchOpen} onOpenChange={setIsSearchOpen} /> */}
           </header>
 
           <main className="flex flex-1 flex-col gap-4 p-4 min-h-0">{children}</main>
-          <OmniBotFloat />
         </SidebarInset>
       </div>
     </SidebarProvider>

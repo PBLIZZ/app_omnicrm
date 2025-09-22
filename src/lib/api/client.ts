@@ -1,12 +1,8 @@
 /**
- * New Unified API Client System
- *
- * Merges best features from:
- * - src/lib/api-client.ts (CSRF, error handling)
- * - src/lib/api-request.ts (basic structure)
+ * Direct API Client (No Abstractions)
  *
  * Features:
- * - Uses new ApiResponse<T> type from types.ts
+ * - Direct envelope pattern ({ ok, data } | { ok, error })
  * - Automatic CSRF token handling
  * - Automatic error toasting with Sonner
  * - Convenience methods: get(), post(), put(), delete()
@@ -15,13 +11,6 @@
  */
 
 import { toast } from "sonner";
-import {
-  type ApiResponse,
-  type ApiRequestOptions,
-  isApiSuccess,
-  ApiError,
-  API_ERROR_CODES,
-} from "./types";
 
 // ============================================================================
 // CSRF TOKEN UTILITIES
@@ -60,6 +49,32 @@ function createTimeoutController(timeoutMs?: number): AbortController {
 // ============================================================================
 // CORE API CLIENT
 // ============================================================================
+
+// ============================================================================
+// DIRECT REQUEST OPTIONS (no abstraction)
+// ============================================================================
+
+export interface ApiRequestOptions extends RequestInit {
+  /**
+   * Whether to show error toasts automatically (default: true)
+   */
+  showErrorToast?: boolean;
+
+  /**
+   * Custom error message for toasts
+   */
+  errorToastTitle?: string;
+
+  /**
+   * Request timeout in milliseconds
+   */
+  timeout?: number;
+
+  /**
+   * Whether to include CSRF token (default: true)
+   */
+  includeCsrf?: boolean;
+}
 
 /**
  * Enhanced fetch wrapper with unified error handling and type safety
@@ -146,57 +161,53 @@ export async function apiRequest<T = unknown>(
     // Handle HTTP errors
     if (!response.ok) {
       const errorText = await response.text().catch(() => response.statusText);
-      throw new ApiError(
-        "ApiError",
-        response.status >= 500 ? API_ERROR_CODES.INTERNAL_ERROR : API_ERROR_CODES.VALIDATION_ERROR,
-        errorText,
-        response.status,
-      );
+      const error = new Error(errorText || response.statusText);
+      throw error;
     }
 
     // Parse response
-    const apiResponse = (await response.json()) as ApiResponse<T>;
+    const responseData = (await response.json()) as unknown;
 
-    // Handle API envelope errors
-    if (!isApiSuccess(apiResponse)) {
-      throw ApiError.fromResponse(apiResponse, response.status);
+    // Check if response is in envelope format (direct pattern)
+    if (responseData && typeof responseData === "object" && "ok" in responseData) {
+      const envelope = responseData as { ok: boolean; data?: T; error?: string; details?: unknown };
+
+      // Handle API envelope errors
+      if (!envelope.ok) {
+        const error = new Error(envelope.error ?? "Unknown error");
+        throw error;
+      }
+
+      return envelope.data as T;
     }
 
-    return apiResponse.data;
+    // Response is direct JSON, return as-is
+    return responseData as T;
   } catch (error) {
     // Handle different error types
-    let apiError: ApiError;
+    let finalError: Error;
 
-    if (error instanceof ApiError) {
-      apiError = error;
-    } else if (error instanceof Error) {
+    if (error instanceof Error) {
       if (error.name === "AbortError") {
-        apiError = new ApiError(
-          "ApiError",
-          API_ERROR_CODES.INTERNAL_ERROR,
-          timeout ? `Request timeout after ${timeout}ms` : "Request was aborted",
-          408, // Request Timeout
+        finalError = new Error(
+          timeout ? `Request timeout after ${timeout}ms` : "Request was aborted"
         );
       } else {
-        apiError = new ApiError("ApiError", API_ERROR_CODES.INTERNAL_ERROR, error.message, 500);
+        // Use the error as-is
+        finalError = error;
       }
     } else {
-      apiError = new ApiError(
-        "ApiError",
-        API_ERROR_CODES.INTERNAL_ERROR,
-        "Unknown error occurred",
-        500,
-      );
+      finalError = new Error("Unknown error occurred");
     }
 
     // Show error toast if enabled
     if (showErrorToast) {
       toast.error(errorToastTitle, {
-        description: apiError.message,
+        description: finalError.message,
       });
     }
 
-    throw apiError;
+    throw finalError;
   }
 }
 
@@ -310,7 +321,7 @@ export async function safeRequest<T>(
       console.error("API request failed, using fallback:", error);
     }
 
-    if (showErrorToast && error instanceof ApiError) {
+    if (showErrorToast && error instanceof Error) {
       toast.error("Request failed", {
         description: error.message,
       });

@@ -6,13 +6,17 @@
  */
 
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { getServerUserId } from "@/server/auth/user";
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "drive_folders" },
-})(async ({ requestId }) => {
+export async function GET(): Promise<NextResponse> {
+  try {
+    // Validate auth but don't use userId since this is scaffolded
+    await getServerUserId();
 
-  // SCAFFOLD: Drive integration not yet implemented
-  return NextResponse.json({ error: "Drive integration coming soon" }, { status: 500 });
-});
+    // SCAFFOLD: Drive integration not yet implemented
+    return NextResponse.json({ error: "Drive integration coming soon" }, { status: 500 });
+  } catch (error) {
+    console.error("GET /api/google/drive/folders error:", error);
+    return NextResponse.json({ error: "Failed to list Drive folders" }, { status: 500 });
+  }
+}

@@ -11,18 +11,15 @@
  * - Access Gmail data via response.services.gmail instead of root level
  */
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError, API_ERROR_CODES } from "@/server/api/response";
+import { getServerUserId } from "@/server/auth/user";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "gmail_status" },
-})(async ({ userId, requestId }) => {
+export async function GET(): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
     const db = await getDb();
 
     // Check if user has Gmail integration (check both gmail-specific and unified)
@@ -89,15 +86,12 @@ export const GET = createRouteHandler({
             refreshedIntegration[0].expiryDate && refreshedIntegration[0].expiryDate < now;
 
           return NextResponse.json({
-            ok: true,
-            data: {
-              isConnected: !stillExpired,
-              reason: stillExpired ? "token_expired" : "connected",
-              expiryDate: refreshedIntegration[0].expiryDate?.toISOString() ?? null,
-              hasRefreshToken: !!refreshedIntegration[0].refreshToken,
-              autoRefreshed: !stillExpired, // Indicate that auto-refresh was attempted
-              service: integration.service,
-            }
+            isConnected: !stillExpired,
+            reason: stillExpired ? "token_expired" : "connected",
+            expiryDate: refreshedIntegration[0].expiryDate?.toISOString() ?? null,
+            hasRefreshToken: !!refreshedIntegration[0].refreshToken,
+            autoRefreshed: !stillExpired, // Indicate that auto-refresh was attempted
+            service: integration.service,
           });
         }
       } catch (refreshError) {
@@ -107,21 +101,17 @@ export const GET = createRouteHandler({
     }
 
     return NextResponse.json({
-      ok: true,
-      data: {
-        isConnected: !isExpired,
-        reason: isExpired ? "token_expired" : "connected",
-        expiryDate: integration.expiryDate?.toISOString() ?? null,
-        hasRefreshToken: !!integration.refreshToken,
-        service: integration.service, // Indicate which integration type is being used
-      }
+      isConnected: !isExpired,
+      reason: isExpired ? "token_expired" : "connected",
+      expiryDate: integration.expiryDate?.toISOString() ?? null,
+      hasRefreshToken: !!integration.refreshToken,
+      service: integration.service, // Indicate which integration type is being used
     });
   } catch (error) {
-    return apiError(
-      API_ERROR_CODES.DATABASE_ERROR,
-      "Failed to check Gmail status",
-      500,
-      requestId
+    console.error("Failed to check Gmail status:", error);
+    return NextResponse.json(
+      { error: "Failed to check Gmail status" },
+      { status: 500 }
     );
   }
-});
+}

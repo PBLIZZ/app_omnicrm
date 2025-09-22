@@ -35,6 +35,32 @@ export const vector1536 = customType<{ data: number[] | null; driverData: unknow
 export const messageRoleEnum = pgEnum("message_role_enum", ["user", "assistant", "tool"]);
 // (We still keep column as text to match the raw SQL; enum is here for typing convenience)
 
+// OmniMomentum ENUMs — matches ENUMs created in migration 24
+export const projectStatusEnum = pgEnum("project_status", [
+  "active",
+  "on_hold",
+  "completed",
+  "archived",
+]);
+export const taskStatusEnum = pgEnum("task_status", ["todo", "in_progress", "done", "canceled"]);
+export const taskPriorityEnum = pgEnum("task_priority", ["low", "medium", "high", "urgent"]);
+export const goalTypeEnum = pgEnum("goal_type", [
+  "practitioner_business",
+  "practitioner_personal",
+  "client_wellness",
+]);
+export const goalStatusEnum = pgEnum("goal_status", [
+  "on_track",
+  "at_risk",
+  "achieved",
+  "abandoned",
+]);
+export const inboxItemStatusEnum = pgEnum("inbox_item_status", [
+  "unprocessed",
+  "processed",
+  "archived",
+]);
+
 // ---------- Core Tables ----------
 
 export const aiInsights = pgTable("ai_insights", {
@@ -265,7 +291,10 @@ export const userSyncPrefs = pgTable("user_sync_prefs", {
     .default(sql`'{}'::text[]`),
   // Phase 3 Enhanced Preferences System
   gmailTimeRangeDays: integer("gmail_time_range_days").default(365).notNull(),
-  calendarIds: text("calendar_ids").array().default(sql`'{}'::text[]`).notNull(),
+  calendarIds: text("calendar_ids")
+    .array()
+    .default(sql`'{}'::text[]`)
+    .notNull(),
   calendarFutureDays: integer("calendar_future_days").default(90).notNull(),
   driveMaxSizeMB: integer("drive_max_size_mb").default(5).notNull(),
   initialSyncCompleted: boolean("initial_sync_completed").default(false).notNull(),
@@ -366,76 +395,6 @@ export const contactTimeline = pgTable("contact_timeline", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-// ---------- Momentum Management ----------
-
-export const momentumWorkspaces = pgTable("momentum_workspaces", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  color: text("color").default("#6366f1"), // Hex color for UI
-  isDefault: boolean("is_default").default(false).notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const momentumProjects = pgTable("momentum_projects", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull(),
-  momentumWorkspaceId: uuid("momentum_workspace_id")
-    .references(() => momentumWorkspaces.id)
-    .notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  color: text("color").default("#10b981"), // Hex color for UI
-  status: text("status").default("active").notNull(), // active, completed, on_hold, cancelled
-  dueDate: timestamp("due_date"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const momentums = pgTable("momentums", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull(),
-  momentumWorkspaceId: uuid("momentum_workspace_id").references(() => momentumWorkspaces.id), // nullable - momentums can exist without workspaces
-  momentumProjectId: uuid("momentum_project_id").references(() => momentumProjects.id), // nullable - momentums can exist without projects
-  parentMomentumId: uuid("parent_momentum_id"), // for sub-momentums - FK defined in SQL
-  title: text("title").notNull(),
-  description: text("description"),
-  status: text("status").default("todo").notNull(), // todo, in_progress, waiting, done, cancelled
-  priority: text("priority").default("medium").notNull(), // low, medium, high, urgent
-  assignee: text("assignee").default("user").notNull(), // user, ai
-  source: text("source").default("user").notNull(), // user, ai_generated
-  approvalStatus: text("approval_status").default("approved").notNull(), // pending_approval, approved, rejected
-  taggedContacts: jsonb("tagged_contacts"), // array of contact IDs
-  dueDate: timestamp("due_date"),
-  completedAt: timestamp("completed_at"),
-  estimatedMinutes: integer("estimated_minutes"),
-  actualMinutes: integer("actual_minutes"),
-  aiContext: jsonb("ai_context"), // AI reasoning/context when generated
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const momentumActions = pgTable("momentum_actions", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull(),
-  momentumId: uuid("momentum_id").notNull(), // FK to momentums.id - defined in SQL
-  action: text("action").notNull(), // approved, rejected, edited, completed, deleted
-  previousData: jsonb("previous_data"), // momentum state before action
-  newData: jsonb("new_data"), // momentum state after action
-  notes: text("notes"), // user notes about the action
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
 // ---------- OmniMomentum Management ----------
 
 // Table: zones (Lookup Table for Life-Business Zones)
@@ -448,10 +407,14 @@ export const zones = pgTable("zones", {
 
 // Table: inbox_items (The AI Quick Capture "Dump Everything" Zone)
 export const inboxItems = pgTable("inbox_items", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull(),
   rawText: text("raw_text").notNull(),
-  status: text("status", { enum: ["unprocessed", "processed", "archived"] }).notNull().default("unprocessed"),
+  status: text("status", { enum: ["unprocessed", "processed", "archived"] })
+    .notNull()
+    .default("unprocessed"),
   createdTaskId: uuid("created_task_id"), // Nullable, will be populated after processing
   processedAt: timestamp("processed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -460,12 +423,16 @@ export const inboxItems = pgTable("inbox_items", {
 
 // Table: projects (The "Pathways" top-level containers)
 export const projects = pgTable("projects", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull(),
   zoneId: integer("zone_id"), // References zones.id but FK defined in SQL
   name: text("name").notNull(),
-  status: text("status", { enum: ["active", "on_hold", "completed", "archived"] }).notNull().default("active"),
-  dueDate: date("due_date"),
+  status: text("status", { enum: ["active", "on_hold", "completed", "archived"] })
+    .notNull()
+    .default("active"),
+  dueDate: timestamp("due_date", { withTimezone: true }),
   details: jsonb("details").default(sql`'{}'::jsonb`), // For description, icon, metadata
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -473,13 +440,19 @@ export const projects = pgTable("projects", {
 
 // Table: tasks (Core table for tasks and subtasks via self-reference)
 export const tasks = pgTable("tasks", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull(),
   projectId: uuid("project_id"), // References projects.id but FK defined in SQL
   parentTaskId: uuid("parent_task_id"), // References tasks.id but FK defined in SQL
   name: text("name").notNull(),
-  status: text("status", { enum: ["todo", "in_progress", "done", "canceled"] }).notNull().default("todo"),
-  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("medium"),
+  status: text("status", { enum: ["todo", "in_progress", "done", "canceled"] })
+    .notNull()
+    .default("todo"),
+  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] })
+    .notNull()
+    .default("medium"),
   dueDate: timestamp("due_date", { withTimezone: true }),
   details: jsonb("details").default(sql`'{}'::jsonb`), // For description, steps, blockers
   completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -488,33 +461,49 @@ export const tasks = pgTable("tasks", {
 });
 
 // Table: task_contact_tags (Many-to-Many Join Table)
-export const taskContactTags = pgTable("task_contact_tags", {
-  taskId: uuid("task_id").notNull(), // References tasks.id but FK defined in SQL
-  contactId: uuid("contact_id").notNull(), // References contacts.id but FK defined in SQL
-}, (table) => [primaryKey({ columns: [table.taskId, table.contactId] })]);
+export const taskContactTags = pgTable(
+  "task_contact_tags",
+  {
+    taskId: uuid("task_id").notNull(), // References tasks.id but FK defined in SQL
+    contactId: uuid("contact_id").notNull(), // References contacts.id but FK defined in SQL
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.contactId] })],
+);
 
 // Table: goals (Tracks practitioner and client goals)
 export const goals = pgTable("goals", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull(),
   contactId: uuid("contact_id"), // References contacts.id but FK defined in SQL, nullable for practitioner goals
-  goalType: text("goal_type", { enum: ["practitioner_business", "practitioner_personal", "client_wellness"] }).notNull(),
+  goalType: text("goal_type", {
+    enum: ["practitioner_business", "practitioner_personal", "client_wellness"],
+  }).notNull(),
   name: text("name").notNull(),
-  status: text("status", { enum: ["on_track", "at_risk", "achieved", "abandoned"] }).notNull().default("on_track"),
-  targetDate: date("target_date"),
+  status: text("status", { enum: ["on_track", "at_risk", "achieved", "abandoned"] })
+    .notNull()
+    .default("on_track"),
+  targetDate: timestamp("target_date", { withTimezone: true }),
   details: jsonb("details").default(sql`'{}'::jsonb`), // For description, metrics, values, etc.
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Table: daily_pulse_logs (Logs the daily self-assessment)
-export const dailyPulseLogs = pgTable("daily_pulse_logs", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull(),
-  logDate: date("log_date").notNull(),
-  details: jsonb("details").default(sql`'{}'::jsonb`), // For energy, sleep, mood, custom questions
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [uniqueIndex("daily_pulse_logs_user_date_unique").on(table.userId, table.logDate)]);
+export const dailyPulseLogs = pgTable(
+  "daily_pulse_logs",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id").notNull(),
+    logDate: date("log_date").notNull(),
+    details: jsonb("details").default(sql`'{}'::jsonb`), // For energy, sleep, mood, custom questions
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("daily_pulse_logs_user_date_unique").on(table.userId, table.logDate)],
+);
 
 // ---------- Types ----------
 
@@ -581,18 +570,6 @@ export type NewCalendarEvent = typeof calendarEvents.$inferInsert;
 export type ContactTimeline = typeof contactTimeline.$inferSelect;
 export type NewContactTimeline = typeof contactTimeline.$inferInsert;
 
-export type MomentumWorkspace = typeof momentumWorkspaces.$inferSelect;
-export type NewMomentumWorkspace = typeof momentumWorkspaces.$inferInsert;
-
-export type MomentumProject = typeof momentumProjects.$inferSelect;
-export type NewMomentumProject = typeof momentumProjects.$inferInsert;
-
-export type Momentum = typeof momentums.$inferSelect;
-export type NewMomentum = typeof momentums.$inferInsert;
-
-export type MomentumAction = typeof momentumActions.$inferSelect;
-export type NewMomentumAction = typeof momentumActions.$inferInsert;
-
 // OmniMomentum Types
 export type Zone = typeof zones.$inferSelect;
 export type NewZone = typeof zones.$inferInsert;
@@ -614,6 +591,3 @@ export type NewGoal = typeof goals.$inferInsert;
 
 export type DailyPulseLog = typeof dailyPulseLogs.$inferSelect;
 export type NewDailyPulseLog = typeof dailyPulseLogs.$inferInsert;
-
-// Legacy aliases for backward compatibility
-export type Workspace = MomentumWorkspace;

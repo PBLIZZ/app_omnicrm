@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { JobRunner } from "@/server/jobs/runner";
 import { getDb } from "@/server/db/client";
 import { jobs } from "@/server/db/schema";
@@ -12,12 +11,10 @@ import { ensureError } from "@/lib/utils/error-handler";
  * Manual processor for normalize jobs only
  * Development only - processes queued normalize jobs
  */
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "manual_job_process" },
-})(async ({ userId, requestId }) => {
-
+export async function POST(_: NextRequest): Promise<NextResponse> {
+  let userId: string | undefined;
   try {
+    userId = await getServerUserId();
     const db = await getDb();
     const runner = new JobRunner();
 
@@ -77,11 +74,9 @@ export const POST = createRouteHandler({
       ensureError(error),
     );
     
-    return apiError(
-      "Failed to process normalize jobs",
-      "INTERNAL_ERROR",
-      { message: error instanceof Error ? error.message : "Unknown error" },
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to process normalize jobs" },
+      { status: 500 }
     );
   }
-});
+}

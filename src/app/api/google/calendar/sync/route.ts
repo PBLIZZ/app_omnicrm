@@ -11,9 +11,8 @@
  * - Automatic normalization job enqueuing
  * - Rate limiting and auth validation
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError, API_ERROR_CODES } from "@/server/api/response";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -33,14 +32,15 @@ const syncSchema = z.object({
   maxResults: z.number().int().min(10).max(2500).optional().default(2500),
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "calendar_sync" },
-  validation: { body: syncSchema },
-})(async ({ userId, validated, requestId }) => {
-  const { daysPast, daysFuture, maxResults } = validated.body;
-
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    // Validate request body
+    const body = await request.json();
+    const validatedBody = syncSchema.parse(body);
+    const { daysPast, daysFuture, maxResults } = validatedBody;
+
     const db = await getDb();
 
     // Verify Calendar integration exists - require explicit calendar service approval
@@ -57,12 +57,9 @@ export const POST = createRouteHandler({
       .limit(1);
 
     if (!integration[0]) {
-      return apiError(
-        API_ERROR_CODES.INTEGRATION_ERROR,
-        "Google Calendar access not approved. Please connect Calendar in Settings.",
-        502,
-        requestId
-      );
+      return NextResponse.json({
+        error: "Google Calendar not connected. Please connect your calendar first.",
+      }, { status: 400 });
     }
 
     const batchId = randomUUID();
@@ -79,29 +76,26 @@ export const POST = createRouteHandler({
     });
 
     // Execute direct calendar sync using the GoogleCalendarService
-    const result = await GoogleCalendarService.syncUserCalendars(userId, {
+    const syncResult = await GoogleCalendarService.syncUserCalendars(userId, {
       daysPast,
       daysFuture,
       maxResults,
       batchId,
     });
 
-    if (!result.success) {
+    if (!syncResult.success) {
       await logger.error("Calendar sync failed", {
         operation: "calendar_sync",
         additionalData: {
           userId,
           batchId,
-          error: result.error,
+          error: syncResult.error,
         },
       });
 
-      return apiError(
-        API_ERROR_CODES.INTEGRATION_ERROR,
-        result.error ?? "Failed to sync calendar events",
-        502,
-        requestId
-      );
+      return NextResponse.json({
+        error: typeof syncResult.error === "string" ? syncResult.error : "Failed to sync calendar events",
+      }, { status: 502 });
     }
 
     await logger.info("Calendar sync completed", {
@@ -109,37 +103,35 @@ export const POST = createRouteHandler({
       additionalData: {
         userId,
         batchId,
-        syncedEvents: result.syncedEvents,
+        syncedEvents: syncResult.syncedEvents,
         daysPast,
         daysFuture,
       },
     });
 
     return NextResponse.json({
-      message: `Successfully synced ${result.syncedEvents} calendar events`,
+      message: `Successfully synced ${syncResult.syncedEvents} calendar events`,
       stats: {
-        syncedEvents: result.syncedEvents,
+        syncedEvents: syncResult.syncedEvents,
         daysPast,
         daysFuture,
         maxResults,
         batchId,
       },
     });
-  } catch (error) {
+  } catch (syncError) {
+    console.error("POST /api/google/calendar/sync error:", syncError);
     await logger.error(
       "Calendar sync failed",
       {
         operation: "calendar_sync",
-        additionalData: { userId },
+        additionalData: { userId: "unknown" },
       },
-      ensureError(error),
+      ensureError(syncError),
     );
 
-    return apiError(
-      API_ERROR_CODES.INTERNAL_ERROR,
-      "Failed to sync calendar events",
-      500,
-      requestId
-    );
+    return NextResponse.json({
+      error: "Failed to sync calendar events",
+    }, { status: 500 });
   }
-});
+}

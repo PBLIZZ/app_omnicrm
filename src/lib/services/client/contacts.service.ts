@@ -1,11 +1,11 @@
 // Client-side contact service for API interactions
 
 import type {
-  ContactDTO,
-  ContactListResponse,
-  CreateContactInput,
-  UpdateContactInput,
+  OmniClientsListResponseDTO,
+  CreateOmniClientInput,
+  UpdateOmniClientInput,
   FetchContactsParams,
+  OmniClientDTO,
 } from "@/lib/validation/schemas/omniClients";
 import { fetchGet, fetchPost, fetchPut, buildUrl } from "@/lib/api";
 
@@ -20,7 +20,7 @@ function debugLog(message: string, data?: unknown): void {
 
 export async function fetchContacts(
   params: FetchContactsParams = {},
-): Promise<ContactListResponse> {
+): Promise<OmniClientsListResponseDTO> {
   debugLog("Starting fetchContacts with params:", params);
 
   const url = buildUrl("/api/omni-clients", {
@@ -29,13 +29,13 @@ export async function fetchContacts(
     order: params.order,
     page: params.page,
     pageSize: params.pageSize,
-    createdAtFilter: params.createdAtFilter,
+    createdAtFilter: params.createdAtFilter ? JSON.stringify(params.createdAtFilter) : undefined,
   });
 
   debugLog("Making request to:", url);
 
   try {
-    const result = await fetchGet<ContactListResponse>(url);
+    const result = await fetchGet<OmniClientsListResponseDTO>(url);
     debugLog("Successfully parsed contacts response, items count:", result.items?.length ?? 0);
     return result;
   } catch (error) {
@@ -46,12 +46,14 @@ export async function fetchContacts(
   }
 }
 
-export async function createContact(input: CreateContactInput): Promise<ContactDTO> {
-  return await fetchPost<ContactDTO>("/api/omni-clients", { ...input, source: "manual" });
+export async function createContact(input: CreateOmniClientInput): Promise<OmniClientDTO> {
+  const result = await fetchPost<{ item: OmniClientDTO }>("/api/omni-clients", { ...input, source: "manual" });
+  return result.item;
 }
 
-export async function updateContact(id: string, input: UpdateContactInput): Promise<ContactDTO> {
-  return await fetchPut<ContactDTO>(`/api/omni-clients/${id}`, input);
+export async function updateContact(id: string, input: UpdateOmniClientInput): Promise<OmniClientDTO> {
+  const result = await fetchPut<{ item: OmniClientDTO }>(`/api/omni-clients/${id}`, input);
+  return result.item;
 }
 
 export async function deleteContacts(ids: string[]): Promise<number> {
@@ -59,6 +61,7 @@ export async function deleteContacts(ids: string[]): Promise<number> {
   return result.deleted;
 }
 
-export async function fetchContact(id: string): Promise<ContactDTO> {
-  return await fetchGet<ContactDTO>(`/api/omni-clients/${id}`);
+export async function fetchContact(id: string): Promise<OmniClientDTO> {
+  const result = await fetchGet<{ item: OmniClientDTO }>(`/api/omni-clients/${id}`);
+  return result.item;
 }

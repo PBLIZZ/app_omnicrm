@@ -10,8 +10,8 @@
  * - Parallel processing for high throughput
  * - Automatic normalization job enqueuing
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { GmailSyncService } from "@/server/services/gmail-sync.service";
 import { z } from "zod";
 
@@ -24,22 +24,25 @@ const syncSchema = z.object({
   daysBack: z.number().min(1).max(365).optional(),
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "gmail_sync" },
-  validation: { body: syncSchema },
-})(async ({ userId, validated, requestId }) => {
-  const { incremental, overlapHours, daysBack } = validated.body;
-
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    // Validate request body
+    const body: unknown = await request.json();
+    const validatedBody = syncSchema.parse(body);
+    const { incremental, overlapHours, daysBack } = validatedBody;
+
     const result = await GmailSyncService.syncGmail(userId, {
       incremental,
       overlapHours,
-      daysBack,
+      daysBack: daysBack ?? undefined,
     });
 
     return NextResponse.json(result);
   } catch (error) {
+    console.error("POST /api/google/gmail/sync error:", error);
+
     if (error instanceof Error && error.message === "Gmail not connected") {
       return NextResponse.json({ error: "Gmail not connected" }, { status: 400 });
     }
@@ -49,4 +52,4 @@ export const POST = createRouteHandler({
       { status: 500 }
     );
   }
-});
+}

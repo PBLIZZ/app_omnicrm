@@ -11,7 +11,11 @@ import { z } from "zod";
 export const ProjectStatusSchema = z.enum(["active", "on_hold", "completed", "archived"]);
 export const TaskStatusSchema = z.enum(["todo", "in_progress", "done", "canceled"]);
 export const TaskPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
-export const GoalTypeSchema = z.enum(["practitioner_business", "practitioner_personal", "client_wellness"]);
+export const GoalTypeSchema = z.enum([
+  "practitioner_business",
+  "practitioner_personal",
+  "client_wellness",
+]);
 export const GoalStatusSchema = z.enum(["on_track", "at_risk", "achieved", "abandoned"]);
 
 // Project DTOs (Pathways)
@@ -32,12 +36,14 @@ export const CreateProjectDTOSchema = z.object({
   zoneId: z.number().optional(),
   status: ProjectStatusSchema.optional(),
   dueDate: z.date().optional(),
-  details: z.object({
-    description: z.string().optional(),
-    icon: z.string().optional(),
-    color: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-  }).optional(),
+  details: z
+    .object({
+      description: z.string().optional(),
+      icon: z.string().optional(),
+      color: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export const UpdateProjectDTOSchema = CreateProjectDTOSchema.partial();
@@ -65,34 +71,42 @@ export const CreateTaskDTOSchema = z.object({
   status: TaskStatusSchema.optional(),
   priority: TaskPrioritySchema.optional(),
   dueDate: z.date().optional(),
-  details: z.object({
-    description: z.string().optional(),
-    steps: z.array(z.string()).optional(),
-    blockers: z.array(z.string()).optional(),
-    estimatedMinutes: z.number().optional(),
-    notes: z.string().optional(),
-  }).optional(),
+  details: z
+    .object({
+      description: z.string().optional(),
+      steps: z.array(z.string()).optional(),
+      blockers: z.array(z.string()).optional(),
+      estimatedMinutes: z.number().optional(),
+      notes: z.string().optional(),
+    })
+    .optional(),
   taggedContactIds: z.array(z.string().uuid()).optional(),
 });
 
-export const UpdateTaskDTOSchema = CreateTaskDTOSchema.partial();
+export const UpdateTaskDTOSchema = CreateTaskDTOSchema.partial().extend({
+  completedAt: z.date().nullable().optional(),
+});
 
 // Task with relationships - for full task display
 export const TaskWithRelationsDTOSchema = TaskDTOSchema.extend({
   project: ProjectDTOSchema.nullable(),
   parentTask: TaskDTOSchema.nullable(),
   subtasks: z.array(TaskDTOSchema),
-  taggedContacts: z.array(z.object({
-    id: z.string().uuid(),
-    displayName: z.string(),
-    primaryEmail: z.string().optional(),
-  })),
-  zone: z.object({
-    id: z.number(),
-    name: z.string(),
-    color: z.string().nullable(),
-    iconName: z.string().nullable(),
-  }).nullable(),
+  taggedContacts: z.array(
+    z.object({
+      id: z.string().uuid(),
+      displayName: z.string(),
+      primaryEmail: z.string().optional(),
+    }),
+  ),
+  zone: z
+    .object({
+      id: z.number(),
+      name: z.string(),
+      color: z.string().nullable(),
+      iconName: z.string().nullable(),
+    })
+    .nullable(),
 });
 
 // Goal DTOs
@@ -115,20 +129,30 @@ export const CreateGoalDTOSchema = z.object({
   name: z.string().min(1, "Goal name is required").max(200, "Goal name too long"),
   status: GoalStatusSchema.optional(),
   targetDate: z.date().optional(),
-  details: z.object({
-    description: z.string().optional(),
-    metrics: z.array(z.object({
-      name: z.string(),
-      target: z.number(),
-      current: z.number().optional(),
-      unit: z.string(),
-    })).optional(),
-    milestones: z.array(z.object({
-      name: z.string(),
-      targetDate: z.date(),
-      completed: z.boolean().default(false),
-    })).optional(),
-  }).optional(),
+  details: z
+    .object({
+      description: z.string().optional(),
+      metrics: z
+        .array(
+          z.object({
+            name: z.string(),
+            target: z.number(),
+            current: z.number().optional(),
+            unit: z.string(),
+          }),
+        )
+        .optional(),
+      milestones: z
+        .array(
+          z.object({
+            name: z.string(),
+            targetDate: z.date(),
+            completed: z.boolean().default(false),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 export const UpdateGoalDTOSchema = CreateGoalDTOSchema.partial();
@@ -238,26 +262,3 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type TaskPriority = z.infer<typeof TaskPrioritySchema>;
 export type GoalType = z.infer<typeof GoalTypeSchema>;
 export type GoalStatus = z.infer<typeof GoalStatusSchema>;
-
-// Legacy aliases for backward compatibility (temporary)
-export const MomentumWorkspaceDTOSchema = ProjectDTOSchema;
-export const MomentumProjectDTOSchema = ProjectDTOSchema;
-export const MomentumDTOSchema = TaskDTOSchema;
-export const CreateMomentumWorkspaceDTOSchema = CreateProjectDTOSchema;
-export const CreateMomentumProjectDTOSchema = CreateProjectDTOSchema;
-export const CreateMomentumDTOSchema = CreateTaskDTOSchema;
-export const UpdateMomentumWorkspaceDTOSchema = UpdateProjectDTOSchema;
-export const UpdateMomentumProjectDTOSchema = UpdateProjectDTOSchema;
-export const UpdateMomentumDTOSchema = UpdateTaskDTOSchema;
-export const WorkspaceDTOSchema = ProjectDTOSchema;
-
-export type MomentumWorkspaceDTO = ProjectDTO;
-export type MomentumProjectDTO = ProjectDTO;
-export type MomentumDTO = TaskDTO;
-export type CreateMomentumWorkspaceDTO = CreateProjectDTO;
-export type CreateMomentumProjectDTO = CreateProjectDTO;
-export type CreateMomentumDTO = CreateTaskDTO;
-export type UpdateMomentumWorkspaceDTO = UpdateProjectDTO;
-export type UpdateMomentumProjectDTO = UpdateProjectDTO;
-export type UpdateMomentumDTO = UpdateTaskDTO;
-export type WorkspaceDTO = ProjectDTO;

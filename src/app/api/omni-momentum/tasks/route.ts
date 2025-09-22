@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/get-server-user-id";
-import { MomentumRepository } from "@omnicrm/repo";
-import {
-  CreateMomentumDTOSchema,
-  type MomentumDTO
-} from "@omnicrm/contracts";
+import { getServerUserId } from "@/server/auth/user";
+import { momentumService } from "@/server/services/momentum.service";
+import { CreateTaskDTOSchema, TaskFiltersSchema } from "@omnicrm/contracts";
 
 /**
  * API Routes for Momentum Tasks (Hierarchical Task Management)
@@ -25,38 +22,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { searchParams } = new URL(request.url);
 
     // Parse query parameters for filtering
-    const filters: {
-      workspaceId?: string;
-      projectId?: string;
-      status?: string;
-      parentMomentumId?: string | null;
-    } = {};
+    const filters = {
+      search: searchParams.get("search") || undefined,
+      status: searchParams.getAll("status").filter(Boolean),
+      priority: searchParams.getAll("priority").filter(Boolean),
+      projectId: searchParams.get("projectId") || undefined,
+      parentTaskId:
+        searchParams.get("parentTaskId") === "null"
+          ? null
+          : searchParams.get("parentTaskId") || undefined,
+      taggedContactId: searchParams.get("taggedContactId") || undefined,
+      dueAfter: searchParams.get("dueAfter") ? new Date(searchParams.get("dueAfter")!) : undefined,
+      dueBefore: searchParams.get("dueBefore")
+        ? new Date(searchParams.get("dueBefore")!)
+        : undefined,
+      hasSubtasks: searchParams.get("hasSubtasks")
+        ? searchParams.get("hasSubtasks") === "true"
+        : undefined,
+    };
 
-    const workspaceId = searchParams.get("workspaceId");
-    if (workspaceId) filters.workspaceId = workspaceId;
+    // Validate filters
+    const validatedFilters = TaskFiltersSchema.parse(filters);
 
-    const projectId = searchParams.get("projectId");
-    if (projectId) filters.projectId = projectId;
-
-    const status = searchParams.get("status");
-    if (status) filters.status = status;
-
-    const parentTaskId = searchParams.get("parentTaskId");
-    if (parentTaskId === "null") {
-      filters.parentMomentumId = null; // Top-level tasks only
-    } else if (parentTaskId) {
-      filters.parentMomentumId = parentTaskId; // Subtasks of specific parent
-    }
-
-    const tasks = await MomentumRepository.listMomentums(userId, filters);
+    const tasks = await momentumService.getTasks(userId, validatedFilters);
 
     return NextResponse.json(tasks);
   } catch (error) {
     console.error("Failed to list tasks:", error);
-    return NextResponse.json(
-      { error: "Failed to retrieve tasks" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to retrieve tasks" }, { status: 500 });
   }
 }
 
@@ -66,12 +59,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
-    const body = await request.json();
+    const body: unknown = await request.json();
 
     // ✅ Runtime validation with Zod schema
-    const validatedData = CreateMomentumDTOSchema.parse(body);
+    const validatedData = CreateTaskDTOSchema.parse(body);
 
-    const task = await MomentumRepository.createMomentum(userId, validatedData);
+    const task = await momentumService.createTask(userId, validatedData);
 
     return NextResponse.json(task, { status: 201 });
   } catch (error) {
@@ -81,13 +74,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (error instanceof Error && error.name === "ZodError") {
       return NextResponse.json(
         { error: "Invalid task data", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to create task" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
   }
 }

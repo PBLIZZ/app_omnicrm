@@ -5,8 +5,8 @@
  * the job queue system. It's meant for initial sync where the user explicitly
  * clicks "Start Sync" and expects immediate processing.
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { GmailSyncService } from "@/server/services/gmail-sync.service";
 import { z } from "zod";
 
@@ -19,18 +19,18 @@ const syncDirectSchema = z.object({
   daysBack: z.number().min(1).max(365).optional(),
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "gmail_sync_direct" },
-  validation: { body: syncDirectSchema },
-})(async ({ userId, validated, requestId }) => {
-  const { incremental, overlapHours, daysBack } = validated.body;
-
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    // Validate request body
+    const body: unknown = await request.json();
+    const validatedBody = syncDirectSchema.parse(body);
+    const { incremental, overlapHours, daysBack } = validatedBody;
     const result = await GmailSyncService.syncGmailDirect(userId, {
       incremental,
       overlapHours,
-      daysBack,
+      daysBack: daysBack ?? undefined,
       direct: true,
     });
 
@@ -39,6 +39,7 @@ export const POST = createRouteHandler({
       stats: result.stats,
     });
   } catch (error) {
+    console.error("POST /api/google/gmail/sync-direct error:", error);
     if (error instanceof Error && error.message === "Gmail not connected") {
       return NextResponse.json({ error: "Gmail not connected" }, { status: 400 });
     }
@@ -48,4 +49,4 @@ export const POST = createRouteHandler({
       { status: 500 }
     );
   }
-});
+}

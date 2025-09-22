@@ -96,7 +96,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     // Connections (APIs, websockets)
     const baseConnect = ["'self'", "https://*.supabase.co", "https://www.googleapis.com"];
     if (!prod) {
-      baseConnect.push("http://localhost:3001", "ws://localhost:3001");
+      baseConnect.push("http://localhost:3000", "ws://localhost:3000");
     }
     // If deployed on Vercel edge/functions that call back to *.vercel.app, retain allowlist
     baseConnect.push("https://*.vercel.app");
@@ -109,11 +109,15 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const url = req.nextUrl;
   const isApi = url.pathname.startsWith("/api/");
 
-  // Proactively issue CSRF cookies on any safe request (pages or API) if missing
-  const hasCsrfEarly =
-    Boolean(req.cookies.get("csrf")?.value) && Boolean(req.cookies.get("csrf_sig")?.value);
+  // --- CSRF (double-submit cookie) -------------------------------------------
+  // 1) Issue tokens proactively on SAFE requests if missing (GET/HEAD/OPTIONS).
   const isSafeMethod = ["GET", "HEAD", "OPTIONS"].includes(req.method);
-  if (isSafeMethod && !hasCsrfEarly) {
+  const isUnsafeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+
+  const hasCsrfCookies =
+    Boolean(req.cookies.get("csrf")?.value) && Boolean(req.cookies.get("csrf_sig")?.value);
+
+  if (isSafeMethod && !hasCsrfCookies) {
     const nonce = randomNonce(18);
     const sig = await hmacSign(nonce);
     res.cookies.set("csrf", nonce, {
@@ -132,6 +136,49 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     });
   }
 
+  // 2) Enforce on UNSAFE requests (except tests & cron). If cookies missing, return 403 and
+  //    ALSO issue fresh cookies so the client can retry with header on the next request.
+  const isCronEndpoint = url.pathname.startsWith("/api/cron/");
+  if (isUnsafeMethod && process.env.NODE_ENV !== "test" && !isCronEndpoint) {
+    const nonceCookie = req.cookies.get("csrf")?.value;
+    const sigCookie = req.cookies.get("csrf_sig")?.value;
+    const csrfHeader = req.headers.get("x-csrf-token") ?? "";
+
+    const cookiesPresent = Boolean(nonceCookie && sigCookie);
+    const headerMatches = csrfHeader && csrfHeader === nonceCookie;
+    const signatureOK = cookiesPresent ? await hmacVerify(nonceCookie!, sigCookie!) : false;
+
+    if (!cookiesPresent) {
+      const nonce = randomNonce(18);
+      const sig = await hmacSign(nonce);
+      const out = new NextResponse(JSON.stringify({ error: "missing_csrf" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      });
+      out.cookies.set("csrf", nonce, {
+        httpOnly: false,
+        sameSite: "strict",
+        secure: isProd,
+        path: "/",
+        maxAge: 60 * 60,
+      });
+      out.cookies.set("csrf_sig", sig, {
+        httpOnly: true,
+        sameSite: "strict",
+        secure: isProd,
+        path: "/",
+        maxAge: 60 * 60,
+      });
+      return out;
+    }
+
+    if (!headerMatches || !signatureOK) {
+      return new NextResponse(JSON.stringify({ error: "invalid_csrf" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      });
+    }
+  }
   // E2E convenience: if E2E_USER_ID env is present, set a non-secure cookie for user id
   // This is only for non-production to drive Playwright tests without external auth
   const e2eUserId = process.env["E2E_USER_ID"];
@@ -210,75 +257,6 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
         status: 413,
         headers: { "content-type": "application/json" },
       });
-    }
-  }
-
-  // Proactively issue CSRF cookies on safe requests if missing
-  const hasCsrf =
-    Boolean(req.cookies.get("csrf")?.value) && Boolean(req.cookies.get("csrf_sig")?.value);
-  const isUnsafe = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
-  if (!isUnsafe && !hasCsrf) {
-    const nonce = randomNonce(18);
-    const sig = await hmacSign(nonce);
-    res.cookies.set("csrf", nonce, {
-      httpOnly: false,
-      sameSite: "strict",
-      secure: isProd,
-      path: "/",
-      maxAge: 60 * 60,
-    });
-    res.cookies.set("csrf_sig", sig, {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: isProd,
-      path: "/",
-      maxAge: 60 * 60,
-    });
-  }
-
-  // CSRF: for mutating requests from browsers, require custom header with signed token
-  // In unit tests, skip CSRF enforcement; end-to-end tests cover it explicitly.
-  // Skip CSRF for cron endpoints (server-to-server calls)
-  const isCronEndpoint = url.pathname.startsWith("/api/cron/");
-  if (isUnsafe && process.env.NODE_ENV !== "test" && !isCronEndpoint) {
-    const nonceCookie = req.cookies.get("csrf")?.value;
-    const sigCookie = req.cookies.get("csrf_sig")?.value;
-    const csrfHeader = req.headers.get("x-csrf-token") ?? "";
-    if (!nonceCookie || !sigCookie) {
-      // issue tokens to be used on next request (double-submit cookie)
-      const nonce = randomNonce(18);
-      const sig = await hmacSign(nonce);
-      // Create the actual response to return and attach cookies to it
-      const out = new NextResponse(JSON.stringify({ error: "missing_csrf" }), {
-        status: 403,
-        headers: { "content-type": "application/json" },
-      });
-      out.cookies.set("csrf", nonce, {
-        httpOnly: false,
-        sameSite: "strict",
-        secure: isProd,
-        path: "/",
-        maxAge: 60 * 60, // 1 hour
-      });
-      out.cookies.set("csrf_sig", sig, {
-        httpOnly: true,
-        sameSite: "strict",
-        secure: isProd,
-        path: "/",
-        maxAge: 60 * 60,
-      });
-      return out;
-    } else {
-      if (
-        !csrfHeader ||
-        csrfHeader !== nonceCookie ||
-        !(await hmacVerify(nonceCookie, sigCookie))
-      ) {
-        return new NextResponse(JSON.stringify({ error: "invalid_csrf" }), {
-          status: 403,
-          headers: { "content-type": "application/json" },
-        });
-      }
     }
   }
 

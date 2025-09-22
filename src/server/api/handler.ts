@@ -7,7 +7,6 @@ import { z } from "zod";
 import { getServerUserId } from "@/server/auth/user";
 import { logger } from "@/lib/observability";
 import { RateLimiter } from "../lib/rate-limiter";
-import { apiError, apiOk, API_ERROR_CODES } from "./response";
 import { ensureError } from "@/lib/utils/error-handler";
 
 // ============================================================================
@@ -90,20 +89,48 @@ export function withAuth<T extends unknown[]>(
 
       if (error && typeof error === "object" && "status" in error) {
         const authError = error as { status?: number; message?: string };
-        return apiError(
-          API_ERROR_CODES.UNAUTHORIZED,
-          authError.message ?? "Unauthorized",
-          authError.status ?? 401,
-          requestId,
+        return NextResponse.json(
+          {
+            ok: false,
+            error: {
+              code: "UNAUTHORIZED",
+              message: authError.message ?? "Unauthorized",
+              requestId,
+              timestamp: new Date().toISOString(),
+            },
+          },
+          { status: authError.status ?? 401 },
         );
       }
 
       // Handle plain Error objects as authentication failures
       if (error instanceof Error) {
-        return apiError(API_ERROR_CODES.UNAUTHORIZED, error.message, 401, requestId);
+        return NextResponse.json(
+          {
+            ok: false,
+            error: {
+              code: "UNAUTHORIZED",
+              message: error.message,
+              requestId,
+              timestamp: new Date().toISOString(),
+            },
+          },
+          { status: 401 },
+        );
       }
 
-      return apiError(API_ERROR_CODES.INTERNAL_ERROR, "Authentication failed", 500, requestId);
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Authentication failed",
+            requestId,
+            timestamp: new Date().toISOString(),
+          },
+        },
+        { status: 500 },
+      );
     }
   };
 }
@@ -113,7 +140,11 @@ export function withValidation<
   TQuery extends z.ZodSchema = z.ZodVoid,
   TBody extends z.ZodSchema = z.ZodVoid,
   TParams extends z.ZodSchema = z.ZodVoid,
->(schemas: { query?: TQuery; body?: TBody; params?: TParams }): <T extends unknown[]>(
+>(schemas: {
+  query?: TQuery;
+  body?: TBody;
+  params?: TParams;
+}): <T extends unknown[]>(
   handler: (
     validated: {
       query: TQuery extends z.ZodVoid ? undefined : z.infer<TQuery>;
@@ -166,11 +197,17 @@ export function withValidation<
               ? undefined
               : z.infer<TBody>;
           } catch {
-            return apiError(
-              API_ERROR_CODES.VALIDATION_ERROR,
-              "Invalid JSON in request body",
-              400,
-              requestId,
+            return NextResponse.json(
+              {
+                ok: false,
+                error: {
+                  code: "VALIDATION_ERROR",
+                  message: "Invalid JSON in request body",
+                  requestId,
+                  timestamp: new Date().toISOString(),
+                },
+              },
+              { status: 400 },
             );
           }
         }
@@ -198,9 +235,19 @@ export function withValidation<
         );
       } catch (error) {
         if (error instanceof z.ZodError) {
-          return apiError(API_ERROR_CODES.VALIDATION_ERROR, "Validation failed", 400, requestId, {
-            issues: error.issues,
-          });
+          return NextResponse.json(
+            {
+              ok: false,
+              error: {
+                code: "VALIDATION_ERROR",
+                message: "Validation failed",
+                requestId,
+                timestamp: new Date().toISOString(),
+                issues: error.issues,
+              },
+            },
+            { status: 400 },
+          );
         }
 
         await logger.error(
@@ -211,11 +258,17 @@ export function withValidation<
           },
           error instanceof Error ? error : new Error(String(error)),
         );
-        return apiError(
-          API_ERROR_CODES.INTERNAL_ERROR,
-          "Validation processing failed",
-          500,
-          requestId,
+        return NextResponse.json(
+          {
+            ok: false,
+            error: {
+              code: "INTERNAL_ERROR",
+              message: "Validation processing failed",
+              requestId,
+              timestamp: new Date().toISOString(),
+            },
+          },
+          { status: 500 },
         );
       }
     };
@@ -242,8 +295,14 @@ interface AdvancedRateLimitConfig {
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 // Legacy rate limiting wrapper (kept for backward compatibility)
-export function withRateLimit(options: RateLimitOptions): <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>) => (...args: T) => Promise<NextResponse> {
-  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>): (...args: T) => Promise<NextResponse> {
+export function withRateLimit(
+  options: RateLimitOptions,
+): <T extends unknown[]>(
+  handler: (...args: T) => Promise<NextResponse>,
+) => (...args: T) => Promise<NextResponse> {
+  return function <T extends unknown[]>(
+    handler: (...args: T) => Promise<NextResponse>,
+  ): (...args: T) => Promise<NextResponse> {
     return async (...args: T): Promise<NextResponse> => {
       const [request] = args as unknown as [NextRequest, ...unknown[]];
       const requestId = getCorrelationId(request);
@@ -270,11 +329,17 @@ export function withRateLimit(options: RateLimitOptions): <T extends unknown[]>(
             },
           });
 
-          const response = apiError(
-            API_ERROR_CODES.RATE_LIMITED,
-            rateLimitResult.reason ?? "Rate limit exceeded",
-            429,
-            requestId,
+          const response = NextResponse.json(
+            {
+              ok: false,
+              error: {
+                code: "RATE_LIMITED",
+                message: rateLimitResult.reason ?? "Rate limit exceeded",
+                requestId,
+                timestamp: new Date().toISOString(),
+              },
+            },
+            { status: 429 },
           );
           response.headers.set("Retry-After", retryAfter.toString());
           response.headers.set("X-RateLimit-Remaining", "0");
@@ -325,11 +390,17 @@ export function withRateLimit(options: RateLimitOptions): <T extends unknown[]>(
           additionalData: { requestId, key, count: current.count },
         });
 
-        const response = apiError(
-          API_ERROR_CODES.RATE_LIMITED,
-          "Too many requests",
-          429,
-          requestId,
+        const response = NextResponse.json(
+          {
+            ok: false,
+            error: {
+              code: "RATE_LIMITED",
+              message: "Too many requests",
+              requestId,
+              timestamp: new Date().toISOString(),
+            },
+          },
+          { status: 429 },
         );
         response.headers.set("Retry-After", retryAfter.toString());
         return response;
@@ -350,8 +421,14 @@ interface CacheOptions {
 // Simple in-memory cache - replace with Redis in production
 const cache = new Map<string, { data: unknown; expires: number }>();
 
-export function withCache(options: CacheOptions): <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>) => (...args: T) => Promise<NextResponse> {
-  return function <T extends unknown[]>(handler: (...args: T) => Promise<NextResponse>): (...args: T) => Promise<NextResponse> {
+export function withCache(
+  options: CacheOptions,
+): <T extends unknown[]>(
+  handler: (...args: T) => Promise<NextResponse>,
+) => (...args: T) => Promise<NextResponse> {
+  return function <T extends unknown[]>(
+    handler: (...args: T) => Promise<NextResponse>,
+  ): (...args: T) => Promise<NextResponse> {
     return async (...args: T): Promise<NextResponse> => {
       const [request] = args as unknown as [NextRequest, ...unknown[]];
       const requestId = getCorrelationId(request);
@@ -373,7 +450,7 @@ export function withCache(options: CacheOptions): <T extends unknown[]>(handler:
           operation: "cache_get",
           additionalData: { requestId, key },
         });
-        const response = apiOk(cached.data, { requestId });
+        const response = NextResponse.json(cached.data);
         response.headers.set("x-cache", "HIT");
         return response;
       }
@@ -423,11 +500,17 @@ async function applyAdvancedRateLimit(
       },
     });
 
-    const response = apiError(
-      API_ERROR_CODES.RATE_LIMITED,
-      rateLimitResult.reason ?? "Rate limit exceeded",
-      429,
-      requestId,
+    const response = NextResponse.json(
+      {
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: rateLimitResult.reason ?? "Rate limit exceeded",
+          requestId,
+          timestamp: new Date().toISOString(),
+        },
+      },
+      { status: 429 },
     );
     response.headers.set("Retry-After", retryAfter.toString());
     response.headers.set("X-RateLimit-Remaining", "0");
@@ -530,9 +613,19 @@ export function createRouteHandler<
           }
         } catch (error) {
           if (error instanceof z.ZodError) {
-            return apiError(API_ERROR_CODES.VALIDATION_ERROR, "Validation failed", 400, requestId, {
-              issues: error.issues,
-            });
+            return NextResponse.json(
+              {
+                ok: false,
+                error: {
+                  code: "VALIDATION_ERROR",
+                  message: "Validation failed",
+                  requestId,
+                  timestamp: new Date().toISOString(),
+                  issues: error.issues,
+                },
+              },
+              { status: 400 },
+            );
           }
           throw error;
         }
@@ -544,21 +637,33 @@ export function createRouteHandler<
         try {
           const authenticatedUserId = await getServerUserId();
           if (!authenticatedUserId) {
-            return apiError(
-              API_ERROR_CODES.UNAUTHORIZED,
-              "Authentication failed - no user ID",
-              401,
-              requestId,
+            return NextResponse.json(
+              {
+                ok: false,
+                error: {
+                  code: "UNAUTHORIZED",
+                  message: "Authentication failed - no user ID",
+                  requestId,
+                  timestamp: new Date().toISOString(),
+                },
+              },
+              { status: 401 },
             );
           }
           userId = authenticatedUserId; // Now TypeScript knows this is definitely a string
         } catch (error) {
           const authError = error as { status?: number; message?: string };
-          return apiError(
-            API_ERROR_CODES.UNAUTHORIZED,
-            authError.message ?? "Unauthorized",
-            authError.status ?? 401,
-            requestId,
+          return NextResponse.json(
+            {
+              ok: false,
+              error: {
+                code: "UNAUTHORIZED",
+                message: authError.message ?? "Unauthorized",
+                requestId,
+                timestamp: new Date().toISOString(),
+              },
+            },
+            { status: authError.status ?? 401 },
           );
         }
       }

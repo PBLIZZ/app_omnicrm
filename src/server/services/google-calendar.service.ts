@@ -426,7 +426,7 @@ export class GoogleCalendarService {
       if (totalSyncedEvents > 0 && options.batchId) {
         try {
           await enqueue(
-            "normalize",
+            "normalize_google_event",
             { batchId: options.batchId, provider: "google_calendar" },
             userId,
             options.batchId,

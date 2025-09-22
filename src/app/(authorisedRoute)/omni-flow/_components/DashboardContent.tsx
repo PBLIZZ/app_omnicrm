@@ -65,7 +65,10 @@ export default function DashboardContent(): JSX.Element {
     refetchOnWindowFocus: false,
     networkMode: "online",
   });
-  const contacts: ContactDTO[] = data?.items ?? [];
+  const contacts: ContactDTO[] = (data?.items ?? []).map(contact => ({
+    ...contact,
+    tags: contact.tags ?? undefined, // Convert null to undefined for type compatibility
+  }));
 
   const {
     data: sync,

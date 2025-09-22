@@ -1,16 +1,13 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { logger } from "@/lib/observability";
 import { JobRunner } from "@/server/jobs/runner";
-import { ensureError } from "@/lib/utils/error-handler";
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "job_runner" },
-})(async ({ userId, requestId }) => {
-
+export async function POST(_: NextRequest): Promise<NextResponse> {
+  let userId: string | undefined;
   try {
+    userId = await getServerUserId();
+
     // Use the new JobRunner to process queued jobs
     const jobRunner = new JobRunner();
 
@@ -50,11 +47,9 @@ export const POST = createRouteHandler({
     );
 
     // SECURITY: Don't expose internal error details to client
-    return apiError(
-      "Job processing failed due to internal error",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Job processing failed due to internal error" },
+      { status: 500 }
     );
   }
-});
+}

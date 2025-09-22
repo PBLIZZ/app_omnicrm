@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import RootProviders from "@/components/providers/root-providers";
+import { AppErrorBoundary } from "@/components/error-boundaries";
 import "@/app/globals.css";
 
 const geistSans = Geist({
@@ -30,23 +31,13 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Optional: expose nonce for later use by <Script nonce={nonce}> if you add inline scripts */}
         {nonce ? <meta property="csp-nonce" content={nonce} /> : null}
-        {nonce ? (
-          <script
-            id="csp-nonce-bootstrap"
-            nonce={nonce}
-            suppressHydrationWarning
-            dangerouslySetInnerHTML={{
-              __html:
-                "(function(){var m=document.querySelector(\"meta[property=\\\"csp-nonce\\\"]\");if(!m)return;var v=m.getAttribute('content');if(!v)return;window.__webpack_nonce__=v;try{document.querySelectorAll('style:not([nonce])').forEach(function(s){s.setAttribute('nonce',v);});}catch(_){}var _ce=document.createElement;document.createElement=function(t){var el=_ce.call(document,t);if(t==='style'){try{el.setAttribute('nonce',v);}catch(_){}}return el;};})();",
-            }}
-          />
-        ) : null}
+        {/* No bootstrap script needed. If/when you add a script: <Script nonce={nonce} strategy="afterInteractive">...</Script> */}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         data-csp-nonce={nonce}
-        suppressHydrationWarning
       >
         <a
           href="#main-content"
@@ -54,9 +45,11 @@ export default async function RootLayout({
         >
           Skip to main content
         </a>
-        <RootProviders>
-          <main id="main-content">{children}</main>
-        </RootProviders>
+        <AppErrorBoundary>
+          <RootProviders>
+            <main id="main-content">{children}</main>
+          </RootProviders>
+        </AppErrorBoundary>
       </body>
     </html>
   );

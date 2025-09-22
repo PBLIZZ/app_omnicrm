@@ -11,52 +11,35 @@
  * - Job processing metrics
  * - Server-side caching to prevent UI flickering
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { GoogleIntegrationService } from "@/server/services/google-integration.service";
-import { ensureError } from "@/lib/utils/error-handler";
 
-
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "google_status" },
-})(async ({ userId, requestId }) => {
+export async function GET(_request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
     const status = await GoogleIntegrationService.getGoogleStatus(userId);
     return NextResponse.json(status);
-  } catch (error) {
-    const ensuredError = ensureError(error);
+  } catch (error: unknown) {
+    console.error("GET /api/google/status error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
     // Classify error types for better user experience
     let errorCode: string;
-    let errorMessage: string;
-
-    if (ensuredError.message.includes("auth") || ensuredError.message.includes("token")) {
+    if (errorMessage.includes("auth") || errorMessage.includes("token")) {
       errorCode = "AUTH_ERROR";
-      errorMessage = "Authentication error occurred while checking Google status";
-    } else if (ensuredError.message.includes("network") || ensuredError.message.includes("fetch")) {
+    } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
       errorCode = "NETWORK_ERROR";
-      errorMessage = "Network error occurred while checking Google status";
-    } else if (ensuredError.message.includes("quota") || ensuredError.message.includes("rate limit")) {
+    } else if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
       errorCode = "QUOTA_ERROR";
-      errorMessage = "Rate limit exceeded while checking Google status";
-    } else if (ensuredError.message.includes("database") || ensuredError.message.includes("db")) {
+    } else if (errorMessage.includes("database") || errorMessage.includes("db")) {
       errorCode = "DATABASE_ERROR";
-      errorMessage = "Database error occurred while checking Google status";
     } else {
       errorCode = "UNKNOWN_ERROR";
-      errorMessage = "Unknown error occurred while checking Google status";
     }
 
-    console.error("Google status check failed:", {
-      userId,
-      error: ensuredError.message,
-      stack: ensuredError.stack,
-      code: errorCode,
-    });
-
     return NextResponse.json({
-      error: errorMessage,
+      error: "Failed to get Google status",
       code: errorCode,
       timestamp: new Date().toISOString(),
       operation: "google_status_check",
@@ -64,4 +47,4 @@ export const GET = createRouteHandler({
       retryable: ["NETWORK_ERROR", "QUOTA_ERROR"].includes(errorCode),
     }, { status: 500 });
   }
-});
+}

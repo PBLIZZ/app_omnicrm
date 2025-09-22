@@ -14,18 +14,17 @@ import { userIntegrations, rawEvents } from "@/server/db/schema";
 import { getGoogleClients } from "@/server/google/client";
 import { listGmailMessageIds } from "@/server/google/gmail";
 import { and, eq, desc } from "drizzle-orm";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { gmail_v1 } from "googleapis";
 import { randomUUID } from "node:crypto";
 import { logger } from "@/lib/observability";
 import { enqueue } from "@/server/jobs/enqueue";
 
 export interface GmailSyncOptions {
-  incremental?: boolean;
-  overlapHours?: number;
-  daysBack?: number;
-  blocking?: boolean;
-  direct?: boolean;
+  incremental?: boolean | undefined;
+  overlapHours?: number | undefined;
+  daysBack?: number | undefined;
+  blocking?: boolean | undefined;
+  direct?: boolean | undefined;
 }
 
 export interface GmailSyncResult {
@@ -143,7 +142,7 @@ export class GmailSyncService {
     // Enqueue normalization jobs for the synced emails
     if (inserted > 0) {
       try {
-        await enqueue("normalize", { batchId, provider: "gmail" }, userId, batchId);
+        await enqueue("normalize_google_email", { batchId, provider: "gmail" }, userId, batchId);
       } catch (jobError) {
         // Non-fatal; raw events written successfully
         await logger.warn("Failed to enqueue normalization job after Gmail sync", {
@@ -239,7 +238,7 @@ export class GmailSyncService {
       // Enqueue normalization if needed
       if (inserted > 0) {
         try {
-          await enqueue("normalize", { batchId, provider: "gmail" }, userId, batchId);
+          await enqueue("normalize_google_email", { batchId, provider: "gmail" }, userId, batchId);
         } catch (jobError) {
           // Non-fatal error
           await logger.warn("Failed to enqueue normalization job", {
@@ -337,7 +336,7 @@ export class GmailSyncService {
   /**
    * Get Gmail integration (unified or gmail-specific)
    */
-  private static async getGmailIntegration(userId: string, db: PostgresJsDatabase<Record<string, never>>): Promise<typeof userIntegrations.$inferSelect | undefined> {
+  private static async getGmailIntegration(userId: string, db: Awaited<ReturnType<typeof getDb>>): Promise<typeof userIntegrations.$inferSelect | undefined> {
     const [gmailIntegration, unifiedIntegration] = await Promise.all([
       db
         .select()
@@ -374,7 +373,7 @@ export class GmailSyncService {
     incremental: boolean,
     overlapHours: number,
     daysBack: number | undefined,
-    db: PostgresJsDatabase<Record<string, never>>
+    db: Awaited<ReturnType<typeof getDb>>
   ): Promise<string> {
     if (incremental) {
       // Determine incremental boundary from last successful raw_event insert
@@ -416,7 +415,7 @@ export class GmailSyncService {
     userId: string,
     batchId: string,
     query: string,
-    db: PostgresJsDatabase<Record<string, never>>
+    db: Awaited<ReturnType<typeof getDb>>
   ): Promise<Array<Array<{ success: boolean; error?: string }>>> {
     const batchPromises = [];
 
@@ -443,7 +442,7 @@ export class GmailSyncService {
     userId: string,
     batchId: string,
     query: string,
-    db: PostgresJsDatabase<Record<string, never>>
+    db: Awaited<ReturnType<typeof getDb>>
   ): Promise<Array<{ success: boolean; error?: string }>> {
     return Promise.all(
       messageIds.map(async (messageId) => {

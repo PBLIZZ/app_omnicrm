@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
 import { InboxService } from "@/server/services/inbox.service";
-import { ProcessInboxItemDTOSchema } from "@omnicrm/contracts";
+import { ProcessInboxItemDTOSchema, type ProcessInboxItemDTO } from "@omnicrm/contracts";
 
 /**
  * Inbox Processing API - AI-powered categorization of inbox items
@@ -19,7 +19,8 @@ export const POST = createRouteHandler({
   },
 })(async ({ userId, validated }) => {
   try {
-    const result = await InboxService.processInboxItem(userId, validated.body);
+    const processData = validated.body as ProcessInboxItemDTO;
+    const result = await InboxService.processInboxItem(userId, processData);
     return NextResponse.json({ result });
   } catch (error) {
     console.error("Failed to process inbox item with AI:", error);

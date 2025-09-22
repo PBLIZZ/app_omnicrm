@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { createRouteHandler, withAuth } from "../handler";
-import { apiOk } from "../response";
+import { NextResponse } from "next/server";
+
 import { makeRouteContext } from "@/__tests__/helpers/routeContext";
 
 // Mock dependencies
@@ -30,7 +31,7 @@ describe("Handler Authentication System", () => {
 
       const handler = createRouteHandler({ auth: true })(async ({ userId }) => {
         // This should never be reached
-        return apiOk({ userId });
+        return NextResponse.json({ userId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -54,7 +55,7 @@ describe("Handler Authentication System", () => {
       vi.mocked(getServerUserId).mockResolvedValue(mockUserId);
 
       const handler = createRouteHandler({ auth: true })(async ({ userId }) => {
-        return apiOk({ receivedUserId: userId });
+        return NextResponse.json({ receivedUserId: userId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -75,7 +76,7 @@ describe("Handler Authentication System", () => {
       });
 
       const handler = createRouteHandler({ auth: true })(async ({ userId }) => {
-        return apiOk({ userId });
+        return NextResponse.json({ userId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -100,7 +101,7 @@ describe("Handler Authentication System", () => {
       const handler = createRouteHandler({ auth: true })(async ({ userId }) => {
         // TypeScript should know userId is string, not string | undefined
         const upperUserId: string = userId; // This should compile
-        return apiOk({ upperUserId: upperUserId.toUpperCase() });
+        return NextResponse.json({ upperUserId: upperUserId.toUpperCase() });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -116,7 +117,7 @@ describe("Handler Authentication System", () => {
     it("allows requests without authentication", async () => {
       // getServerUserId should not be called
       const handler = createRouteHandler({ auth: false })(async ({ userId }) => {
-        return apiOk({ userId: userId ?? "anonymous" });
+        return NextResponse.json({ userId: userId ?? "anonymous" });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -134,7 +135,7 @@ describe("Handler Authentication System", () => {
       const handler = createRouteHandler({ auth: false })(async ({ userId }) => {
         // TypeScript should know userId is string | undefined
         const userType = userId ? "authenticated" : "anonymous";
-        return apiOk({ userType });
+        return NextResponse.json({ userType });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -151,11 +152,11 @@ describe("Handler Authentication System", () => {
       vi.mocked(getServerUserId).mockResolvedValue("user-456");
 
       const handler = withAuth(async (userId, requestId, request: NextRequest) => {
-        return apiOk({ userId, requestId, path: request.nextUrl.pathname });
+        return NextResponse.json({ userId, requestId, path: request.nextUrl.pathname });
       });
 
       const req = new NextRequest("http://localhost:3000/api/wrapped");
-      const res = await handler(req, makeRouteContext());
+      const res = await handler(req);
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -170,11 +171,10 @@ describe("Handler Authentication System", () => {
       vi.mocked(getServerUserId).mockRejectedValue(new Error("Session expired"));
 
       const handler = withAuth(async (userId, requestId) => {
-        return apiOk({ userId });
+        return NextResponse.json({ userId });
       });
 
-      const req = new NextRequest("http://localhost:3000/api/wrapped");
-      const res = await handler(req, makeRouteContext());
+      const res = await handler();
 
       expect(res.status).toBe(401);
       const body = await res.json();
@@ -196,7 +196,7 @@ describe("Handler Authentication System", () => {
         auth: true,
         rateLimit: { operation: "test_operation" },
       })(async ({ userId }) => {
-        return apiOk({ userId });
+        return NextResponse.json({ userId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -231,7 +231,7 @@ describe("Handler Authentication System", () => {
         auth: true,
         rateLimit: { operation: "test_operation" },
       })(async ({ userId }) => {
-        return apiOk({ userId });
+        return NextResponse.json({ userId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -251,7 +251,7 @@ describe("Handler Authentication System", () => {
         auth: false,
         rateLimit: { operation: "public_operation" },
       })(async () => {
-        return apiOk({ message: "Public endpoint" });
+        return NextResponse.json({ message: "Public endpoint" });
       });
 
       const req = new NextRequest("http://localhost:3000/api/public", {
@@ -274,7 +274,7 @@ describe("Handler Authentication System", () => {
       vi.mocked(getServerUserId).mockResolvedValue("user-123");
 
       const handler = createRouteHandler({ auth: true })(async ({ requestId }) => {
-        return apiOk({ requestId });
+        return NextResponse.json({ requestId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test", {
@@ -293,7 +293,7 @@ describe("Handler Authentication System", () => {
       vi.mocked(getServerUserId).mockResolvedValue("user-123");
 
       const handler = createRouteHandler({ auth: true })(async ({ requestId }) => {
-        return apiOk({ requestId });
+        return NextResponse.json({ requestId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test", {
@@ -311,7 +311,7 @@ describe("Handler Authentication System", () => {
       vi.mocked(getServerUserId).mockResolvedValue("user-123");
 
       const handler = createRouteHandler({ auth: true })(async ({ requestId }) => {
-        return apiOk({ requestId });
+        return NextResponse.json({ requestId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -329,7 +329,7 @@ describe("Handler Authentication System", () => {
       vi.mocked(getServerUserId).mockRejectedValue("string error");
 
       const handler = createRouteHandler({ auth: true })(async ({ userId }) => {
-        return apiOk({ userId });
+        return NextResponse.json({ userId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -347,7 +347,7 @@ describe("Handler Authentication System", () => {
       });
 
       const handler = createRouteHandler({ auth: true })(async ({ userId }) => {
-        return apiOk({ userId });
+        return NextResponse.json({ userId });
       });
 
       const req = new NextRequest("http://localhost:3000/api/test");
@@ -360,11 +360,11 @@ describe("Handler Authentication System", () => {
 
     it("handles missing request object gracefully", async () => {
       const handler = withAuth(async (userId, requestId) => {
-        return apiOk({ userId });
+        return NextResponse.json({ userId });
       });
 
       // This should throw an error about invalid request
-      await expect(handler(null as any)).rejects.toThrow("First argument must be a NextRequest");
+      await expect(handler()).rejects.toThrow("First argument must be a NextRequest");
     });
   });
 });

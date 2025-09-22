@@ -15,7 +15,6 @@
  */
 import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
 import { getDb } from "@/server/db/client";
 import { syncSessions } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -32,7 +31,7 @@ export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "sync_progress" },
   validation: { params: paramsSchema },
-})(async ({ userId, validated, requestId }) => {
+})(async ({ userId, validated }) => {
   const { sessionId } = validated.params;
 
   try {
@@ -123,11 +122,9 @@ export const GET = createRouteHandler({
       ensureError(error),
     );
 
-    return apiError(
-      "Failed to retrieve sync progress",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to retrieve sync progress" },
+      { status: 500 }
     );
   }
 });
@@ -148,7 +145,7 @@ export const DELETE = createRouteHandler({
   auth: true,
   rateLimit: { operation: "sync_cancel" },
   validation: { params: paramsSchema },
-})(async ({ userId, validated, requestId }) => {
+})(async ({ userId, validated }) => {
   const { sessionId } = validated.params;
 
   try {
@@ -174,9 +171,9 @@ export const DELETE = createRouteHandler({
 
     // Only allow cancellation of active sessions
     if (!["started", "importing", "processing"].includes(sessionData.status)) {
-      return apiError(
-        `Cannot cancel ${sessionData.status} sync session`,
-        "VALIDATION_ERROR"
+      return NextResponse.json(
+        { error: `Cannot cancel ${sessionData.status} sync session` },
+        { status: 400 }
       );
     }
 
@@ -221,11 +218,9 @@ export const DELETE = createRouteHandler({
       ensureError(error),
     );
 
-    return apiError(
-      "Failed to cancel sync session",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+    return NextResponse.json(
+      { error: "Failed to cancel sync session" },
+      { status: 500 }
     );
   }
 });

@@ -92,16 +92,10 @@ export const queryKeys = {
   momentum: {
     all: ["momentum"] as const,
 
-    // Workspaces
-    workspaces: () => ["momentum", "workspaces"] as const,
-    workspace: (workspaceId: string) => ["momentum", "workspace", workspaceId] as const,
-
-    // Projects (Pathways)
-    projects: (workspaceId?: string) => ["momentum", "projects", workspaceId] as const,
     project: (projectId: string) => ["momentum", "project", projectId] as const,
 
     // Tasks (Hierarchical)
-    tasks: (filters?: { workspaceId?: string; projectId?: string; parentTaskId?: string }) =>
+    tasks: (filters?: { projectId?: string; parentTaskId?: string }) =>
       ["momentum", "tasks", filters] as const,
     task: (taskId: string) => ["momentum", "task", taskId] as const,
     taskWithSubtasks: (taskId: string) => ["momentum", "task", taskId, "subtasks"] as const,
@@ -146,9 +140,9 @@ export const queryKeyUtils = {
   /**
    * Invalidate after sync operations (refresh status and data)
    */
-  invalidateAfterSync: (service: 'calendar' | 'gmail') => [
+  invalidateAfterSync: (service: "calendar" | "gmail") => [
     { queryKey: queryKeys.google.status() },
-    service === 'calendar'
+    service === "calendar"
       ? { queryKey: queryKeys.google.calendar.all }
       : { queryKey: queryKeys.google.gmail.all },
     { queryKey: queryKeys.omniConnect.dashboard() },
@@ -167,9 +161,7 @@ export const queryKeyUtils = {
   /**
    * Invalidate after inbox processing (refresh inbox and stats)
    */
-  invalidateAfterInboxUpdate: () => [
-    { queryKey: queryKeys.inbox.all },
-  ],
+  invalidateAfterInboxUpdate: () => [{ queryKey: queryKeys.inbox.all }],
 
   /**
    * Invalidate all momentum-related queries
@@ -179,9 +171,7 @@ export const queryKeyUtils = {
   /**
    * Invalidate after momentum task operations (refresh tasks and stats)
    */
-  invalidateAfterMomentumUpdate: () => [
-    { queryKey: queryKeys.momentum.all },
-  ],
+  invalidateAfterMomentumUpdate: () => [{ queryKey: queryKeys.momentum.all }],
 } as const;
 
 /**

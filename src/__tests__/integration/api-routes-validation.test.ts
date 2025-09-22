@@ -4,8 +4,6 @@ import { NextRequest } from "next/server";
 // Import API route handlers
 import { GET as healthGet } from "@/app/api/health/route";
 import { GET as omniClientsGet, POST as omniClientsPost } from "@/app/api/omni-clients/route";
-import { GET as projectsGet } from "@/app/api/projects/route";
-import { POST as tasksPost } from "@/app/api/tasks/route";
 import { PUT as consentPut } from "@/app/api/settings/consent/route";
 
 // Mock auth utilities
@@ -34,37 +32,6 @@ vi.mock("@/server/services/contacts.service", () => ({
     primaryEmail: "new@example.com",
     source: "manual",
   }),
-}));
-
-vi.mock("@/server/storage/momentum.storage", () => ({
-  MomentumStorage: vi.fn().mockImplementation(() => ({
-    getMomentumProjects: vi.fn().mockResolvedValue([
-      {
-        id: "project-1",
-        name: "Test Project",
-        status: "active",
-      },
-    ]),
-    createMomentum: vi.fn().mockResolvedValue({
-      id: "task-1",
-      title: "Test Task",
-      status: "todo",
-    }),
-    getMomentums: vi.fn().mockResolvedValue([]),
-    getMomentumsWithContacts: vi.fn().mockResolvedValue([]),
-    createMomentumWorkspace: vi.fn().mockResolvedValue({
-      id: "workspace-1",
-      name: "Test Workspace",
-      userId: "test-user-123",
-    }),
-    getMomentumWorkspaces: vi.fn().mockResolvedValue([]),
-    createMomentumProject: vi.fn().mockResolvedValue({
-      id: "project-1",
-      name: "Test Project",
-      momentumWorkspaceId: "workspace-1",
-      userId: "test-user-123",
-    }),
-  })),
 }));
 
 /**
@@ -182,87 +149,6 @@ describe("API Routes Validation Tests", () => {
       expect(response.status).toBe(400);
       expect(data).toHaveProperty("ok", false);
       expect(data.error).toHaveProperty("code", "VALIDATION_ERROR");
-    });
-  });
-
-  describe("Projects API (/api/projects)", () => {
-    it("lists projects with proper structure", async () => {
-      const request = new NextRequest("http://localhost:3000/api/projects");
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await projectsGet(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("ok", true);
-      expect(data.data).toHaveProperty("projects");
-      expect(Array.isArray(data.data.projects)).toBe(true);
-    });
-
-    it("supports workspace filtering", async () => {
-      const workspaceId = "test-workspace-id";
-      const request = new NextRequest(`http://localhost:3000/api/projects?workspaceId=${workspaceId}`);
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await projectsGet(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("ok", true);
-      // Workspace filtering is processed without error
-    });
-  });
-
-  describe("Tasks API (/api/tasks)", () => {
-    it("creates task with valid data", async () => {
-      const taskData = {
-        title: "Test Task",
-        description: "A test task for API testing",
-        status: "todo" as const,
-        priority: "medium" as const,
-        assignee: "user" as const,
-        source: "user" as const,
-        estimatedMinutes: 60,
-      };
-
-      const request = new NextRequest("http://localhost:3000/api/tasks", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(taskData),
-      });
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await tasksPost(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("ok", true);
-      expect(data.data).toHaveProperty("task");
-      expect(data.data.task).toHaveProperty("title", taskData.title);
-      expect(data.data.task).toHaveProperty("id");
-    });
-
-    it("validates task creation input", async () => {
-      const invalidData = {
-        // Missing required title
-        description: "Task without title",
-        status: "invalid_status", // Invalid enum value
-      };
-
-      const request = new NextRequest("http://localhost:3000/api/tasks", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(invalidData),
-      });
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await tasksPost(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty("ok", false);
-      expect(data.error).toHaveProperty("code", "VALIDATION_ERROR");
-      expect(data.error).toHaveProperty("details");
     });
   });
 

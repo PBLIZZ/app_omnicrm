@@ -4,16 +4,14 @@
  * Returns calendar events for the authenticated user with business intelligence data.
  */
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { getServerUserId } from "@/server/auth/user";
 import { getDb } from "@/server/db/client";
 import { calendarEvents } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "google_calendar_events" },
-})(async ({ userId, requestId: _requestId }) => {
+export async function GET(): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
     const db = await getDb();
 
     // Fetch calendar events for the user
@@ -49,7 +47,8 @@ export const GET = createRouteHandler({
       totalCount: events.length,
     });
   } catch (error: unknown) {
+    console.error("GET /api/google/calendar/events error:", error);
     console.error("Failed to fetch calendar events:", error);
     return NextResponse.json({ error: "Failed to fetch calendar events" }, { status: 500 });
   }
-});
+}

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { ContactsRepository } from "@repo";
 import type { UpdateContactDTO } from "@contracts/contact";
 import { UpdateOmniClientSchema } from "@/lib/validation/schemas/omniClients";
@@ -15,15 +15,17 @@ function toOptional(v: string | null | undefined): string | undefined {
 }
 
 // --- GET /api/omni-clients/[clientId] ---
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_client_get" },
-  validation: {
-    params: IdParams,
-  },
-})(async ({ userId, validated, requestId }) => {
+export async function GET(
+  _: NextRequest,
+  context: { params: { clientId: string } }
+): Promise<NextResponse> {
   try {
-    const contact = await ContactsRepository.getContactById(userId, validated.params.clientId);
+    const userId = await getServerUserId();
+
+    // Validate params
+    const validatedParams = IdParams.parse(context.params);
+
+    const contact = await ContactsRepository.getContactById(userId, validatedParams.clientId);
 
     if (!contact) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
@@ -31,38 +33,44 @@ export const GET = createRouteHandler({
 
     return NextResponse.json({ item: toOmniClient(contact) });
   } catch (error) {
+    console.error("GET /api/omni-clients/[clientId] error:", error);
     return NextResponse.json(
       { error: "Failed to fetch omni client" },
       { status: 500 }
     );
   }
-});
+}
 
 // --- PATCH /api/omni-clients/[clientId] ---
-export const PATCH = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_client_update" },
-  validation: {
-    params: IdParams,
-    body: UpdateOmniClientSchema,
-  },
-})(async ({ userId, validated, requestId }) => {
+export async function PATCH(
+  request: NextRequest,
+  context: { params: { clientId: string } }
+): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    // Validate params
+    const validatedParams = IdParams.parse(context.params);
+
+    // Validate request body
+    const body: unknown = await request.json();
+    const validatedBody = UpdateOmniClientSchema.parse(body);
+
     const updates: UpdateContactDTO = {};
 
-    if (validated.body.displayName !== undefined) updates.displayName = validated.body.displayName;
-    if (validated.body.primaryEmail !== undefined)
-      updates.primaryEmail = toOptional(validated.body.primaryEmail);
-    if (validated.body.primaryPhone !== undefined)
-      updates.primaryPhone = toOptional(validated.body.primaryPhone);
-    if (validated.body.stage !== undefined) {
-      const stageValue = toOptional(validated.body.stage);
+    if (validatedBody.displayName !== undefined) updates.displayName = validatedBody.displayName;
+    if (validatedBody.primaryEmail !== undefined)
+      updates.primaryEmail = toOptional(validatedBody.primaryEmail);
+    if (validatedBody.primaryPhone !== undefined)
+      updates.primaryPhone = toOptional(validatedBody.primaryPhone);
+    if (validatedBody.stage !== undefined) {
+      const stageValue = toOptional(validatedBody.stage);
       if (stageValue !== undefined) {
         updates.stage = stageValue as "New Client" | "VIP Client" | "Core Client" | "Prospect" | "At Risk Client" | "Lost Client" | "Referring Client";
       }
     }
-    if (validated.body.tags !== undefined) {
-      updates.tags = validated.body.tags ?? undefined;
+    if (validatedBody.tags !== undefined) {
+      updates.tags = validatedBody.tags ?? undefined;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -74,7 +82,7 @@ export const PATCH = createRouteHandler({
 
     const updatedContact = await ContactsRepository.updateContact(
       userId,
-      validated.params.clientId,
+      validatedParams.clientId,
       updates
     );
 
@@ -84,33 +92,37 @@ export const PATCH = createRouteHandler({
 
     return NextResponse.json({ item: toOmniClient(updatedContact) });
   } catch (error) {
+    console.error("PATCH /api/omni-clients/[clientId] error:", error);
     return NextResponse.json(
       { error: "Failed to update omni client" },
       { status: 500 }
     );
   }
-});
+}
 
 // Optional: keep PUT for backward compatibility, delegate to PATCH
 export const PUT = PATCH;
 
 // --- DELETE /api/omni-clients/[clientId] ---
-export const DELETE = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_client_delete" },
-  validation: {
-    params: IdParams,
-  },
-})(async ({ userId, validated, requestId }) => {
+export async function DELETE(
+  _: NextRequest,
+  context: { params: { clientId: string } }
+): Promise<NextResponse> {
   try {
-    const deleted = await ContactsRepository.deleteContact(userId, validated.params.clientId);
+    const userId = await getServerUserId();
+
+    // Validate params
+    const validatedParams = IdParams.parse(context.params);
+
+    const deleted = await ContactsRepository.deleteContact(userId, validatedParams.clientId);
 
     // idempotent delete - return success even if contact didn't exist
     return NextResponse.json({ deleted: deleted ? 1 : 0 });
   } catch (error) {
+    console.error("DELETE /api/omni-clients/[clientId] error:", error);
     return NextResponse.json(
       { error: "Failed to delete omni client" },
       { status: 500 }
     );
   }
-});
+}

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/get-server-user-id";
-import { MomentumRepository } from "@omnicrm/repo";
-import {
-  CreateMomentumProjectDTOSchema,
-  type MomentumProjectDTO
-} from "@omnicrm/contracts";
+import { getServerUserId } from "@/server/auth/user";
+import { momentumService } from "@/server/services/momentum.service";
+import { CreateProjectDTOSchema, ProjectFiltersSchema } from "@omnicrm/contracts";
 
 /**
  * API Routes for Momentum Projects (Pathways)
@@ -23,17 +20,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
     const { searchParams } = new URL(request.url);
-    const workspaceId = searchParams.get("workspaceId") || undefined;
 
-    const projects = await MomentumRepository.listProjects(userId, workspaceId);
+    // Parse query parameters for filters
+    const filters = {
+      search: searchParams.get("search") || undefined,
+      status: searchParams.getAll("status").filter(Boolean),
+      zoneId: searchParams.get("zoneId") ? parseInt(searchParams.get("zoneId")!) : undefined,
+      dueAfter: searchParams.get("dueAfter") ? new Date(searchParams.get("dueAfter")!) : undefined,
+      dueBefore: searchParams.get("dueBefore")
+        ? new Date(searchParams.get("dueBefore")!)
+        : undefined,
+    };
+
+    // Validate filters
+    const validatedFilters = ProjectFiltersSchema.parse(filters);
+
+    const projects = await momentumService.getProjects(userId, validatedFilters);
 
     return NextResponse.json(projects);
   } catch (error) {
     console.error("Failed to list projects:", error);
-    return NextResponse.json(
-      { error: "Failed to retrieve projects" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to retrieve projects" }, { status: 500 });
   }
 }
 
@@ -43,12 +50,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
-    const body = await request.json();
+    const body: unknown = await request.json();
 
     // ✅ Runtime validation with Zod schema
-    const validatedData = CreateMomentumProjectDTOSchema.parse(body);
+    const validatedData = CreateProjectDTOSchema.parse(body);
 
-    const project = await MomentumRepository.createProject(userId, validatedData);
+    const project = await momentumService.createProject(userId, validatedData);
 
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
@@ -58,13 +65,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (error instanceof Error && error.name === "ZodError") {
       return NextResponse.json(
         { error: "Invalid project data", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to create project" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create project" }, { status: 500 });
   }
 }

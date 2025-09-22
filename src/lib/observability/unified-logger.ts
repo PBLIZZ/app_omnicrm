@@ -4,12 +4,20 @@
  */
 
 import { toast } from "sonner";
-import {
-  ERROR_CLASSIFICATION,
-  type ErrorContext,
-  type ErrorSeverity,
-  type ErrorCategory,
-} from "../errors/error-classification";
+
+// Direct types (no abstraction)
+type ErrorSeverity = "debug" | "info" | "warn" | "error" | "critical";
+type ErrorCategory = "auth" | "api" | "database" | "validation" | "security" | "performance" | "ui" | "integration" | "business_logic";
+
+interface ErrorContext {
+  operation: string;
+  component?: string;
+  userId?: string;
+  requestId?: string;
+  userAgent?: string;
+  ip?: string;
+  additionalData?: Record<string, unknown>;
+}
 // Note: Server-side logging functionality commented out to avoid circular deps
 // TODO: Re-enable when pino-logger and log-context are properly set up
 // import { log as pinoLogger, type LogBindings } from "@/server/lib/pino-logger";
@@ -314,23 +322,26 @@ class UnifiedLogger {
    * Handle API responses with proper error classification
    */
   handleApiResponse<T>(
-    response: { ok: boolean; data?: T; error?: string },
+    response: T | { error: string; code?: string },
     operation: string,
     context?: ErrorContext,
   ): T | never {
-    if (response.ok && response.data) {
-      return response.data;
+    // Check if response is an error object
+    if (typeof response === 'object' && response !== null && 'error' in response) {
+      const errorResponse = response as { error: string; code?: string };
+      const errorMessage = errorResponse.error;
+      const fullContext = { operation, code: errorResponse.code, ...context };
+
+      void this.error(`API ${operation} failed: ${errorMessage}`, fullContext);
+      throw new Error(errorMessage);
     }
 
-    const errorMessage = response.error ?? "Unknown API error";
-    const fullContext = { operation, ...context };
-
-    void this.error(`API ${operation} failed: ${errorMessage}`, fullContext);
-    throw new Error(errorMessage);
+    // Return the data directly
+    return response;
   }
 
   /**
-   * Wrap async operations with comprehensive error handling
+   * Wrap async operations with direct error handling
    */
   async withErrorHandling<T>(
     operation: () => Promise<T>,
@@ -338,25 +349,25 @@ class UnifiedLogger {
     options: {
       showUserError?: boolean;
       fallbackValue?: T;
-      classification?: keyof typeof ERROR_CLASSIFICATION;
+      severity?: ErrorSeverity;
     } = {},
   ): Promise<T> {
     try {
       return await operation();
     } catch (error) {
-      const classification = options.classification ?? "API_FAILURE";
-      const config = ERROR_CLASSIFICATION[classification];
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+      const severity = options.severity ?? "error";
 
-      if (config.action.showToast && options.showUserError !== false) {
-        toast.error(config.action.toastTitle ?? "Operation Failed", {
-          description: error instanceof Error ? error.message : "An unexpected error occurred",
-        });
+      // Show user error if enabled
+      if (options.showUserError !== false) {
+        toast.error("Operation Failed", { description: errorMessage });
       }
 
+      // Log the error
       void this.log(
-        config.severity,
-        config.category,
-        `${context.operation} failed: ${error instanceof Error ? error.message : String(error)}`,
+        severity,
+        "api",
+        `${context.operation} failed: ${errorMessage}`,
         context,
         error instanceof Error ? error : undefined,
       );

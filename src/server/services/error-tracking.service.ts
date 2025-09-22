@@ -65,12 +65,7 @@ export class ErrorTrackingService {
       const db = await getDb();
 
       // Classify the error
-      const classification = classifyError(error, {
-        provider: context.provider,
-        stage: context.stage,
-        ...(context.operation && { operation: context.operation }),
-        ...(userId && { userId }),
-      });
+      const classification = classifyError(error);
 
       // Enhanced context with classification
       const enhancedContext = {

@@ -1,8 +1,7 @@
 /** GET /api/google/gmail/labels — fetch Gmail labels for authenticated user */
 
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { gmail_v1, google } from "googleapis";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 import { logger } from "@/lib/observability";
@@ -22,12 +21,9 @@ interface GmailLabelsResponse {
   totalLabels: number;
 }
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "gmail_labels" },
-})(async ({ userId, requestId }) => {
-
+export async function GET(_: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
     // Get authenticated OAuth2 client using the new service
     const oauth2Client = await GoogleGmailService.getAuth(userId);
 
@@ -82,12 +78,23 @@ export const GET = createRouteHandler({
 
     return NextResponse.json(result);
   } catch (error: unknown) {
+    console.error("GET /api/google/gmail/labels error:", error);
+
+    // Try to get userId for logging, but don't fail if we can't
+    let userIdForLogging = "unknown";
+    try {
+      const userId = await getServerUserId();
+      userIdForLogging = userId.slice(0, 8) + "...";
+    } catch (_) {
+      // Ignore auth errors in error handler
+    }
+
     await logger.error(
       "Gmail labels fetch failed",
       {
         operation: "api.google.gmail.labels",
         additionalData: {
-          userId: userId.slice(0, 8) + "...",
+          userId: userIdForLogging,
           errorType: error instanceof Error ? error.constructor.name : typeof error,
         },
       },
@@ -97,9 +104,9 @@ export const GET = createRouteHandler({
     if (error instanceof Error) {
       // Handle specific Google API errors
       if (error.message.includes("insufficient authentication scopes")) {
-        return apiError(
-          "Insufficient Gmail permissions. Please reconnect your Gmail account.",
-          "FORBIDDEN",
+        return NextResponse.json(
+          { error: "Insufficient Gmail permissions. Please reconnect your Gmail account." },
+          { status: 403 },
         );
       }
 
@@ -107,13 +114,13 @@ export const GET = createRouteHandler({
         error.message.includes("invalid_grant") ||
         error.message.includes("Token has been expired or revoked")
       ) {
-        return apiError(
-          "Gmail access token has expired. Please reconnect your account.",
-          "UNAUTHORIZED",
+        return NextResponse.json(
+          { error: "Gmail access token has expired. Please reconnect your account." },
+          { status: 401 },
         );
       }
     }
 
     return NextResponse.json({ error: "Failed to fetch Gmail labels" }, { status: 500 });
   }
-});
+}

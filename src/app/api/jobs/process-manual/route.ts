@@ -46,17 +46,19 @@ export const POST = createRouteHandler({
   } = validated.body;
 
   try {
-    const result = await JobProcessingService.processJobsManually(userId, {
-      jobTypes,
-      batchId,
-      maxJobs,
-      includeRetrying,
-      skipStuckJobs,
-      realTimeUpdates,
-    }, requestId);
+    // Build options object only with defined values to satisfy exactOptionalPropertyTypes
+    const options: Parameters<typeof JobProcessingService.processJobsManually>[1] = {};
+    if (jobTypes !== undefined) options.jobTypes = jobTypes;
+    if (batchId !== undefined) options.batchId = batchId;
+    if (maxJobs !== undefined) options.maxJobs = maxJobs;
+    if (includeRetrying !== undefined) options.includeRetrying = includeRetrying;
+    if (skipStuckJobs !== undefined) options.skipStuckJobs = skipStuckJobs;
+    if (realTimeUpdates !== undefined) options.realTimeUpdates = realTimeUpdates;
+
+    const result = await JobProcessingService.processJobsManually(userId, options, requestId);
 
     return NextResponse.json(result);
-  } catch (error) {
+  } catch {
     return NextResponse.json({
       error: "Failed to start job processing",
       details: "The job processing system encountered an error. Please try again or contact support if the problem persists.",

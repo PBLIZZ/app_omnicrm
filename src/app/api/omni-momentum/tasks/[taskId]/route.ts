@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/get-server-user-id";
-import { MomentumRepository } from "@omnicrm/repo";
-import {
-  UpdateMomentumDTOSchema,
-  type MomentumDTO
-} from "@omnicrm/contracts";
+import { getServerUserId } from "@/server/auth/user";
+import { MomentumRepository } from "@repo";
+import { UpdateMomentumDTOSchema } from "@omnicrm/contracts";
 
 /**
  * Individual Task Management API Routes
@@ -22,55 +19,40 @@ interface RouteParams {
 /**
  * GET /api/omni-momentum/tasks/[taskId] - Get task by ID
  */
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
-): Promise<NextResponse> {
+export async function GET(_: NextRequest, { params }: RouteParams): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
     const { taskId } = params;
 
-    const task = await MomentumRepository.getMomentumById(userId, taskId);
+    const task = await MomentumRepository.getTask(taskId, userId);
 
     if (!task) {
-      return NextResponse.json(
-        { error: "Task not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
     return NextResponse.json(task);
   } catch (error) {
     console.error("Failed to get task:", error);
-    return NextResponse.json(
-      { error: "Failed to retrieve task" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to retrieve task" }, { status: 500 });
   }
 }
 
 /**
  * PUT /api/omni-momentum/tasks/[taskId] - Update task
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: RouteParams
-): Promise<NextResponse> {
+export async function PUT(request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
     const { taskId } = params;
-    const body = await request.json();
+    const body: unknown = await request.json();
 
     // ✅ Runtime validation with Zod schema
     const validatedData = UpdateMomentumDTOSchema.parse(body);
 
-    const task = await MomentumRepository.updateMomentum(userId, taskId, validatedData);
+    const task = await MomentumRepository.updateTask(taskId, userId, validatedData);
 
     if (!task) {
-      return NextResponse.json(
-        { error: "Task not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
     return NextResponse.json(task);
@@ -81,43 +63,27 @@ export async function PUT(
     if (error instanceof Error && error.name === "ZodError") {
       return NextResponse.json(
         { error: "Invalid task data", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to update task" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
   }
 }
 
 /**
  * DELETE /api/omni-momentum/tasks/[taskId] - Delete task
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: RouteParams
-): Promise<NextResponse> {
+export async function DELETE(_: NextRequest, { params }: RouteParams): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
     const { taskId } = params;
 
-    const deleted = await MomentumRepository.deleteMomentum(userId, taskId);
-
-    if (!deleted) {
-      return NextResponse.json(
-        { error: "Task not found" },
-        { status: 404 }
-      );
-    }
+    await MomentumRepository.deleteTask(taskId, userId);
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to delete task:", error);
-    return NextResponse.json(
-      { error: "Failed to delete task" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete task" }, { status: 500 });
   }
 }

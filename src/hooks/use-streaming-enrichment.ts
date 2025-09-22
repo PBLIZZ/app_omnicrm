@@ -30,7 +30,8 @@ export interface EnrichmentState {
 }
 
 interface ContactsQueryData {
-  data: Contact[];
+  items: Contact[];
+  total?: number;
   [key: string]: unknown;
 }
 
@@ -74,7 +75,13 @@ export function useStreamingEnrichment(): EnrichmentState & {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error details from response body
+        try {
+          const errorData = await response.json() as { error: string; code?: string };
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        } catch {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
       }
 
       const reader = response.body?.getReader();
@@ -126,11 +133,11 @@ export function useStreamingEnrichment(): EnrichmentState & {
                     queryClient.setQueryData(
                       ["contacts"],
                       (oldData: ContactsQueryData | undefined) => {
-                        if (!oldData?.data) return oldData;
+                        if (!oldData?.items) return oldData;
 
                         return {
                           ...oldData,
-                          data: oldData.data.map((contact: Contact) =>
+                          items: oldData.items.map((contact: Contact) =>
                             contact.id === data.contactId
                               ? {
                                   ...contact,

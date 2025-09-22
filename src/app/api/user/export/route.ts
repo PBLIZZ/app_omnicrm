@@ -1,5 +1,6 @@
 /** GET /api/user/export — Complete user data export for GDPR compliance (auth required). */
 import { getDb } from "@/server/db/client";
+import { NextResponse } from "next/server";
 import {
   contacts,
   interactions,
@@ -18,13 +19,11 @@ import {
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { createRouteHandler } from "@/server/api/handler";
-import { apiError, API_ERROR_CODES } from "@/server/api/response";
 
 export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "user_export" },
 })(async ({ userId, requestId }): Promise<Response> => {
-
   try {
     const db = await getDb();
     const exportTimestamp = new Date().toISOString();
@@ -214,20 +213,26 @@ export const GET = createRouteHandler({
     return new Response(JSON.stringify(exportPayload, null, 2), {
       status: 200,
       headers: {
-        'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
+        "Content-Type": "application/json",
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return apiError(
-      API_ERROR_CODES.DATABASE_ERROR,
-      `Data export failed: ${errorMessage}`,
-      500,
-      requestId
+    return NextResponse.json(
+      {
+        ok: false,
+        error: {
+          code: "DATABASE_ERROR",
+          message: `Data export failed: ${errorMessage}`,
+          requestId,
+          timestamp: new Date().toISOString(),
+        },
+      },
+      { status: 500 },
     );
   }
 });

@@ -5,27 +5,24 @@
  * Does not perform actual sync, only provides estimates for user confirmation.
  */
 
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError, API_ERROR_CODES } from "@/server/api/response";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { GmailPreferencesSchema, SyncPreviewResponseSchema } from "@/lib/validation/schemas/sync";
 import { getGoogleGmailClient } from "@/server/google/client";
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "gmail_preview" },
-  validation: {
-    body: GmailPreferencesSchema,
-  },
-})(async ({ userId, validated, requestId }) => {
-
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    // Validate request body
+    const body: unknown = await request.json();
+    const validatedBody = GmailPreferencesSchema.parse(body);
     const gmailClient = await getGoogleGmailClient(userId);
     if (!gmailClient) {
       return NextResponse.json({ error: "Gmail not connected" }, { status: 502 });
     }
 
-    const prefs = validated.body;
+    const prefs = validatedBody;
 
     // Calculate date range for preview
     const endDate = new Date();
@@ -61,7 +58,9 @@ export const POST = createRouteHandler({
       warnings.push("Estimated sync size exceeds 500MB. Consider reducing the time range.");
     }
     if (prefs.timeRangeDays === 365) {
-      warnings.push("Full year sync selected. This is a one-time operation and cannot be changed later.");
+      warnings.push(
+        "Full year sync selected. This is a one-time operation and cannot be changed later.",
+      );
     }
 
     const preview = {
@@ -86,27 +85,28 @@ export const POST = createRouteHandler({
     }
 
     return NextResponse.json(validationResult.data);
-
   } catch (error: unknown) {
+    console.error("POST /api/google/gmail/preview error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
 
     // Handle specific Gmail API errors
     if (errorMessage.includes("invalid_grant") || errorMessage.includes("unauthorized")) {
-      return NextResponse.json({ error: "Gmail authorization expired. Please reconnect." }, { status: 502 });
+      return NextResponse.json(
+        { error: "Gmail authorization expired. Please reconnect." },
+        { status: 502 },
+      );
     }
 
     if (errorMessage.includes("rate") || errorMessage.includes("quota")) {
-      return NextResponse.json({ error: "Rate limit exceeded. Please try again later." }, { status: 500 });
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 500 },
+      );
     }
 
-    return apiError(
-      API_ERROR_CODES.INTERNAL_ERROR,
-      "Failed to generate Gmail sync preview",
-      500,
-      requestId
-    );
+    return NextResponse.json({ error: "Failed to generate Gmail sync preview" }, { status: 500 });
   }
-});
+}
 
 /**
  * Build Gmail search query based on preferences

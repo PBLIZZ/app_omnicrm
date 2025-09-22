@@ -21,15 +21,15 @@ import { logger } from "@/lib/observability";
 import { ensureError } from "@/lib/utils/error-handler";
 
 export interface RetryOptions {
-  errorIds?: string[];
-  retryAll?: boolean;
+  errorIds: string[];
+  retryAll: boolean;
   provider?: "gmail" | "calendar" | "drive";
   category?: "authentication" | "network" | "quota" | "data_format" | "processing" | "permission" | "configuration";
-  maxRetries?: number;
-  retryStrategy?: "immediate" | "delayed" | "smart";
-  delayMinutes?: number;
-  includeAuthRefresh?: boolean;
-  skipFailedJobs?: boolean;
+  maxRetries: number;
+  retryStrategy: "immediate" | "delayed" | "smart";
+  delayMinutes: number;
+  includeAuthRefresh: boolean;
+  skipFailedJobs: boolean;
 }
 
 export interface RetryResult {
@@ -70,7 +70,17 @@ export class ErrorRetryService {
    */
   static async retryErrors(
     userId: string,
-    options: RetryOptions = {},
+    options: {
+      errorIds?: string[] | undefined;
+      retryAll?: boolean | undefined;
+      provider?: "gmail" | "calendar" | "drive" | undefined;
+      category?: "authentication" | "network" | "quota" | "data_format" | "processing" | "permission" | "configuration" | undefined;
+      maxRetries?: number | undefined;
+      retryStrategy?: "immediate" | "delayed" | "smart" | undefined;
+      delayMinutes?: number | undefined;
+      includeAuthRefresh?: boolean | undefined;
+      skipFailedJobs?: boolean | undefined;
+    } = {},
     requestId?: string
   ): Promise<RetryOperationResult> {
     const {
@@ -82,7 +92,6 @@ export class ErrorRetryService {
       retryStrategy = "smart",
       delayMinutes = this.DEFAULT_DELAY_MINUTES,
       includeAuthRefresh = true,
-      skipFailedJobs = false,
     } = options;
 
     // Get errors to retry
@@ -160,27 +169,27 @@ export class ErrorRetryService {
         // Apply retry strategy based on error category
         switch (classification.category) {
           case "authentication":
-            retryResult = await this.retryAuthenticationError(userId, error, includeAuthRefresh);
+            retryResult = await this.retryAuthenticationError(userId, includeAuthRefresh);
             break;
 
           case "network":
-            retryResult = await this.retryNetworkError(userId, error);
+            retryResult = await this.retryNetworkError(userId);
             break;
 
           case "processing":
-            retryResult = await this.retryProcessingError(userId, error, skipFailedJobs);
+            retryResult = await this.retryProcessingError(userId);
             break;
 
           case "quota":
-            retryResult = await this.retryQuotaError(userId, error, retryStrategy);
+            retryResult = await this.retryQuotaError(retryStrategy);
             break;
 
           case "data_format":
-            retryResult = await this.retryDataFormatError(userId, error);
+            retryResult = await this.retryDataFormatError();
             break;
 
           default:
-            retryResult = await this.retryGenericError(userId, error);
+            retryResult = await this.retryGenericError();
             break;
         }
 
@@ -289,7 +298,6 @@ export class ErrorRetryService {
    */
   private static async retryAuthenticationError(
     userId: string,
-    _error: { id: string },
     includeRefresh: boolean,
   ): Promise<RetryMethodResult> {
     if (!includeRefresh) {
@@ -342,7 +350,6 @@ export class ErrorRetryService {
    */
   private static async retryNetworkError(
     userId: string,
-    _error: { id: string },
   ): Promise<RetryMethodResult> {
     try {
       // Simple connectivity test
@@ -365,8 +372,6 @@ export class ErrorRetryService {
    */
   private static async retryProcessingError(
     userId: string,
-    _error: { id: string },
-    _skipFailed: boolean,
   ): Promise<RetryMethodResult> {
     try {
       const jobRunner = new JobRunner();
@@ -397,8 +402,6 @@ export class ErrorRetryService {
    * Retry quota errors (usually requires waiting)
    */
   private static async retryQuotaError(
-    _userId: string,
-    _error: { id: string },
     strategy: string,
   ): Promise<RetryMethodResult> {
     // For quota errors, immediate retry usually fails
@@ -423,10 +426,7 @@ export class ErrorRetryService {
   /**
    * Retry data format errors (usually by skipping problematic items)
    */
-  private static async retryDataFormatError(
-    _userId: string,
-    _error: { id: string },
-  ): Promise<RetryMethodResult> {
+  private static async retryDataFormatError(): Promise<RetryMethodResult> {
     // Data format errors are usually resolved by skipping the problematic item
     return {
       success: true,
@@ -438,10 +438,7 @@ export class ErrorRetryService {
   /**
    * Generic retry for unclassified errors
    */
-  private static async retryGenericError(
-    _userId: string,
-    _error: { id: string },
-  ): Promise<RetryMethodResult> {
+  private static async retryGenericError(): Promise<RetryMethodResult> {
     // For generic errors, we just mark them as retried
     return {
       success: true,
@@ -548,7 +545,7 @@ export class ErrorRetryService {
       const retryableErrors = errorSummary.recentErrors.filter(e => e.classification?.retryable).length;
       const errorsWithRetries = errorSummary.recentErrors.filter(e => (e.retryCount ?? 0) > 0);
 
-      const successfulRetries = errorsWithRetries.filter(e => e.resolved).length;
+      const successfulRetries = errorsWithRetries.filter(e => e.resolvedAt).length;
       const failedRetries = errorsWithRetries.length - successfulRetries;
       const averageSuccessRate = errorsWithRetries.length > 0
         ? Math.round((successfulRetries / errorsWithRetries.length) * 100)

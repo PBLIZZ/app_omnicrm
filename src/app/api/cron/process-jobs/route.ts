@@ -1,5 +1,4 @@
-import { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
 import { JobRunner } from "@/server/jobs/runner";
 import { logger } from "@/lib/observability/unified-logger";
@@ -12,8 +11,7 @@ import { ensureError } from "@/lib/utils/error-handler";
 export const POST = createRouteHandler({
   auth: false, // No user auth - uses cron secret instead
   rateLimit: { operation: "cron_job_processor" },
-})(async ({ requestId }, request: NextRequest) => {
-
+})(async ({}, request: NextRequest) => {
   // 1. --- Secure the Endpoint ---
   // This is critical. We only want to allow requests from our own cron job.
   const authToken = (request.headers.get("authorization") ?? "").split("Bearer ").at(1);
@@ -23,7 +21,6 @@ export const POST = createRouteHandler({
       operation: "cron.process_jobs.unauthorized",
       additionalData: {
         hasAuthToken: Boolean(authToken),
-        requestId,
       },
     });
     return NextResponse.json({ error: "Unauthorized access attempt" }, { status: 401 });
@@ -58,9 +55,7 @@ export const POST = createRouteHandler({
       "Critical error in cron job runner",
       {
         operation: "cron.process_jobs.error",
-        additionalData: {
-          requestId,
-        },
+        additionalData: {},
       },
       ensureError(error),
     );
@@ -68,9 +63,9 @@ export const POST = createRouteHandler({
       {
         error: "Job processor failed",
         success: false,
-        message: error instanceof Error ? error.message : "Unknown error"
+        message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });

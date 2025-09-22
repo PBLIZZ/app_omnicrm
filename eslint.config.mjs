@@ -35,7 +35,7 @@ export default [
     languageOptions: { parser: tsParser }, // no project => cheap
     rules: {
       // debt prevention (still cheap)
-      "@typescript-eslint/no-unused-vars": ["error", { args: "all", argsIgnorePattern: "", caughtErrors: "all", varsIgnorePattern: "" }],
+      "@typescript-eslint/no-unused-vars": ["error", { args: "all", argsIgnorePattern: "^_", caughtErrors: "all", caughtErrorsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "unused-imports/no-unused-imports": "error",
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/ban-ts-comment": ["error", { "ts-ignore": true, "ts-expect-error": true, "ts-nocheck": true, "ts-check": true }],

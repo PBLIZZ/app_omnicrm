@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-// AI Insights content envelope (standardized structure)
+// ============================================================================
+// AI INSIGHTS DTO SCHEMAS - Aligned with database schema
+// ============================================================================
+
+// AI Insights content structure (stored in JSONB content column)
 export const InsightContentSchema = z.object({
   title: z.string(),
   summary: z.string(),
@@ -16,13 +20,13 @@ export const InsightContentSchema = z.object({
       }),
     )
     .optional(),
-  props: z.record(z.string(), z.unknown()).optional(), // Kind-specific payload
+  props: z.record(z.unknown()).optional(), // Kind-specific payload
   actions: z
     .array(
       z.object({
         type: z.string(),
         label: z.string(),
-        payload: z.record(z.string(), z.unknown()),
+        payload: z.record(z.unknown()),
       }),
     )
     .optional(),
@@ -31,21 +35,35 @@ export const InsightContentSchema = z.object({
   status: z.enum(["new", "viewed", "dismissed", "applied"]).default("new"),
 });
 
-// Mirror the ai_insights table structure
+// Full AI Insight schema (mirrors ai_insights table structure exactly)
 export const AIInsightSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
-  subjectType: z.string(),
+  subjectType: z.string(), // contact | segment | inbox
   subjectId: z.string().uuid().nullable(),
-  kind: z.string(),
-  content: InsightContentSchema,
+  kind: z.string(), // summary | next_step | risk | persona
+  content: z.record(z.unknown()), // JSONB field - structured LLM output
   model: z.string().nullable(),
-  createdAt: z.string().datetime(),
-  fingerprint: z.string().optional(), // Generated column
+  createdAt: z.string().datetime(), // timestamp with timezone
+  fingerprint: z.string().nullable(), // Generated in database
 });
 
+// Enhanced AI Insight schema with structured content validation
+export const AIInsightWithStructuredContentSchema = AIInsightSchema.extend({
+  content: InsightContentSchema, // Structured content for type safety
+});
+
+// Schema for creating new AI insights
 export const NewAIInsightSchema = AIInsightSchema.omit({
   id: true,
+  createdAt: true,
+  fingerprint: true,
+});
+
+// Schema for updating existing AI insights
+export const UpdateAIInsightSchema = AIInsightSchema.partial().omit({
+  id: true,
+  userId: true,
   createdAt: true,
   fingerprint: true,
 });
@@ -55,7 +73,6 @@ export const InsightSubjectType = {
   CONTACT: "contact",
   THREAD: "thread",
   ACCOUNT: "account",
-  WORKSPACE: "workspace",
   PROJECT: "project",
   TASK: "task",
   EMAIL: "email",
@@ -106,9 +123,14 @@ export const InsightKind = {
   TOPIC_TREND: "topic_trend",
 } as const;
 
+// ============================================================================
+// TYPE EXPORTS
+// ============================================================================
 
 export type AIInsight = z.infer<typeof AIInsightSchema>;
+export type AIInsightWithStructuredContent = z.infer<typeof AIInsightWithStructuredContentSchema>;
 export type NewAIInsight = z.infer<typeof NewAIInsightSchema>;
+export type UpdateAIInsight = z.infer<typeof UpdateAIInsightSchema>;
 export type InsightContent = z.infer<typeof InsightContentSchema>;
 export type InsightSubjectType = (typeof InsightSubjectType)[keyof typeof InsightSubjectType];
 export type InsightKind = (typeof InsightKind)[keyof typeof InsightKind];

@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getDb } from "@/server/db/client";
-import { contacts, momentumWorkspaces, momentumProjects, momentums } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import { contacts } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 // Import API route handlers
 import { GET as healthGet } from "@/app/api/health/route";
 import { GET as omniClientsGet, POST as omniClientsPost } from "@/app/api/omni-clients/route";
-import { GET as projectsGet } from "@/app/api/projects/route";
-import { POST as tasksPost } from "@/app/api/tasks/route";
 import { PUT as consentPut } from "@/app/api/settings/consent/route";
 
 // Import auth utilities
@@ -47,45 +45,6 @@ vi.mock("@/server/services/contacts.service", () => ({
   }),
 }));
 
-vi.mock("@/server/storage/momentum.storage", () => ({
-  MomentumStorage: vi.fn().mockImplementation(() => ({
-    getMomentumProjects: vi.fn().mockResolvedValue([
-      {
-        id: "project-1",
-        name: "Test Project",
-        status: "active",
-        momentumWorkspaceId: "workspace-1",
-      },
-    ]),
-    createMomentum: vi.fn().mockResolvedValue({
-      id: "task-1",
-      title: "Test Task",
-      status: "todo",
-      momentumWorkspaceId: "workspace-1",
-    }),
-    getMomentums: vi.fn().mockResolvedValue([]),
-    getMomentumsWithContacts: vi.fn().mockResolvedValue([]),
-    createMomentumWorkspace: vi.fn().mockResolvedValue({
-      id: "workspace-1",
-      name: "Test Workspace",
-      userId: "test-user-api-endpoints",
-    }),
-    getMomentumWorkspaces: vi.fn().mockResolvedValue([
-      {
-        id: "workspace-1",
-        name: "Test Workspace",
-        userId: "test-user-api-endpoints",
-      },
-    ]),
-    createMomentumProject: vi.fn().mockResolvedValue({
-      id: "project-1",
-      name: "Test Project",
-      momentumWorkspaceId: "workspace-1",
-      userId: "test-user-api-endpoints",
-    }),
-  })),
-}));
-
 /**
  * API Endpoints Integration Tests
  *
@@ -114,15 +73,6 @@ describe("API Endpoints Integration Tests", () => {
           case "contacts":
             await db.delete(contacts).where(eq(contacts.id, id));
             break;
-          case "momentums":
-            await db.delete(momentums).where(eq(momentums.id, id));
-            break;
-          case "momentumProjects":
-            await db.delete(momentumProjects).where(eq(momentumProjects.id, id));
-            break;
-          case "momentumWorkspaces":
-            await db.delete(momentumWorkspaces).where(eq(momentumWorkspaces.id, id));
-            break;
         }
       } catch (error) {
         console.warn(`Cleanup failed for ${table}:${id}:`, error);
@@ -134,9 +84,6 @@ describe("API Endpoints Integration Tests", () => {
   afterAll(async () => {
     // Final cleanup
     await db.delete(contacts).where(eq(contacts.userId, testUserId));
-    await db.delete(momentums).where(eq(momentums.userId, testUserId));
-    await db.delete(momentumProjects).where(eq(momentumProjects.userId, testUserId));
-    await db.delete(momentumWorkspaces).where(eq(momentumWorkspaces.userId, testUserId));
 
     vi.resetAllMocks();
   });
@@ -191,14 +138,12 @@ describe("API Endpoints Integration Tests", () => {
 
     it("lists omni clients with proper pagination", async () => {
       // Create test contact
-      await db
-        .insert(contacts)
-        .values({
-          userId: testUserId,
-          displayName: "Test Client",
-          primaryEmail: "test@example.com",
-          source: "manual",
-        });
+      await db.insert(contacts).values({
+        userId: testUserId,
+        displayName: "Test Client",
+        primaryEmail: "test@example.com",
+        source: "manual",
+      });
 
       const request = new NextRequest("http://localhost:3000/api/omni-clients?page=1&pageSize=10");
       const routeContext = { params: Promise.resolve({}) };
@@ -248,7 +193,11 @@ describe("API Endpoints Integration Tests", () => {
 
       expect(response.status).toBe(200);
       expect(data.data.items.length).toBeGreaterThanOrEqual(1);
-      expect(data.data.items.some((item: { displayName: string }) => item.displayName.includes("Searchable"))).toBe(true);
+      expect(
+        data.data.items.some((item: { displayName: string }) =>
+          item.displayName.includes("Searchable"),
+        ),
+      ).toBe(true);
     });
 
     it("creates new omni client with validation", async () => {
@@ -327,288 +276,94 @@ describe("API Endpoints Integration Tests", () => {
       }));
     });
 
-    it("lists projects for authenticated user", async () => {
-      // Create test workspace and project
-      const workspace = await db
-        .insert(momentumWorkspaces)
-        .values({
-          userId: testUserId,
-          name: "Test Workspace",
-          description: "Test workspace for API tests",
-        })
-        .returning();
-
-      if (workspace[0]) cleanupIds.push({ table: "momentumWorkspaces", id: workspace[0].id });
-
-      const project = await db
-        .insert(momentumProjects)
-        .values({
-          userId: testUserId,
-          momentumWorkspaceId: workspace[0]!.id,
-          name: "Test Project",
-          description: "Test project for API tests",
-          status: "active",
-        })
-        .returning();
-
-      if (project[0]) cleanupIds.push({ table: "momentumProjects", id: project[0].id });
-
-      const request = new NextRequest("http://localhost:3000/api/projects");
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await projectsGet(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("ok", true);
-      expect(data.data).toHaveProperty("projects");
-      expect(Array.isArray(data.data.projects)).toBe(true);
-      expect(data.data.projects.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("filters projects by workspace ID", async () => {
-      // Create workspace and project
-      const workspace = await db
-        .insert(momentumWorkspaces)
-        .values({
-          userId: testUserId,
-          name: "Filtered Workspace",
-          description: "Workspace for filtering test",
-        })
-        .returning();
-
-      if (workspace[0]) cleanupIds.push({ table: "momentumWorkspaces", id: workspace[0].id });
-
-      const project = await db
-        .insert(momentumProjects)
-        .values({
-          userId: testUserId,
-          momentumWorkspaceId: workspace[0]!.id,
-          name: "Filtered Project",
-          description: "Project for filtering test",
-          status: "active",
-        })
-        .returning();
-
-      if (project[0]) cleanupIds.push({ table: "momentumProjects", id: project[0].id });
-
-      const request = new NextRequest(
-        `http://localhost:3000/api/projects?workspaceId=${workspace[0]!.id}`,
-      );
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await projectsGet(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.data.projects.length).toBeGreaterThanOrEqual(1);
-      expect(
-        data.data.projects.every((p: { momentumWorkspaceId: string }) => p.momentumWorkspaceId === workspace[0]!.id),
-      ).toBe(true);
-    });
-  });
-
-  describe("Tasks API (/api/tasks)", () => {
-    beforeEach(() => {
-      // Mock authenticated user
-      vi.doMock("@/server/auth/user", () => ({
-        getServerUserId: vi.fn().mockResolvedValue(testUserId),
-      }));
-    });
-
-    it("creates task with automatic workspace creation", async () => {
-      const taskData = {
-        title: "Test Task",
-        description: "A test task for API testing",
-        status: "todo" as const,
-        priority: "medium" as const,
-        assignee: "user" as const,
-        source: "user" as const,
-        estimatedMinutes: 60,
-      };
-
-      const request = new NextRequest("http://localhost:3000/api/tasks", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(taskData),
-      });
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await tasksPost(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("ok", true);
-      expect(data.data).toHaveProperty("task");
-      expect(data.data.task).toHaveProperty("title", taskData.title);
-      expect(data.data.task).toHaveProperty("description", taskData.description);
-      expect(data.data.task).toHaveProperty("id");
-
-      if (data.data.task?.id) {
-        cleanupIds.push({ table: "momentums", id: data.data.task.id });
-      }
-
-      // Verify default workspace was created
-      const defaultWorkspace = await db.query.momentumWorkspaces.findFirst({
-        where: and(eq(momentumWorkspaces.userId, testUserId), eq(momentumWorkspaces.isDefault, true)),
+    describe("Settings Consent API (/api/settings/consent)", () => {
+      beforeEach(() => {
+        // Mock authenticated user
+        vi.doMock("@/server/auth/user", () => ({
+          getServerUserId: vi.fn().mockResolvedValue(testUserId),
+        }));
       });
 
-      expect(defaultWorkspace).toBeDefined();
-      if (defaultWorkspace) {
-        cleanupIds.push({ table: "momentumWorkspaces", id: defaultWorkspace.id });
-      }
-    });
+      it("updates consent settings successfully", async () => {
+        const consentData = {
+          allowProfilePictureScraping: true,
+        };
 
-    it("creates task in existing workspace", async () => {
-      // Create workspace first
-      const workspace = await db
-        .insert(momentumWorkspaces)
-        .values({
-          userId: testUserId,
-          name: "Existing Workspace",
-          description: "Pre-existing workspace",
-        })
-        .returning();
+        const request = new NextRequest("http://localhost:3000/api/settings/consent", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(consentData),
+        });
+        const routeContext = { params: Promise.resolve({}) };
 
-      if (workspace[0]) cleanupIds.push({ table: "momentumWorkspaces", id: workspace[0].id });
+        const response = await consentPut(request, routeContext);
+        const data = await response.json();
 
-      const taskData = {
-        title: "Task in Existing Workspace",
-        workspaceId: workspace[0]!.id,
-        status: "todo" as const,
-        priority: "high" as const,
-      };
-
-      const request = new NextRequest("http://localhost:3000/api/tasks", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(taskData),
+        expect(response.status).toBe(200);
+        expect(data).toHaveProperty("ok", true);
+        expect(data).toHaveProperty("data");
       });
-      const routeContext = { params: Promise.resolve({}) };
 
-      const response = await tasksPost(request, routeContext);
-      const data = await response.json();
+      it("validates consent data structure", async () => {
+        const invalidData = {
+          allowProfilePictureScraping: "not_a_boolean", // Should be boolean
+          extraField: "not_allowed", // Strict schema should reject extra fields
+        };
 
-      expect(response.status).toBe(200);
-      expect(data.data.task).toHaveProperty("momentumWorkspaceId", workspace[0]!.id);
+        const request = new NextRequest("http://localhost:3000/api/settings/consent", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(invalidData),
+        });
+        const routeContext = { params: Promise.resolve({}) };
 
-      if (data.data.task?.id) {
-        cleanupIds.push({ table: "momentums", id: data.data.task.id });
-      }
-    });
+        const response = await consentPut(request, routeContext);
+        const data = await response.json();
 
-    it("validates task creation input", async () => {
-      const invalidData = {
-        // Missing required title
-        description: "Task without title",
-        status: "invalid_status", // Invalid enum value
-      };
-
-      const request = new NextRequest("http://localhost:3000/api/tasks", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(invalidData),
+        expect(response.status).toBe(400);
+        expect(data).toHaveProperty("ok", false);
+        expect(data.error).toHaveProperty("code", "VALIDATION_ERROR");
       });
-      const routeContext = { params: Promise.resolve({}) };
 
-      const response = await tasksPost(request, routeContext);
-      const data = await response.json();
+      it("requires authentication for consent updates", async () => {
+        // Mock unauthenticated user for this test
+        mockGetServerUserId.mockRejectedValueOnce(new Error("No session"));
 
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty("ok", false);
-      expect(data.error).toHaveProperty("code", "VALIDATION_ERROR");
-      expect(data.error).toHaveProperty("details");
-      expect(data.error.details).toHaveProperty("issues");
-    });
-  });
+        const consentData = {
+          allowProfilePictureScraping: false,
+        };
 
-  describe("Settings Consent API (/api/settings/consent)", () => {
-    beforeEach(() => {
-      // Mock authenticated user
-      vi.doMock("@/server/auth/user", () => ({
-        getServerUserId: vi.fn().mockResolvedValue(testUserId),
-      }));
-    });
+        const request = new NextRequest("http://localhost:3000/api/settings/consent", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(consentData),
+        });
+        const routeContext = { params: Promise.resolve({}) };
 
-    it("updates consent settings successfully", async () => {
-      const consentData = {
-        allowProfilePictureScraping: true,
-      };
+        const response = await consentPut(request, routeContext);
+        const data = await response.json();
 
-      const request = new NextRequest("http://localhost:3000/api/settings/consent", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(consentData),
+        expect(response.status).toBe(401);
+        expect(data).toHaveProperty("ok", false);
+        expect(data.error).toHaveProperty("code", "UNAUTHORIZED");
       });
-      const routeContext = { params: Promise.resolve({}) };
 
-      const response = await consentPut(request, routeContext);
-      const data = await response.json();
+      it("handles malformed JSON gracefully", async () => {
+        const request = new NextRequest("http://localhost:3000/api/settings/consent", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: "invalid json {",
+        });
+        const routeContext = { params: Promise.resolve({}) };
 
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("ok", true);
-      expect(data).toHaveProperty("data");
-    });
+        const response = await consentPut(request, routeContext);
+        const data = await response.json();
 
-    it("validates consent data structure", async () => {
-      const invalidData = {
-        allowProfilePictureScraping: "not_a_boolean", // Should be boolean
-        extraField: "not_allowed", // Strict schema should reject extra fields
-      };
-
-      const request = new NextRequest("http://localhost:3000/api/settings/consent", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(invalidData),
+        expect(response.status).toBe(400);
+        expect(data).toHaveProperty("ok", false);
+        expect(data.error).toHaveProperty("code", "VALIDATION_ERROR");
+        expect(data.error.message).toContain("Invalid JSON");
       });
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await consentPut(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty("ok", false);
-      expect(data.error).toHaveProperty("code", "VALIDATION_ERROR");
-    });
-
-    it("requires authentication for consent updates", async () => {
-      // Mock unauthenticated user for this test
-      mockGetServerUserId.mockRejectedValueOnce(new Error("No session"));
-
-      const consentData = {
-        allowProfilePictureScraping: false,
-      };
-
-      const request = new NextRequest("http://localhost:3000/api/settings/consent", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(consentData),
-      });
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await consentPut(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(401);
-      expect(data).toHaveProperty("ok", false);
-      expect(data.error).toHaveProperty("code", "UNAUTHORIZED");
-    });
-
-    it("handles malformed JSON gracefully", async () => {
-      const request = new NextRequest("http://localhost:3000/api/settings/consent", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: "invalid json {",
-      });
-      const routeContext = { params: Promise.resolve({}) };
-
-      const response = await consentPut(request, routeContext);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty("ok", false);
-      expect(data.error).toHaveProperty("code", "VALIDATION_ERROR");
-      expect(data.error.message).toContain("Invalid JSON");
     });
   });
 });

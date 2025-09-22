@@ -1,7 +1,6 @@
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
 import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
 import { z } from "zod";
 
 const querySchema = z.object({
@@ -13,8 +12,7 @@ const querySchema = z.object({
 export const GET = createRouteHandler({
   rateLimit: { operation: "storage_file_url" },
   validation: { query: querySchema },
-})(async ({ validated, requestId }) => {
-
+})(async ({ validated }) => {
   try {
     const { filePath } = validated.query;
 
@@ -29,7 +27,10 @@ export const GET = createRouteHandler({
     const pathInBucket = rest.join("/");
 
     if (!bucket || !pathInBucket) {
-      return apiError("filePath must be of the form 'bucket/path/to/file'", "VALIDATION_ERROR");
+      return NextResponse.json(
+        { error: "filePath must be of the form 'bucket/path/to/file'" },
+        { status: 400 },
+      );
     }
 
     const client = supabaseServerAdmin ?? supabaseServerPublishable;
@@ -42,8 +43,8 @@ export const GET = createRouteHandler({
       return NextResponse.json({ error: "failed_to_create_signed_url" }, { status: 500 });
     }
     return NextResponse.json({ signedUrl: data?.signedUrl ?? null });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+  } catch (error) {
+    console.error("Error creating signed URL:", error);
     return NextResponse.json({ error: "unexpected_error" }, { status: 500 });
   }
 });

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { ClientEnrichmentService } from "@/server/services/client-enrichment.service";
 
 /**
@@ -9,15 +9,9 @@ import { ClientEnrichmentService } from "@/server/services/client-enrichment.ser
  * Supports both standard and streaming responses
  */
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_enrich" },
-})(async ({ userId, requestId }, request) => {
-  if (!userId) {
-    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-  }
-
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
     const url = new URL(request.url);
     const isStreaming = url.searchParams.get("stream") === "true";
 
@@ -28,7 +22,9 @@ export const POST = createRouteHandler({
       const stream = new ReadableStream({
         async start(controller) {
           try {
-            for await (const progress of ClientEnrichmentService.enrichAllClientsStreaming(userId)) {
+            for await (const progress of ClientEnrichmentService.enrichAllClientsStreaming(
+              userId,
+            )) {
               const progressData = JSON.stringify(progress);
               controller.enqueue(encoder.encode(`data: ${progressData}\n\n`));
             }
@@ -58,8 +54,7 @@ export const POST = createRouteHandler({
       return NextResponse.json(result);
     }
   } catch (error) {
-    return NextResponse.json({
-      error: "Failed to enrich omni clients"
-    }, { status: 500 });
+    console.error("POST /api/omni-clients/enrich error:", error);
+    return NextResponse.json({ error: "Failed to enrich omni clients" }, { status: 500 });
   }
-});
+}

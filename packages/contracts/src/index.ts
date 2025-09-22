@@ -78,17 +78,6 @@ export {
   TaskPrioritySchema,
   GoalTypeSchema,
   GoalStatusSchema,
-  // Legacy aliases for backward compatibility
-  MomentumWorkspaceDTOSchema,
-  MomentumProjectDTOSchema,
-  MomentumDTOSchema,
-  CreateMomentumWorkspaceDTOSchema,
-  CreateMomentumProjectDTOSchema,
-  CreateMomentumDTOSchema,
-  UpdateMomentumWorkspaceDTOSchema,
-  UpdateMomentumProjectDTOSchema,
-  UpdateMomentumDTOSchema,
-  WorkspaceDTOSchema,
   type ProjectDTO,
   type TaskDTO,
   type TaskWithRelationsDTO,
@@ -112,17 +101,6 @@ export {
   type TaskPriority,
   type GoalType,
   type GoalStatus,
-  // Legacy aliases for backward compatibility
-  type MomentumWorkspaceDTO,
-  type MomentumProjectDTO,
-  type MomentumDTO,
-  type CreateMomentumWorkspaceDTO,
-  type CreateMomentumProjectDTO,
-  type CreateMomentumDTO,
-  type UpdateMomentumWorkspaceDTO,
-  type UpdateMomentumProjectDTO,
-  type UpdateMomentumDTO,
-  type WorkspaceDTO,
 } from "./momentum";
 
 // User Integration Domain
@@ -234,28 +212,22 @@ export {
   ZoneDTOSchema,
   CreateZoneDTOSchema,
   UpdateZoneDTOSchema,
+  ZoneWithStatsDTOSchema,
   type ZoneDTO,
   type CreateZoneDTO,
   type UpdateZoneDTO,
+  type ZoneWithStatsDTO,
 } from "./zones";
 
 // Common Types
 export type UUID = string;
-export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
-
-// API Response Envelopes
-export type OkEnvelope<T> = {
-  ok: true;
-  data: T;
-};
-
-export type ErrorEnvelope = {
-  ok: false;
-  error: string;
-  details?: unknown;
-};
-
-export type ApiResponse<T> = OkEnvelope<T> | ErrorEnvelope;
+export type JSONValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JSONValue[]
+  | { [key: string]: JSONValue };
 
 // Pagination Types
 export type PaginationParams = {
@@ -298,13 +270,11 @@ export type InteractionFilters = {
   occurredBefore?: Date;
 };
 
-
 export type MomentumFilters = {
   search?: string;
   status?: string[];
   priority?: string[];
   assignee?: string[];
-  workspaceId?: string;
   projectId?: string;
   dueAfter?: Date;
   dueBefore?: Date;

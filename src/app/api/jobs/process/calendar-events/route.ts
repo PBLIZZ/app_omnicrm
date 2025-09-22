@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { JobCreationService } from "@/server/services/job-creation.service";
 import { logger } from "@/lib/observability/unified-logger";
 import { ensureError } from "@/lib/utils/error-handler";
@@ -9,12 +8,10 @@ import { ensureError } from "@/lib/utils/error-handler";
  * Manual processor for calendar_events transformation
  * Development only - creates normalize jobs for Google Calendar events
  */
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "manual_job_process" },
-})(async ({ userId, requestId }) => {
-
+export async function POST(_: NextRequest): Promise<NextResponse> {
+  let userId: string | undefined;
   try {
+    userId = await getServerUserId();
     const result = await JobCreationService.createCalendarEventJobs(userId);
 
     return NextResponse.json({
@@ -22,8 +19,8 @@ export const POST = createRouteHandler({
       processed: result.processed,
       totalCalendarEvents: result.totalItems,
     });
-
   } catch (error) {
+    console.error("POST /api/jobs/process/calendar-events error:", error);
     await logger.error(
       "Failed to process calendar events",
       {
@@ -35,11 +32,6 @@ export const POST = createRouteHandler({
       ensureError(error),
     );
 
-    return apiError(
-      "Failed to process calendar events",
-      "INTERNAL_ERROR",
-      { message: error instanceof Error ? error.message : "Unknown error" },
-      ensureError(error),
-    );
+    return NextResponse.json({ error: "Failed to process calendar events" }, { status: 500 });
   }
-});
+}

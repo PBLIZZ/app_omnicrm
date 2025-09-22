@@ -29,18 +29,15 @@ describe('Client Contacts Service', () => {
   describe('fetchContacts', () => {
     it('should fetch contacts with default parameters', async () => {
       const mockResponse = {
-        ok: true,
-        data: {
-          items: [
-            {
-              id: 'contact-1',
-              displayName: 'John Doe',
-              primaryEmail: 'john@example.com',
-              createdAt: '2024-01-01T00:00:00Z',
-            },
-          ],
-          total: 1,
-        },
+        items: [
+          {
+            id: 'contact-1',
+            displayName: 'John Doe',
+            primaryEmail: 'john@example.com',
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+        ],
+        total: 1,
       };
 
       mockFetch.mockResolvedValue({
@@ -57,14 +54,11 @@ describe('Client Contacts Service', () => {
           headers: { 'x-csrf-token': 'test-csrf-token' },
         }
       );
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual(mockResponse);
     });
 
     it('should build URL with search parameters', async () => {
-      const mockResponse = {
-        ok: true,
-        data: { items: [], total: 0 },
-      };
+      const mockResponse = { items: [], total: 0 };
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -110,7 +104,6 @@ describe('Client Contacts Service', () => {
 
     it('should handle malformed JSON response', async () => {
       const mockResponse = {
-        ok: false,
         error: 'Invalid request',
       };
 
@@ -126,14 +119,11 @@ describe('Client Contacts Service', () => {
   describe('createContact', () => {
     it('should create contact with valid input', async () => {
       const mockResponse = {
-        ok: true,
-        data: {
           id: 'contact-1',
           displayName: 'Jane Smith',
           primaryEmail: 'jane@example.com',
           source: 'manual',
-        },
-      };
+        };
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -156,19 +146,16 @@ describe('Client Contacts Service', () => {
         },
         body: JSON.stringify({ ...input, source: 'manual' }),
       });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('updateContact', () => {
     it('should update contact with valid input', async () => {
       const mockResponse = {
-        ok: true,
-        data: {
-          id: 'contact-1',
-          displayName: 'John Updated',
-          primaryEmail: 'john.updated@example.com',
-        },
+        id: 'contact-1',
+        displayName: 'John Updated',
+        primaryEmail: 'john.updated@example.com',
       };
 
       mockFetch.mockResolvedValue({
@@ -192,16 +179,13 @@ describe('Client Contacts Service', () => {
         },
         body: JSON.stringify(input),
       });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('deleteContacts', () => {
     it('should delete multiple contacts', async () => {
-      const mockResponse = {
-        ok: true,
-        data: { deleted: 2 },
-      };
+      const mockResponse = { deleted: 2 };
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -227,12 +211,9 @@ describe('Client Contacts Service', () => {
   describe('fetchContact', () => {
     it('should fetch single contact by ID', async () => {
       const mockResponse = {
-        ok: true,
-        data: {
-          id: 'contact-1',
-          displayName: 'John Doe',
-          primaryEmail: 'john@example.com',
-        },
+        id: 'contact-1',
+        displayName: 'John Doe',
+        primaryEmail: 'john@example.com',
       };
 
       mockFetch.mockResolvedValue({
@@ -246,7 +227,7 @@ describe('Client Contacts Service', () => {
         credentials: 'same-origin',
         headers: { 'x-csrf-token': 'test-csrf-token' },
       });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual(mockResponse);
     });
   });
 
@@ -258,10 +239,7 @@ describe('Client Contacts Service', () => {
         value: '',
       });
 
-      const mockResponse = {
-        ok: true,
-        data: { items: [], total: 0 },
-      };
+      const mockResponse = { items: [], total: 0 };
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -284,10 +262,7 @@ describe('Client Contacts Service', () => {
         value: 'other=value; csrf=my-csrf-token; another=value',
       });
 
-      const mockResponse = {
-        ok: true,
-        data: { items: [], total: 0 },
-      };
+      const mockResponse = { items: [], total: 0 };
 
       mockFetch.mockResolvedValue({
         ok: true,

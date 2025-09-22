@@ -7,38 +7,34 @@
  * - /api/jobs/status
  */
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError } from "@/server/api/response";
+import { getServerUserId } from "@/server/auth/user";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { userIntegrations, rawEvents, syncAudit, jobs } from "@/server/db/schema";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
-import { ensureError } from "@/lib/utils/error-handler";
 import type {
   OmniConnectDashboardState,
   JobStatusResponse,
   ConnectConnectionStatus,
 } from "@/app/(authorisedRoute)/omni-connect/_components/types";
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_connect_dashboard" },
-})(async ({ userId, requestId }) => {
-
+export async function GET(): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
     const db = await getDb();
 
     // Run all data fetching operations in parallel for optimal performance
-    const [connectionData, syncStatusData, activeJobsData] = await Promise.all([
+    const [connectionData, syncStatusData, activeJobsData, emailPreviewData] = await Promise.all([
       getGmailConnectionStatus(db, userId),
       getSyncStatus(db, userId),
       getActiveJobs(db, userId),
+      getEmailPreview(db, userId), // Add email preview data
     ]);
 
     const dashboardState: OmniConnectDashboardState = {
       connection: connectionData,
       syncStatus: syncStatusData,
-      emailPreview: { emails: [], range: null }, // No preview needed
+      emailPreview: emailPreviewData, // Use actual email preview data
       activeJobs: activeJobsData,
       jobs: {
         active: activeJobsData.jobs,
@@ -60,15 +56,76 @@ export const GET = createRouteHandler({
     };
 
     return NextResponse.json(dashboardState);
-  } catch (error) {
-    return apiError(
-      "Failed to load dashboard data",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to load dashboard data" },
+      { status: 500 }
     );
   }
-});
+}
+
+// Helper function to get email preview from recent Gmail interactions
+async function getEmailPreview(
+  db: Awaited<ReturnType<typeof getDb>>,
+  userId: string,
+): Promise<{ emails: any[]; range: { from: string; to: string } | null; previewRange: { from: string; to: string } | null }> {
+  try {
+    // Get recent Gmail raw events to show as email previews
+    const recentEmails = await db
+      .select({
+        id: rawEvents.id,
+        sourceId: rawEvents.sourceId,
+        payload: rawEvents.payload,
+        occurredAt: rawEvents.occurredAt,
+        createdAt: rawEvents.createdAt,
+      })
+      .from(rawEvents)
+      .where(
+        and(
+          eq(rawEvents.userId, userId),
+          eq(rawEvents.provider, "gmail")
+        )
+      )
+      .orderBy(desc(rawEvents.occurredAt))
+      .limit(10);
+
+    // Transform raw events into email preview format
+    const emails = recentEmails.map((event) => {
+      const payload = event.payload as any;
+      const message = payload?.message || {};
+
+      return {
+        id: event.sourceId || event.id,
+        subject: message.subject || "No Subject",
+        from: message.from || "Unknown Sender",
+        date: event.occurredAt?.toISOString() || event.createdAt?.toISOString() || new Date().toISOString(),
+        snippet: message.snippet || message.bodyText || "",
+        labels: message.labels || [],
+        hasAttachments: Boolean(message.attachments && message.attachments.length > 0),
+      };
+    });
+
+    // Calculate preview range if we have emails
+    let range = null;
+    let previewRange = null;
+    if (emails.length > 0) {
+      const dates = emails.map(e => new Date(e.date)).sort((a, b) => a.getTime() - b.getTime());
+      const firstDate = dates[0];
+      const lastDate = dates[dates.length - 1];
+      if (firstDate && lastDate) {
+        const from = firstDate.toISOString();
+        const to = lastDate.toISOString();
+        range = { from, to };
+        previewRange = { from, to };
+      }
+    }
+
+    return { emails, range, previewRange };
+  } catch (error) {
+    console.error("Failed to get email preview:", error);
+    return { emails: [], range: null, previewRange: null };
+  }
+}
 
 // Helper function to get Gmail connection status (reuses existing logic)
 async function getGmailConnectionStatus(

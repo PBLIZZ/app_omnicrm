@@ -37,7 +37,7 @@ export interface EmbedJobPayload {
 }
 
 export interface InsightJobPayload {
-  subjectType?: "contact" | "segment" | "inbox" | "workspace";
+  subjectType?: "contact" | "segment" | "inbox";
   subjectId?: string;
   kind?:
     | "summary"

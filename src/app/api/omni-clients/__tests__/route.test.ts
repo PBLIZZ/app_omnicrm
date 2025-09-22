@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET, POST } from '../route';
 import * as contactsService from '@/server/services/contacts.service';
 import * as omniClientsAdapters from '@/server/adapters/omniClients';
+import * as authUser from '@/server/auth/user';
 import {
   setupRepoMocks,
   resetRepoMocks,
@@ -16,21 +17,21 @@ import {
 // Mock service layer (keeping existing pattern since this is API route test)
 vi.mock('@/server/services/contacts.service');
 vi.mock('@/server/adapters/omniClients');
-vi.mock('@/server/api/handler', () => ({
-  createRouteHandler: (config: unknown) => (handler: unknown) => handler,
-}));
+vi.mock('@/server/auth/user');
 
 describe('/api/omni-clients API Routes', () => {
   let fakes: AllRepoFakes;
   let scenarios: ReturnType<typeof configureCommonScenarios>;
   const mockUserId = testUtils.defaultUserId;
-  const mockRequestId = 'req-456';
 
   beforeEach(() => {
     vi.clearAllMocks();
     fakes = setupRepoMocks();
     scenarios = configureCommonScenarios(fakes);
     resetRepoMocks(fakes);
+
+    // Mock authentication
+    vi.mocked(authUser.getServerUserId).mockResolvedValue(mockUserId);
   });
 
   describe('GET /api/omni-clients', () => {
@@ -73,20 +74,10 @@ describe('/api/omni-clients API Routes', () => {
       vi.mocked(contactsService.listContactsService).mockResolvedValue(mockContactsResult);
       vi.mocked(omniClientsAdapters.toOmniClientsWithNotes).mockReturnValue(mockOmniClients);
 
-      const mockContext = {
-        userId: mockUserId,
-        validated: {
-          query: {
-            page: 1,
-            pageSize: 50,
-            sort: 'displayName',
-            order: 'asc',
-          },
-        },
-        requestId: mockRequestId,
-      };
+      // Create NextRequest object
+      const request = new Request('http://localhost:3000/api/omni-clients?page=1&pageSize=50&sort=displayName&order=asc');
 
-      const response = await GET(mockContext as any);
+      const response = await GET(request as any);
 
       expect(contactsService.listContactsService).toHaveBeenCalledWith(mockUserId, {
         sort: 'displayName',
@@ -96,6 +87,14 @@ describe('/api/omni-clients API Routes', () => {
       });
       expect(omniClientsAdapters.toOmniClientsWithNotes).toHaveBeenCalledWith(mockContactsResult.items);
       expect(response).toBeDefined();
+
+      // Verify response structure
+      const json = await response.json();
+      expect(json).toEqual({
+        items: mockOmniClients,
+        total: 1,
+        nextCursor: null,
+      });
     });
 
     it('should handle search parameter', async () => {
@@ -105,21 +104,10 @@ describe('/api/omni-clients API Routes', () => {
       vi.mocked(contactsService.listContactsService).mockResolvedValue(mockContactsResult);
       vi.mocked(omniClientsAdapters.toOmniClientsWithNotes).mockReturnValue(mockOmniClients);
 
-      const mockContext = {
-        userId: mockUserId,
-        validated: {
-          query: {
-            search: 'john',
-            page: 1,
-            pageSize: 25,
-            sort: 'displayName',
-            order: 'asc',
-          },
-        },
-        requestId: mockRequestId,
-      };
+      // Create NextRequest object with search parameter
+      const request = new Request('http://localhost:3000/api/omni-clients?search=john&page=1&pageSize=25&sort=displayName&order=asc');
 
-      await GET(mockContext as any);
+      await GET(request as any);
 
       expect(contactsService.listContactsService).toHaveBeenCalledWith(mockUserId, {
         sort: 'displayName',
@@ -133,21 +121,19 @@ describe('/api/omni-clients API Routes', () => {
     it('should handle service errors gracefully', async () => {
       vi.mocked(contactsService.listContactsService).mockRejectedValue(new Error('Database error'));
 
-      const mockContext = {
-        userId: mockUserId,
-        validated: {
-          query: {
-            page: 1,
-            pageSize: 50,
-          },
-        },
-        requestId: mockRequestId,
-      };
+      // Create NextRequest object
+      const request = new Request('http://localhost:3000/api/omni-clients?page=1&pageSize=50');
 
-      const response = await GET(mockContext as any);
+      const response = await GET(request as any);
 
       expect(response).toBeDefined();
-      // Should return error response from ApiResponseBuilder
+      expect(response.status).toBe(500);
+
+      const json = await response.json();
+      expect(json).toEqual({
+        error: 'Failed to fetch omni clients',
+        details: 'Database error'
+      });
     });
   });
 
@@ -191,24 +177,31 @@ describe('/api/omni-clients API Routes', () => {
       vi.mocked(contactsService.createContactService).mockResolvedValue(mockCreatedContact);
       vi.mocked(omniClientsAdapters.toOmniClient).mockReturnValue(mockOmniClient);
 
-      const mockContext = {
-        userId: mockUserId,
-        validated: {
-          body: {
-            displayName: 'Jane Smith',
-            primaryEmail: 'jane@example.com',
-            primaryPhone: '+1987654321',
-          },
-        },
-        requestId: mockRequestId,
-      };
+      // Create NextRequest object with JSON body
+      const request = new Request('http://localhost:3000/api/omni-clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: 'Jane Smith',
+          primaryEmail: 'jane@example.com',
+          primaryPhone: '+1987654321',
+        }),
+      });
 
-      const response = await POST(mockContext as any);
+      const response = await POST(request as any);
 
-      expect(omniClientsAdapters.fromOmniClientInput).toHaveBeenCalledWith(mockContext.validated.body);
+      expect(omniClientsAdapters.fromOmniClientInput).toHaveBeenCalledWith({
+        displayName: 'Jane Smith',
+        primaryEmail: 'jane@example.com',
+        primaryPhone: '+1987654321',
+      });
       expect(contactsService.createContactService).toHaveBeenCalledWith(mockUserId, mockContactInput);
       expect(omniClientsAdapters.toOmniClient).toHaveBeenCalledWith(mockCreatedContact);
       expect(response).toBeDefined();
+      expect(response.status).toBe(201);
+
+      const json = await response.json();
+      expect(json).toEqual({ item: mockOmniClient });
     });
 
     it('should handle creation failure', async () => {
@@ -220,21 +213,25 @@ describe('/api/omni-clients API Routes', () => {
       vi.mocked(omniClientsAdapters.fromOmniClientInput).mockReturnValue(mockContactInput);
       vi.mocked(contactsService.createContactService).mockResolvedValue(null);
 
-      const mockContext = {
-        userId: mockUserId,
-        validated: {
-          body: {
-            displayName: 'Failed Contact',
-          },
-        },
-        requestId: mockRequestId,
-      };
+      // Create NextRequest object
+      const request = new Request('http://localhost:3000/api/omni-clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: 'Failed Contact',
+        }),
+      });
 
-      const response = await POST(mockContext as any);
+      const response = await POST(request as any);
 
       expect(contactsService.createContactService).toHaveBeenCalledWith(mockUserId, mockContactInput);
       expect(response).toBeDefined();
-      // Should return error response from ApiResponseBuilder
+      expect(response.status).toBe(500);
+
+      const json = await response.json();
+      expect(json).toEqual({
+        error: 'Failed to create client'
+      });
     });
 
     it('should handle service errors during creation', async () => {
@@ -246,20 +243,25 @@ describe('/api/omni-clients API Routes', () => {
       vi.mocked(omniClientsAdapters.fromOmniClientInput).mockReturnValue(mockContactInput);
       vi.mocked(contactsService.createContactService).mockRejectedValue(new Error('Database error'));
 
-      const mockContext = {
-        userId: mockUserId,
-        validated: {
-          body: {
-            displayName: 'Error Contact',
-          },
-        },
-        requestId: mockRequestId,
-      };
+      // Create NextRequest object
+      const request = new Request('http://localhost:3000/api/omni-clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: 'Error Contact',
+        }),
+      });
 
-      const response = await POST(mockContext as any);
+      const response = await POST(request as any);
 
       expect(response).toBeDefined();
-      // Should return error response from ApiResponseBuilder
+      expect(response.status).toBe(500);
+
+      const json = await response.json();
+      expect(json).toEqual({
+        error: 'Failed to create omni client',
+        details: 'Database error'
+      });
     });
   });
 });

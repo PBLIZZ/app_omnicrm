@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { BulkDeleteBodySchema } from "@/lib/validation/schemas/omniClients";
 import { ContactsRepository } from "@repo";
 import { logger } from "@/lib/observability";
@@ -11,13 +11,26 @@ import { logger } from "@/lib/observability";
  * Uses existing contacts table with UI terminology transformation
  */
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_bulk_delete" },
-  validation: { body: BulkDeleteBodySchema },
-})(async ({ userId, validated, requestId }) => {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const { ids } = validated.body;
+    const userId = await getServerUserId();
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+
+    const validation = BulkDeleteBodySchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Validation failed",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    const { ids } = validation.data;
 
     // Delete contacts using repository
     const deletedCount = await ContactsRepository.deleteContactsByIds(userId, ids);
@@ -43,22 +56,29 @@ export const POST = createRouteHandler({
       message: `Successfully deleted ${deletedCount} client${deletedCount === 1 ? "" : "s"}`,
     });
   } catch (error) {
+    console.error("POST /api/omni-clients/bulk-delete error:", error);
+
+    // Try to get userId for logging, but don't fail if we can't
+    let userIdForLogging = "unknown";
+    try {
+      const userId = await getServerUserId();
+      userIdForLogging = userId.slice(0, 8) + "...";
+    } catch (_) {
+      // Ignore auth errors in error handler
+    }
+
     await logger.error(
       "Failed to bulk delete OmniClients",
       {
         operation: "omni_clients_bulk_delete",
         additionalData: {
-          userId: userId.slice(0, 8) + "...",
-          requestedIds: validated.body?.ids?.length ?? 0,
+          userId: userIdForLogging,
           errorType: error instanceof Error ? error.constructor.name : typeof error,
         },
       },
       error instanceof Error ? error : undefined,
     );
 
-    return NextResponse.json(
-      { error: "Failed to delete clients" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete clients" }, { status: 500 });
   }
-});
+}

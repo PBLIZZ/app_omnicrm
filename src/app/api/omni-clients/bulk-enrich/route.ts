@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { BulkDeleteBodySchema } from "@/lib/validation/schemas/omniClients";
 import { ClientEnrichmentService } from "@/server/services/client-enrichment.service";
 
@@ -10,20 +10,31 @@ import { ClientEnrichmentService } from "@/server/services/client-enrichment.ser
  * Uses existing contacts table with UI terminology transformation
  */
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_bulk_enrich" },
-  validation: { body: BulkDeleteBodySchema },
-})(async ({ userId, validated, requestId }) => {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const { ids } = validated.body;
+    const userId = await getServerUserId();
 
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+
+    const validation = BulkDeleteBodySchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Validation failed",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    const { ids } = validation.data;
     const result = await ClientEnrichmentService.enrichClientsByIds(userId, ids);
 
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({
-      error: "Failed to enrich clients"
-    }, { status: 500 });
+    console.error("POST /api/omni-clients/bulk-enrich error:", error);
+    return NextResponse.json({ error: "Failed to enrich clients" }, { status: 500 });
   }
-});
+}

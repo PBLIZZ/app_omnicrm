@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 
-export const GET = createRouteHandler({
-  auth: false,
-  rateLimit: { operation: "health_check" },
-})(async ({ requestId }) => {
+export async function GET(): Promise<NextResponse> {
   // Minimal self-check: if DB is configured, attempt a quick ping without blocking the response
   let dbOk: boolean | undefined = undefined;
   if (process.env["DATABASE_URL"]) {
@@ -21,4 +17,4 @@ export const GET = createRouteHandler({
     }
   }
   return NextResponse.json({ ts: new Date().toISOString(), db: dbOk });
-});
+}

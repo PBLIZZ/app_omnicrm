@@ -25,7 +25,7 @@ type InsightKind =
   | "weekly_digest"
   | "lead_score"
   | "duplicate_contact_suspected";
-type InsightSubjectType = "contact" | "segment" | "inbox" | "workspace";
+type InsightSubjectType = "contact" | "segment" | "inbox";
 
 // Generated insight structure from insight-writer
 export interface GeneratedInsight {
@@ -147,7 +147,7 @@ export class InsightWriter {
   async generateWeeklyDigest(userId: string): Promise<string | null> {
     const task: InsightGenerationTask = {
       userId,
-      subjectType: "workspace",
+      subjectType: "inbox",
       subjectId: null,
       kind: "weekly_digest",
     };

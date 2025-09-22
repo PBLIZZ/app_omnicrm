@@ -60,8 +60,8 @@ vi.mock("next/navigation", () => ({
 
 // Mock fetch globally with smart response handling
 global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
-  // Default successful response structure
-  const defaultResponse = { ok: true, data: {} };
+  // Default successful response structure (direct JSON)
+  const defaultResponse = {};
 
   // Handle specific API endpoints
   if (typeof url === "string") {
@@ -69,24 +69,24 @@ global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) =
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ ok: true, data: { id: "new-contact" } }),
-        text: () => Promise.resolve(JSON.stringify({ ok: true, data: { id: "new-contact" } })),
+        json: () => Promise.resolve({ id: "new-contact" }),
+        text: () => Promise.resolve(JSON.stringify({ id: "new-contact" })),
       });
     }
     if (url.includes("/api/contacts/enrich")) {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ ok: true, data: { enriched: true } }),
-        text: () => Promise.resolve(JSON.stringify({ ok: true, data: { enriched: true } })),
+        json: () => Promise.resolve({ enriched: true }),
+        text: () => Promise.resolve(JSON.stringify({ enriched: true })),
       });
     }
     if (url.includes("/api/contacts/suggestions")) {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ ok: true, data: { created: 1 } }),
-        text: () => Promise.resolve(JSON.stringify({ ok: true, data: { created: 1 } })),
+        json: () => Promise.resolve({ created: 1 }),
+        text: () => Promise.resolve(JSON.stringify({ created: 1 })),
       });
     }
   }
@@ -162,19 +162,6 @@ vi.mock("drizzle-orm/postgres-js", () => ({
       }),
       // Add Drizzle query API support
       query: {
-        momentumWorkspaces: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: "default-workspace",
-            name: "Default Workspace",
-            userId: "test-user",
-            isDefault: true,
-          }),
-          findMany: vi.fn().mockResolvedValue([]),
-        },
-        momentumProjects: {
-          findFirst: vi.fn().mockResolvedValue(null),
-          findMany: vi.fn().mockResolvedValue([]),
-        },
         contacts: {
           findFirst: vi.fn().mockResolvedValue(null),
           findMany: vi.fn().mockResolvedValue([]),

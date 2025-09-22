@@ -44,34 +44,6 @@ export const createMockNote = (overrides = {}): typeof baseMockNote & typeof ove
   ...overrides,
 });
 
-const baseMockMomentum = {
-  id: "momentum-1",
-  userId: "user-1",
-  momentumWorkspaceId: "workspace-1",
-  momentumProjectId: "project-1",
-  parentMomentumId: null,
-  title: "Follow up with John",
-  description: "Schedule next session",
-  status: "todo" as const,
-  priority: "medium" as const,
-  assignee: "user" as const,
-  source: "user" as const,
-  approvalStatus: "approved" as const,
-  taggedContacts: ["contact-1"],
-  dueDate: "2024-01-15T00:00:00Z",
-  completedAt: null,
-  estimatedMinutes: 30,
-  actualMinutes: null,
-  aiContext: null,
-  createdAt: "2024-01-01T00:00:00Z",
-  updatedAt: "2024-01-01T00:00:00Z",
-};
-
-export const createMockMomentum = (overrides = {}): typeof baseMockMomentum & typeof overrides => ({
-  ...baseMockMomentum,
-  ...overrides,
-});
-
 const baseMockAiInsight = {
   id: "insight-1",
   userId: "user-1",
@@ -88,7 +60,9 @@ const baseMockAiInsight = {
   fingerprint: "abc123",
 };
 
-export const createMockAiInsight = (overrides = {}): typeof baseMockAiInsight & typeof overrides => ({
+export const createMockAiInsight = (
+  overrides = {},
+): typeof baseMockAiInsight & typeof overrides => ({
   ...baseMockAiInsight,
   ...overrides,
 });
@@ -124,38 +98,37 @@ interface CustomRenderOptions extends Omit<RenderOptions, "wrapper"> {
   queryClient?: QueryClient;
 }
 
-export const renderWithProviders = (ui: ReactElement, options: CustomRenderOptions = {}): ReturnType<typeof render> => {
+export const renderWithProviders = (
+  ui: ReactElement,
+  options: CustomRenderOptions = {},
+): ReturnType<typeof render> => {
   const { queryClient, ...renderOptions } = options;
 
   return render(ui, {
-    wrapper: ({ children }) => <TestWrapper queryClient={queryClient || new QueryClient()}>{children}</TestWrapper>,
+    wrapper: ({ children }) => (
+      <TestWrapper queryClient={queryClient || new QueryClient()}>{children}</TestWrapper>
+    ),
     ...renderOptions,
   });
 };
 
-// Mock API responses
+// Mock API responses (direct JSON, no envelope)
 export const mockApiResponses = {
   contacts: {
-    list: { ok: true, data: [createMockContact()] },
-    create: { ok: true, data: createMockContact() },
-    update: { ok: true, data: createMockContact() },
-    delete: { ok: true, data: { success: true } },
+    list: [createMockContact()],
+    create: createMockContact(),
+    update: createMockContact(),
+    delete: { success: true },
   },
   notes: {
-    list: { ok: true, data: { notes: [createMockNote()] } },
-    create: { ok: true, data: createMockNote() },
-    update: { ok: true, data: createMockNote() },
-    delete: { ok: true, data: { success: true } },
-  },
-  momentum: {
-    list: { ok: true, data: [createMockMomentum()] },
-    create: { ok: true, data: createMockMomentum() },
-    update: { ok: true, data: createMockMomentum() },
-    delete: { ok: true, data: { success: true } },
+    list: { notes: [createMockNote()] },
+    create: createMockNote(),
+    update: createMockNote(),
+    delete: { success: true },
   },
   insights: {
-    list: { ok: true, data: [createMockAiInsight()] },
-    generate: { ok: true, data: createMockAiInsight() },
+    list: [createMockAiInsight()],
+    generate: createMockAiInsight(),
   },
 };
 
@@ -170,7 +143,7 @@ export const createMockUseMutation = (
   isError: options.isError || false,
   isSuccess: !options.isPending && !options.isError,
   error: options.error || null,
-  data: options.isError ? null : { ok: true, data: {} },
+  data: options.isError ? null : {},
   reset: vi.fn(),
   status: options.isPending ? "pending" : options.isError ? "error" : "success",
 });
@@ -206,13 +179,18 @@ export const getByTestId = (container: HTMLElement, testId: string): Element => 
 };
 
 // User event helpers
-export const createUserEvent = async (): Promise<ReturnType<typeof import('@testing-library/user-event').default.setup>> => {
+export const createUserEvent = async (): Promise<
+  ReturnType<typeof import("@testing-library/user-event").default.setup>
+> => {
   const userEvent = await import("@testing-library/user-event");
   return userEvent.default.setup();
 };
 
 // Form testing utilities
-export const fillForm = async (form: HTMLFormElement, data: Record<string, string>): Promise<void> => {
+export const fillForm = async (
+  form: HTMLFormElement,
+  data: Record<string, string>,
+): Promise<void> => {
   const user = await createUserEvent();
 
   for (const [field, value] of Object.entries(data)) {
@@ -238,7 +216,12 @@ export const waitForLoadingToFinish = async (): Promise<void> => {
 };
 
 // Mock localStorage
-export const mockLocalStorage = (): { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn>; removeItem: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn> } => {
+export const mockLocalStorage = (): {
+  getItem: ReturnType<typeof vi.fn>;
+  setItem: ReturnType<typeof vi.fn>;
+  removeItem: ReturnType<typeof vi.fn>;
+  clear: ReturnType<typeof vi.fn>;
+} => {
   const store: Record<string, string> = {};
 
   return {
@@ -288,7 +271,7 @@ export const testDb = Object.assign(
     del: vi.fn().mockResolvedValue(1),
     insert: vi.fn().mockResolvedValue([{ id: 1 }]),
     update: vi.fn().mockResolvedValue(1),
-  }
+  },
 );
 
 // Re-export common testing library utilities

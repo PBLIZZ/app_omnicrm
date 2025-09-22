@@ -1,5 +1,5 @@
 import { getDb, type DbClient } from "@repo";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { PgTable, PgColumn } from "drizzle-orm/pg-core";
 import {
   contacts,
@@ -20,10 +20,12 @@ import {
   notes,
   calendarEvents,
   contactTimeline,
-  momentumWorkspaces,
-  momentumProjects,
-  momentums,
-  momentumActions,
+  projects,
+  tasks,
+  goals,
+  dailyPulseLogs,
+  inboxItems,
+  taskContactTags,
 } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
 
@@ -68,27 +70,41 @@ export class UserDeletionService {
 
       // Delete in reverse dependency order to avoid foreign key constraints
 
-      // 1. Delete momentum actions (references momentums)
-      const momentumActionsResult = await tx
-        .delete(momentumActions)
-        .where(eq(momentumActions.userId, userId));
-      results["momentumActions"] = momentumActionsResult.length;
+      // 1. Delete task contact tags (junction table - need subquery)
+      const userTaskIds = await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.userId, userId));
+      const taskIds = userTaskIds.map(t => t.id);
+      const taskContactTagsResult = taskIds.length > 0
+        ? await tx.delete(taskContactTags).where(inArray(taskContactTags.taskId, taskIds))
+        : { length: 0 };
+      results["taskContactTags"] = taskContactTagsResult.length || 0;
 
-      // 2. Delete momentums (references workspace/project)
-      const momentumsResult = await tx.delete(momentums).where(eq(momentums.userId, userId));
-      results["momentums"] = momentumsResult.length;
+      // 2. Delete tasks
+      const tasksResult = await tx.delete(tasks).where(eq(tasks.userId, userId));
+      results["tasks"] = tasksResult.length;
 
-      // 3. Delete momentum projects (references workspace)
-      const momentumProjectsResult = await tx
-        .delete(momentumProjects)
-        .where(eq(momentumProjects.userId, userId));
-      results["momentumProjects"] = momentumProjectsResult.length;
+      // 3. Delete projects
+      const projectsResult = await tx
+        .delete(projects)
+        .where(eq(projects.userId, userId));
+      results["projects"] = projectsResult.length;
 
-      // 4. Delete momentum workspaces
-      const momentumWorkspacesResult = await tx
-        .delete(momentumWorkspaces)
-        .where(eq(momentumWorkspaces.userId, userId));
-      results["momentumWorkspaces"] = momentumWorkspacesResult.length;
+      // 4. Delete goals
+      const goalsResult = await tx
+        .delete(goals)
+        .where(eq(goals.userId, userId));
+      results["goals"] = goalsResult.length;
+
+      // 5. Delete daily pulse logs
+      const dailyPulseLogsResult = await tx
+        .delete(dailyPulseLogs)
+        .where(eq(dailyPulseLogs.userId, userId));
+      results["dailyPulseLogs"] = dailyPulseLogsResult.length;
+
+      // 6. Delete inbox items
+      const inboxItemsResult = await tx
+        .delete(inboxItems)
+        .where(eq(inboxItems.userId, userId));
+      results["inboxItems"] = inboxItemsResult.length;
 
       // 5. Delete contact timeline (references contacts)
       const contactTimelineResult = await tx
@@ -216,7 +232,10 @@ export class UserDeletionService {
       documentsCount,
       jobsCount,
       calendarEventsCount,
-      momentumsCount,
+      tasksCount,
+      projectsCount,
+      goalsCount,
+      inboxItemsCount,
     ] = await Promise.all([
       this.countRecords(db, contacts, userId),
       this.countRecords(db, interactions, userId),
@@ -224,7 +243,10 @@ export class UserDeletionService {
       this.countRecords(db, documents, userId),
       this.countRecords(db, jobs, userId),
       this.countRecords(db, calendarEvents, userId),
-      this.countRecords(db, momentums, userId),
+      this.countRecords(db, tasks, userId),
+      this.countRecords(db, projects, userId),
+      this.countRecords(db, goals, userId),
+      this.countRecords(db, inboxItems, userId),
     ]);
 
     return {
@@ -234,7 +256,10 @@ export class UserDeletionService {
       documents: documentsCount,
       jobs: jobsCount,
       calendarEvents: calendarEventsCount,
-      momentums: momentumsCount,
+      tasks: tasksCount,
+      projects: projectsCount,
+      goals: goalsCount,
+      inboxItems: inboxItemsCount,
     };
   }
 

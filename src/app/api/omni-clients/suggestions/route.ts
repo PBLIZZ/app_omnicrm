@@ -1,9 +1,7 @@
 import { z } from "zod";
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
-import { apiError, API_ERROR_CODES } from "@/server/api/response";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { ContactSuggestionService } from "@/server/services/contact-suggestion.service";
-import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * OmniClients Suggestions API
@@ -17,12 +15,10 @@ const CreateFromSuggestionsSchema = z.object({
   suggestionIds: z.array(z.string().min(1)).min(1).max(50), // Limit to 50 suggestions at once
 });
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_suggestions_list" },
-})(async ({ userId, requestId }) => {
-
+export async function GET(_request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
     // Get contact suggestions from calendar attendees
     const suggestions = await ContactSuggestionService.getContactSuggestions(userId);
 
@@ -32,37 +28,47 @@ export const GET = createRouteHandler({
       suggestions,
     });
   } catch (error) {
-    return apiError(
-      "Failed to fetch client suggestions",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    console.error("GET /api/omni-clients/suggestions error:", error);
+    return NextResponse.json({ error: "Failed to fetch contact suggestions" }, { status: 500 });
   }
-});
+}
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_suggestions_create" },
-  validation: {
-    body: CreateFromSuggestionsSchema,
-  },
-})(async ({ userId, validated, requestId }) => {
-
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+
+    const validation = CreateFromSuggestionsSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Validation failed",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
     // Create contacts from suggestions
     const result = await ContactSuggestionService.createContactsFromSuggestions(
       userId,
-      validated.body.suggestionIds,
+      validation.data.suggestionIds,
     );
 
     if (!result.success && result.createdCount === 0) {
-      return apiError(
-        API_ERROR_CODES.VALIDATION_ERROR,
-        "Failed to create clients",
-        400,
-        requestId,
-        { errors: result.errors }
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Failed to create clients",
+            timestamp: new Date().toISOString(),
+          },
+        },
+        { status: 400 },
       );
     }
 
@@ -73,11 +79,7 @@ export const POST = createRouteHandler({
       errors: result.errors.length > 0 ? result.errors : undefined,
     });
   } catch (error) {
-    return apiError(
-      "Failed to create clients from suggestions",
-      "INTERNAL_ERROR",
-      undefined,
-      ensureError(error),
-    );
+    console.error("POST /api/omni-clients/suggestions error:", error);
+    return NextResponse.json({ error: "Failed to create contacts from suggestions" }, { status: 500 });
   }
-});
+}

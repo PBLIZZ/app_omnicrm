@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandler } from "@/server/api/handler";
 import { InboxService } from "@/server/services/inbox.service";
 import { z } from "zod";
-import { UpdateInboxItemDTOSchema } from "@omnicrm/contracts";
+import { UpdateInboxItemDTOSchema, type UpdateInboxItemDTO } from "@omnicrm/contracts";
 
 /**
  * Individual Inbox Item API - Get, update, and delete inbox items
@@ -11,16 +11,28 @@ import { UpdateInboxItemDTOSchema } from "@omnicrm/contracts";
  * marking as processed, updating status, and deletion.
  */
 
-interface RouteParams {
-  params: { itemId: string };
-}
-
 export const GET = createRouteHandler({
   auth: true,
   rateLimit: { operation: "inbox_get_item" },
-})(async ({ userId }, { params }: RouteParams) => {
+})(async ({ userId }, _request, routeParams) => {
   try {
-    const item = await InboxService.getInboxItem(userId, params.itemId);
+    const params = await routeParams?.params;
+    if (!params?.['itemId']) {
+      return NextResponse.json(
+        { error: "Item ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const itemId = Array.isArray(params['itemId']) ? params['itemId'][0] : params['itemId'];
+    if (!itemId) {
+      return NextResponse.json(
+        { error: "Invalid item ID" },
+        { status: 400 }
+      );
+    }
+
+    const item = await InboxService.getInboxItem(userId, itemId);
 
     if (!item) {
       return NextResponse.json(
@@ -56,13 +68,29 @@ export const PATCH = createRouteHandler({
       }),
     ]),
   },
-})(async ({ userId, validated }, { params }: RouteParams) => {
+})(async ({ userId, validated }, _request, routeParams) => {
   try {
+    const params = await routeParams?.params;
+    if (!params?.['itemId']) {
+      return NextResponse.json(
+        { error: "Item ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const itemId = Array.isArray(params['itemId']) ? params['itemId'][0] : params['itemId'];
+    if (!itemId) {
+      return NextResponse.json(
+        { error: "Invalid item ID" },
+        { status: 400 }
+      );
+    }
+
     const { action, data } = validated.body;
 
     switch (action) {
       case "update_status": {
-        const item = await InboxService.updateInboxItem(userId, params.itemId, data);
+        const item = await InboxService.updateInboxItem(userId, itemId, data as UpdateInboxItemDTO);
 
         if (!item) {
           return NextResponse.json(
@@ -77,7 +105,7 @@ export const PATCH = createRouteHandler({
       case "mark_processed": {
         const item = await InboxService.markAsProcessed(
           userId,
-          params.itemId,
+          itemId,
           data?.createdTaskId
         );
 
@@ -110,9 +138,25 @@ export const PATCH = createRouteHandler({
 export const DELETE = createRouteHandler({
   auth: true,
   rateLimit: { operation: "inbox_delete_item" },
-})(async ({ userId }, { params }: RouteParams) => {
+})(async ({ userId }, _request, routeParams) => {
   try {
-    const deleted = await InboxService.deleteInboxItem(userId, params.itemId);
+    const params = await routeParams?.params;
+    if (!params?.['itemId']) {
+      return NextResponse.json(
+        { error: "Item ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const itemId = Array.isArray(params['itemId']) ? params['itemId'][0] : params['itemId'];
+    if (!itemId) {
+      return NextResponse.json(
+        { error: "Invalid item ID" },
+        { status: 400 }
+      );
+    }
+
+    const deleted = await InboxService.deleteInboxItem(userId, itemId);
 
     if (!deleted) {
       return NextResponse.json(

@@ -7,7 +7,7 @@ import { GmailIngestionResultDTOSchema } from "@omnicrm/contracts";
 export const POST = createRouteHandler({
   auth: true,
   rateLimit: { operation: "gmail_ingest_test" },
-})(async ({ userId, requestId }) => {
+})(async ({ userId }) => {
   try {
     const result = await GmailIngestionService.testGmailIngestion(userId);
 
@@ -15,7 +15,7 @@ export const POST = createRouteHandler({
     const validatedResult = GmailIngestionResultDTOSchema.parse(result);
 
     return NextResponse.json(validatedResult);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Gmail ingest failed" },
       { status: 500 }

@@ -8,8 +8,8 @@
  * - Data freshness indicators for UI components
  * - Health monitoring and stuck job detection
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerUserId } from "@/server/auth/user";
 import { JobStatusService } from "@/server/services/job-status.service";
 import { ComprehensiveJobStatusDTOSchema } from "@omnicrm/contracts";
 import { z } from "zod";
@@ -20,14 +20,25 @@ const jobStatusQuerySchema = z.object({
   batchId: z.string().optional(), // For tracking specific sync session jobs
 });
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "jobs_status" },
-  validation: { query: jobStatusQuerySchema },
-})(async ({ userId, validated, requestId }) => {
-  const { includeHistory, includeFreshness, batchId } = validated.query;
-
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    const userId = await getServerUserId();
+    const { searchParams } = new URL(request.url);
+
+    const validation = jobStatusQuerySchema.safeParse({
+      includeHistory: searchParams.get('includeHistory'),
+      includeFreshness: searchParams.get('includeFreshness'),
+      batchId: searchParams.get('batchId'),
+    });
+
+    if (!validation.success) {
+      return NextResponse.json({
+        error: "Invalid query parameters",
+        details: validation.error.issues
+      }, { status: 400 });
+    }
+
+    const { includeHistory, includeFreshness, batchId } = validation.data;
     const result = await JobStatusService.getComprehensiveJobStatus(userId, {
       includeHistory,
       includeFreshness,
@@ -38,7 +49,7 @@ export const GET = createRouteHandler({
     const validatedResult = ComprehensiveJobStatusDTOSchema.parse(result);
 
     return NextResponse.json(validatedResult);
-  } catch (error) {
+  } catch {
     // Return safe, empty state so UI doesn't break
     const emptyState = {
       queue: {
@@ -67,14 +78,14 @@ export const GET = createRouteHandler({
       stuckJobs: [],
       health: {
         score: 0,
-        status: 'critical' as const,
-        issues: ['Unable to fetch job status'],
+        status: "critical" as const,
+        issues: ["Unable to fetch job status"],
       },
       jobs: [],
       currentBatch: null,
       timestamp: new Date().toISOString(),
     };
 
-    return NextResponse.json(emptyState);
+    return NextResponse.json(emptyState, { status: 503 });
   }
-});
+}

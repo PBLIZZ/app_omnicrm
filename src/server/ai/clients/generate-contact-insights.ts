@@ -24,6 +24,18 @@ const fallback = (): ContactInsightsWithNote => ({
   confidenceScore: 0.1,
 });
 
+// Helper function to safely parse JSON tags
+function parseTagsSafely(tagsJson: string | null, contactEmail: string): string[] {
+  if (!tagsJson) return [];
+
+  try {
+    return JSON.parse(tagsJson);
+  } catch (error) {
+    console.error(`Failed to parse tags for contact ${contactEmail}:`, error);
+    return [];
+  }
+}
+
 export async function generateContactInsights(
   userId: string,
   contactEmail: string, // or contactId
@@ -66,15 +78,7 @@ export async function generateContactInsights(
         .catch(() => {}); // Fire-and-forget logging
       if (recentEnrichment[0]) {
         const rec = recentEnrichment[0];
-        let tags: string[] = [];
-        if (rec.tags) {
-          try {
-            tags = JSON.parse(rec.tags as string);
-          } catch (error) {
-            console.error(`Failed to parse tags for contact ${contactEmail}:`, error);
-            tags = [];
-          }
-        }
+        const tags = parseTagsSafely(rec.tags as string, contactEmail);
 
         return {
           noteContent: "",
@@ -90,24 +94,19 @@ export async function generateContactInsights(
     const events = contactData.calendarEvents;
     const gmailInteractions = contactData.interactions;
 
+    // Check if we have new data since last enrichment
+    const lastEnrichmentTime = recentEnrichment[0]?.updatedAt || new Date(0);
+
+    // If no events or interactions, no new data
     if (events.length === 0 && gmailInteractions.length === 0) {
       return fallback();
     }
-    // Check if we have new data since last enrichment
-    let hasNewData = events.length > 0 || gmailInteractions.length > 0;
 
-    // If we have a recent enrichment, check if any new data is newer
-    if (recentEnrichment.length > 0) {
-      const lastEnrichmentTime = recentEnrichment[0]?.updatedAt || new Date(0);
-      const newerEvents = events.filter(
-        (event) => event.startTime && new Date(event.startTime) > lastEnrichmentTime,
-      );
-      const newerInteractions = gmailInteractions.filter(
-        (interaction) =>
-          interaction.occurredAt && new Date(interaction.occurredAt) > lastEnrichmentTime,
-      );
-      hasNewData = newerEvents.length > 0 || newerInteractions.length > 0;
-    }
+    // Check if any data is newer than last enrichment
+    const hasNewData = [...events, ...gmailInteractions].some((item) => {
+      const timestamp = "startTime" in item ? item.startTime : item.occurredAt;
+      return timestamp && new Date(timestamp) > lastEnrichmentTime;
+    });
 
     if (!hasNewData && !options.forceRefresh) {
       // Inline getExistingInsights: query DB for existing insights
@@ -124,15 +123,7 @@ export async function generateContactInsights(
 
       if (existingInsights.length > 0 && existingInsights[0]) {
         const ex = existingInsights[0];
-        let tags: string[] = [];
-        if (ex.tags) {
-          try {
-            tags = JSON.parse(ex.tags as string);
-          } catch (error) {
-            console.error(`Failed to parse tags for contact ${contactEmail}:`, error);
-            tags = [];
-          }
-        }
+        const tags = parseTagsSafely(ex.tags as string, contactEmail);
 
         return {
           noteContent: "",
@@ -185,33 +176,36 @@ export async function generateContactInsights(
       gmailAnalysis,
     );
 
-    // Inline cache: update contacts table with stage/tags/confidence
-    await db
-      .update(contacts)
-      .set({
-        lifecycleStage: aiInsights.lifecycleStage,
-        tags: JSON.stringify(aiInsights.tags),
-        confidenceScore: aiInsights.confidenceScore.toString(),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(contacts.userId, userId), eq(contacts.primaryEmail, contactEmail)));
+    // Wrap contact update and notes insert in a transaction
+    await db.transaction(async (tx) => {
+      // Update contacts table with stage/tags/confidence
+      await tx
+        .update(contacts)
+        .set({
+          lifecycleStage: aiInsights.lifecycleStage,
+          tags: JSON.stringify(aiInsights.tags),
+          confidenceScore: aiInsights.confidenceScore.toString(),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(contacts.userId, userId), eq(contacts.primaryEmail, contactEmail)));
 
-    // Inline create note: if noteContent, insert into notes
-    if (aiInsights.noteContent) {
-      const contact = await db
-        .select({ id: contacts.id })
-        .from(contacts)
-        .where(and(eq(contacts.userId, userId), eq(contacts.primaryEmail, contactEmail)))
-        .limit(1);
-      if (contact.length > 0 && contact[0]) {
-        await db.insert(notes).values({
-          userId,
-          contactId: contact[0]?.id,
-          content: aiInsights.noteContent,
-          createdAt: new Date(),
-        });
+      // Create note if noteContent exists
+      if (aiInsights.noteContent) {
+        const contact = await tx
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(and(eq(contacts.userId, userId), eq(contacts.primaryEmail, contactEmail)))
+          .limit(1);
+        if (contact.length > 0 && contact[0]) {
+          await tx.insert(notes).values({
+            userId,
+            contactId: contact[0]?.id,
+            content: aiInsights.noteContent,
+            createdAt: new Date(),
+          });
+        }
       }
-    }
+    });
 
     return aiInsights;
   } catch (error) {

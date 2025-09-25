@@ -123,10 +123,7 @@ export async function updateSyncPreferences(prefs: SyncPreferences): Promise<Syn
   return apiClient.put<SyncPreferences>("/api/google/prefs", prefs);
 }
 
-/**
- * Gmail sync - Direct sync using new consolidated endpoint
- */
-export async function syncGmail(): Promise<{
+export interface GmailSyncResponse {
   message: string;
   stats: {
     totalFound: number;
@@ -135,7 +132,12 @@ export async function syncGmail(): Promise<{
     errors: number;
     batchId: string;
   };
-}> {
+}
+
+/**
+ * Gmail sync - Direct sync using new consolidated endpoint
+ */
+export async function syncGmail(): Promise<GmailSyncResponse> {
   return apiClient.post(
     "/api/google/gmail/sync",
     {},
@@ -145,10 +147,7 @@ export async function syncGmail(): Promise<{
   );
 }
 
-/**
- * Calendar sync - Direct sync using new consolidated endpoint
- */
-export async function syncCalendar(): Promise<{
+export interface CalendarSyncResponse {
   message: string;
   stats: {
     syncedEvents: number;
@@ -157,7 +156,12 @@ export async function syncCalendar(): Promise<{
     maxResults: number;
     batchId: string;
   };
-}> {
+}
+
+/**
+ * Calendar sync - Direct sync using new consolidated endpoint
+ */
+export async function syncCalendar(): Promise<CalendarSyncResponse> {
   return apiClient.post(
     "/api/google/calendar/sync",
     {},
@@ -166,7 +170,6 @@ export async function syncCalendar(): Promise<{
     },
   );
 }
-
 
 /**
  * Run background jobs

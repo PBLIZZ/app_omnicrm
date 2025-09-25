@@ -67,6 +67,19 @@ export async function extractWisdom(
 ): Promise<EmailWisdom> {
   const { subject = "", bodyText = "", senderName = "", classification } = emailData;
 
+  // Input validation
+  if (!subject || !bodyText || !senderName) {
+    throw new Error("Missing required email data fields");
+  }
+
+  if (
+    typeof subject !== "string" ||
+    typeof bodyText !== "string" ||
+    typeof senderName !== "string"
+  ) {
+    throw new Error("Invalid email data types");
+  }
+
   const messages: ChatMessage[] = buildExtractWisdomPrompt({
     subject,
     bodyText,
@@ -74,7 +87,21 @@ export async function extractWisdom(
     classification,
   });
 
-  const response = await generateText<EmailWisdom>(userId, { model: "default", messages });
-
-  return response.data;
+  try {
+    const response = await generateText<EmailWisdom>(userId, { model: "default", messages });
+    return response.data;
+  } catch (error) {
+    console.error("Failed to extract wisdom from email:", error);
+    // Return fallback wisdom data
+    return {
+      keyInsights: ["Unable to analyze email content"],
+      actionableItems: [],
+      wellnessTags: [],
+      marketingOpportunities: [],
+      businessOpportunities: [],
+      clientMood: "neutral",
+      followUpRecommended: false,
+      followUpReason: "Analysis failed",
+    };
+  }
 }

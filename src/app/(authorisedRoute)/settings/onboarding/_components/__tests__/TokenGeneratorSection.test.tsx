@@ -5,7 +5,7 @@ import { TokenGeneratorSection } from "../TokenGeneratorSection";
 
 // Mock clipboard API
 const mockWriteText = vi.fn();
-Object.assign(navigator, {
+vi.stubGlobal("navigator", {
   clipboard: {
     writeText: mockWriteText,
   },
@@ -27,17 +27,11 @@ describe("TokenGeneratorSection", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    // Reset mocks
-    mockPost.mockClear();
-    mockToast.success.mockClear();
-    mockToast.error.mockClear();
-    mockWriteText.mockClear();
-    mockOpen.mockClear();
   });
 
   afterEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("should render the form with default values", () => {

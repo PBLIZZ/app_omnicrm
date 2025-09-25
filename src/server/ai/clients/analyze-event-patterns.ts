@@ -31,18 +31,20 @@ function extractEventType(title: string, description?: string | null): string {
   // Combine title and description for analysis
   const combinedText = `${normalizedTitle} ${normalizedDescription}`.trim();
 
-  // Prioritized list of event type patterns (more specific first)
+  // Prioritized list of event type patterns (more specific first, with word boundaries)
   const eventTypePatterns = [
-    { pattern: /meeting|standup|sync|check-in|1:1|one-on-one/, type: "Meeting" },
-    { pattern: /appointment|session|consultation/, type: "Appointment" },
-    { pattern: /workshop|training|class|lesson/, type: "Workshop" },
-    { pattern: /interview|hiring|recruitment/, type: "Interview" },
-    { pattern: /demo|presentation|pitch/, type: "Demo" },
-    { pattern: /webinar|seminar|conference/, type: "Webinar" },
-    { pattern: /call|phone|video/, type: "Call" },
-    { pattern: /lunch|dinner|coffee|meal/, type: "Meeting" },
-    { pattern: /review|retrospective|retro/, type: "Meeting" },
-    { pattern: /planning|sprint|sprint planning/, type: "Meeting" },
+    { pattern: /\bsprint planning\b|\bone-on-one\b|\b1:1\b/, type: "Meeting" },
+    { pattern: /\bstandup\b|\bcheck-in\b|\bsync\b/, type: "Meeting" },
+    { pattern: /\bappointment\b|\bsession\b|\bconsultation\b/, type: "Appointment" },
+    { pattern: /\bworkshop\b|\btraining\b|\bclass\b|\blesson\b/, type: "Workshop" },
+    { pattern: /\binterview\b|\bhiring\b|\brecruitment\b/, type: "Interview" },
+    { pattern: /\bdemo\b|\bpresentation\b|\bpitch\b/, type: "Demo" },
+    { pattern: /\bwebinar\b|\bseminar\b|\bconference\b/, type: "Webinar" },
+    { pattern: /\bcall\b|\bphone\b|\bvideo\b/, type: "Call" },
+    { pattern: /\blunch\b|\bdinner\b|\bcoffee\b|\bmeal\b/, type: "Social" },
+    { pattern: /\breview\b|\bretrospective\b|\bretro\b/, type: "Meeting" },
+    { pattern: /\bplanning\b/, type: "Meeting" },
+    { pattern: /\bmeeting\b/, type: "Meeting" },
   ];
 
   // Find the first matching pattern
@@ -162,6 +164,6 @@ export async function analyzeEventPatterns(events: CalendarEventData[]): Promise
     relationshipDays,
     firstEventDate,
     lastEventDate,
-    averageEventsPerMonth: relationshipDays > 0 ? totalEvents / (relationshipDays / 30) : 0,
+    averageEventsPerMonth: totalEvents * (30 / Math.max(relationshipDays, 1)),
   };
 }

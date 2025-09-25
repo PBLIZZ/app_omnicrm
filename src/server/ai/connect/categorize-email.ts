@@ -3,22 +3,7 @@
 import { generateText } from "@/server/ai/core/llm.service";
 import { ChatMessage } from "@/server/ai/core/llm.service"; // Assuming types are exported
 import { buildCategorizeEmailPrompt } from "@/server/ai/prompts/connect/categorize-email.prompt";
-
-// Types (extract to types file later)
-export interface EmailClassification {
-  primaryCategory: string;
-  subCategory: string;
-  confidence: number;
-  businessRelevance: number;
-  reasoning: string;
-  extractedMetadata: {
-    senderDomain?: string;
-    hasAppointmentLanguage?: boolean;
-    hasPaymentLanguage?: boolean;
-    isFromClient?: boolean;
-    urgencyLevel?: "low" | "medium" | "high" | "urgent";
-  };
-}
+import { EmailClassification } from "@/server/ai/types/email-types";
 
 export async function categorizeEmail(
   userId: string,
@@ -32,6 +17,11 @@ export async function categorizeEmail(
   },
 ): Promise<EmailClassification> {
   const { subject = "", bodyText = "", senderEmail = "", senderName = "" } = emailData;
+
+  // Validate senderEmail format
+  if (senderEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(senderEmail)) {
+    throw new Error("Invalid senderEmail format");
+  }
 
   const senderDomain = senderEmail.includes("@") ? senderEmail.split("@")[1] : undefined;
 

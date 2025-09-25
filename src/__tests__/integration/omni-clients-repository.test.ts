@@ -133,6 +133,14 @@ describe('OmniClientsRepository Integration Tests', () => {
     });
   });
 
+  describe('createContact', () => {
+    it('creates a contact', async () => {
+      const contactData = {
+        displayName: 'Alice Johnson',
+        primaryEmail: 'alice@example.com',
+        source: 'manual' as const,
+      };
+
       const result = await createContact(testUserId, contactData);
 
       expect(result).toBeTruthy();

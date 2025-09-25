@@ -33,7 +33,7 @@ export async function batchSuggestContacts(userId: string): Promise<{
 
   // TODO: Implement wiki population
   // This is intentionally stubbed as the wiki service is not yet implemented
-  // Issue: #123 - Wiki service implementation needed
+  // Issue: #456 - Wiki service implementation needed
   // Expected ETA: Q2 2025
   // For now, return empty arrays to maintain API contract
   logger.info("Wiki population stubbed - returning empty arrays", {
@@ -51,11 +51,12 @@ export async function batchSuggestContacts(userId: string): Promise<{
 
 function isBackground(): boolean {
   // Check for explicit background execution indicators
+  // Allow background mode in development when explicitly enabled
   return (
-    process.env.NODE_ENV === "production" &&
-    (process.env["BACKGROUND_MODE"] === "true" ||
-      process.env["CRON_JOB"] === "true" ||
-      process.argv.includes("--background"))
+    process.env["BACKGROUND_MODE"] === "true" ||
+    process.env["CRON_JOB"] === "true" ||
+    process.argv.includes("--background") ||
+    process.env.NODE_ENV === "production" // Default to production mode when no explicit flags
   );
 }
 // To run: ts-node batch-suggest-contacts.ts or compile to JS and run via cron

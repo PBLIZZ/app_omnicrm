@@ -41,19 +41,9 @@ export function createMockRequest(
   // Create the request
   const request = new NextRequest(url, {
     method,
-    body,
+    body: body || null,
     headers,
   });
-
-  // Ensure headers are properly accessible
-  if (!request.headers) {
-    Object.defineProperty(request, "headers", {
-      value: headers,
-      writable: false,
-      enumerable: true,
-      configurable: false,
-    });
-  }
 
   return request;
 }
@@ -95,23 +85,9 @@ export function createMockApiRequest(
 
   const request = createMockRequest(url.toString(), {
     method,
-    body: body ? JSON.stringify(body) : undefined,
+    ...(body && { body: JSON.stringify(body) }),
     headers: apiHeaders,
   });
-
-  // Ensure headers are properly accessible
-  if (!request.headers) {
-    const headers = new Headers();
-    Object.entries(apiHeaders).forEach(([key, value]) => {
-      headers.set(key, value);
-    });
-    Object.defineProperty(request, "headers", {
-      value: headers,
-      writable: false,
-      enumerable: true,
-      configurable: false,
-    });
-  }
 
   return request;
 }
@@ -261,11 +237,40 @@ export function createMockSupabaseClient() {
   };
 }
 
+// TypeScript interfaces for test data factories
+interface OnboardingToken {
+  id: string;
+  token: string;
+  expires_at: string;
+  max_uses: number;
+  used_count: number;
+  disabled: boolean;
+  created_at: string;
+  user_id: string;
+  created_by: string;
+}
+
+interface User {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+  user_id: string;
+}
+
 /**
  * Common test data factories
  */
 export const TestDataFactory = {
-  createOnboardingToken: (overrides: Partial<any> = {}) => ({
+  createOnboardingToken: (overrides: Partial<OnboardingToken> = {}): OnboardingToken => ({
     id: "test-token-id",
     token: "test-token-123",
     expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -278,14 +283,14 @@ export const TestDataFactory = {
     ...overrides,
   }),
 
-  createUser: (overrides: Partial<any> = {}) => ({
+  createUser: (overrides: Partial<User> = {}): User => ({
     id: "test-user-id",
     email: "test@example.com",
     created_at: new Date().toISOString(),
     ...overrides,
   }),
 
-  createContact: (overrides: Partial<any> = {}) => ({
+  createContact: (overrides: Partial<Contact> = {}): Contact => ({
     id: "test-contact-id",
     first_name: "John",
     last_name: "Doe",

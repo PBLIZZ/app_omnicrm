@@ -6,7 +6,7 @@ Based on extensive research of healthcare practice management software and user 
 
 ### 1. How Do Wellness Practitioners Expect Search to Work?
 
-**Research shows wellness practitioners strongly prefer **global search** (Spotlight-style) over module-specific search:**
+**Research shows wellness practitioners strongly prefer *global search* (Spotlight-style) over module-specific search:**
 
 - **73% of healthcare professionals prefer unified search** that works across all content types
 - **Global search reduces cognitive load** - users don't need to remember which module contains specific information
@@ -73,12 +73,11 @@ Share the same embeddings between search and chat assistant:
 - **Pattern analysis**: "What trends do you see in my cancellations?"
 - **Business intelligence**: "Which services generate the most revenue?"
 
-**Key advantage: Same embeddings power both search and chat**
- creating a unified knowledge base with shared infrastructure costs.
+**Key advantage: Same embeddings power both search and chat** creating a unified knowledge base with shared infrastructure costs.
 
 ## Complete Implementation
 
-I've created comprehensive code examples showing
+I've created comprehensive code examples showing how to integrate the search API with the chat model and usage patterns for end-to-end search and chat workflows:
 
  **Global Search Implementation** (742 lines)
 

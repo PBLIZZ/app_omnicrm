@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -293,7 +293,12 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
         };
 
         if (typeof window !== "undefined") {
-          localStorage.setItem("omniClientsNavigationContext", JSON.stringify(navigationContext));
+          try {
+            localStorage.setItem("omniClientsNavigationContext", JSON.stringify(navigationContext));
+          } catch (error) {
+            // Silently handle storage failures (private mode, quota exceeded, etc.)
+            console.warn("Failed to persist navigation context:", error);
+          }
         }
       };
 
@@ -569,19 +574,19 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
 function ClientActionsCell({ client }: { client: ClientWithNotes }): JSX.Element {
   const deleteClient = useDeleteOmniClient();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const handleEditClient = (): void => {
     setEditDialogOpen(true);
   };
 
-  const handleDeleteClient = (client: ClientWithNotes): void => {
-    if (
-      confirm(
-        `Are you sure you want to delete ${client.displayName ?? "Unknown"}? This action cannot be undone.`,
-      )
-    ) {
-      deleteClient.mutate(client.id);
-    }
+  const handleDeleteClient = (): void => {
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteClient = (): void => {
+    deleteClient.mutate(client.id);
+    setDeleteDialogOpen(false);
   };
 
   return (
@@ -625,7 +630,7 @@ function ClientActionsCell({ client }: { client: ClientWithNotes }): JSX.Element
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             data-testid={`delete-client-${client.id}`}
-            onClick={() => handleDeleteClient(client)}
+            onClick={handleDeleteClient}
           >
             <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
             Delete
@@ -635,6 +640,31 @@ function ClientActionsCell({ client }: { client: ClientWithNotes }): JSX.Element
 
       {/* Edit Client Dialog */}
       <EditClientDialog client={client} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Client</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {client.displayName ?? "Unknown"}? This action cannot
+              be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteClient}
+              disabled={deleteClient.isPending}
+            >
+              {deleteClient.isPending ? "Deleting..." : "Delete Client"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

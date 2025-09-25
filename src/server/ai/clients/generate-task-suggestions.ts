@@ -16,7 +16,17 @@ export interface ContactTaskSuggestion {
 export async function generateTaskSuggestions(
   userId: string,
   contactId: string,
+  model?: string,
 ): Promise<ContactTaskSuggestion[]> {
+  // Input validation
+  if (!userId || typeof userId !== "string" || userId.trim().length === 0) {
+    throw new TypeError("userId must be a non-empty string");
+  }
+
+  if (!contactId || typeof contactId !== "string" || contactId.trim().length === 0) {
+    throw new TypeError("contactId must be a non-empty string");
+  }
+
   const contactData = await getContactData(userId, contactId);
 
   if (!contactData.contact) {
@@ -25,8 +35,11 @@ export async function generateTaskSuggestions(
 
   const messages = buildGenerateTaskPrompt(contactData);
 
+  // Use explicit model or fallback to environment variable
+  const aiModel = model || process.env["AI_MODEL"] || "openai/gpt-4o-mini";
+
   const response = await generateText<{ tasks: ContactTaskSuggestion[] }>(userId, {
-    model: "default",
+    model: aiModel,
     messages,
   });
 

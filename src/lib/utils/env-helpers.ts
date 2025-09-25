@@ -9,6 +9,10 @@
  * @param defaultValue - Default value if value is undefined or invalid
  * @returns Parsed boolean value
  */
+// Pre-computed sets for O(1) lookup performance
+const TRUTHY_VALUES = new Set(["1", "true", "t", "yes", "y"]);
+const FALSY_VALUES = new Set(["0", "false", "f", "no", "n", ""]);
+
 export function parseEnvBool(value: string | undefined, defaultValue: boolean = false): boolean {
   if (value === undefined) {
     return defaultValue;
@@ -17,12 +21,12 @@ export function parseEnvBool(value: string | undefined, defaultValue: boolean = 
   const normalized = value.trim().toLowerCase();
 
   // Truthy values
-  if (["1", "true", "t", "yes", "y"].includes(normalized)) {
+  if (TRUTHY_VALUES.has(normalized)) {
     return true;
   }
 
   // Falsy values
-  if (["0", "false", "f", "no", "n", ""].includes(normalized)) {
+  if (FALSY_VALUES.has(normalized)) {
     return false;
   }
 

@@ -1,4 +1,14 @@
 import { ChatMessage } from "@/server/ai/core/llm.service";
+import {
+  PRIMARY_CATEGORIES,
+  SUB_CATEGORIES,
+  URGENCY_LEVELS,
+  PRIMARY_CATEGORY_DESCRIPTIONS,
+  SUB_CATEGORY_DESCRIPTIONS,
+  type PrimaryCategory,
+  type SubCategory,
+  type UrgencyLevel,
+} from "@/constants/email-categories";
 
 export function buildCategorizeEmailPrompt(emailData: {
   subject: string;
@@ -6,6 +16,14 @@ export function buildCategorizeEmailPrompt(emailData: {
   senderEmail: string;
   senderName: string;
 }): ChatMessage[] {
+  const primaryCategoriesList = PRIMARY_CATEGORIES.map(
+    (cat) => `- ${cat}: ${PRIMARY_CATEGORY_DESCRIPTIONS[cat]}`,
+  ).join("\n");
+
+  const subCategoriesList = SUB_CATEGORIES.map(
+    (cat) => `- ${cat}: ${SUB_CATEGORY_DESCRIPTIONS[cat]}`,
+  ).join("\n");
+
   return [
     {
       role: "system",
@@ -13,26 +31,10 @@ export function buildCategorizeEmailPrompt(emailData: {
 Your task is to categorize emails and assess their business relevance.
 
 Primary Categories:
-- client_communication: Direct communication from/to clients
-- business_intelligence: Industry insights, thought leadership, business strategy
-- educational: Courses, training, certifications, learning materials
-- administrative: Invoices, payments, legal, compliance, operations
-- marketing: Promotions, newsletters, advertising materials
-- personal: Personal messages, social invitations
-- spam: Obvious spam or irrelevant promotional content
+${primaryCategoriesList}
 
 Sub Categories:
-- marketing: Promotional content, deals, advertising
-- thought_leadership: Industry insights, expert opinions
-- course_content: Educational materials, training content
-- client_inquiry: Questions from clients or prospects
-- appointment_related: Booking, scheduling, appointment management
-- invoice_payment: Financial transactions, billing
-- general_business: Other business communications
-- newsletter: Regular updates, industry news
-- promotion: Special offers, deals, discounts
-- personal_note: Personal communications
-- spam_likely: Likely spam or irrelevant content
+${subCategoriesList}
 
 Respond with valid JSON matching this schema:
 {

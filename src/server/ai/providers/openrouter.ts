@@ -2,15 +2,21 @@
 
 export type OpenRouterConfig = {
   baseUrl: string;
-  apiKey?: string;
+  apiKey: string;
   chatModel: string;
   summaryModel: string;
 };
 
 export function getOpenRouterConfig(): OpenRouterConfig {
+  const apiKey = process.env["OPENROUTER_API_KEY"];
+
+  if (!apiKey) {
+    throw new Error("OpenRouter API key is required. Set OPENROUTER_API_KEY environment variable.");
+  }
+
   return {
     baseUrl: process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1",
-    apiKey: process.env["OPENROUTER_API_KEY"] ?? "",
+    apiKey,
     chatModel: process.env["AI_MODEL_CHAT"] || "openrouter/auto",
     summaryModel: process.env["AI_MODEL_SUMMARY"] || "openrouter/auto",
   };

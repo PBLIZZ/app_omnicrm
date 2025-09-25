@@ -241,10 +241,9 @@ export async function generateEmbeddingFromLLM(userId: string, text: string): Pr
   const hash = createHash("sha256").update(text).digest("hex");
   const seed = parseInt(hash.substring(0, 8), 16);
 
-  // Use seeded random for consistent mock embeddings
+  // Use seeded random for consistent mock embeddings in [-1, 1] range
   const mockEmbedding = Array.from({ length: 1536 }, (_, i) => {
-    const x = Math.sin(seed + i) * 10000;
-    return x - Math.floor(x);
+    return Math.sin(seed + i);
   });
 
   return mockEmbedding;

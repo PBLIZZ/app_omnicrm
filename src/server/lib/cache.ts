@@ -1,6 +1,13 @@
 // Database Query Result Caching System (Redis-backed)
 import { logger } from "@/lib/observability";
-import { redisGet, redisSet, redisDel, redisScan, redisDelMultiple } from "./redis-client";
+import {
+  redisGet,
+  redisSet,
+  redisDel,
+  redisScan,
+  redisDelMultiple,
+  redisIncr,
+} from "./redis-client";
 
 interface CacheStats {
   hits: number;
@@ -10,9 +17,34 @@ interface CacheStats {
 class QueryCache {
   private stats: CacheStats = { hits: 0, misses: 0 };
   private statsMutex = Promise.resolve();
+  private readonly STATS_KEYS = {
+    hits: "cache:stats:hits",
+    misses: "cache:stats:misses",
+  } as const;
 
   constructor() {
-    // No cleanup needed - Redis handles TTL automatically
+    // Initialize stats from Redis on startup
+    this.initializeStats();
+  }
+
+  /**
+   * Initialize stats from Redis or fallback to in-memory
+   */
+  private async initializeStats(): Promise<void> {
+    try {
+      const [hits, misses] = await Promise.all([
+        redisGet<number>(this.STATS_KEYS.hits),
+        redisGet<number>(this.STATS_KEYS.misses),
+      ]);
+
+      this.stats = {
+        hits: hits ?? 0,
+        misses: misses ?? 0,
+      };
+    } catch (error) {
+      console.warn("Failed to initialize cache stats from Redis, using in-memory only:", error);
+      this.stats = { hits: 0, misses: 0 };
+    }
   }
 
   /**
@@ -34,7 +66,9 @@ class QueryCache {
           operation: "cache_get",
           additionalData: { op: "cache.hit", key },
         })
-        .catch(() => {}); // Fire-and-forget logging
+        .catch((error) => {
+          console.error("Cache hit logging failed:", error, { key });
+        });
       return cachedData;
     }
 
@@ -45,7 +79,9 @@ class QueryCache {
         operation: "cache_get",
         additionalData: { op: "cache.miss", key },
       })
-      .catch(() => {}); // Fire-and-forget logging
+      .catch((error) => {
+        console.error("Cache miss logging failed:", error, { key });
+      });
 
     const data = await fetcher();
     await this.set(key, data, ttlSeconds);
@@ -129,12 +165,31 @@ class QueryCache {
   }
 
   /**
-   * Atomically increment a stat counter
+   * Atomically increment a stat counter in Redis and update in-memory mirror
    */
   private async incrementStat(key: keyof CacheStats): Promise<void> {
-    this.statsMutex = this.statsMutex.then(() => {
-      this.stats[key]++;
-    });
+    this.statsMutex = this.statsMutex
+      .then(async () => {
+        try {
+          // Increment in Redis atomically
+          const newValue = await redisIncr(this.STATS_KEYS[key]);
+          // Update in-memory mirror
+          this.stats[key] = newValue;
+        } catch (error) {
+          // Fallback to in-memory only if Redis fails
+          console.warn(`Failed to increment ${key} in Redis, using in-memory only:`, error);
+          try {
+            this.stats[key]++;
+          } catch (incrementError) {
+            // If even in-memory increment fails, log and continue
+            console.error(`Failed to increment ${key} in-memory:`, incrementError);
+          }
+        }
+      })
+      .catch((error) => {
+        // Handle any errors in the promise chain
+        console.error(`Failed to process stat increment for ${key}:`, error);
+      });
     await this.statsMutex;
   }
 

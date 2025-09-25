@@ -22,10 +22,22 @@ export async function DELETE(req: NextRequest, { params }: RouteParams): Promise
     const supabaseUrl = process.env["NEXT_PUBLIC_SUPABASE_URL"];
     const supabaseAnonKey = process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"];
     const supabaseJwtSecret = process.env["SUPABASE_JWT_SECRET"];
+    const jwtIssuer = process.env["JWT_ISSUER"] || "https://supabase.io/auth";
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseJwtSecret) {
       console.error("Missing required environment variables");
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+    }
+
+    // Validate JWT secret format
+    if (supabaseJwtSecret.length < 32) {
+      console.error("SUPABASE_JWT_SECRET is too short");
+      return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+    }
+
+    // Validate JWT issuer in non-development environments
+    if (process.env.NODE_ENV !== "development" && !process.env["JWT_ISSUER"]) {
+      console.warn("JWT_ISSUER environment variable not set, using default issuer");
     }
 
     // Create Supabase client with anon key for user-scoped operations
@@ -42,16 +54,10 @@ export async function DELETE(req: NextRequest, { params }: RouteParams): Promise
 
     const token = authHeader.replace("Bearer ", "");
 
-    // Verify JWT token with proper validation
-    if (!supabaseJwtSecret) {
-      console.error("Missing SUPABASE_JWT_SECRET for JWT verification");
-      return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
-    }
-
     try {
       const secret = new TextEncoder().encode(supabaseJwtSecret);
       const { payload } = await jwtVerify(token, secret, {
-        issuer: "https://supabase.io/auth",
+        issuer: jwtIssuer,
         audience: "authenticated",
       });
 

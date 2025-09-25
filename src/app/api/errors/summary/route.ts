@@ -195,9 +195,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         hasMoreErrors: errorSummary.totalErrors > (errorDetails?.recentErrors.length || 0),
         nextSteps: generateNextSteps({
           urgencyScore,
-          hasAuthErrors: filteredRecentErrors.some((e) => e.classification?.category === "auth"),
+          hasAuthErrors: filteredRecentErrors.some(
+            (e) => e.classification?.category === ERROR_CATEGORIES.AUTH,
+          ),
           hasProcessingErrors: filteredRecentErrors.some(
-            (e) => e.classification?.category === "system",
+            (e) => e.classification?.category === ERROR_CATEGORIES.SYSTEM,
           ),
           retryableErrorCount: errorSummary.retryableErrors.length,
         }),
@@ -403,13 +405,13 @@ function generateNextSteps(context: {
  */
 function getPatternDescription(category: string, count: number): string {
   const descriptions = {
-    authentication: `${count} authentication error${count !== 1 ? "s" : ""} - Google account access issues`,
-    network: `${count} network error${count !== 1 ? "s" : ""} - connectivity and timeout issues`,
-    quota: `${count} quota error${count !== 1 ? "s" : ""} - API rate limit exceeded`,
-    data_format: `${count} data format error${count !== 1 ? "s" : ""} - email parsing issues`,
-    processing: `${count} processing error${count !== 1 ? "s" : ""} - job execution failures`,
-    permission: `${count} permission error${count !== 1 ? "s" : ""} - insufficient Google permissions`,
-    configuration: `${count} configuration error${count !== 1 ? "s" : ""} - sync settings issues`,
+    [ERROR_CATEGORIES.AUTH]: `${count} authentication error${count !== 1 ? "s" : ""} - Google account access issues`,
+    [ERROR_CATEGORIES.NETWORK]: `${count} network error${count !== 1 ? "s" : ""} - connectivity and timeout issues`,
+    [ERROR_CATEGORIES.RATE_LIMIT]: `${count} quota error${count !== 1 ? "s" : ""} - API rate limit exceeded`,
+    [ERROR_CATEGORIES.DATA_FORMAT]: `${count} data format error${count !== 1 ? "s" : ""} - email parsing issues`,
+    [ERROR_CATEGORIES.PROCESSING]: `${count} processing error${count !== 1 ? "s" : ""} - job execution failures`,
+    [ERROR_CATEGORIES.PERMISSION]: `${count} permission error${count !== 1 ? "s" : ""} - insufficient Google permissions`,
+    [ERROR_CATEGORIES.CONFIGURATION]: `${count} configuration error${count !== 1 ? "s" : ""} - sync settings issues`,
   };
 
   return (

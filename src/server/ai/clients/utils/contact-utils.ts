@@ -6,6 +6,15 @@ import { eq, sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import type { InferSelectModel } from "drizzle-orm";
 
+// Default fetch options - immutable constant
+const DEFAULT_FETCH_OPTIONS: Readonly<FetchOptions> = {
+  includeEvents: true,
+  includeInteractions: true,
+  includeNotes: true,
+  includeTimeline: true,
+  limit: 20,
+} as const;
+
 export interface ContactWithContext {
   contact: InferSelectModel<typeof contacts> | null;
   calendarEvents: InferSelectModel<typeof calendarEvents>[];
@@ -25,14 +34,10 @@ export interface FetchOptions {
 export async function getContactData( // Renamed for generality
   userId: string,
   contactId: string,
-  options: FetchOptions = {
-    includeEvents: true,
-    includeInteractions: true,
-    includeNotes: true,
-    includeTimeline: true,
-    limit: 20,
-  },
+  options: FetchOptions = {},
 ): Promise<ContactWithContext> {
+  // Merge provided options with defaults
+  const mergedOptions = { ...DEFAULT_FETCH_OPTIONS, ...options };
   const db = await getDb();
 
   const contact = await db.query.contacts.findFirst({
@@ -61,7 +66,7 @@ export async function getContactData( // Renamed for generality
           AND ce.attendees IS NOT NULL
           AND ce.attendees::text LIKE ${`%${contact.primaryEmail}%`}
         ORDER BY ce.start_time DESC
-        LIMIT 20
+        LIMIT ${mergedOptions.limit}
       `)
     : await db.execute(sql`
         SELECT 
@@ -78,25 +83,25 @@ export async function getContactData( // Renamed for generality
         WHERE ce.user_id = ${userId}
           AND ce.attendees IS NOT NULL
         ORDER BY ce.start_time DESC
-        LIMIT 20
+        LIMIT ${mergedOptions.limit}
       `);
 
   const contactInteractions = await db.query.interactions.findMany({
     where: sql`user_id = ${userId} AND contact_id = ${contactId}`,
     orderBy: sql`occurred_at DESC`,
-    limit: 20,
+    limit: mergedOptions.limit,
   });
 
   const contactNotes = await db.query.notes.findMany({
     where: sql`user_id = ${userId} AND contact_id = ${contactId}`,
     orderBy: sql`created_at DESC`,
-    limit: 10,
+    limit: mergedOptions.limit,
   });
 
   const timeline = await db.query.contactTimeline.findMany({
     where: sql`contact_id = ${contactId}`,
     orderBy: sql`occurred_at DESC`,
-    limit: 15,
+    limit: mergedOptions.limit,
   });
 
   logger.info("Contact data loaded", {
@@ -105,7 +110,7 @@ export async function getContactData( // Renamed for generality
 
   return {
     contact,
-    calendarEvents: (eventsResult as any) || [],
+    calendarEvents: (eventsResult.rows as InferSelectModel<typeof calendarEvents>[]) || [],
     interactions: contactInteractions,
     notes: contactNotes,
     timeline,

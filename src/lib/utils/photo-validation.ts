@@ -35,8 +35,7 @@ export function isValidFileSize(fileSize: number, maxSize = PHOTO_CONFIG.maxFile
 /**
  * Gets optimized file extension based on input type
  */
-export function getOptimizedExtension(originalMimeType: string): string {
-  void originalMimeType;
+export function getOptimizedExtension(): string {
   // Always return .webp since we convert all images to WebP
   return "webp";
 }
@@ -67,9 +66,15 @@ export function validatePhotoFile(file: File): { valid: boolean; error?: string 
   }
 
   if (!isValidFileSize(file.size)) {
+    const maxSizeMB = PHOTO_CONFIG.maxFileSize / (1024 * 1024);
+    const sizeText =
+      maxSizeMB >= 1
+        ? `${maxSizeMB.toFixed(1)}MB`
+        : `${Math.round(PHOTO_CONFIG.maxFileSize / 1024)}KB`;
+
     return {
       valid: false,
-      error: `File size must be less than ${Math.round(PHOTO_CONFIG.maxFileSize / 1024)}KB (${(PHOTO_CONFIG.maxFileSize / 1024 / 1024).toFixed(1)}MB)`,
+      error: `File size must be less than ${sizeText}`,
     };
   }
 

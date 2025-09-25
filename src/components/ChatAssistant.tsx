@@ -31,7 +31,7 @@ export function ChatAssistant({ className = "" }: { className?: string }) {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
@@ -46,7 +46,7 @@ export function ChatAssistant({ className = "" }: { className?: string }) {
     await sendMessage(message);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -62,6 +62,7 @@ export function ChatAssistant({ className = "" }: { className?: string }) {
           <h3 className="font-medium">AI Assistant</h3>
         </div>
         <button
+          type="button"
           onClick={clearHistory}
           className="p-1 hover:bg-white/20 rounded transition-colors"
           title="Clear chat history"
@@ -119,6 +120,7 @@ export function ChatAssistant({ className = "" }: { className?: string }) {
                 {message.role === "assistant" && (
                   <div className="mt-2 flex justify-end">
                     <button
+                      type="button"
                       onClick={() => regenerateResponse(message.id)}
                       className="text-xs text-gray-500 hover:text-gray-700 flex items-center space-x-1"
                       disabled={isLoading}
@@ -143,14 +145,8 @@ export function ChatAssistant({ className = "" }: { className?: string }) {
             <div className="bg-gray-100 rounded-2xl px-4 py-2">
               <div className="flex space-x-1">
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                <div
-                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                  style={{ animationDelay: "0.1s" }}
-                />
-                <div
-                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                  style={{ animationDelay: "0.2s" }}
-                />
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce animation-delay-100" />
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce animation-delay-200" />
               </div>
             </div>
           </motion.div>
@@ -194,6 +190,7 @@ export function ChatAssistant({ className = "" }: { className?: string }) {
           ].map((suggestion) => (
             <button
               key={suggestion}
+              type="button"
               onClick={() => setInput(suggestion)}
               className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-full text-gray-700 transition-colors"
               disabled={isLoading}

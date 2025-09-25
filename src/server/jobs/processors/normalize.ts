@@ -158,7 +158,10 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
           subject: subject ?? undefined,
           bodyText: bodyText ?? undefined,
           bodyRaw: null,
-          occurredAt: event.occurredAt instanceof Date ? event.occurredAt : new Date(String(event.occurredAt)),
+          occurredAt:
+            event.occurredAt instanceof Date
+              ? event.occurredAt
+              : new Date(String(event.occurredAt)),
           source: "gmail",
           sourceId: messageId ?? undefined,
           sourceMeta: enrichedSourceMeta as Record<string, unknown> | null | undefined,
@@ -301,17 +304,25 @@ function extractTextFromParts(parts: unknown[]): string[] {
         textParts.push(decoded);
       } catch (error) {
         // Log decode warning with proper error handling
-        void logger
-          .warn("Failed to decode Gmail message part", {
+        try {
+          await logger.warn("Failed to decode Gmail message part", {
             operation: "jobs.normalize.decode_message",
             additionalData: {
               mimeType: part.mimeType,
               error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
             },
-          })
-          .catch(() => {
-            // Failed to log decode warning - ignore silently to avoid cascading errors
           });
+        } catch (loggingError) {
+          // Fallback diagnostic when logging fails
+          console.error("Failed to log decode warning:", {
+            originalError: error instanceof Error ? error.message : String(error),
+            loggingError:
+              loggingError instanceof Error ? loggingError.message : String(loggingError),
+            mimeType: part.mimeType,
+            operation: "jobs.normalize.decode_message",
+          });
+        }
       }
     }
   }

@@ -14,6 +14,13 @@ interface InboxProcessingContext {
   };
 }
 
+interface InboxItem {
+  id: string;
+  content: string;
+  priority: "low" | "medium" | "high" | "urgent";
+  zone: string;
+}
+
 export function buildCategorizeInboxItemPrompt(
   rawText: string,
   context: InboxProcessingContext,

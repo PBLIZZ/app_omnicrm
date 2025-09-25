@@ -46,7 +46,7 @@ export async function generateEmailSuggestion(
 
   try {
     const response = await generateText<EmailSuggestion>(userId, {
-      model: "gpt-5", // Using GPT-5 for high-quality email suggestions
+      model: "gpt-4o", // Using GPT-4o for high-quality email suggestions
       messages,
       temperature: 0.7,
       maxTokens: 1000,

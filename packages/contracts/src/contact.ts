@@ -57,16 +57,43 @@ export const ContactDTOSchema = z.object({
   photoUrl: z.string().nullable(),
   source: ContactSourceEnum.nullable(),
   lifecycleStage: WellnessStageEnum.nullable(),
-  tags: z.array(z.union([z.string(), WellnessTagSchema])).nullable(),
+  tags: z.array(WellnessTagSchema).nullable(),
   confidenceScore: z
-    .string()
-    .regex(/^0(\.\d+)?$|^1(\.0)?$/)
+    .preprocess(
+      (val) => {
+        if (typeof val === "string") {
+          const num = Number(val);
+          return isNaN(num) ? val : num;
+        }
+        return val;
+      },
+      z
+        .number()
+        .min(0)
+        .max(1)
+        .transform((n) => n.toString()),
+    )
     .nullable(), // AI confidence as validated string (0.0-1.0)
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
 
 export type ContactDTO = z.infer<typeof ContactDTOSchema>;
+
+/**
+ * Normalizes a tag to the structured WellnessTag format
+ * Converts string tags to WellnessTag objects for backward compatibility
+ */
+export function normalizeTag(tag: string | WellnessTag): WellnessTag {
+  if (typeof tag === "string") {
+    return {
+      name: tag,
+      category: "goals_health", // Default to a valid category
+      confidence: "0.8", // Default confidence for string tags
+    };
+  }
+  return tag;
+}
 
 /**
  * Contact Creation DTO Schema

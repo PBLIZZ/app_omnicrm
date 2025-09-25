@@ -64,10 +64,6 @@ export async function generateMetadata({ searchParams }: ClientDetailProps): Pro
 
     const client = await getClientById(userId, id);
 
-    if (!client) {
-      return { title: "Client Not Found · OmniCRM" };
-    }
-
     return {
       title: `${client.displayName} | OmniClients · OmniCRM`,
       description: `Contact details and wellness insights for ${client.displayName}. Manage interactions, notes, and client relationship data.`,

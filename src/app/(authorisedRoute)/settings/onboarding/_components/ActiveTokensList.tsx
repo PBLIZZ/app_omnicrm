@@ -83,6 +83,8 @@ export function ActiveTokensList() {
       return response.tokens;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
+    retry: 3, // Retry up to 3 times on failure
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff with max 30s
   });
 
   // Delete token mutation
@@ -259,7 +261,7 @@ export function ActiveTokensList() {
             {/* Token URL preview (for active tokens only) */}
             {isActive && (
               <div className="mt-2 p-2 bg-gray-50 rounded text-xs font-mono truncate">
-                {window.location.origin}/onboard/{token.token}
+                {origin || ""}/onboard/{token.token}
               </div>
             )}
           </div>

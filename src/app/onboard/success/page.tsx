@@ -1,13 +1,26 @@
 import { Metadata } from "next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Heart, Calendar, MessageCircle } from "lucide-react";
+import { CheckCircle, Heart, Calendar, MessageCircle, Phone, Mail } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Welcome to Your Wellness Journey!",
   description: "Your profile has been completed successfully",
 };
 
-export default function OnboardingSuccessPage() {
+interface PractitionerContact {
+  name?: string;
+  email?: string;
+  phone?: string;
+  preferredMethod?: "email" | "phone" | "message";
+}
+
+interface OnboardingSuccessPageProps {
+  practitionerContact?: PractitionerContact;
+}
+
+export default function OnboardingSuccessPage({
+  practitionerContact,
+}: OnboardingSuccessPageProps = {}) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
       <div className="container mx-auto px-4 py-12 max-w-2xl">
@@ -95,13 +108,63 @@ export default function OnboardingSuccessPage() {
             <CardTitle>Have Questions?</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600 mb-4">
-              If you have any questions or need to update your information, don't hesitate to reach
-              out to your wellness practitioner directly.
-            </p>
-            <p className="text-sm text-gray-500">
-              You can also update your profile information at any time during your sessions.
-            </p>
+            {practitionerContact &&
+            (practitionerContact.name || practitionerContact.email || practitionerContact.phone) ? (
+              <div className="space-y-4">
+                <p className="text-gray-600 mb-4">
+                  If you have any questions or need to update your information, don't hesitate to
+                  reach out to your wellness practitioner directly.
+                </p>
+
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <h4 className="font-medium text-gray-900">
+                    Contact {practitionerContact.name || "Your Practitioner"}
+                  </h4>
+
+                  <div className="space-y-2">
+                    {practitionerContact.email && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Mail className="h-4 w-4 text-gray-500" />
+                        <a
+                          href={`mailto:${practitionerContact.email}`}
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          {practitionerContact.email}
+                        </a>
+                      </div>
+                    )}
+
+                    {practitionerContact.phone && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Phone className="h-4 w-4 text-gray-500" />
+                        <a
+                          href={`tel:${practitionerContact.phone}`}
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          {practitionerContact.phone}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {practitionerContact.preferredMethod && (
+                    <p className="text-xs text-gray-500">
+                      Preferred contact method: {practitionerContact.preferredMethod}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-gray-600 mb-4">
+                  If you have any questions or need to update your information, don't hesitate to
+                  reach out to your wellness practitioner directly.
+                </p>
+                <p className="text-sm text-gray-500">
+                  You can also update your profile information at any time during your sessions.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

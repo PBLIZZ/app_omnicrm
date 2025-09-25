@@ -20,6 +20,13 @@ export function getCorrelationId(request: NextRequest): string {
   );
 }
 
+// Extract client IP address from request headers
+export function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const ip = forwarded?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? "unknown";
+  return ip;
+}
+
 // ============================================================================
 // MIDDLEWARE WRAPPERS
 // ============================================================================
@@ -62,6 +69,30 @@ export function withAuth<T extends unknown[]>(
 
       return result;
     } catch (error: unknown) {
+      // Check if this is an authentication error
+      const isAuthError =
+        error &&
+        typeof error === "object" &&
+        "status" in error &&
+        (error as { status?: number }).status === 401;
+
+      if (isAuthError) {
+        const authError = error as { status?: number; message?: string };
+        await logger.warn("Authentication failed", {
+          operation: "api_call",
+          additionalData: {
+            requestId,
+            path: request.nextUrl.pathname,
+            error: authError.message ?? "Unauthorized",
+          },
+        });
+        return NextResponse.json(
+          { error: authError.message ?? "Unauthorized" },
+          { status: authError.status ?? 401 },
+        );
+      }
+
+      // Log server errors with full details
       await logger.error(
         "Route handler failed",
         {
@@ -76,20 +107,12 @@ export function withAuth<T extends unknown[]>(
         ensureError(error),
       );
 
-      if (error && typeof error === "object" && "status" in error) {
-        const authError = error as { status?: number; message?: string };
-        return NextResponse.json(
-          { error: authError.message ?? "Unauthorized" },
-          { status: authError.status ?? 401 },
-        );
-      }
-
-      // Handle plain Error objects as authentication failures
+      // Handle plain Error objects as server errors
       if (error instanceof Error) {
-        return NextResponse.json({ error: error.message }, { status: 401 });
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
       }
 
-      return NextResponse.json({ error: "Authentication failed" }, { status: 500 });
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
   };
 }
@@ -534,14 +557,7 @@ export function createRouteHandler<
 
       // Handle rate limiting if configured
       if (config.rateLimit) {
-        const rateLimitUserId =
-          userId ??
-          (() => {
-            const forwarded = request.headers.get("x-forwarded-for");
-            const ip =
-              forwarded?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? "unknown";
-            return `ip:${ip}`;
-          })();
+        const rateLimitUserId = userId ?? `ip:${getClientIp(request)}`;
         const rateLimitResponse = await applyRateLimit(
           config.rateLimit.operation,
           rateLimitUserId,
@@ -601,14 +617,7 @@ export function createRouteHandler<
 
       // Add rate limit headers for successful responses
       if (config.rateLimit) {
-        const rateLimitUserId =
-          userId ??
-          (() => {
-            const forwarded = request.headers.get("x-forwarded-for");
-            const ip =
-              forwarded?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? "unknown";
-            return `ip:${ip}`;
-          })();
+        const rateLimitUserId = userId ?? `ip:${getClientIp(request)}`;
         const status = await RateLimiter.getStatus(config.rateLimit.operation, rateLimitUserId);
 
         if (status) {

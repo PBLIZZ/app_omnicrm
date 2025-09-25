@@ -56,12 +56,24 @@ function coerceDate(value: unknown, fallback: Date): Date {
   return fallback;
 }
 
-// Transform Contact to ContactDTO
-export function toContactDTO(contact: ContactInput): ContactDTO {
+// Helper function to coerce created and updated dates
+function coerceCreatedAndUpdated(contact: ContactInput): { createdAt: Date; updatedAt: Date } {
   if (isDatabaseContact(contact)) {
     const createdAt = new Date(contact.created_at);
     const updatedAt = new Date(contact.updated_at ?? contact.created_at);
+    return { createdAt, updatedAt };
+  }
 
+  const createdAt = coerceDate(contact.createdAt, new Date());
+  const updatedAt = coerceDate(contact.updatedAt ?? contact.createdAt, createdAt);
+  return { createdAt, updatedAt };
+}
+
+// Transform Contact to ContactDTO
+export function toContactDTO(contact: ContactInput): ContactDTO {
+  const { createdAt, updatedAt } = coerceCreatedAndUpdated(contact);
+
+  if (isDatabaseContact(contact)) {
     return {
       id: contact.id,
       userId: contact.user_id,
@@ -77,9 +89,6 @@ export function toContactDTO(contact: ContactInput): ContactDTO {
       updatedAt,
     };
   }
-
-  const createdAt = coerceDate(contact.createdAt, new Date());
-  const updatedAt = coerceDate(contact.updatedAt ?? contact.createdAt, createdAt);
 
   return {
     id: contact.id,

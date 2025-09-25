@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { momentumRepository } from "@repo";
 import { CreateTaskDTOSchema } from "@omnicrm/contracts";
-import { z } from "zod";
 
 /**
  * Subtasks Management API Route
@@ -44,16 +43,6 @@ export async function GET(_: NextRequest, { params }: RouteParams): Promise<Next
 /**
  * POST /api/omni-momentum/tasks/[taskId]/subtasks - Create new subtask
  */
-// Define subtask request schema
-const SubtaskRequestSchema = z
-  .object({
-    title: z.string().min(1, "Title is required"),
-    description: z.string().optional(),
-    priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-    dueDate: z.string().datetime().optional(),
-    projectId: z.string().optional(),
-  })
-  .passthrough(); // Allow additional fields
 
 export async function POST(request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
   try {
@@ -67,21 +56,12 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       return NextResponse.json({ error: "Parent task not found" }, { status: 404 });
     }
 
-    // Validate request body with Zod
-    const parseResult = SubtaskRequestSchema.safeParse(body);
-    if (!parseResult.success) {
-      return NextResponse.json(
-        { error: "Validation failed", issues: parseResult.error.issues },
-        { status: 400 },
-      );
-    }
-
-    // Build validated data with parent task context
+    // Build validated data with parent task context and validate in one step
     const validatedData = CreateTaskDTOSchema.parse({
-      ...parseResult.data,
+      ...body,
       parentTaskId: taskId, // Ensure subtask is linked to parent
       // Inherit project from parent if not specified
-      projectId: parseResult.data.projectId ?? parentTask.projectId,
+      projectId: (body as any).projectId ?? parentTask.projectId,
     });
 
     const subtask = await momentumRepository.createTask(userId, validatedData);
@@ -89,14 +69,6 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     return NextResponse.json(subtask, { status: 201 });
   } catch (error) {
     console.error("Failed to create subtask:", error);
-
-    // Handle validation errors specifically
-    if (error instanceof Error && error.name === "ZodError") {
-      return NextResponse.json(
-        { error: "Invalid subtask data", details: error.message },
-        { status: 400 },
-      );
-    }
 
     return NextResponse.json({ error: "Failed to create subtask" }, { status: 500 });
   }

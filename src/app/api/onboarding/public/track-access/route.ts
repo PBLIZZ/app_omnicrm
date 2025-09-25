@@ -37,23 +37,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Create Supabase client with service role for admin operations
     const supabase = createClient<Database>(
       process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
-      process.env["SUPABASE_SECRET_KEY"]!,
+      process.env["SUPABASE_SERVICE_ROLE_KEY"]!,
     );
 
     // Update access tracking for the token
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from("onboarding_tokens")
       .update({
         last_accessed_at: new Date().toISOString(),
-        access_count: supabase.rpc("increment_access_count", { token_value: token }),
       })
       .eq("token", token)
       .eq("disabled", false);
 
-    if (error) {
-      console.error("Access tracking error:", error);
-      // Don't fail the request if tracking fails
+    if (updateError) {
+      console.error("Failed to update last_accessed_at:", updateError);
     }
+
+    // Increment access count using RPC
+    const { error: rpcError } = await supabase.rpc("increment_access_count", {
+      token_value: token,
+    });
+
+    if (rpcError) {
+      console.error("Failed to increment access count:", rpcError);
+    }
+
+    // Don't fail the request if tracking fails - just log the errors
 
     return NextResponse.json({
       ok: true,

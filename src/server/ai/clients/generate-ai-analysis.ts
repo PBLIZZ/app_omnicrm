@@ -129,13 +129,13 @@ export async function generateAIAnalysis(
   });
 
   const response = await generateText<AIContactIntelligenceResponse>(userId, {
-    model: "gpt-5",
+    model: "gpt-4o",
     messages,
     temperature: 0.7,
     maxTokens: 2000,
     responseSchema: z.object({
       notes: z.string().optional(),
-      stage: z.string().optional(),
+      lifecycleStage: z.string().optional(),
       tags: z.array(z.string()).optional(),
       confidenceScore: z.number().optional(),
     }),

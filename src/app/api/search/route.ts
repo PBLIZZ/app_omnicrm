@@ -32,7 +32,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const results = await performSearch(query, searchType, limit);
 
     return NextResponse.json({
-      results: results.slice(0, limit),
+      results,
       searchType,
       query,
     });

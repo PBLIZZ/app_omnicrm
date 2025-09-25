@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw, Home } from "lucide-react";
@@ -11,9 +12,28 @@ interface ErrorProps {
 }
 
 export default function OnboardSuccessError({ error, reset }: ErrorProps) {
+  const router = useRouter();
+
   useEffect(() => {
-    // Log the error to an error reporting service
-    console.error("Onboard success error:", error);
+    // Production error tracking
+    if (typeof window !== "undefined" && window.Sentry) {
+      window.Sentry.captureException(error, {
+        tags: {
+          component: "OnboardSuccessError",
+          page: "onboard/success",
+        },
+        extra: {
+          errorId: error.digest,
+          userAgent: navigator.userAgent,
+          url: window.location.href,
+        },
+      });
+    }
+
+    // Development logging
+    if (process.env.NODE_ENV !== "production") {
+      console.error("Onboard success error:", error);
+    }
   }, [error]);
 
   return (
@@ -45,11 +65,7 @@ export default function OnboardSuccessError({ error, reset }: ErrorProps) {
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Try again
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => (window.location.href = "/")}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={() => router.push("/")} className="flex-1">
                 <Home className="w-4 h-4 mr-2" />
                 Go home
               </Button>

@@ -76,32 +76,17 @@ export async function GET(
         }
       }
 
-      // For client-photos, use the full path as the object name
-      if (trimmedPhotoUrl.startsWith("client-photos/")) {
-        const supabaseClient = supabaseServerAdmin ?? supabaseServerPublishable;
+      // Always parse the storage path for consistent handling
+      const parsedPath = parseStoragePath(trimmedPhotoUrl);
+      const supabaseClient = supabaseServerAdmin ?? supabaseServerPublishable;
 
-        if (supabaseClient) {
-          const { data, error } = await supabaseClient.storage
-            .from("client-photos")
-            .createSignedUrl(trimmedPhotoUrl, 60);
+      if (parsedPath && supabaseClient) {
+        const { data, error } = await supabaseClient.storage
+          .from(parsedPath.bucket)
+          .createSignedUrl(parsedPath.path, 60);
 
-          if (!error && data?.signedUrl) {
-            return NextResponse.redirect(data.signedUrl, { status: 302 });
-          }
-        }
-      } else {
-        // Handle other storage paths with the original parsing logic
-        const parsedPath = parseStoragePath(trimmedPhotoUrl);
-        const supabaseClient = supabaseServerAdmin ?? supabaseServerPublishable;
-
-        if (parsedPath && supabaseClient) {
-          const { data, error } = await supabaseClient.storage
-            .from(parsedPath.bucket)
-            .createSignedUrl(parsedPath.path, 60);
-
-          if (!error && data?.signedUrl) {
-            return NextResponse.redirect(data.signedUrl, { status: 302 });
-          }
+        if (!error && data?.signedUrl) {
+          return NextResponse.redirect(data.signedUrl, { status: 302 });
         }
       }
     }
@@ -174,15 +159,15 @@ function pickColour(seed: string): string {
     return FALLBACK_COLOURS[0] ?? "#2563EB";
   }
 
+  // Use unsigned 32-bit accumulation to avoid signed overflow
   let hash = 0;
   for (let index = 0; index < seed.length; index += 1) {
     const charCode = seed.charCodeAt(index);
-    hash = (hash << 5) - hash + charCode;
-    hash |= 0;
+    hash = (hash * 31 + charCode) >>> 0; // Use unsigned right shift to ensure unsigned 32-bit
   }
 
-  // Defensively compute safe index using Math.abs and modulo
-  const safeIndex = Math.abs(hash) % FALLBACK_COLOURS.length;
+  // Compute safe index using modulo
+  const safeIndex = hash % FALLBACK_COLOURS.length;
   return FALLBACK_COLOURS[safeIndex] ?? "#f0fdfa";
 }
 

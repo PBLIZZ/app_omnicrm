@@ -42,14 +42,22 @@ export const POST = createRouteHandler({
     validated.body;
 
   try {
-    // Build options object only with defined values to satisfy exactOptionalPropertyTypes
-    const options: Parameters<typeof JobProcessingService.processJobsManually>[1] = {};
-    if (jobTypes !== undefined) options.jobTypes = jobTypes;
-    if (batchId !== undefined) options.batchId = batchId;
-    if (maxJobs !== undefined) options.maxJobs = maxJobs;
-    if (includeRetrying !== undefined) options.includeRetrying = includeRetrying;
-    if (skipStuckJobs !== undefined) options.skipStuckJobs = skipStuckJobs;
-    if (realTimeUpdates !== undefined) options.realTimeUpdates = realTimeUpdates;
+    // Helper function to remove undefined values from object
+    const removeUndefined = <T extends Record<string, unknown>>(obj: T): Partial<T> => {
+      return Object.fromEntries(
+        Object.entries(obj).filter(([, value]) => value !== undefined),
+      ) as Partial<T>;
+    };
+
+    // Build options object with all possible keys, then filter out undefined values
+    const options = removeUndefined({
+      jobTypes,
+      batchId,
+      maxJobs,
+      includeRetrying,
+      skipStuckJobs,
+      realTimeUpdates,
+    }) as Parameters<typeof JobProcessingService.processJobsManually>[1];
 
     const result = await JobProcessingService.processJobsManually(userId, options, requestId);
 

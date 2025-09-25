@@ -3,7 +3,7 @@
 
 // ===== 1. RAG CONTEXT & PROVIDER (app/contexts/RAGContext.tsx) =====
 "use client";
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
 
 interface ChatMessage {
   id: string;
@@ -43,62 +43,92 @@ export function RAGProvider({ children }: { children: React.ReactNode }) {
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const sendMessage = useCallback(async (content: string) => {
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content,
-      timestamp: new Date(),
+  // Cleanup effect to abort any pending requests on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
+  }, []);
 
-    setMessages((prev) => {
-      const updatedMessages = [...prev, userMessage];
-      // Get the last 10 messages for context
-      const history = updatedMessages.slice(-10);
+  const sendMessage = useCallback(
+    async (content: string) => {
+      // Abort any existing request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
 
-      // Send the request with the current history
-      fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: content,
-          history: history,
-        }),
-      })
-        .then(async (response) => {
-          if (!response.ok) throw new Error("Chat request failed");
-          const data = await response.json();
+      // Create new AbortController for this request
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
-          const assistantMessage: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: data.response,
-            timestamp: new Date(),
-            sources: data.sources || [],
-          };
+      const userMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: "user",
+        content,
+        timestamp: new Date(),
+      };
 
-          setMessages((prev) => [...prev, assistantMessage]);
-        })
-        .catch((error) => {
-          console.error("Chat error:", error);
-          const errorMessage: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: "I'm sorry, I encountered an error. Please try again.",
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-        })
-        .finally(() => {
-          setIsLoading(false);
+      // Add user message immediately
+      setMessages((prev) => [...prev, userMessage]);
+      setIsLoading(true);
+
+      try {
+        // Get current messages for context
+        const currentMessages = [...messages, userMessage];
+        const history = currentMessages.slice(-10);
+
+        // Send the request with the current history
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: content,
+            history: history,
+          }),
+          signal: abortController.signal,
         });
 
-      return updatedMessages;
-    });
+        if (!response.ok) throw new Error("Chat request failed");
+        const data = await response.json();
 
-    setIsLoading(true);
-  }, []);
+        const assistantMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: data.response,
+          timestamp: new Date(),
+          sources: data.sources || [],
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (error) {
+        // Handle AbortError specifically
+        if (error instanceof Error && error.name === "AbortError") {
+          console.log("Chat request was cancelled");
+          return; // Don't show error message for cancelled requests
+        }
+
+        console.error("Chat error:", error);
+        const errorMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "I'm sorry, I encountered an error. Please try again.",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
+        // Clear the abort controller reference
+        if (abortControllerRef.current === abortController) {
+          abortControllerRef.current = null;
+        }
+      }
+    },
+    [messages],
+  );
 
   const clearHistory = useCallback(() => {
     setMessages([
@@ -113,19 +143,23 @@ export function RAGProvider({ children }: { children: React.ReactNode }) {
 
   const regenerateResponse = useCallback(
     async (messageId: string) => {
-      const messageIndex = messages.findIndex((m) => m.id === messageId);
-      if (messageIndex === -1) return;
+      setMessages((prev) => {
+        const messageIndex = prev.findIndex((m) => m.id === messageId);
+        if (messageIndex === -1) return prev;
 
-      const userMessage = messages[messageIndex - 1];
-      if (!userMessage || userMessage.role !== "user") return;
+        const userMessage = prev[messageIndex - 1];
+        if (!userMessage || userMessage.role !== "user") return prev;
 
-      // Remove the message we're regenerating and all messages after it
-      setMessages((prev) => prev.slice(0, messageIndex));
+        // Remove the message we're regenerating and all messages after it
+        const updatedMessages = prev.slice(0, messageIndex);
 
-      // Resend the user message
-      await sendMessage(userMessage.content);
+        // Resend the user message asynchronously
+        sendMessage(userMessage.content);
+
+        return updatedMessages;
+      });
     },
-    [messages, sendMessage],
+    [sendMessage],
   );
 
   return (

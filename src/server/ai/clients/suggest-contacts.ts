@@ -17,25 +17,36 @@ export interface ContactSuggestion {
   source: "calendar_attendee" | "email";
 }
 
-export async function getContactSuggestions(userId: string): Promise<ContactSuggestion[]> {
+export async function getContactSuggestions(
+  userId: string,
+  maxSuggestions: number = 20,
+): Promise<ContactSuggestion[]> {
+  // Validate and clamp maxSuggestions
+  const limit = Math.max(1, Math.min(maxSuggestions, 100));
+
   const existingEmails = await getExistingEmails(userId);
   const recentEvents = await getRecentRawEvents(userId);
 
   const suggestions = [];
 
   for (const event of recentEvents) {
-    const parsed = await parseRawEvent(userId, event.type, event.content);
+    try {
+      const parsed = await parseRawEvent(userId, event.type, event.content);
 
-    // Process attendees
-    for (const attendee of parsed.attendees) {
-      if (
-        attendee.email &&
-        !existingEmails.includes(attendee.email) &&
-        !isSystemEmail(attendee.email) &&
-        attendee.displayName
-      ) {
-        suggestions.push(createSuggestionFromAttendee(attendee, event));
+      // Process attendees
+      for (const attendee of parsed.attendees) {
+        if (
+          attendee.email &&
+          !existingEmails.includes(attendee.email) &&
+          !isSystemEmail(attendee.email) &&
+          attendee.displayName
+        ) {
+          suggestions.push(createSuggestionFromAttendee(attendee, event));
+        }
       }
+    } catch (error) {
+      // Log error but continue processing other events
+      console.error(`Failed to parse event ${event.id}:`, error);
     }
   }
 
@@ -50,7 +61,7 @@ export async function getContactSuggestions(userId: string): Promise<ContactSugg
     }),
   );
 
-  return processedSuggestions.slice(0, 20);
+  return processedSuggestions.slice(0, limit);
 }
 
 // Helpers (extracted)
@@ -96,12 +107,9 @@ function createSuggestionFromAttendee(
     displayName: attendee.displayName,
     email: attendee.email,
     eventCount: 1,
-    lastEventDate:
-      event.occurredAt instanceof Date
-        ? event.occurredAt.toISOString()
-        : typeof event.occurredAt === "string"
-          ? event.occurredAt
-          : new Date().toISOString(),
+    lastEventDate: event.occurredAt
+      ? new Date(event.occurredAt).toISOString()
+      : new Date().toISOString(),
     eventTitles: [typeof event.title === "string" ? event.title : "Unknown"],
     confidence: "medium",
     source: "calendar_attendee",

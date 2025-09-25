@@ -1,6 +1,7 @@
 // New file for categorizing inbox items
 import { generateText } from "@/server/ai/core/llm.service";
 import { logger } from "@/lib/observability";
+import { InboxProcessingResultDTO, InboxProcessingContext } from "@contracts/inbox";
 
 // Prompt function defined inline until separate file is created
 function buildCategorizeInboxItemPrompt(rawText: string, context: InboxProcessingContext) {
@@ -28,29 +29,6 @@ Return a JSON object with the exact structure expected by InboxProcessingResultD
       content: `Please categorize this inbox item: ${rawText}`,
     },
   ];
-}
-
-interface InboxProcessingResultDTO {
-  suggestedZone: string;
-  suggestedPriority: "low" | "medium" | "high" | "urgent";
-  suggestedProject: string | undefined;
-  extractedTasks: {
-    name: string;
-    description?: string;
-    estimatedMinutes?: number;
-    dueDate?: string;
-  }[];
-  confidence: number;
-  reasoning: string;
-}
-
-interface InboxProcessingContext {
-  zones: { name: string }[];
-  userContext?: {
-    currentEnergy: number;
-    availableTime: number;
-    preferences: { preferredZone?: string; workingHours?: { start: string; end: string } };
-  };
 }
 
 export async function categorizeInboxItem(

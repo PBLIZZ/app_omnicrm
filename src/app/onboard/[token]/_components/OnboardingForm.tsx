@@ -23,12 +23,19 @@ const OnboardingFormSchema = z.object({
   // Personal Information
   displayName: z.string().min(1, "Full name is required").max(255),
   primaryEmail: z.string().email("Invalid email format").optional(),
-  primaryPhone: z.string().min(10, "Phone number must be at least 10 digits").optional(),
+  primaryPhone: z
+    .string()
+    .regex(/^[\p{N}\p{P}\p{Z}]*$/u, "Phone number contains invalid characters")
+    .min(10, "Phone number must be at least 10 digits")
+    .optional(),
   dateOfBirth: z.string().optional(),
 
   // Emergency Contact
   emergencyContactName: z.string().min(1, "Emergency contact name is required").max(255),
-  emergencyContactPhone: z.string().min(10, "Emergency contact phone must be at least 10 digits"),
+  emergencyContactPhone: z
+    .string()
+    .regex(/^[\p{N}\p{P}\p{Z}]*$/u, "Emergency contact phone contains invalid characters")
+    .min(10, "Emergency contact phone must be at least 10 digits"),
 
   // Client Status & Referral
   referralSource: z.string().optional(),
@@ -195,7 +202,7 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
       };
 
       // Debug: Log the submission data
-      console.log("Submitting onboarding data:", JSON.stringify(submissionData, null, 2));
+      // Submit onboarding data
 
       // Get CSRF token from cookie
       const getCsrfToken = (): string => {

@@ -24,7 +24,7 @@ interface NavigationContext {
  * Allows browsing through table results without returning to the list
  */
 export function ClientDetailPageWithNavigation({
-  clientId
+  clientId,
 }: ClientDetailPageWithNavigationProps): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,27 +36,46 @@ export function ClientDetailPageWithNavigation({
       // First try to get navigation context from localStorage (set by table)
       const storedContext = localStorage.getItem("omniClientsNavigationContext");
       if (storedContext) {
-        const parsed = JSON.parse(storedContext) as NavigationContext;
+        const parsed = JSON.parse(storedContext);
 
-        // Find current position in the stored list
-        const currentIndex = parsed.contactIds.indexOf(clientId);
-        if (currentIndex >= 0) {
-          setNavigationContext({
-            ...parsed,
-            currentIndex,
-          });
+        // Validate parsed context structure
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          Array.isArray(parsed.contactIds) &&
+          typeof parsed.currentIndex === "number" &&
+          parsed.contactIds.every((id: unknown) => typeof id === "string")
+        ) {
+          // Find current position in the stored list
+          const currentIndex = parsed.contactIds.indexOf(clientId);
+          if (currentIndex >= 0 && currentIndex < parsed.contactIds.length) {
+            setNavigationContext({
+              ...parsed,
+              currentIndex,
+            });
+          }
         }
       } else {
         // Fallback: check if we have context in URL params
         const contextParam = searchParams.get("context");
         if (contextParam) {
-          const parsed = JSON.parse(decodeURIComponent(contextParam)) as NavigationContext;
-          const currentIndex = parsed.contactIds.indexOf(clientId);
-          if (currentIndex >= 0) {
-            setNavigationContext({
-              ...parsed,
-              currentIndex,
-            });
+          const parsed = JSON.parse(decodeURIComponent(contextParam));
+
+          // Validate parsed context structure
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            Array.isArray(parsed.contactIds) &&
+            typeof parsed.currentIndex === "number" &&
+            parsed.contactIds.every((id: unknown) => typeof id === "string")
+          ) {
+            const currentIndex = parsed.contactIds.indexOf(clientId);
+            if (currentIndex >= 0 && currentIndex < parsed.contactIds.length) {
+              setNavigationContext({
+                ...parsed,
+                currentIndex,
+              });
+            }
           }
         }
       }
@@ -79,7 +98,12 @@ export function ClientDetailPageWithNavigation({
         ...navigationContext,
         currentIndex: navigationContext.currentIndex - 1,
       };
-      localStorage.setItem("omniClientsNavigationContext", JSON.stringify(updatedContext));
+      try {
+        localStorage.setItem("omniClientsNavigationContext", JSON.stringify(updatedContext));
+      } catch (error) {
+        console.warn("Failed to save navigation context to localStorage:", error);
+        // Continue without persisting navigation context
+      }
 
       // Navigate to previous contact
       router.push(`/omni-clients/details?id=${previousId}`);
@@ -99,7 +123,12 @@ export function ClientDetailPageWithNavigation({
         ...navigationContext,
         currentIndex: navigationContext.currentIndex + 1,
       };
-      localStorage.setItem("omniClientsNavigationContext", JSON.stringify(updatedContext));
+      try {
+        localStorage.setItem("omniClientsNavigationContext", JSON.stringify(updatedContext));
+      } catch (error) {
+        console.warn("Failed to save navigation context to localStorage:", error);
+        // Continue without persisting navigation context
+      }
 
       // Navigate to next contact
       router.push(`/omni-clients/details?id=${nextId}`);
@@ -138,7 +167,8 @@ export function ClientDetailPageWithNavigation({
                 </Button>
 
                 <div className="text-sm text-muted-foreground">
-                  {navigationContext.currentIndex + 1} of {navigationContext.totalItems} contacts
+                  {navigationContext.currentIndex + 1} of {navigationContext.contactIds.length}{" "}
+                  contacts
                   {navigationContext.searchQuery && (
                     <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
                       Filtered results

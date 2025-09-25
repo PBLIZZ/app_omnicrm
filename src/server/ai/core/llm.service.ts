@@ -34,6 +34,26 @@ export async function generateText<T>(
   userId: string,
   options: LLMOptions,
 ): Promise<LLMResponse<T>> {
+  // Runtime validation
+  if (!userId || typeof userId !== "string") {
+    throw new Error("userId must be a non-empty string");
+  }
+  
+  if (!options.model || typeof options.model !== "string") {
+    throw new Error("model must be a non-empty string");
+  }
+  
+  if (!Array.isArray(options.messages) || options.messages.length === 0) {
+    throw new Error("messages must be a non-empty array");
+  }
+  
+  if (options.temperature !== undefined && (options.temperature < 0 || options.temperature > 2)) {
+    throw new Error("temperature must be between 0 and 2");
+  }
+  
+  if (options.maxTokens !== undefined && (options.maxTokens < 1 || options.maxTokens > 4000)) {
+    throw new Error("maxTokens must be between 1 and 4000");
+  }
   if (options.model.startsWith("gpt")) {
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({

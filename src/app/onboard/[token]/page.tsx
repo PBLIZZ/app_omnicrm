@@ -6,6 +6,7 @@ import { OnboardingForm } from "./_components/OnboardingForm";
 import { OnboardingFormSkeleton } from "./_components/OnboardingFormSkeleton";
 import { AccessTracker } from "./_components/AccessTracker";
 import { getSupabaseServerClient } from "@/server/db/supabase/server";
+import { logger } from "@/lib/observability";
 
 interface OnboardPageProps {
   params: {
@@ -82,7 +83,14 @@ async function validateTokenAndGetUserInfo(
 
     return { isValid: true, userName };
   } catch (error) {
-    console.error("Token validation error:", error);
+    logger.error(
+      "Token validation failed",
+      {
+        operation: "token_validation",
+        additionalData: { token },
+      },
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return { isValid: false };
   }
 }
@@ -120,7 +128,7 @@ export default async function OnboardPage({ params }: OnboardPageProps) {
             Welcome to Your Wellness Journey
           </h1>
           <p className="text-gray-600 mb-4">
-            {userName || "A Wellness Practitioner"} has sent you this form to get your journey
+            {userName ?? "A Wellness Practitioner"} has sent you this form to get your journey
             started.
           </p>
           <p className="text-sm text-gray-500">

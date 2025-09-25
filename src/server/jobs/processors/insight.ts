@@ -51,11 +51,38 @@ export interface InsightGenerationTask {
   context?: Record<string, unknown> | undefined;
 }
 
+// Context types for different insight kinds
+interface SummaryContext {
+  contactId: string;
+  recentInteractions: string[];
+  lastContactDate?: string;
+}
+
+interface NextStepContext {
+  contactId: string;
+  currentStage: string;
+  recentActivities: string[];
+}
+
+interface RiskContext {
+  contactId: string;
+  warningSignals: string[];
+  lastInteractionDate?: string;
+}
+
+interface PersonaContext {
+  contactId: string;
+  demographics: Record<string, unknown>;
+  preferences: string[];
+}
+
+type InsightContext = SummaryContext | NextStepContext | RiskContext | PersonaContext;
+
 interface InsightRequest {
   subjectType: string;
   subjectId: string;
   kind: "summary" | "next_step" | "risk" | "persona";
-  context: any;
+  context: InsightContext;
 }
 
 /**
@@ -245,12 +272,14 @@ export class InsightWriter {
 
       let llmResult: unknown;
       if (task.kind === "summary") {
+        // Validate email before processing
+        const email = request.context.contact.primaryEmail;
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          throw new Error("Invalid or missing email address for contact summary generation");
+        }
+
         // Use generateContactInsights for contact summaries
-        llmResult = await generateContactInsights(
-          task.userId,
-          request.context.contact.primaryEmail,
-          {},
-        );
+        llmResult = await generateContactInsights(task.userId, email, {});
       } else {
         switch (task.kind) {
           case "next_step":

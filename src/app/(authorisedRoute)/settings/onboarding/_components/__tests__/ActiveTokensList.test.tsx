@@ -23,7 +23,7 @@ vi.mock("sonner", () => ({
 
 // Mock clipboard API
 const mockWriteText = vi.fn();
-Object.assign(navigator, {
+vi.stubGlobal("navigator", {
   clipboard: {
     writeText: mockWriteText,
   },
@@ -74,6 +74,7 @@ describe("ActiveTokensList", () => {
 
   afterEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("should render loading state", () => {
@@ -365,23 +366,31 @@ describe("ActiveTokensList", () => {
     ];
 
     // Mock missing origin
+    const originalLocation = window.location;
     Object.defineProperty(window, "location", {
       value: {},
       writable: true,
     });
 
-    mockGet.mockResolvedValue({ tokens: mockTokens });
+    try {
+      mockGet.mockResolvedValue({ tokens: mockTokens });
 
-    render(<ActiveTokensList />, { wrapper: createWrapper() });
+      render(<ActiveTokensList />, { wrapper: createWrapper() });
 
-    await waitFor(() => {
-      expect(screen.getByText("Active")).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(screen.getByText("Active")).toBeInTheDocument();
+      });
 
-    const copyButton = screen.getByLabelText("Copy onboarding URL");
-    await user.click(copyButton);
+      const copyButton = screen.getByLabelText("Copy onboarding URL");
+      await user.click(copyButton);
 
-    expect(mockToast.error).toHaveBeenCalledWith("Unable to generate link - origin not available");
+      expect(mockToast.error).toHaveBeenCalledWith(
+        "Unable to generate link - origin not available",
+      );
+    } finally {
+      // Restore original location
+      window.location = originalLocation;
+    }
   });
 
   it("should show disabled state for disabled tokens", async () => {

@@ -140,11 +140,11 @@ export function createOmniClientsRepoFakes(): OmniClientsRepoFakes {
           makeOmniClientWithNotes({
             userId,
             displayName: data.displayName,
-            primaryEmail: data.primaryEmail,
-            primaryPhone: data.primaryPhone,
+            primaryEmail: data.primaryEmail ?? null,
+            primaryPhone: data.primaryPhone ?? null,
             source: data.source,
             notesCount: 0,
-            lastNote,
+            lastNote: null,
           }),
         );
         return {

@@ -13,7 +13,7 @@ import {
 const UploadRequestSchema = z.object({
   token: z.string().min(1, "Token is required"),
   mimeType: z.string().min(1, "MIME type is required"),
-  fileSize: z.number().int().min(1, "File size must be positive"),
+  fileSize: z.number().int().min(1, "File size must be greater than 0 bytes"),
 });
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -61,11 +61,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Create Supabase client with service role for admin operations
     const supabase = createClient<Database>(supabaseUrl, supabaseSecretKey);
 
-    // Validate token and get associated user
+    // Validate token and get associated user in a single query
+    const now = new Date().toISOString();
     const { data: tokenData, error: tokenError } = await supabase
       .from("onboarding_tokens")
       .select("user_id, disabled, expires_at, used_count, max_uses")
       .eq("token", token)
+      .eq("disabled", false)
+      .gt("expires_at", now)
+      .lt("used_count", "max_uses")
       .single();
 
     if (tokenError || !tokenData) {
@@ -78,25 +82,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Check token validity
-    const now = new Date();
-    const expiresAt = new Date(tokenData.expires_at);
-
-    if (tokenData.disabled || now > expiresAt || tokenData.used_count >= tokenData.max_uses) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Token is disabled, expired, or exhausted",
-        },
-        { status: 403 },
-      );
-    }
-
-    // Generate unique file path with optimized extension
+    // Generate unique file path with timestamp and optimized extension
     const userId = tokenData.user_id;
     const fileId = randomUUID();
+    const timestamp = Date.now();
     const extension = getOptimizedExtension(mimeType);
-    const filePath = `client-photos/${userId}/${fileId}.${extension}`;
+    const filePath = `client-photos/${userId}/${timestamp}-${fileId}.${extension}`;
 
     // Generate signed upload URL
     const { data: uploadData, error: uploadError } = await supabase.storage

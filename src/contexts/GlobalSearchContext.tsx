@@ -1,7 +1,4 @@
-// ===== GLOBAL SEARCH IMPLEMENTATION FOR WELLNESS APP =====
-// Tech Stack: Next.js 15, Supabase, Drizzle, Redis, OpenRouter, text-embedding-3-small
-
-// ===== 1. GLOBAL SEARCH CONTEXT (app/contexts/GlobalSearchContext.tsx) =====
+// GlobalSearchContext: client-side context for global search
 "use client";
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";

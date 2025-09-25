@@ -5,6 +5,8 @@
  * Provides data transformation and validation helpers.
  */
 
+import validator from "validator";
+
 // ---------- Data Transformation Helpers ----------
 
 /**
@@ -21,16 +23,23 @@ export function toRepositoryFormat(value: string | null | undefined): string | n
  * Trims whitespace and ensures proper capitalization
  */
 export function normalizeDisplayName(name: string): string {
-  return name.trim().replace(/\s+/g, " ");
+  return name
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 /**
- * Validates email format (basic validation)
+ * Validates email format using battle-tested validator library
  * Returns true if email appears valid, false otherwise
  */
 export function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email.trim());
+  if (!email || typeof email !== "string") {
+    return false;
+  }
+  return validator.isEmail(email.trim());
 }
 
 /**
@@ -67,7 +76,6 @@ export function sanitizeContactInput<
     primaryPhone: toRepositoryFormat(input.primaryPhone),
   };
 }
-
 
 // ---------- Type Helpers ----------
 

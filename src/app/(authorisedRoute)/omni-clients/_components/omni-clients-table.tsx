@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { CLIENT_STAGES } from "@/constants/clientStages";
 import {
   Table,
   TableBody,
@@ -19,17 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { ClientFilterDialog } from "./ClientFilterDialog";
 import {
   ColumnDef,
   flexRender,
@@ -51,16 +40,10 @@ import {
   Settings2,
   Brain,
   Download,
-  Filter,
 } from "lucide-react";
 import { useBulkDeleteOmniClients } from "@/hooks/use-client-delete";
 import { useBulkEnrichOmniClients } from "@/hooks/use-omni-clients-bridge";
-import type {
-  ExportableClientData,
-  DataTableProps,
-  ClientSearchFilters,
-  ClientWithNotes,
-} from "./types";
+import type { DataTableProps, ClientSearchFilters, ClientWithNotes } from "./types";
 import { toast } from "sonner";
 
 export function OmniClientsTable<TData, TValue>({
@@ -190,12 +173,12 @@ export function OmniClientsTable<TData, TValue>({
       }
 
       // Source filter
-      if (filters.source?.length && !filters.source.includes(client.source)) {
+      if (filters.source?.length && client.source && !filters.source.includes(client.source)) {
         return false;
       }
 
       // Has notes filter
-      if (filters.hasNotes && (!client.lastNote || client.lastNote.trim() === "")) {
+      if (filters.hasNotes && (!client.lastNote || client.lastNote?.trim() === "")) {
         return false;
       }
 
@@ -323,145 +306,14 @@ export function OmniClientsTable<TData, TValue>({
           {table.getFilteredRowModel().rows.length} OmniClient(s) found
         </div>
         <div className="flex items-center space-x-2">
-          <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="relative">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter
-                {activeFiltersCount > 0 && (
-                  <Badge
-                    variant="destructive"
-                    className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
-                  >
-                    {activeFiltersCount}
-                  </Badge>
-                )}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center justify-between">
-                  <span>Filter Clients</span>
-                  {activeFiltersCount > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearAllFilters}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      Clear all
-                    </Button>
-                  )}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                {/* Stage filter */}
-                <div className="space-y-2">
-                  <Label>Client Stage</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {CLIENT_STAGES.map((stage) => (
-                      <div key={stage} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`stage-${stage}`}
-                          checked={filters.stage?.includes(stage) ?? false}
-                          onCheckedChange={(checked) => {
-                            const currentStages = filters.stage ?? [];
-                            const newStages = checked
-                              ? [...currentStages, stage]
-                              : currentStages.filter((s) => s !== stage);
-                            updateFilters({
-                              ...filters,
-                              stage: newStages.length > 0 ? newStages : undefined,
-                            } as ClientSearchFilters);
-                          }}
-                        />
-                        <Label htmlFor={`stage-${stage}`} className="text-sm">
-                          {stage}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Source filter */}
-                <div className="space-y-2">
-                  <Label>Source</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {["manual", "gmail_import", "upload", "calendar_import"].map((source) => (
-                      <div key={source} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`source-${source}`}
-                          checked={filters.source?.includes(source) ?? false}
-                          onCheckedChange={(checked) => {
-                            const currentSources = filters.source ?? [];
-                            const newSources = checked
-                              ? [...currentSources, source]
-                              : currentSources.filter((s) => s !== source);
-                            updateFilters({
-                              ...filters,
-                              source: newSources.length > 0 ? newSources : undefined,
-                            } as ClientSearchFilters);
-                          }}
-                        />
-                        <Label htmlFor={`source-${source}`} className="text-sm capitalize">
-                          {source.replaceAll("_", " ")}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Data presence filters */}
-                <div className="space-y-2">
-                  <Label>Data Presence</Label>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="has-notes"
-                        checked={filters.hasNotes ?? false}
-                        onCheckedChange={(checked) => {
-                          updateFilters({
-                            ...filters,
-                            hasNotes: checked || undefined,
-                          } as ClientSearchFilters);
-                        }}
-                      />
-                      <Label htmlFor="has-notes" className="text-sm">
-                        Has Notes
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="has-interactions"
-                        checked={filters.hasInteractions ?? false}
-                        onCheckedChange={(checked) => {
-                          updateFilters({
-                            ...filters,
-                            hasInteractions: checked || undefined,
-                          } as ClientSearchFilters);
-                        }}
-                      />
-                      <Label htmlFor="has-interactions" className="text-sm">
-                        Has Interactions
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Apply button */}
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setIsFilterDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => setIsFilterDialogOpen(false)}>Apply Filters</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <ClientFilterDialog
+            isOpen={isFilterDialogOpen}
+            onOpenChange={setIsFilterDialogOpen}
+            filters={filters}
+            onFiltersChange={updateFilters}
+            activeFiltersCount={activeFiltersCount}
+            onClearAll={clearAllFilters}
+          />
           <Button variant="outline" size="sm" onClick={handleExportClients}>
             <Download className="h-4 w-4 mr-2" />
             Export

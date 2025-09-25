@@ -10,6 +10,26 @@ export interface ParsedEvent {
   marketingWiki: string[];
 }
 
+function validateParsedEventResponse(data: unknown): asserts data is ParsedEvent {
+  if (!data || typeof data !== "object" || data === null) {
+    throw new Error("Invalid response format from LLM service");
+  }
+
+  const parsedData = data as Record<string, unknown>;
+
+  if (!Array.isArray(parsedData["attendees"])) {
+    throw new Error("Response missing required attendees array");
+  }
+
+  if (!Array.isArray(parsedData["businessWiki"])) {
+    throw new Error("Response missing required businessWiki array");
+  }
+
+  if (!Array.isArray(parsedData["marketingWiki"])) {
+    throw new Error("Response missing required marketingWiki array");
+  }
+}
+
 export async function parseRawEvent(
   userId: string,
   eventType: "gmail" | "calendar",
@@ -32,16 +52,9 @@ export async function parseRawEvent(
     const messages = buildParseRawEventPrompt(eventType, content);
 
     // Validate OpenRouter configuration
-    let config;
-    try {
-      config = getOpenRouterConfig();
-      if (!config || !config.chatModel) {
-        throw new Error("Invalid OpenRouter configuration: missing chatModel");
-      }
-    } catch (configError) {
-      throw new Error(
-        `OpenRouter configuration error: ${configError instanceof Error ? configError.message : String(configError)}`,
-      );
+    const config = getOpenRouterConfig();
+    if (!config || !config.chatModel) {
+      throw new Error("Invalid OpenRouter configuration: missing chatModel");
     }
 
     const response = await generateText<ParsedEvent>(userId, {
@@ -55,22 +68,7 @@ export async function parseRawEvent(
     }
 
     const data = response.data;
-    if (typeof data !== "object" || data === null) {
-      throw new Error("Invalid response format from LLM service");
-    }
-
-    // Validate required fields exist
-    if (!Array.isArray(data.attendees)) {
-      throw new Error("Response missing required attendees array");
-    }
-
-    if (!Array.isArray(data.businessWiki)) {
-      throw new Error("Response missing required businessWiki array");
-    }
-
-    if (!Array.isArray(data.marketingWiki)) {
-      throw new Error("Response missing required marketingWiki array");
-    }
+    validateParsedEventResponse(data);
 
     return data;
   } catch (error) {

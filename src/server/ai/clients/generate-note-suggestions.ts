@@ -2,7 +2,6 @@
 
 import { generateText } from "@/server/ai/core/llm.service";
 import { ChatMessage } from "@/server/ai/core/llm.service"; // Assuming type location
-// function buildGenerateNotePrompt(data: any): ChatMessage[] { return [{ role: "user", content: "Generate notes" }]; }
 import { getContactData } from "@/server/ai/clients/utils/contact-utils";
 
 function buildGenerateNotePrompt(data: any): ChatMessage[] {

@@ -4,7 +4,8 @@
 
 Since the CLI doesn't support direct bucket creation, follow these steps in the Supabase Dashboard:
 
-1. Go to https://supabase.com/dashboard/project/etdhqniblvwgueykywqd/storage/buckets
+1. Go to https://supabase.com/dashboard/project/{PROJECT_REF}/storage/buckets
+   - Replace `{PROJECT_REF}` with your actual project reference from the Supabase dashboard URL
 2. Click "Create bucket"
 3. Set the following:
    - **Name**: `client-photos`

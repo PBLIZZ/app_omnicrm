@@ -18,7 +18,7 @@ import { post } from "@/lib/api";
 interface TokenGenerationRequest {
   hoursValid: number;
   maxUses: number;
-  label?: string | undefined;
+  label?: string;
 }
 
 interface TokenGenerationResponse {
@@ -50,10 +50,6 @@ export function TokenGeneratorSection() {
         "/api/onboarding/admin/generate-tokens",
         payload,
       );
-
-      // Debug: Log the response data
-      console.log("Frontend received response:", response);
-      console.log("expiresAt value:", response.expiresAt, "type:", typeof response.expiresAt);
 
       setGeneratedToken(response);
       toast.success("Onboarding link generated successfully!");
@@ -194,7 +190,8 @@ export function TokenGeneratorSection() {
               })()}
             </p>
             <p className="text-sm text-muted-foreground">
-              <strong>Uses allowed:</strong> {maxUses} {maxUses === 1 ? "use" : "uses"}
+              <strong>Uses allowed:</strong> {generatedToken?.maxUses ?? maxUses}{" "}
+              {(generatedToken?.maxUses ?? maxUses) === 1 ? "use" : "uses"}
             </p>
           </div>
 

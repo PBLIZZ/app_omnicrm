@@ -3,6 +3,8 @@ import { getServerUserId } from "@/server/auth/user";
 import { GetOmniClientsQuerySchema } from "@/lib/validation/schemas/omniClients";
 import { ContactsRepository } from "packages/repo/src/contacts.repo";
 import { ZodError } from "zod";
+import { logger } from "@/lib/observability";
+import { isAuthError, isValidationError, getErrorMessage } from "@/lib/utils/auth-error-utils";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -22,35 +24,30 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ count: total });
   } catch (error) {
-    console.error("Failed to count omni clients:", error);
+    logger.error("Failed to count omni clients", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+      search: validatedQuery?.search,
+    });
 
     // Handle validation errors
-    if (error instanceof ZodError) {
+    if (isValidationError(error)) {
       return NextResponse.json(
         { error: "Invalid query parameters", details: error.message },
         { status: 400 },
       );
     }
 
-    // Handle auth errors - check both status and statusCode properties
-    if (error instanceof Error) {
-      const errorWithStatus = error as any;
-      const status = errorWithStatus.status || errorWithStatus.statusCode;
-      const isUnauthorized =
-        status === 401 ||
-        error.name === "Unauthorized" ||
-        error.message.includes("Unauthorized") ||
-        error.message.includes("401");
-
-      if (isUnauthorized) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    // Handle auth errors
+    if (isAuthError(error)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
       {
         error: "Failed to count omni clients",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: getErrorMessage(error),
       },
       { status: 500 },
     );

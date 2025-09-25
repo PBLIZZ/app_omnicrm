@@ -91,7 +91,7 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
         setIsUploading(false);
       }
     },
-    [token, onPhotoUploaded, previewUrl],
+    [token, onPhotoUploaded],
   );
 
   const onDrop = useCallback(

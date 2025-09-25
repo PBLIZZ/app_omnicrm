@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import type { ClientWithNotes } from "./types";
+import validator from "validator";
 
 interface EditClientDialogProps {
   client: ClientWithNotes | null;
@@ -112,7 +113,7 @@ export function EditClientDialog({
       errors["displayName"] = ["Name is required"];
     }
 
-    if (formData["primaryEmail"].trim() && !isValidEmail(formData["primaryEmail"].trim())) {
+    if (formData["primaryEmail"].trim() && !validator.isEmail(formData["primaryEmail"].trim())) {
       errors["primaryEmail"] = ["Please enter a valid email address"];
     }
 
@@ -226,10 +227,4 @@ export function EditClientDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-// Helper function for email validation
-function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
 }

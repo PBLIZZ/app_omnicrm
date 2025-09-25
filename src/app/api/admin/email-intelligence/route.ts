@@ -12,6 +12,11 @@ export const POST = createRouteHandler({
   auth: false,
   rateLimit: { operation: "email_intelligence_trigger" },
 })(async ({}) => {
+  // TODO:REINSTATE-#1234 - Temporarily disabled for build fix (2025-01-XX)
+  // Owner: Development Team
+  // Reason: Email intelligence processing causing build failures
+  // Link: https://github.com/your-org/app_omnicrm/issues/1234
+  // When to remove: After fixing email intelligence processing issues
   return NextResponse.json({ error: "Temporarily disabled for build fix" }, { status: 500 });
 });
 
@@ -23,5 +28,10 @@ export const GET = createRouteHandler({
   auth: false,
   rateLimit: { operation: "email_intelligence_stats" },
 })(async ({}) => {
+  // TODO:REINSTATE-#1234 - Temporarily disabled for build fix (2025-01-XX)
+  // Owner: Development Team
+  // Reason: Email intelligence processing causing build failures
+  // Link: https://github.com/your-org/app_omnicrm/issues/1234
+  // When to remove: After fixing email intelligence processing issues
   return NextResponse.json({ error: "Temporarily disabled for build fix" }, { status: 500 });
 });

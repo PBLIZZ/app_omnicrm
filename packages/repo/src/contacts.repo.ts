@@ -37,26 +37,22 @@ export class ContactsRepository {
       conditions.push(ilike(contacts.displayName, `%${params.search}%`));
     }
 
-    // Count total
+    // Count total using Drizzle's typed count helper
     const countResult = await db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: contacts.id.count() })
       .from(contacts)
       .where(and(...conditions));
 
     const total = countResult[0]?.count ?? 0;
 
     // Main query with dynamic sort and limit/offset
-    let orderByClause;
-    switch (sortKey) {
-      case "displayName":
-        orderByClause = sortDir(contacts.displayName);
-        break;
-      case "createdAt":
-        orderByClause = sortDir(contacts.createdAt);
-        break;
-      default:
-        orderByClause = sortDir(contacts.updatedAt);
-    }
+    const sortColumnMap = {
+      displayName: contacts.displayName,
+      createdAt: contacts.createdAt,
+      updatedAt: contacts.updatedAt,
+    } as const;
+
+    const orderByClause = sortDir(sortColumnMap[sortKey] ?? contacts.updatedAt);
 
     const query = db
       .select({
@@ -200,6 +196,7 @@ export class ContactsRepository {
       displayName: contacts.displayName,
       primaryEmail: contacts.primaryEmail,
       primaryPhone: contacts.primaryPhone,
+      photoUrl: contacts.photoUrl,
       source: contacts.source,
       lifecycleStage: contacts.lifecycleStage,
       tags: contacts.tags,
@@ -359,11 +356,11 @@ export class ContactsRepository {
     }
 
     // Delete the contacts
-    await db
+    const result = await db
       .delete(contacts)
       .where(and(eq(contacts.userId, userId), inArray(contacts.id, contactIds)));
 
-    return n;
+    return result.count || n;
   }
 
   /**

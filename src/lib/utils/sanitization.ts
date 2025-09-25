@@ -3,6 +3,8 @@
  * Prevents XSS and injection attacks in user-generated content
  */
 
+import sanitizeHtml from "sanitize-html";
+
 /**
  * Sanitize text content for safe use in prompts and displays
  * @param text - The text to sanitize
@@ -14,8 +16,12 @@ export function sanitizeText(text: string | null | undefined, maxLength: number 
     return "No content";
   }
 
-  // Remove HTML tags
-  let sanitized = text.replace(/<[^>]*>/g, "");
+  // Use sanitize-html library for robust HTML sanitization
+  let sanitized = sanitizeHtml(text, {
+    allowedTags: [], // Remove all HTML tags
+    allowedAttributes: {}, // Remove all attributes
+    disallowedTagsMode: "discard", // Remove disallowed tags
+  });
 
   // Escape special characters that could be used for injection
   sanitized = sanitized
@@ -60,13 +66,20 @@ export function sanitizeDate(date: string | null | undefined): string {
   // Basic date validation and sanitization
   const sanitized = sanitizeText(date, 50);
 
-  // Check if it looks like a valid date
+  // Validate against ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)
+  const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?)?$/;
+  if (!iso8601Regex.test(sanitized)) {
+    return "No date";
+  }
+
+  // Check if it parses to a valid date
   const dateObj = new Date(sanitized);
   if (isNaN(dateObj.getTime())) {
     return "No date";
   }
 
-  return sanitized;
+  // Normalize to YYYY-MM-DD format for consistency
+  return dateObj.toISOString().split("T")[0];
 }
 
 /**

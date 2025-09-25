@@ -5,8 +5,19 @@
  * for improved error handling and user experience.
  */
 
+import { ERROR_CATEGORIES } from "@/lib/constants/errorCategories";
+
+export type ErrorCategory =
+  | "auth"
+  | "network"
+  | "rate_limit"
+  | "validation"
+  | "permission"
+  | "system"
+  | "unknown";
+
 export interface ErrorClassification {
-  category: "auth" | "network" | "rate_limit" | "validation" | "permission" | "system" | "unknown";
+  category: ErrorCategory;
   severity: "low" | "medium" | "high" | "critical";
   retryable: boolean;
   recoveryStrategies: Array<{
@@ -27,7 +38,7 @@ export function classifyError(error: Error | string): ErrorClassification {
   // Early guard to normalize and null-check message/code
   if (!error) {
     return {
-      category: "unknown",
+      category: ERROR_CATEGORIES.SYSTEM, // Using system as fallback for unknown
       severity: "medium",
       retryable: true,
       recoveryStrategies: [
@@ -49,7 +60,7 @@ export function classifyError(error: Error | string): ErrorClassification {
 
   if (!message) {
     return {
-      category: "unknown",
+      category: ERROR_CATEGORIES.SYSTEM, // Using system as fallback for unknown
       severity: "medium",
       retryable: true,
       recoveryStrategies: [
@@ -73,7 +84,7 @@ export function classifyError(error: Error | string): ErrorClassification {
     /\b(unauthorized|invalid_grant|invalid_token|authentication failed)\b/.test(lowerMessage)
   ) {
     return {
-      category: "auth",
+      category: ERROR_CATEGORIES.AUTH,
       severity: "high",
       retryable: true,
       recoveryStrategies: [
@@ -101,7 +112,7 @@ export function classifyError(error: Error | string): ErrorClassification {
   // Rate limiting errors - check status code first, then precise patterns
   if (status === 429 || /\b(rate limit|quota exceeded|too many requests)\b/.test(lowerMessage)) {
     return {
-      category: "rate_limit",
+      category: ERROR_CATEGORIES.RATE_LIMIT,
       severity: "medium",
       retryable: true,
       recoveryStrategies: [
@@ -136,7 +147,7 @@ export function classifyError(error: Error | string): ErrorClassification {
     )
   ) {
     return {
-      category: "network",
+      category: ERROR_CATEGORIES.NETWORK,
       severity: "medium",
       retryable: true,
       recoveryStrategies: [
@@ -167,7 +178,7 @@ export function classifyError(error: Error | string): ErrorClassification {
     /\b(permission denied|forbidden|insufficient scope|access denied)\b/.test(lowerMessage)
   ) {
     return {
-      category: "permission",
+      category: ERROR_CATEGORIES.PERMISSION,
       severity: "high",
       retryable: false,
       recoveryStrategies: [
@@ -201,7 +212,7 @@ export function classifyError(error: Error | string): ErrorClassification {
     )
   ) {
     return {
-      category: "validation",
+      category: ERROR_CATEGORIES.DATA_FORMAT, // Using data_format for validation errors
       severity: "medium",
       retryable: false,
       recoveryStrategies: [
@@ -232,7 +243,7 @@ export function classifyError(error: Error | string): ErrorClassification {
     /\b(internal server error|system error|server error|service unavailable)\b/.test(lowerMessage)
   ) {
     return {
-      category: "system",
+      category: ERROR_CATEGORIES.SYSTEM,
       severity: "high",
       retryable: true,
       recoveryStrategies: [
@@ -259,7 +270,7 @@ export function classifyError(error: Error | string): ErrorClassification {
 
   // Default/unknown error
   return {
-    category: "unknown",
+    category: ERROR_CATEGORIES.SYSTEM, // Using system as fallback for unknown
     severity: "medium",
     retryable: true,
     recoveryStrategies: [

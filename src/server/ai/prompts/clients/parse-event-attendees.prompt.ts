@@ -3,18 +3,17 @@
 import { ChatMessage } from "@/server/ai/core/llm.service";
 
 export function buildParseEventAttendeesPrompt(description: string): ChatMessage[] {
-  // Sanitize input to prevent prompt injection
-  const sanitizedDescription = description
-    .replace(/["\\]/g, "\\$&") // Escape quotes and backslashes
-    .replace(/\n/g, "\\n") // Escape newlines
-    .replace(/\r/g, "\\r") // Escape carriage returns
-    .replace(/\t/g, "\\t") // Escape tabs
-    .substring(0, 1000); // Limit length to prevent abuse
+  // Sanitize input to prevent prompt injection using JSON.stringify
+  const sanitizedDescription = JSON.stringify(description).slice(1, -1); // Remove outer quotes
 
   return [
     {
       role: "system",
-      content: `You are an AI that extracts attendee information from calendar event descriptions. Parse names and emails accurately. Respond with JSON array of {displayName: string, email: string}. Ignore system emails.`,
++      content: `You are an AI that extracts attendee information from calendar event descriptions. Parse names and emails accurately. Respond with a valid JSON array of objects with schema: {displayName: string, email: string}. Requirements:
++- Return empty array [] if no attendees found
++- Validate email format (must contain @ and domain)
++- Ignore system/noreply emails
++- Remove duplicates based on email address`,
     },
     {
       role: "user",

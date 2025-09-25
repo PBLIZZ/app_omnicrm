@@ -2,6 +2,14 @@
 
 import { ChatMessage } from "@/server/ai/core/llm.service";
 
+// Configuration constants for analysis limits
+const ANALYSIS_LIMITS = {
+  maxEvents: 10,
+  maxInteractions: 10,
+  bodyPreviewLength: 200,
+  maxLabels: 3,
+} as const;
+
 interface CalendarEventData {
   title: string;
   description?: string;
@@ -36,84 +44,72 @@ interface GmailPatterns {
   averageEmailsPerMonth: number;
   responseRate: number;
   commonLabels: string[];
-  contentInsights: any;
+  contentInsights: {
+    sentiment: string;
+    topics: string[];
+    urgency: string;
+    businessRelevance: string;
+  };
 }
 
-function extractEventType(title: string, description?: string): string {
-  const text = `${title} ${description || ""}`.toLowerCase();
+// Event type patterns with case-insensitive word boundary matching
+const EVENT_TYPE_PATTERNS = {
+  meeting: /\b(meeting|call|conference|standup|sync)\b/i,
+  class: /\b(class|workshop|training|lesson|course)\b/i,
+  appointment: /\b(appointment|consultation|session|checkup|visit)\b/i,
+  event: /\b(event|seminar|webinar|conference|presentation)\b/i,
+  social: /\b(lunch|dinner|coffee|breakfast|drinks|party|gathering)\b/i,
+} as const;
 
-  // Common event type patterns
-  if (text.includes("meeting") || text.includes("call") || text.includes("conference")) {
-    return "meeting";
-  }
-  if (text.includes("class") || text.includes("workshop") || text.includes("training")) {
-    return "class";
-  }
-  if (text.includes("appointment") || text.includes("consultation") || text.includes("session")) {
-    return "appointment";
-  }
-  if (text.includes("event") || text.includes("seminar") || text.includes("webinar")) {
-    return "event";
-  }
-  if (text.includes("lunch") || text.includes("dinner") || text.includes("coffee")) {
-    return "social";
+function extractEventType(title: string, description?: string): string {
+  const text = `${title} ${description || ""}`;
+
+  // Check patterns in order of precedence
+  for (const [eventType, pattern] of Object.entries(EVENT_TYPE_PATTERNS)) {
+    if (pattern.test(text)) {
+      return eventType;
+    }
   }
 
   return "other";
 }
 
-function extractBusinessCategory(title: string, description?: string): string {
-  const text = `${title} ${description || ""}`.toLowerCase();
+// Business category patterns with case-insensitive word boundary matching
+const BUSINESS_CATEGORY_PATTERNS = [
+  {
+    category: "wellness",
+    patterns: [/\b(wellness|health|fitness|yoga|meditation|mindfulness|therapy|counseling)\b/i],
+  },
+  {
+    category: "business",
+    patterns: [/\b(business|strategy|planning|review|management|operations)\b/i],
+  },
+  {
+    category: "marketing",
+    patterns: [/\b(marketing|promotion|campaign|social media|advertising|branding)\b/i],
+  },
+  {
+    category: "sales",
+    patterns: [/\b(sales|client|prospect|lead|customer|revenue)\b/i],
+  },
+  {
+    category: "administrative",
+    patterns: [/\b(admin|administrative|paperwork|billing|accounting|compliance)\b/i],
+  },
+  {
+    category: "personal",
+    patterns: [/\b(personal|family|vacation|holiday|break|time off)\b/i],
+  },
+] as const;
 
-  // Business category patterns
-  if (
-    text.includes("wellness") ||
-    text.includes("health") ||
-    text.includes("fitness") ||
-    text.includes("yoga") ||
-    text.includes("meditation")
-  ) {
-    return "wellness";
-  }
-  if (
-    text.includes("business") ||
-    text.includes("strategy") ||
-    text.includes("planning") ||
-    text.includes("review")
-  ) {
-    return "business";
-  }
-  if (
-    text.includes("marketing") ||
-    text.includes("promotion") ||
-    text.includes("campaign") ||
-    text.includes("social media")
-  ) {
-    return "marketing";
-  }
-  if (
-    text.includes("sales") ||
-    text.includes("client") ||
-    text.includes("prospect") ||
-    text.includes("lead")
-  ) {
-    return "sales";
-  }
-  if (
-    text.includes("admin") ||
-    text.includes("administrative") ||
-    text.includes("paperwork") ||
-    text.includes("billing")
-  ) {
-    return "administrative";
-  }
-  if (
-    text.includes("personal") ||
-    text.includes("family") ||
-    text.includes("vacation") ||
-    text.includes("holiday")
-  ) {
-    return "personal";
+function extractBusinessCategory(title: string, description?: string): string {
+  const text = `${title} ${description || ""}`.trim().toLowerCase();
+
+  // Check patterns in order of precedence
+  for (const { category, patterns } of BUSINESS_CATEGORY_PATTERNS) {
+    if (patterns.some((pattern) => pattern.test(text))) {
+      return category;
+    }
   }
 
   return "general";
@@ -126,7 +122,7 @@ export function buildEnhancedAIAnalysisPrompt(data: {
   eventAnalysis: EventPatterns;
   gmailAnalysis: GmailPatterns;
 }): ChatMessage[] {
-  const eventDetails = data.events.slice(0, 10).map((event) => ({
+  const eventDetails = data.events.slice(0, ANALYSIS_LIMITS.maxEvents).map((event) => ({
     title: event.title,
     description: event.description ?? "",
     date: event.start_time,
@@ -135,13 +131,15 @@ export function buildEnhancedAIAnalysisPrompt(data: {
     location: event.location ?? "",
   }));
 
-  const emailDetails = data.gmailInteractions.slice(0, 10).map((email) => ({
-    subject: email.subject,
-    bodyPreview: email.bodyText.substring(0, 200) + "...",
-    date: email.occurredAt,
-    isOutbound: email.isOutbound,
-    labels: email.labels.slice(0, 3),
-  }));
+  const emailDetails = data.gmailInteractions
+    .slice(0, ANALYSIS_LIMITS.maxInteractions)
+    .map((email) => ({
+      subject: email.subject,
+      bodyPreview: email.bodyText.substring(0, ANALYSIS_LIMITS.bodyPreviewLength) + "...",
+      date: email.occurredAt,
+      isOutbound: email.isOutbound,
+      labels: email.labels.slice(0, ANALYSIS_LIMITS.maxLabels),
+    }));
 
   const prompt = `
 Analyze this contact's wellness journey using both calendar events and email communications:

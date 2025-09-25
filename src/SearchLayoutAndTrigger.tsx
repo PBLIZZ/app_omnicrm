@@ -1,39 +1,8 @@
-// ===== 5. USAGE IN LAYOUT (app/layout.tsx) =====
+// This file contains example/demo code that should be moved to documentation
+// or integrated into the actual application components.
 
-import { GlobalSearchProvider } from "@/contexts/GlobalSearchContext";
-import { GlobalSearchModal } from "@/components/GlobalSearchModal";
+// TODO: Move these examples to docs/examples/ or integrate into actual components:
+// - RootLayout example should be in app/layout.tsx
+// - Header component should be in components/ui/Header.tsx or similar
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>
-        <GlobalSearchProvider>
-          {children}
-          <GlobalSearchModal />
-        </GlobalSearchProvider>
-      </body>
-    </html>
-  );
-}
-
-// ===== 6. TRIGGER SEARCH FROM ANYWHERE (example component) =====
-
-import { useGlobalSearch } from "@/contexts/GlobalSearchContext";
-
-export function Header() {
-  const { openSearch } = useGlobalSearch();
-
-  return (
-    <header className="flex items-center justify-between p-4">
-      <h1>Wellness App</h1>
-      <button
-        onClick={openSearch}
-        className="flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
-      >
-        <MagnifyingGlassIcon className="h-4 w-4" />
-        <span>Search anything...</span>
-        <kbd className="text-xs bg-gray-200 px-1 rounded">⌘K</kbd>
-      </button>
-    </header>
-  );
-}
+// For now, this file serves as a reference for implementing global search functionality.

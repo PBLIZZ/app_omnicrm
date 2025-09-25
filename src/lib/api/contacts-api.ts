@@ -55,7 +55,11 @@ function debugLog(message: string, data?: unknown): void {
     context.additionalData = data as Record<string, unknown>;
   }
 
-  logger.debug(`[CONTACTS-API] ${message}`, context).catch(() => {}); // Fire-and-forget logging
+  logger.debug(`[CONTACTS-API] ${message}`, context).catch((error) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("Logging failure in contacts-api:", error, { message, context });
+    }
+  }); // Fire-and-forget logging
 }
 
 /** ---- Contact API Methods ---- */

@@ -33,15 +33,13 @@ export async function POST(_: NextRequest, { params }: RouteParams): Promise<Nex
     // Note: approvalStatus field might not exist in current schema,
     // this feature might need implementation. For now, just update status.
 
-    // Update task to approved status
-    await momentumRepository.updateTask(taskId, userId, {
+    // Update task to approved status and get the updated task
+    const updatedTask = await momentumRepository.updateTask(taskId, userId, {
       status: "todo", // Move to active todo status
     });
 
-    // Get the updated task to return
-    const updatedTask = await momentumRepository.getTask(taskId, userId);
     if (!updatedTask) {
-      return NextResponse.json({ error: "Failed to retrieve updated task" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
     }
 
     // Note: createMomentumAction method doesn't exist yet,

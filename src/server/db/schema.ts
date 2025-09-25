@@ -60,19 +60,35 @@ export const inboxItemStatusEnum = pgEnum("inbox_item_status", [
   "processed",
   "archived",
 ]);
-export const clientStatusEnum = pgEnum("client_status", [
-  "active",
-  "inactive",
-  "at_risk",
-  "churned",
-]);
-export const consentTypeEnum = pgEnum("consent_type", [
-  "data_processing",
-  "marketing",
-  "hipaa",
-  "photography",
-]);
-export const fileTypeEnum = pgEnum("file_type", ["photo", "document", "form"]);
+export enum ClientStatus {
+  ACTIVE = "active",
+  INACTIVE = "inactive",
+  AT_RISK = "at_risk",
+  CHURNED = "churned",
+}
+
+export enum ConsentType {
+  DATA_PROCESSING = "data_processing",
+  MARKETING = "marketing",
+  HIPAA = "hipaa",
+  PHOTOGRAPHY = "photography",
+}
+
+export enum FileType {
+  PHOTO = "photo",
+  DOCUMENT = "document",
+  FORM = "form",
+}
+
+export const clientStatusEnum = pgEnum(
+  "client_status",
+  Object.values(ClientStatus) as [string, ...string[]],
+);
+export const consentTypeEnum = pgEnum(
+  "consent_type",
+  Object.values(ConsentType) as [string, ...string[]],
+);
+export const fileTypeEnum = pgEnum("file_type", Object.values(FileType) as [string, ...string[]]);
 
 // ---------- Core Tables ----------
 

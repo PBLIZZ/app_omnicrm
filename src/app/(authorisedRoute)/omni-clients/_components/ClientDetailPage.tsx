@@ -310,11 +310,11 @@ export function ClientDetailPage({ clientId }: ClientDetailPageProps): JSX.Eleme
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {safeClient.stage && (
+                {safeClient.lifecycleStage && (
                   <div>
                     <Label className="text-sm font-medium">Stage</Label>
                     <div className="mt-1">
-                      <Badge variant="secondary">{safeClient.stage}</Badge>
+                      <Badge variant="secondary">{safeClient.lifecycleStage}</Badge>
                     </div>
                   </div>
                 )}

@@ -11,9 +11,7 @@ export const supabaseServerPublishable = createClient(url, pub);
 // Admin client bypasses RLS. Never expose to client code.
 export const supabaseServerAdmin = secret ? createClient(url, secret) : null;
 
-export type ServerSupabaseClient = SupabaseClient;
-
-export function getSupabaseServerClient(): ServerSupabaseClient {
+export function getSupabaseServerClient(): SupabaseClient {
   const client = supabaseServerAdmin ?? supabaseServerPublishable;
 
   if (!client) {

@@ -2,11 +2,17 @@
 
 import { getDb } from "@/server/db/client";
 import { interactions, aiInsights } from "@/server/db/schema";
-import { and, eq, sql } from "drizzle-orm";
-import { desc } from "drizzle-orm";
+import { and, eq, sql, desc } from "drizzle-orm";
 import { generateText, ChatMessage } from "@/server/ai/core/llm.service";
 import { WeeklyDigestInsight } from "@/server/ai/types/connect-types";
 import { logger } from "@/lib/observability";
+
+interface EmailSummary {
+  subject: string;
+  bodyText: string;
+  source: string;
+  occurredAt: Date;
+}
 
 function buildWeeklyDigestPrompt(emailSummary: any[], insights: any[]): ChatMessage[] {
   return [
@@ -64,13 +70,6 @@ export async function generateWeeklyDigest(
       ),
     );
 
-  interface EmailSummary {
-    subject: string;
-    bodyText: string;
-    source: string;
-    occurredAt: Date;
-  }
-
   const emailSummary: EmailSummary[] = emailInteractions
     .map((interaction) => ({
       subject: interaction.subject ?? "No subject",
@@ -82,16 +81,21 @@ export async function generateWeeklyDigest(
 
   const messages = buildWeeklyDigestPrompt(emailSummary, insights);
 
-  await logger.info("Generating weekly digest", {
-    operation: "generate_weekly_digest",
-    additionalData: {
-      startDate,
-      endDate,
-      emailInteractionsLength: emailInteractions.length,
-      insightsLength: insights.length,
-      emailSummary,
-    },
-  });
+  try {
+    await logger.info("Generating weekly digest", {
+      operation: "generate_weekly_digest",
+      additionalData: {
+        startDate,
+        endDate,
+        emailInteractionsLength: emailInteractions.length,
+        insightsLength: insights.length,
+        emailSummary,
+      },
+    });
+  } catch (error) {
+    console.warn("Failed to log weekly digest generation:", error);
+    // Continue without logging
+  }
 
   const response = await generateText<WeeklyDigestInsight>(userId, {
     model: "default",

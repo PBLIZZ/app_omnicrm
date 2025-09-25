@@ -54,15 +54,22 @@ export async function analyzeGmailPatterns(
   const validInteractions = gmailInteractions.filter((interaction) => {
     const occurredAt = interaction.occurredAt;
     if (!occurredAt) {
-      console.warn("Gmail interaction missing occurredAt timestamp, dropping from analysis");
+      logger.warn("Gmail interaction missing occurredAt timestamp, dropping from analysis");
       return false;
     }
     const date = new Date(occurredAt);
     if (isNaN(date.getTime())) {
-      console.warn("Gmail interaction has invalid occurredAt timestamp, dropping from analysis");
+      logger.warn("Gmail interaction has invalid occurredAt timestamp, dropping from analysis");
       return false;
     }
     return true;
+  });
+
+  // Sort interactions by occurredAt for chronological analysis
+  validInteractions.sort((a, b) => {
+    const dateA = new Date(a.occurredAt);
+    const dateB = new Date(b.occurredAt);
+    return dateA.getTime() - dateB.getTime();
   });
 
   const validEmails = validInteractions.length;

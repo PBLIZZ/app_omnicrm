@@ -1,6 +1,6 @@
 // ===== 2. SEARCH MODAL COMPONENT (app/components/GlobalSearchModal.tsx) =====
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useGlobalSearch } from "@/contexts/GlobalSearchContext";
 import { Search, X } from "lucide-react";
@@ -31,6 +31,17 @@ export function GlobalSearchModal() {
     }
   }, [isOpen]);
 
+  // Memoized debounced search function
+  const debouncedPerformSearch = useCallback(
+    (searchQuery: string, type: "hybrid" | "traditional" | "semantic") => {
+      const timer = setTimeout(() => {
+        performSearch(searchQuery, type);
+      }, 300);
+      return () => clearTimeout(timer);
+    },
+    [performSearch],
+  );
+
   // Debounced search
   useEffect(() => {
     if (!query) {
@@ -38,22 +49,24 @@ export function GlobalSearchModal() {
       return;
     }
 
-    const timer = setTimeout(() => {
-      performSearch(query, searchType);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [query, searchType, performSearch, clearResults]);
+    const cleanup = debouncedPerformSearch(query, searchType);
+    return cleanup;
+  }, [query, searchType, debouncedPerformSearch, clearResults]);
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Early guard for empty results
+    if (results.length === 0) {
+      return;
+    }
+
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedIndex((prev) => Math.max(prev - 1, 0));
-    } else if (e.key === "Enter" && results[selectedIndex]) {
+    } else if (e.key === "Enter" && results.length > 0 && results[selectedIndex]) {
       e.preventDefault();
       const url = results[selectedIndex].url;
       // Check if it's an external URL
@@ -125,7 +138,9 @@ export function GlobalSearchModal() {
                 <div className="flex items-center space-x-2">
                   <select
                     value={searchType}
-                    onChange={(e) => setSearchType(e.target.value as any)}
+                    onChange={(e) =>
+                      setSearchType(e.target.value as "hybrid" | "traditional" | "semantic")
+                    }
                     className="text-sm border-gray-300 rounded-md"
                   >
                     <option value="hybrid">🤖 Smart Search</option>

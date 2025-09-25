@@ -63,14 +63,24 @@ export async function PATCH(
     if (validatedBody.lifecycleStage !== undefined) {
       const stageValue = toOptional(validatedBody.lifecycleStage);
       if (stageValue !== undefined) {
-        updates.lifecycleStage = stageValue as
-          | "New Client"
-          | "VIP Client"
-          | "Core Client"
-          | "Prospect"
-          | "At Risk Client"
-          | "Lost Client"
-          | "Referring Client";
+        const allowedStages = [
+          "New Client",
+          "VIP Client",
+          "Core Client",
+          "Prospect",
+          "At Risk Client",
+          "Lost Client",
+          "Referring Client",
+        ] as const;
+
+        if (allowedStages.includes(stageValue as any)) {
+          updates.lifecycleStage = stageValue as (typeof allowedStages)[number];
+        } else {
+          return NextResponse.json(
+            { error: `Invalid lifecycle stage: ${stageValue}` },
+            { status: 400 },
+          );
+        }
       }
     }
     if (validatedBody.tags !== undefined) {
@@ -78,7 +88,45 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: "No valid updates provided" }, { status: 400 });
+      // Analyze what was provided vs what's valid
+      const providedFields = Object.keys(validatedBody);
+      const allowedFields = [
+        "displayName",
+        "primaryEmail",
+        "primaryPhone",
+        "lifecycleStage",
+        "tags",
+      ];
+      const invalidFields = providedFields.filter((field) => !allowedFields.includes(field));
+      const emptyFields = providedFields.filter((field) => {
+        const value = validatedBody[field as keyof typeof validatedBody];
+        return (
+          value === null ||
+          value === undefined ||
+          (typeof value === "string" && value.trim() === "")
+        );
+      });
+
+      const errors = [];
+      if (invalidFields.length > 0) {
+        errors.push(`Invalid fields: ${invalidFields.join(", ")}`);
+      }
+      if (emptyFields.length > 0) {
+        errors.push(`Empty fields: ${emptyFields.join(", ")}`);
+      }
+      if (errors.length === 0) {
+        errors.push("No valid updates provided");
+      }
+
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: errors,
+          providedFields,
+          allowedFields,
+        },
+        { status: 400 },
+      );
     }
 
     const updatedContact = await ContactsRepository.updateContact(

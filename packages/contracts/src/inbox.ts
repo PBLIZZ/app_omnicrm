@@ -36,26 +36,41 @@ export const UpdateInboxItemDTOSchema = z.object({
   createdTaskId: z.string().uuid().optional(),
 });
 
+// Shared User Context Schema - for AI processing context
+export const userContextSchema = z
+  .object({
+    currentEnergy: z.number().min(1).max(5).optional(), // From daily pulse
+    availableTime: z.number().optional(), // Minutes available
+    preferences: z
+      .object({
+        preferredZone: z.string().optional(),
+        workingHours: z
+          .object({
+            start: z
+              .string()
+              .regex(
+                /^(?:[01]\d|2[0-3]):[0-5]\d$/,
+                "Invalid time format. Use HH:MM (24-hour format)",
+              )
+              .optional(),
+            end: z
+              .string()
+              .regex(
+                /^(?:[01]\d|2[0-3]):[0-5]\d$/,
+                "Invalid time format. Use HH:MM (24-hour format)",
+              )
+              .optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  .optional();
+
 // AI Processing Request Schema - for triggering AI categorization
 export const ProcessInboxItemDTOSchema = z.object({
   id: z.string().uuid(),
-  userContext: z
-    .object({
-      currentEnergy: z.number().min(1).max(5).optional(), // From daily pulse
-      availableTime: z.number().optional(), // Minutes available
-      preferences: z
-        .object({
-          preferredZone: z.string().optional(),
-          workingHours: z
-            .object({
-              start: z.string().optional(),
-              end: z.string().optional(),
-            })
-            .optional(),
-        })
-        .optional(),
-    })
-    .optional(),
+  userContext: userContextSchema,
 });
 
 // AI Processing Result Schema - response from AI categorization
@@ -92,23 +107,7 @@ export const InboxItemWithSuggestionsDTOSchema = InboxItemDTOSchema.extend({
 export const BulkProcessInboxDTOSchema = z.object({
   itemIds: z.array(z.string().uuid()).min(1, "Select at least one item"),
   action: z.enum(["process", "archive", "delete"]),
-  userContext: z
-    .object({
-      currentEnergy: z.number().min(1).max(5).optional(),
-      availableTime: z.number().optional(),
-      preferences: z
-        .object({
-          preferredZone: z.string().optional(),
-          workingHours: z
-            .object({
-              start: z.string().optional(),
-              end: z.string().optional(),
-            })
-            .optional(),
-        })
-        .optional(),
-    })
-    .optional(),
+  userContext: userContextSchema,
 });
 
 // Quick capture with voice support
@@ -132,12 +131,19 @@ export const InboxFiltersSchema = z.object({
   hasAiSuggestions: z.boolean().optional(),
 });
 
+// Inbox Processing Context Schema - for AI processing context
+export const InboxProcessingContextSchema = z.object({
+  zones: z.array(z.object({ name: z.string() })),
+  userContext: userContextSchema,
+});
+
 // Type exports
 export type InboxItemDTO = z.infer<typeof InboxItemDTOSchema>;
 export type CreateInboxItemDTO = z.infer<typeof CreateInboxItemDTOSchema>;
 export type UpdateInboxItemDTO = z.infer<typeof UpdateInboxItemDTOSchema>;
 export type ProcessInboxItemDTO = z.infer<typeof ProcessInboxItemDTOSchema>;
 export type InboxProcessingResultDTO = z.infer<typeof InboxProcessingResultDTOSchema>;
+export type InboxProcessingContext = z.infer<typeof InboxProcessingContextSchema>;
 export type InboxItemWithSuggestionsDTO = z.infer<typeof InboxItemWithSuggestionsDTOSchema>;
 export type BulkProcessInboxDTO = z.infer<typeof BulkProcessInboxDTOSchema>;
 export type VoiceInboxCaptureDTO = z.infer<typeof VoiceInboxCaptureDTOSchema>;

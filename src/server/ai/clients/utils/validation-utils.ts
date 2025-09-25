@@ -1,30 +1,24 @@
 // Validation utilities for clients domain
 
-export type ClientStage =
-  | "Prospect"
-  | "New Client"
-  | "Core Client"
-  | "Referring Client"
-  | "VIP Client"
-  | "Lost Client"
-  | "At Risk Client";
+import { CLIENT_STAGES, type ClientStage } from "@/constants/clientStages";
 
 export type WellnessTag = "Yoga" | "Massage";
 
-export function validateStage(stage: string): ClientStage {
-  const validStages: ClientStage[] = [
-    "Prospect",
-    "New Client",
-    "Core Client",
-    "Referring Client",
-    "VIP Client",
-    "Lost Client",
-    "At Risk Client",
-  ];
-  return validStages.includes(stage as ClientStage) ? (stage as ClientStage) : "Prospect";
+// Maximum number of wellness tags allowed per client
+const MAX_WELLNESS_TAGS = 8;
+
+// Type guard to check if a string is a valid ClientStage
+function isClientStage(stage: string): stage is ClientStage {
+  return CLIENT_STAGES.includes(stage as ClientStage);
 }
 
-export function validateTags(tags: string[]): WellnessTag[] {
+export function validateStage(stage: string): ClientStage {
+  return isClientStage(stage) ? stage : "Prospect";
+}
+
+export function validateTags(tags: string[], maxTags: number = MAX_WELLNESS_TAGS): WellnessTag[] {
   const validTags: WellnessTag[] = ["Yoga", "Massage"];
-  return tags.filter((tag) => validTags.includes(tag as WellnessTag)).slice(0, 8) as WellnessTag[];
+  return tags
+    .filter((tag) => validTags.includes(tag as WellnessTag))
+    .slice(0, maxTags) as WellnessTag[];
 }

@@ -6,6 +6,10 @@ import { and, eq } from "drizzle-orm";
 import { buildSuggestNewContactPrompt } from "@/server/ai/prompts/connect/suggest-new-contact.prompt";
 import { generateText } from "@/server/ai/core/llm.service";
 
+// Fuzzy matching configuration constants
+const MATCH_CONFIDENCE_THRESHOLD = 0.6;
+const MAX_CONFIDENCE_CAP = 0.85;
+
 export interface ContactMatch {
   contactId: string | null;
   confidence: number;
@@ -51,11 +55,12 @@ export async function matchToContacts(
   }
 
   // Partial name matching
-  if (senderName && senderName.length > 2) {
+  if (senderName && senderName.length > 0) {
     const nameWords = senderName
       .toLowerCase()
       .split(/\s+/)
-      .filter((word) => word.length > 2);
+      .map((word) => word.replace(/[^\w]/g, "")) // Remove punctuation
+      .filter((word) => /^[a-z]{1,}$/.test(word)); // Accept alphabetic tokens of any reasonable length
 
     if (nameWords.length > 0) {
       const fuzzyMatches = await db
@@ -76,10 +81,10 @@ export async function matchToContacts(
           const confidence =
             matchingWords.length / Math.max(nameWords.length, contactNameWords.length);
 
-          if (confidence > 0.6) {
+          if (confidence > MATCH_CONFIDENCE_THRESHOLD) {
             return {
               contactId: contact.id,
-              confidence: Math.min(confidence, 0.85),
+              confidence: Math.min(confidence, MAX_CONFIDENCE_CAP),
               matchingFactors: [`name_match_${matchingWords.length}_words`],
             };
           }

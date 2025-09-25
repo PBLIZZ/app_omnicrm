@@ -221,10 +221,14 @@ vi.mock("sonner", () => ({
   },
 }));
 
+// Set up fake timers for deterministic testing
+vi.useFakeTimers();
+vi.setSystemTime(new Date("2024-01-01T10:00:00Z"));
+
 // Mock date-fns
 vi.mock("date-fns", () => ({
   formatDistanceToNow: vi.fn((date) => {
-    const now = new Date("2024-01-01T10:00:00Z");
+    const now = new Date(); // This will use the fake time
     const diff = now.getTime() - date.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
     return `${hours} hours ago`;

@@ -394,6 +394,8 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import SignatureCanvas from 'react-signature-canvas'
 
+const GDPR_CONSENT_VERSION = process.env.NEXT_PUBLIC_GDPR_CONSENT_VERSION || '2025-09-01'
+
 export default function OnboardForm({ token }: { token: string }) {
   const { register, handleSubmit } = useForm()
   const [sigRef, setSigRef] = useState<SignatureCanvas | null>(null)
@@ -503,8 +505,6 @@ export default function OnboardForm({ token }: { token: string }) {
     </div>
   )
 }
-
-const GDPR_CONSENT_VERSION = process.env.NEXT_PUBLIC_GDPR_CONSENT_VERSION || '2025-09-01'
 
 /*
 ================================================================================

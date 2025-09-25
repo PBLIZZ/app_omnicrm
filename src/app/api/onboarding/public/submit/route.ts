@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/server/db/types";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+// Postgres error codes
+const INVALID_AUTH_SPEC = "28000";
+
+// Environment variable validation helper
+function getRequiredEnv(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Required environment variable ${key} is not set`);
+  }
+  return value;
+}
 
 // Validation schemas
 const AddressSchema = z
@@ -60,18 +74,54 @@ const ConsentDataSchema = z.object({
 });
 
 const OnboardingSubmissionSchema = z.object({
-  token: z.string().min(1, "Token is required"),
+  token: z.string().min(1, "Token is required").max(255, "Token too long"),
   client: ClientDataSchema,
   consent: ConsentDataSchema,
   photo_path: z.string().optional(),
 });
 
+// Rate limiter instance
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(5, "1 m"),
+});
+
+// Enhanced validation for JSONB fields
+const validateJsonbField = (field: unknown, fieldName: string, maxLength: number = 10000) => {
+  if (typeof field !== "object" || field === null) {
+    throw new Error(`Invalid ${fieldName}: must be an object`);
+  }
+
+  const jsonString = JSON.stringify(field);
+  if (jsonString.length > maxLength) {
+    throw new Error(`${fieldName} exceeds maximum length of ${maxLength} characters`);
+  }
+
+  // Check for suspicious patterns that might indicate injection attempts
+  if (jsonString.includes("${") || jsonString.includes("{{") || jsonString.includes("}}")) {
+    throw new Error(`${fieldName} contains potentially dangerous template syntax`);
+  }
+
+  return field;
+};
+
+// Email validation regex
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const PHONE_REGEX = /^[\+]?[1-9][\d]{0,15}$/;
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    // Get client IP and user agent for consent tracking
+    // Rate limiting
     const forwardedFor = req.headers.get("x-forwarded-for");
     const realIp = req.headers.get("x-real-ip");
+    const clientId = forwardedFor || realIp || "unknown";
 
+    const { success } = await ratelimit.limit(clientId);
+    if (!success) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
+    // Get client IP and user agent for consent tracking
     let ip = "unknown";
     if (forwardedFor) {
       // Split on commas, trim each part, and take the first non-empty value
@@ -98,10 +148,47 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { token, client, consent, photo_path } = OnboardingSubmissionSchema.parse(body);
 
+    // Enhanced server-side validation
+    if (!EMAIL_REGEX.test(client.primary_email)) {
+      return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
+    }
+
+    if (client.primary_phone && !PHONE_REGEX.test(client.primary_phone)) {
+      return NextResponse.json({ error: "Invalid phone format" }, { status: 400 });
+    }
+
+    if (client.emergency_contact_phone && !PHONE_REGEX.test(client.emergency_contact_phone)) {
+      return NextResponse.json(
+        { error: "Invalid emergency contact phone format" },
+        { status: 400 },
+      );
+    }
+
+    // Validate JSONB fields
+    try {
+      if (client.address) {
+        validateJsonbField(client.address, "address", 5000);
+      }
+      if (client.health_context) {
+        validateJsonbField(client.health_context, "health_context", 10000);
+      }
+      if (client.preferences) {
+        validateJsonbField(client.preferences, "preferences", 5000);
+      }
+      validateJsonbField(consent, "consent", 10000);
+    } catch (validationError) {
+      return NextResponse.json(
+        {
+          error: validationError instanceof Error ? validationError.message : "Invalid data format",
+        },
+        { status: 400 },
+      );
+    }
+
     // Create Supabase client with service role for admin operations
     const supabase = createClient<Database>(
-      process.env["NEXT_PUBLIC_SUPABASE_URL"]!,
-      process.env["SUPABASE_SECRET_KEY"]!,
+      getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
+      getRequiredEnv("SUPABASE_SECRET_KEY"),
     );
 
     // Prepare client data for database
@@ -136,8 +223,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (error) {
       console.error("Onboarding submission error:", error);
 
-      // Handle specific error codes
-      if (error.code === "28000") {
+      // Handle specific error codes with robust checking
+      if (
+        error?.code === INVALID_AUTH_SPEC ||
+        (error?.message && error.message.includes("invalid_authorization_specification"))
+      ) {
         // Postgres error code for "invalid_authorization_specification" (invalid or expired token)
         return NextResponse.json({ error: "Invalid or expired token" }, { status: 403 });
       }
@@ -147,12 +237,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // Track successful submission
     try {
-      await supabase
-        .from("onboarding_tokens")
-        .update({
-          submission_count: supabase.rpc("increment_submission_count", { token_value: token }),
-        })
-        .eq("token", token);
+      await supabase.rpc("increment_submission_count", { token_value: token });
     } catch (trackingError) {
       // Don't fail the request if tracking fails
       console.warn("Failed to track submission:", trackingError);

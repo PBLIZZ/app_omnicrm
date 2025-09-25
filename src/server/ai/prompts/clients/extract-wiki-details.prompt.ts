@@ -38,7 +38,7 @@ export function buildExtractWikiDetailsPrompt(content: string): ChatMessage[] {
       role: "user",
       content: `Analyze this content and extract business and marketing wiki information:
 
-${JSON.stringify(sanitizedContent)}`,
+${sanitizedContent}`,
     },
   ];
 }

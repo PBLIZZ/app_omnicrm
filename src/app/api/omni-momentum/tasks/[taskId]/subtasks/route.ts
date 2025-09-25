@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
-import { CreateMomentumDTOSchema } from "@omnicrm/contracts";
+import { momentumRepository } from "@repo";
+import { CreateTaskDTOSchema } from "@omnicrm/contracts";
+import { z } from "zod";
 
 /**
  * Subtasks Management API Route
@@ -25,13 +26,13 @@ export async function GET(_: NextRequest, { params }: RouteParams): Promise<Next
     const { taskId } = params;
 
     // Ensure parent task exists and belongs to user
-    const parentTask = await MomentumRepository.getTask(taskId, userId);
+    const parentTask = await momentumRepository.getTask(taskId, userId);
     if (!parentTask) {
       return NextResponse.json({ error: "Parent task not found" }, { status: 404 });
     }
 
     // Get subtasks for this parent task
-    const subtasks = await MomentumRepository.getSubtasks(taskId, userId);
+    const subtasks = await momentumRepository.getSubtasks(taskId, userId);
 
     return NextResponse.json(subtasks);
   } catch (error) {
@@ -43,6 +44,17 @@ export async function GET(_: NextRequest, { params }: RouteParams): Promise<Next
 /**
  * POST /api/omni-momentum/tasks/[taskId]/subtasks - Create new subtask
  */
+// Define subtask request schema
+const SubtaskRequestSchema = z
+  .object({
+    title: z.string().min(1, "Title is required"),
+    description: z.string().optional(),
+    priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+    dueDate: z.string().datetime().optional(),
+    projectId: z.string().optional(),
+  })
+  .passthrough(); // Allow additional fields
+
 export async function POST(request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
@@ -50,27 +62,29 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     const body: unknown = await request.json();
 
     // Ensure parent task exists and belongs to user
-    const parentTask = await MomentumRepository.getTask(taskId, userId);
+    const parentTask = await momentumRepository.getTask(taskId, userId);
     if (!parentTask) {
       return NextResponse.json({ error: "Parent task not found" }, { status: 404 });
     }
 
-    // Validate the body is an object before spreading
-    if (typeof body !== 'object' || body === null) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    // Validate request body with Zod
+    const parseResult = SubtaskRequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Validation failed", issues: parseResult.error.issues },
+        { status: 400 },
+      );
     }
 
-    const bodyAsRecord = body as Record<string, unknown>;
-
-    // ✅ Runtime validation with Zod schema
-    const validatedData = CreateMomentumDTOSchema.parse({
-      ...bodyAsRecord,
+    // Build validated data with parent task context
+    const validatedData = CreateTaskDTOSchema.parse({
+      ...parseResult.data,
       parentTaskId: taskId, // Ensure subtask is linked to parent
       // Inherit project from parent if not specified
-      projectId: bodyAsRecord.projectId ?? parentTask.projectId,
+      projectId: parseResult.data.projectId ?? parentTask.projectId,
     });
 
-    const subtask = await MomentumRepository.createTask(userId, validatedData);
+    const subtask = await momentumRepository.createTask(userId, validatedData);
 
     return NextResponse.json(subtask, { status: 201 });
   } catch (error) {

@@ -34,16 +34,24 @@ const stream = isLocalDev
   ? pretty({ colorize: true, translateTime: "SYS:standard", singleLine: false })
   : undefined;
 
-const logger = pino(
-  {
-    level: isLocalDev ? "debug" : "info",
-    redact: { paths: redactPaths, censor: "[redacted]" },
-    base,
-    timestamp: pino.stdTimeFunctions.isoTime,
-    messageKey: "message",
-  },
-  stream as pino.DestinationStream,
-);
+const logger = stream
+  ? pino(
+      {
+        level: isLocalDev ? "debug" : "info",
+        redact: { paths: redactPaths, censor: "[redacted]" },
+        base,
+        timestamp: pino.stdTimeFunctions.isoTime,
+        messageKey: "message",
+      },
+      stream,
+    )
+  : pino({
+      level: isLocalDev ? "debug" : "info",
+      redact: { paths: redactPaths, censor: "[redacted]" },
+      base,
+      timestamp: pino.stdTimeFunctions.isoTime,
+      messageKey: "message",
+    });
 
 export const log = {
   info(bindings?: LogBindings, message?: string): void {

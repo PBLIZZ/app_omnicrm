@@ -59,9 +59,7 @@ export function PreferencesSection({ control, errors }: PreferencesSectionProps)
         communicationController.field.onChange([...currentValues, value]);
       }
     } else {
-      communicationController.field.onChange(
-        currentValues.filter((item) => item !== value),
-      );
+      communicationController.field.onChange(currentValues.filter((item) => item !== value));
     }
   };
 

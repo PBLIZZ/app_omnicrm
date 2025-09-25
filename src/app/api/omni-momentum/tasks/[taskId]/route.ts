@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
-import { UpdateMomentumDTOSchema } from "@omnicrm/contracts";
+import { momentumRepository } from "@repo";
+import { UpdateTaskDTOSchema } from "@omnicrm/contracts";
 
 /**
  * Individual Task Management API Routes
@@ -24,7 +24,7 @@ export async function GET(_: NextRequest, { params }: RouteParams): Promise<Next
     const userId = await getServerUserId();
     const { taskId } = params;
 
-    const task = await MomentumRepository.getTask(taskId, userId);
+    const task = await momentumRepository.getTask(taskId, userId);
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
@@ -47,10 +47,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams): Promis
     const body: unknown = await request.json();
 
     // ✅ Runtime validation with Zod schema
-    const validatedData = UpdateMomentumDTOSchema.parse(body);
+    const validatedData = UpdateTaskDTOSchema.parse(body);
 
-    const task = await MomentumRepository.updateTask(taskId, userId, validatedData);
+    // Update task (returns void)
+    await momentumRepository.updateTask(taskId, userId, validatedData);
 
+    // Get the updated task to return
+    const task = await momentumRepository.getTask(taskId, userId);
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
@@ -79,7 +82,7 @@ export async function DELETE(_: NextRequest, { params }: RouteParams): Promise<N
     const userId = await getServerUserId();
     const { taskId } = params;
 
-    await MomentumRepository.deleteTask(taskId, userId);
+    await momentumRepository.deleteTask(taskId, userId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

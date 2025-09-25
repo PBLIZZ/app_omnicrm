@@ -1,30 +1,18 @@
-// Database Query Result Caching System
-// Implements Redis-like in-memory caching for frequently accessed data
+// Database Query Result Caching System (Redis-backed)
 import { logger } from "@/lib/observability";
-
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-  hitCount: number;
-  lastAccessed: number;
-}
+import { redisGet, redisSet, redisDel, redisScan, redisDelMultiple } from "./redis-client";
 
 interface CacheStats {
   hits: number;
   misses: number;
-  evictions: number;
-  totalSize: number;
 }
 
 class QueryCache {
-  private cache = new Map<string, CacheEntry<unknown>>();
-  private stats: CacheStats = { hits: 0, misses: 0, evictions: 0, totalSize: 0 };
-  private maxSize = 1000; // Maximum cache entries
-  private cleanupInterval: NodeJS.Timeout;
+  private stats: CacheStats = { hits: 0, misses: 0 };
+  private statsMutex = Promise.resolve();
 
   constructor() {
-    // Cleanup expired entries every 5 minutes
-    this.cleanupInterval = setInterval(() => this.cleanup(), 5 * 60 * 1000);
+    // No cleanup needed - Redis handles TTL automatically
   }
 
   /**
@@ -35,122 +23,119 @@ class QueryCache {
     fetcher: () => Promise<T>,
     ttlSeconds: number = 300, // 5 minutes default
   ): Promise<T> {
-    const now = Date.now();
-    const entry = this.cache.get(key);
+    const redisKey = `cache:${key}`;
 
-    // Cache hit
-    if (entry && entry.expiresAt > now) {
-      entry.hitCount++;
-      entry.lastAccessed = now;
-      this.stats.hits++;
-
-      await logger.debug("Cache hit", {
-        operation: "cache_get",
-        additionalData: {
-          op: "cache.hit",
-          key,
-          hitCount: entry.hitCount,
-          age: Math.round((now - (entry.expiresAt - ttlSeconds * 1000)) / 1000),
-        },
-      });
-
-      // Type assertion is safe here because we control what goes into the cache
-      return entry.data as T;
+    // Check Redis cache
+    const cachedData = await redisGet<T>(redisKey);
+    if (cachedData !== null) {
+      await this.incrementStat("hits");
+      logger
+        .debug("Cache hit", {
+          operation: "cache_get",
+          additionalData: { op: "cache.hit", key },
+        })
+        .catch(() => {}); // Fire-and-forget logging
+      return cachedData;
     }
 
     // Cache miss - fetch data
-    this.stats.misses++;
-    await logger.debug("Cache miss", {
-      operation: "cache_get",
-      additionalData: {
-        op: "cache.miss",
-        key,
-        expired: entry ? entry.expiresAt <= now : false,
-      },
-    });
+    await this.incrementStat("misses");
+    logger
+      .debug("Cache miss", {
+        operation: "cache_get",
+        additionalData: { op: "cache.miss", key },
+      })
+      .catch(() => {}); // Fire-and-forget logging
 
-    try {
-      const data = await fetcher();
-      await this.set(key, data, ttlSeconds);
-      return data;
-    } catch (error) {
-      // If we have expired data, return it as fallback
-      if (entry) {
-        await logger.warn(
-          "Using expired cache data as fallback",
-          {
-            operation: "cache_get",
-            additionalData: {
-              op: "cache.fallback",
-              key,
-              error: error instanceof Error ? error.message : String(error),
-            },
-          },
-          error instanceof Error ? error : undefined,
-        );
-
-        // Type assertion is safe here because we control what goes into the cache
-        return entry.data as T;
-      }
-      throw error;
-    }
+    const data = await fetcher();
+    await this.set(key, data, ttlSeconds);
+    return data;
   }
 
   /**
    * Set cache value with TTL
    */
   async set<T>(key: string, data: T, ttlSeconds: number = 300): Promise<void> {
-    const now = Date.now();
-    const expiresAt = now + ttlSeconds * 1000;
+    const redisKey = `cache:${key}`;
+    await redisSet(redisKey, data, ttlSeconds);
 
-    // Evict oldest entries if cache is full
-    if (this.cache.size >= this.maxSize) {
-      await this.evictLRU();
-    }
-
-    this.cache.set(key, {
-      data,
-      expiresAt,
-      hitCount: 0,
-      lastAccessed: now,
-    });
-
-    this.stats.totalSize = this.cache.size;
+    logger
+      .debug("Data cached", {
+        operation: "cache_set",
+        additionalData: { op: "cache.set", key, ttl: ttlSeconds },
+      })
+      .catch(() => {}); // Fire-and-forget logging
   }
 
   /**
    * Delete cache entry
    */
-  delete(key: string): boolean {
-    const deleted = this.cache.delete(key);
-    this.stats.totalSize = this.cache.size;
-    return deleted;
+  async delete(key: string): Promise<void> {
+    const redisKey = `cache:${key}`;
+    await redisDel(redisKey);
   }
 
   /**
-   * Delete cache entries matching pattern
+   * Delete cache entries matching pattern using Redis SCAN
    */
-  deletePattern(pattern: string): number {
-    const regex = new RegExp(pattern.replace(/\*/g, ".*"));
-    let deleted = 0;
+  async deletePattern(pattern: string): Promise<void> {
+    const fullPattern = `cache:${pattern}`;
+    let cursor = 0;
+    let totalDeleted = 0;
+    const batchSize = 100; // Process keys in batches to avoid blocking Redis
 
-    for (const key of this.cache.keys()) {
-      if (regex.test(key)) {
-        this.cache.delete(key);
-        deleted++;
-      }
+    try {
+      do {
+        const { cursor: newCursor, keys } = await redisScan(fullPattern, cursor, batchSize);
+        cursor = newCursor;
+
+        if (keys.length > 0) {
+          // Delete keys in batches
+          const deletedCount = await redisDelMultiple(keys);
+          totalDeleted += deletedCount;
+
+          await logger.debug("Deleted cache keys in batch", {
+            operation: "cache_invalidate",
+            additionalData: {
+              op: "cache.delete_pattern",
+              pattern: fullPattern,
+              batchSize: keys.length,
+              deletedInBatch: deletedCount,
+              totalDeleted,
+            },
+          });
+        }
+      } while (cursor !== 0);
+
+      await logger.info("Pattern deletion completed", {
+        operation: "cache_invalidate",
+        additionalData: {
+          op: "cache.delete_pattern",
+          pattern: fullPattern,
+          totalDeleted,
+        },
+      });
+    } catch (error) {
+      await logger.error("Failed to delete cache pattern", {
+        operation: "cache_invalidate",
+        additionalData: {
+          op: "cache.delete_pattern",
+          pattern: fullPattern,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+      throw error;
     }
-
-    this.stats.totalSize = this.cache.size;
-    return deleted;
   }
 
   /**
-   * Clear all cache entries
+   * Atomically increment a stat counter
    */
-  clear(): void {
-    this.cache.clear();
-    this.stats = { hits: 0, misses: 0, evictions: 0, totalSize: 0 };
+  private async incrementStat(key: keyof CacheStats): Promise<void> {
+    this.statsMutex = this.statsMutex.then(() => {
+      this.stats[key]++;
+    });
+    await this.statsMutex;
   }
 
   /**
@@ -164,70 +149,6 @@ class QueryCache {
       ...this.stats,
       hitRate: Math.round(hitRate * 100) / 100,
     };
-  }
-
-  /**
-   * Cleanup expired entries
-   */
-  private async cleanup(): Promise<void> {
-    const now = Date.now();
-    let cleaned = 0;
-
-    for (const [key, entry] of this.cache.entries()) {
-      if (entry.expiresAt <= now) {
-        this.cache.delete(key);
-        cleaned++;
-      }
-    }
-
-    if (cleaned > 0) {
-      this.stats.totalSize = this.cache.size;
-      await logger.info("Cache cleanup completed", {
-        operation: "cache_invalidate",
-        additionalData: {
-          op: "cache.cleanup",
-          cleaned,
-          remaining: this.cache.size,
-        },
-      });
-    }
-  }
-
-  /**
-   * Evict least recently used entry
-   */
-  private async evictLRU(): Promise<void> {
-    let oldestKey: string | null = null;
-    let oldestTime = Date.now();
-
-    for (const [key, entry] of this.cache.entries()) {
-      if (entry.lastAccessed < oldestTime) {
-        oldestTime = entry.lastAccessed;
-        oldestKey = key;
-      }
-    }
-
-    if (oldestKey) {
-      this.cache.delete(oldestKey);
-      this.stats.evictions++;
-
-      await logger.debug("Cache entry evicted", {
-        operation: "cache_invalidate",
-        additionalData: {
-          op: "cache.evict",
-          key: oldestKey,
-          age: Math.round((Date.now() - oldestTime) / 1000),
-        },
-      });
-    }
-  }
-
-  /**
-   * Graceful shutdown
-   */
-  destroy(): void {
-    clearInterval(this.cleanupInterval);
-    this.clear();
   }
 }
 
@@ -264,54 +185,99 @@ export const cacheKeys = {
 // Cache invalidation helpers
 export const cacheInvalidation = {
   // Invalidate user-specific caches
-  invalidateUser: (userId: string) => {
-    queryCache.deletePattern(`*:${userId}*`);
-    void logger
+  invalidateUser: async (userId: string) => {
+    await queryCache.deletePattern(`*:${userId}*`);
+    logger
       .info("User cache invalidated", {
         operation: "cache_invalidate",
         additionalData: { op: "cache.invalidate_user", userId },
       })
-      .catch(console.error);
+      .catch((error) => {
+        logger
+          .error("Failed to log user cache invalidation", {
+            operation: "cache_invalidate",
+            additionalData: {
+              op: "cache.invalidate_user",
+              userId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          })
+          .catch(() => {}); // Prevent cascading errors
+      });
   },
 
   // Invalidate contact-related caches
-  invalidateContacts: (userId: string) => {
-    queryCache.deletePattern(`contacts*:${userId}*`);
-    queryCache.deletePattern(`interactions:${userId}*`);
-    void logger
+  invalidateContacts: async (userId: string) => {
+    await queryCache.deletePattern(`contacts*:${userId}*`);
+    await queryCache.deletePattern(`interactions:${userId}*`);
+    logger
       .info("Contact caches invalidated", {
         operation: "cache_invalidate",
         additionalData: { op: "cache.invalidate_contacts", userId },
       })
-      .catch(console.error);
+      .catch((error) => {
+        logger
+          .error("Failed to log contact cache invalidation", {
+            operation: "cache_invalidate",
+            additionalData: {
+              op: "cache.invalidate_contacts",
+              userId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          })
+          .catch(() => {}); // Prevent cascading errors
+      });
   },
 
   // Invalidate sync-related caches
-  invalidateSync: (userId: string, provider?: string) => {
+  invalidateSync: async (userId: string, provider?: string) => {
     if (provider) {
-      queryCache.delete(cacheKeys.lastSyncStatus(userId, provider));
+      await queryCache.delete(cacheKeys.lastSyncStatus(userId, provider));
     } else {
-      queryCache.deletePattern(`last_sync:${userId}*`);
+      await queryCache.deletePattern(`last_sync:${userId}*`);
     }
-    queryCache.delete(cacheKeys.userSyncPrefs(userId));
-    void logger
+    await queryCache.delete(cacheKeys.userSyncPrefs(userId));
+    logger
       .info("Sync caches invalidated", {
         operation: "cache_invalidate",
         additionalData: { op: "cache.invalidate_sync", userId, provider },
       })
-      .catch(console.error);
+      .catch((error) => {
+        logger
+          .error("Failed to log sync cache invalidation", {
+            operation: "cache_invalidate",
+            additionalData: {
+              op: "cache.invalidate_sync",
+              userId,
+              provider,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          })
+          .catch(() => {}); // Prevent cascading errors
+      });
   },
 
   // Invalidate AI-related caches
-  invalidateAI: (userId: string) => {
-    queryCache.delete(cacheKeys.aiQuota(userId));
-    queryCache.delete(cacheKeys.aiUsageToday(userId));
-    void logger
+  invalidateAI: async (userId: string) => {
+    await queryCache.delete(cacheKeys.aiQuota(userId));
+    await queryCache.delete(cacheKeys.aiUsageToday(userId));
+    logger
       .info("AI caches invalidated", {
         operation: "cache_invalidate",
         additionalData: { op: "cache.invalidate_ai", userId },
       })
-      .catch(console.error);
+      .catch((error) => {
+        logger
+          .error("Failed to log AI cache invalidation", {
+            operation: "cache_invalidate",
+            additionalData: {
+              op: "cache.invalidate_ai",
+              userId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          })
+          .catch(() => {}); // Prevent cascading errors
+      });
   },
 } as const;
 
@@ -363,7 +329,3 @@ export const cacheWarming = {
 
 // Export cache metrics for monitoring
 export const getCacheMetrics = (): CacheStats & { hitRate: number } => queryCache.getStats();
-
-// Graceful shutdown hook
-process.on("SIGTERM", () => queryCache.destroy());
-process.on("SIGINT", () => queryCache.destroy());

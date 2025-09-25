@@ -78,19 +78,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       contactsData.forEach(c => contactsMap.set(c.id, c));
     }
 
+    // Define types for payload structure
+    interface GmailMessagePayload {
+      message?: {
+        subject?: string;
+        snippet?: string;
+        bodyText?: string;
+      };
+    }
+
     // Transform results to expected format
     const results: SearchResult[] = searchResults.map((result) => {
-      const payload = result.payload as any;
-      const message = payload?.message || {};
+      const payload = result.payload as GmailMessagePayload;
+      const message = payload?.message ?? {};
+
+      const contact = result.contactId ? contactsMap.get(result.contactId) as { id: string; displayName: string } | undefined : undefined;
 
       return {
-        subject: message.subject || "No Subject",
+        subject: message.subject ?? "No Subject",
         similarity: 0.8, // Mock similarity score
-        date: result.occurredAt?.toISOString() || new Date().toISOString(),
-        snippet: message.snippet || message.bodyText || "",
-        ...(result.contactId && contactsMap.has(result.contactId) && {
+        date: result.occurredAt?.toISOString() ?? new Date().toISOString(),
+        snippet: message.snippet ?? message.bodyText ?? "",
+        ...(contact && {
           contactInfo: {
-            displayName: contactsMap.get(result.contactId).displayName,
+            displayName: contact.displayName,
           },
         }),
       };

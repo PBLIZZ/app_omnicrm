@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { logger } from "@/lib/observability";
-
+import { useToast } from "@/hooks/use-toast";
 
 // New hooks following OmniConnect pattern
 import { useCalendarData } from "@/hooks/useCalendarData";
@@ -29,17 +29,27 @@ import { post, get } from "@/lib/api/client";
 export function OmniRhythmPage(): JSX.Element {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("insights");
+  const { toast } = useToast();
 
   // New clean hook structure following OmniConnect pattern
-  const { events, clients, connectionStatus, isEventsLoading, isClientsLoading } = useCalendarData();
-  const { enhancedAppointments, weeklyStats, sessionMetrics } = useCalendarIntelligence(events, clients);
+  const { events, clients, connectionStatus, isEventsLoading, isClientsLoading } =
+    useCalendarData();
+  const { enhancedAppointments, weeklyStats, sessionMetrics } = useCalendarIntelligence(
+    events,
+    clients,
+  );
   const { connect, isConnecting, error: connectionError } = useCalendarConnection();
   const { syncCalendar, isSyncing } = useCalendarSync();
 
   const handleLoadInsights = async (): Promise<void> => {
     try {
-      const result = await get<{ insights?: Record<string, unknown> }>("/api/google/calendar/insights");
-      alert(`Insights loaded: ${Object.keys(result.insights ?? {}).length} categories available`);
+      const result = await get<{ insights?: Record<string, unknown> }>(
+        "/api/google/calendar/insights",
+      );
+      toast({
+        title: "Insights Loaded",
+        description: `${Object.keys(result.insights ?? {}).length} categories available`,
+      });
     } catch (error) {
       await logger.error(
         "insights_loading_failed",
@@ -49,7 +59,11 @@ export function OmniRhythmPage(): JSX.Element {
         },
         ensureError(error),
       );
-      alert("Network error during insights loading");
+      toast({
+        title: "Error",
+        description: "Network error during insights loading",
+        variant: "destructive",
+      });
     }
   };
 
@@ -64,9 +78,16 @@ export function OmniRhythmPage(): JSX.Element {
       }>("/api/jobs/process", {});
 
       if (response.success) {
-        alert(`Job processing completed!\nProcessed: ${response.processed}\nSucceeded: ${response.succeeded}\nFailed: ${response.failed}`);
+        toast({
+          title: "Job Processing Completed",
+          description: `Processed: ${response.processed}, Succeeded: ${response.succeeded}, Failed: ${response.failed}`,
+        });
       } else {
-        alert("Failed to process jobs");
+        toast({
+          title: "Error",
+          description: "Failed to process jobs",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       await logger.error(
@@ -77,7 +98,11 @@ export function OmniRhythmPage(): JSX.Element {
         },
         ensureError(error),
       );
-      alert("Network error during job processing");
+      toast({
+        title: "Error",
+        description: "Network error during job processing",
+        variant: "destructive",
+      });
     }
   };
 
@@ -114,7 +139,11 @@ export function OmniRhythmPage(): JSX.Element {
   // If calendar is connected, show the dashboard with calendar status in the top grid
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <RhythmHeader onLoadInsights={handleLoadInsights} onProcessJobs={handleProcessJobs} onSearch={handleSearch} />
+      <RhythmHeader
+        onLoadInsights={handleLoadInsights}
+        onProcessJobs={handleProcessJobs}
+        onSearch={handleSearch}
+      />
 
       {/* Top Status Row - New Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-stretch">

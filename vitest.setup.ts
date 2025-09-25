@@ -204,6 +204,41 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+// Mock the API client
+vi.mock("@/lib/api", () => ({
+  post: vi.fn(),
+  get: vi.fn(),
+  del: vi.fn(),
+}));
+
+// Mock toast
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
+}));
+
+// Mock date-fns
+vi.mock("date-fns", () => ({
+  formatDistanceToNow: vi.fn((date) => {
+    const now = new Date("2024-01-01T10:00:00Z");
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    return `${hours} hours ago`;
+  }),
+}));
+
+// Mock React Query
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: vi.fn(),
+  useMutation: vi.fn(),
+  QueryClient: vi.fn(),
+  QueryClientProvider: vi.fn(({ children }) => children),
+}));
+
 // Additional environment defaults for backward compatibility
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "test";
 process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "test";

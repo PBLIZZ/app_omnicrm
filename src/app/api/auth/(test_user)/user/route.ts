@@ -2,7 +2,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 
 export const GET = createRouteHandler({
   auth: true,

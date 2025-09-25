@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { z } from "zod";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 import { InboxService } from "@/server/services/inbox.service";
 import { ProcessInboxItemDTOSchema, type ProcessInboxItemDTO } from "@omnicrm/contracts";
 
@@ -15,7 +16,7 @@ export const POST = createRouteHandler({
   auth: true,
   rateLimit: { operation: "inbox_ai_process" },
   validation: {
-    body: ProcessInboxItemDTOSchema,
+    body: ProcessInboxItemDTOSchema as unknown as z.ZodSchema,
   },
 })(async ({ userId, validated }) => {
   try {
@@ -28,30 +29,21 @@ export const POST = createRouteHandler({
     // Handle specific error types
     if (error instanceof Error) {
       if (error.message.includes("not found")) {
-        return NextResponse.json(
-          { error: "Inbox item not found" },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: "Inbox item not found" }, { status: 404 });
       }
 
       if (error.message.includes("OpenRouter not configured")) {
-        return NextResponse.json(
-          { error: "AI processing is not available" },
-          { status: 503 }
-        );
+        return NextResponse.json({ error: "AI processing is not available" }, { status: 503 });
       }
 
       if (error.message.includes("AI categorization failed")) {
         return NextResponse.json(
           { error: "AI processing temporarily unavailable" },
-          { status: 503 }
+          { status: 503 },
         );
       }
     }
 
-    return NextResponse.json(
-      { error: "Failed to process inbox item" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to process inbox item" }, { status: 500 });
   }
 });

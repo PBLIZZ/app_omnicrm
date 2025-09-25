@@ -105,10 +105,9 @@ export const contacts = pgTable("contacts", {
   primaryPhone: text("primary_phone"),
   source: text("source"), // gmail_import | manual | upload | calendar_import
   // notes column removed - use dedicated notes table instead
-  stage: text("stage"), // Prospect | New Client | Core Client | Referring Client | VIP Client | Lost Client | At Risk Client
+  lifecycleStage: text("lifecycle_stage"), // Prospect | New Client | Core Client | Referring Client | VIP Client | Lost Client | At Risk Client
   tags: jsonb("tags"), // Wellness segmentation tags array
   confidenceScore: text("confidence_score"), // AI insight confidence stored as text
-  slug: text("slug").unique(), // SEO-friendly URL slug
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const userId = await getServerUserId();
 
     // Validate request body
-    const body = await request.json();
+    const body: unknown = await request.json();
     const validatedBody = syncSchema.parse(body);
     const { daysPast, daysFuture, maxResults } = validatedBody;
 

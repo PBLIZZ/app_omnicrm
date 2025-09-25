@@ -49,11 +49,15 @@ export function ClientsSidebar(): JSX.Element {
 
           {/* Add Client */}
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/omni-clients/new" className="flex items-center w-full">
-                <UserPlus className="w-4 h-4 mr-2" />
-                <span className="font-medium">Add Client</span>
-              </Link>
+            <SidebarMenuButton
+              onClick={() => {
+                // Navigate to main clients page and trigger add client dialog
+                router.push("/omni-clients?addClient=true");
+              }}
+              className="flex items-center w-full"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              <span className="font-medium">Add Client</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

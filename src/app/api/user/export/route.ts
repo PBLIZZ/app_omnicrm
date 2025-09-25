@@ -18,7 +18,7 @@ import {
   aiQuotas,
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { createRouteHandler } from "@/server/api/handler";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 
 export const GET = createRouteHandler({
   auth: true,

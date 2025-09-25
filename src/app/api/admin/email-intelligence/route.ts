@@ -2,7 +2,7 @@
 // For testing and manual triggering of email intelligence jobs
 
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 
 /**
  * POST /api/admin/email-intelligence

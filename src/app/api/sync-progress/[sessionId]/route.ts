@@ -14,7 +14,7 @@
  * - User-scoped security (RLS)
  */
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 import { getDb } from "@/server/db/client";
 import { syncSessions } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -122,10 +122,7 @@ export const GET = createRouteHandler({
       ensureError(error),
     );
 
-    return NextResponse.json(
-      { error: "Failed to retrieve sync progress" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to retrieve sync progress" }, { status: 500 });
   }
 });
 
@@ -155,12 +152,7 @@ export const DELETE = createRouteHandler({
     const session = await db
       .select()
       .from(syncSessions)
-      .where(
-        and(
-          eq(syncSessions.id, sessionId),
-          eq(syncSessions.userId, userId),
-        ),
-      )
+      .where(and(eq(syncSessions.id, sessionId), eq(syncSessions.userId, userId)))
       .limit(1);
 
     if (!session[0]) {
@@ -173,7 +165,7 @@ export const DELETE = createRouteHandler({
     if (!["started", "importing", "processing"].includes(sessionData.status)) {
       return NextResponse.json(
         { error: `Cannot cancel ${sessionData.status} sync session` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -218,9 +210,6 @@ export const DELETE = createRouteHandler({
       ensureError(error),
     );
 
-    return NextResponse.json(
-      { error: "Failed to cancel sync session" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to cancel sync session" }, { status: 500 });
   }
 });

@@ -15,10 +15,10 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchContacts } from "@/lib/services/client/contacts.service";
-import { type ContactDTO } from "@/lib/validation/schemas/omniClients";
+import { apiFetchContacts } from "@/lib/api/contacts-api";
+import { type ContactDTO } from "@omnicrm/contracts";
 import MonthlySessionsKpi from "./MonthlySessionsKpi";
-import { getSyncStatus } from "@/lib/services/client/sync.service";
+import { getSyncStatus } from "@/lib/api/sync.api";
 
 import {
   Alert,
@@ -57,7 +57,7 @@ export default function DashboardContent(): JSX.Element {
   // Fetch contacts data (recent first)
   const { data, isLoading, error } = useQuery({
     queryKey: ["contacts", "dashboard", "recent"],
-    queryFn: () => fetchContacts({ page: 1, pageSize: 50, sort: "createdAt", order: "desc" }),
+    queryFn: () => apiFetchContacts({ page: 1, pageSize: 50, sort: "createdAt", order: "desc" }),
     staleTime: 30_000,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
@@ -65,10 +65,7 @@ export default function DashboardContent(): JSX.Element {
     refetchOnWindowFocus: false,
     networkMode: "online",
   });
-  const contacts: ContactDTO[] = (data?.items ?? []).map(contact => ({
-    ...contact,
-    tags: contact.tags ?? undefined, // Convert null to undefined for type compatibility
-  }));
+  const contacts: ContactDTO[] = data?.items ?? [];
 
   const {
     data: sync,

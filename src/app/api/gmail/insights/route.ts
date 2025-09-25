@@ -118,18 +118,24 @@ export async function GET(): Promise<NextResponse> {
         )
       ) : [];
 
-    const contactsMap = new Map();
+    // Create typed map for contacts
+    type ContactMapValue = typeof contactsData[0];
+    const contactsMap = new Map<string, ContactMapValue>();
     contactsData.forEach(c => contactsMap.set(c.id, c));
 
-    const topContacts = topContactsQuery.map(item => ({
-      displayName: item.contactId && contactsMap.has(item.contactId)
-        ? contactsMap.get(item.contactId)?.displayName
-        : undefined,
-      email: item.contactId && contactsMap.has(item.contactId)
-        ? contactsMap.get(item.contactId)?.primaryEmail || "Unknown"
-        : "Unknown",
-      emailCount: item.count,
-    }));
+    const topContacts = topContactsQuery.map(item => {
+      const contact = item.contactId ? contactsMap.get(item.contactId) : undefined;
+      const result: { displayName?: string; email: string; emailCount: number } = {
+        email: contact?.primaryEmail || "Unknown",
+        emailCount: item.count,
+      };
+
+      if (contact?.displayName) {
+        result.displayName = contact.displayName;
+      }
+
+      return result;
+    });
 
     // Generate insights patterns based on data
     const patterns: string[] = [];

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
+import { momentumRepository } from "@repo";
 
 /**
  * Task Rejection API Route
@@ -26,16 +26,18 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     const body: unknown = await request.json();
 
     // Type guard for the body structure
-    if (typeof body !== 'object' || body === null) {
+    if (typeof body !== "object" || body === null) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
     const bodyAsRecord = body as Record<string, unknown>;
-    const deleteTask = typeof bodyAsRecord.deleteTask === 'boolean' ? bodyAsRecord.deleteTask : false;
-    const reason = typeof bodyAsRecord.reason === 'string' ? bodyAsRecord.reason : "";
+    const deleteTask =
+      typeof bodyAsRecord["deleteTask"] === "boolean" ? bodyAsRecord["deleteTask"] : false;
+    // TODO: If reason tracking is needed in the future, reintroduce reason handling here
+    // by adding: const reason = typeof bodyAsRecord.reason === 'string' ? bodyAsRecord.reason : "";
 
     // Get the task to ensure it exists and belongs to the user
-    const task = await MomentumRepository.getTask(taskId, userId);
+    const task = await momentumRepository.getTask(taskId, userId);
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
@@ -48,14 +50,16 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
 
     if (deleteTask) {
       // Delete the task entirely
-      await MomentumRepository.deleteTask(taskId, userId);
+      await momentumRepository.deleteTask(taskId, userId);
       return NextResponse.json({ success: true, deleted: true });
     } else {
-      // Update task to rejected status (keep for AI learning)
-      const updatedTask = await MomentumRepository.updateTask(taskId, userId, {
+      // Update task to rejected status (keep for AI learning) (updateTask returns void)
+      await momentumRepository.updateTask(taskId, userId, {
         status: "canceled", // Move to cancelled status
       });
 
+      // Get the updated task to return
+      const updatedTask = await momentumRepository.getTask(taskId, userId);
       if (!updatedTask) {
         return NextResponse.json({ error: "Failed to reject task" }, { status: 500 });
       }

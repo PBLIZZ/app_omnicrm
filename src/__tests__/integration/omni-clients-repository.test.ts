@@ -1,8 +1,38 @@
-import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
-import { listContacts, createContact, createContactsBatch, searchContactsOptimized, getContactStatsOptimized } from '@/server/repositories/omni-clients.repo';
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { getDb } from '@/server/db/client';
 import { contacts } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
+
+// Mock the cache system to avoid Redis dependency in tests
+vi.mock('@/server/lib/cache', () => ({
+  queryCache: {
+    get: vi.fn(async (key: string, fetcher: () => any) => {
+      // Always bypass cache in tests - just execute the fetcher function
+      return await fetcher();
+    }),
+  },
+  cacheKeys: {
+    contactsList: vi.fn((userId: string, params: string) => `contacts_list:${userId}:${params}`),
+    contactsCount: vi.fn((userId: string, search?: string) => `contacts_count:${userId}${search ? `:${search}` : ""}`),
+  },
+  cacheInvalidation: {
+    invalidateContacts: vi.fn(),
+  },
+}));
+
+
+// Mock logger to avoid noise in tests
+vi.mock('@/lib/observability', () => ({
+  logger: {
+    info: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+// Import repository functions after mocks are set up
+const { listContacts, createContact, createContactsBatch, searchContactsOptimized, getContactStatsOptimized } = await import('packages/repo/src/contacts.repo');
 
 describe('OmniClientsRepository Integration Tests', () => {
   const testUserId = 'test-user-repo-integration';
@@ -31,14 +61,12 @@ describe('OmniClientsRepository Integration Tests', () => {
           displayName: 'John Doe',
           primaryEmail: 'john@example.com',
           source: 'manual',
-          slug: 'john-doe',
         },
         {
           userId: testUserId,
           displayName: 'Jane Smith',
           primaryEmail: 'jane@example.com',
           source: 'manual',
-          slug: 'jane-smith',
         },
       ];
 
@@ -66,14 +94,12 @@ describe('OmniClientsRepository Integration Tests', () => {
           displayName: 'John Doe',
           primaryEmail: 'john@example.com',
           source: 'manual',
-          slug: 'john-doe',
         },
         {
           userId: testUserId,
           displayName: 'Jane Smith',
           primaryEmail: 'jane@example.com',
           source: 'manual',
-          slug: 'jane-smith',
         },
       ]);
 
@@ -107,34 +133,22 @@ describe('OmniClientsRepository Integration Tests', () => {
     });
   });
 
-  describe('createContact', () => {
-    it('should create a contact with generated slug', async () => {
-      const contactData = {
-        displayName: 'Alice Johnson',
-        primaryEmail: 'alice@example.com',
-        primaryPhone: '+1234567890',
-        source: 'manual' as const,
-      };
-
       const result = await createContact(testUserId, contactData);
 
       expect(result).toBeTruthy();
-      expect(result?.displayName).toBe('Alice Johnson');
-      expect(result?.primaryEmail).toBe('alice@example.com');
-      expect(result?.slug).toBeTruthy();
+      if (result) {
+        expect(result.displayName).toBe('Alice Johnson');
+        expect(result.primaryEmail).toBe('alice@example.com');
 
-      // Verify it was actually created in the database
-      if (!result?.id) {
-        throw new Error('Expected result to have an id');
+        // Verify it was actually created in the database
+        const dbContact = await db
+          .select()
+          .from(contacts)
+          .where(eq(contacts.id, result.id));
+
+        expect(dbContact).toHaveLength(1);
+        expect(dbContact[0]?.displayName).toBe('Alice Johnson');
       }
-
-      const dbContact = await db
-        .select()
-        .from(contacts)
-        .where(eq(contacts.id, result.id));
-
-      expect(dbContact).toHaveLength(1);
-      expect(dbContact[0]?.displayName).toBe('Alice Johnson');
     });
   });
 
@@ -175,7 +189,6 @@ describe('OmniClientsRepository Integration Tests', () => {
         displayName: 'Existing User',
         primaryEmail: 'existing@example.com',
         source: 'manual',
-        slug: 'existing-user',
       });
 
       const contactsData = [
@@ -207,21 +220,18 @@ describe('OmniClientsRepository Integration Tests', () => {
           displayName: 'John Developer',
           primaryEmail: 'john.dev@example.com',
           source: 'manual',
-          slug: 'john-developer',
         },
         {
           userId: testUserId,
           displayName: 'Johnny Tester',
           primaryEmail: 'johnny@example.com',
           source: 'manual',
-          slug: 'johnny-tester',
         },
         {
           userId: testUserId,
           displayName: 'Sarah Designer',
           primaryEmail: 'sarah@example.com',
           source: 'manual',
-          slug: 'sarah-designer',
         },
       ]);
 
@@ -245,14 +255,12 @@ describe('OmniClientsRepository Integration Tests', () => {
           primaryEmail: 'manual1@example.com',
           primaryPhone: '+1111111111',
           source: 'manual',
-          slug: 'manual-contact-1',
         },
         {
           userId: testUserId,
           displayName: 'Manual Contact 2',
           primaryEmail: 'manual2@example.com',
           source: 'manual',
-          slug: 'manual-contact-2',
         },
         {
           userId: testUserId,
@@ -260,14 +268,12 @@ describe('OmniClientsRepository Integration Tests', () => {
           primaryEmail: 'gmail@example.com',
           primaryPhone: '+2222222222',
           source: 'gmail_import',
-          slug: 'gmail-import',
         },
         {
           userId: testUserId,
           displayName: 'No Email Contact',
           primaryPhone: '+3333333333',
           source: 'upload',
-          slug: 'no-email-contact',
         },
       ]);
 

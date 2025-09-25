@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
 
 /**
  * Pending Approval Tasks API Route
@@ -16,13 +14,14 @@ import { MomentumRepository } from "@repo";
  */
 export async function GET(_: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await getServerUserId();
+    // Remove unused userId since approval system is not implemented yet
+    // const userId = await getServerUserId();
 
     // Get tasks with pending approval status
-    const pendingTasks = await MomentumRepository.getTasks(userId, {
-      // Note: The repository currently doesn't have approval status filtering
-      // This will need to be enhanced once the approval system is implemented
-    });
+    // const pendingTasks = await momentumRepository.getTasks(userId, {
+    // Note: The repository currently doesn't have approval status filtering
+    // This will need to be enhanced once the approval system is implemented
+    // });
 
     // Note: approvalStatus field doesn't exist in current schema
     // For now, return empty array until the approval system is implemented

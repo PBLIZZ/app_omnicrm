@@ -43,7 +43,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { items, total } = await listContactsService(userId, params);
 
     // Transform Contact[] to OmniClientWithNotes[] using adapter
-    const omniClients = toOmniClientsWithNotes(items);
+    const omniClients = toOmniClientsWithNotes(items as any);
 
     return NextResponse.json({
       items: omniClients,
@@ -57,21 +57,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (error instanceof Error && error.name === "ZodError") {
       return NextResponse.json(
         { error: "Invalid query parameters", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Handle auth errors
     if (error instanceof Error && "status" in error && error.status === 401) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: "Failed to fetch omni clients", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      {
+        error: "Failed to fetch omni clients",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
     );
   }
 }
@@ -85,15 +85,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const validatedBody = CreateOmniClientSchema.parse(body);
 
     // Transform OmniClient input to Contact input using adapter
-    const contactInput = fromOmniClientInput(validatedBody);
+    const contactInput = fromOmniClientInput(validatedBody as any);
 
     const row = await createContactService(userId, contactInput);
 
     if (!row) {
-      return NextResponse.json(
-        { error: "Failed to create client" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to create client" }, { status: 500 });
     }
 
     // Transform Contact back to OmniClient for response
@@ -107,21 +104,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (error instanceof Error && error.name === "ZodError") {
       return NextResponse.json(
         { error: "Invalid client data", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Handle auth errors
     if (error instanceof Error && "status" in error && error.status === 401) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: "Failed to create omni client", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      {
+        error: "Failed to create omni client",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
     );
   }
 }

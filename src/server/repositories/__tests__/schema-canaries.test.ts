@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { contacts } from "@/server/db/schema";
-import type { Contact } from "@/server/db/schema";
-import type { OmniClientDTO } from "@/lib/validation/schemas/omniClients";
+import type { Contact } from "@/server/db/types";
+import type { ContactDTO } from "@/lib/validation/schemas/omniClients";
+import { toContactDTO } from "@/server/adapters/omniClients";
 
 /**
  * Schema Canary Tests
@@ -13,17 +14,6 @@ import type { OmniClientDTO } from "@/lib/validation/schemas/omniClients";
  */
 describe("Schema Drift Detection - OmniClient/Contact", () => {
   describe("Database Schema", () => {
-    it("contacts table must have slug column", () => {
-      // This test ensures the database schema includes slug
-      const columnsMap = Object.keys(contacts);
-      expect(columnsMap).toContain("slug");
-
-      // Verify slug column properties
-      const slugColumn = contacts.slug as { dataType: string };
-      expect(slugColumn).toBeDefined();
-      expect(slugColumn.dataType).toBe("string");
-    });
-
     it("contacts table must have all critical business fields", () => {
       const requiredFields = [
         "id",
@@ -31,8 +21,7 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
         "displayName",
         "primaryEmail",
         "primaryPhone",
-        "slug", // SEO-friendly URL
-        "stage", // Client lifecycle
+        "lifecycleStage", // Client lifecycle
         "tags", // Wellness segmentation
         "confidenceScore", // AI confidence
         "createdAt",
@@ -50,18 +39,10 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
   describe("TypeScript Types", () => {
     it("Contact type must have nullable confidenceScore", () => {
       // Type-level test using conditional types
-      type ConfidenceScoreType = Contact["confidenceScore"];
+      type ConfidenceScoreType = Contact["confidence_score"];
       type IsNullable = null extends ConfidenceScoreType ? true : false;
 
       const typeCheck: IsNullable = true;
-      expect(typeCheck).toBe(true);
-    });
-
-    it("Contact type must have slug as string or null", () => {
-      type SlugType = Contact["slug"];
-      type IsCorrectType = SlugType extends string | null | undefined ? true : false;
-
-      const typeCheck: IsCorrectType = true;
       expect(typeCheck).toBe(true);
     });
 
@@ -75,150 +56,46 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
     });
   });
 
-  describe("Query Shape Validation", () => {
-    it("should detect if slug field would be missing from SELECT", () => {
-      // Mock a query builder or repository method
-      const buildSelectFields = () => {
-        // This simulates what fields would be selected
-        // In real implementation, this would come from your repository
-        return [
-          "id",
-          "userId",
-          "displayName",
-          "primaryEmail",
-          "primaryPhone",
-          "slug", // CRITICAL: Remove this to see test fail
-          "stage",
-          "tags",
-          "confidenceScore",
-          "source",
-          "createdAt",
-          "updatedAt",
-        ];
-      };
-
-      const selectedFields = buildSelectFields();
-
-      // These assertions will fail if fields are removed
-      expect(selectedFields).toContain("slug");
-      expect(selectedFields).toContain("stage");
-      expect(selectedFields).toContain("tags");
-      expect(selectedFields).toContain("confidenceScore");
-    });
-
-    it("should validate repository includes slug in actual queries", async () => {
-      // This would test your actual repository implementation
-      // Pseudo-code for what this should look like:
-      /*
-      const repository = new OmniClientRepository();
-      const query = repository.buildFindByIdQuery("test-id");
-      
-      // Inspect the query to ensure it includes slug
-      expect(query.selectedColumns).toContain("slug");
-      */
-
-      // For now, we'll use a type-level check
-      type RepositoryReturnType = {
-        id: string;
-        slug: string | null; // This line is critical
-        displayName: string;
-        stage: string | null;
-        tags: unknown;
-        confidenceScore: string | null;
-      };
-
-      // This will fail to compile if slug is removed from type
-      const ensureSlugExists = (obj: RepositoryReturnType) => obj.slug;
-      expect(ensureSlugExists).toBeDefined();
-    });
-  });
-
-  describe("Adapter Contract", () => {
-    it("toOmniClient adapter must preserve slug field", () => {
-      // Mock adapter function for testing
-      const toOmniClient = (row: Partial<Contact>): OmniClientDTO => {
-        return {
-          id: row.id ?? 'test-id',
-          userId: row.userId ?? 'test-user-id',
-          slug: row.slug, // CRITICAL: This must be included
-          displayName: row.displayName ?? 'Test Name',
-          primaryEmail: row.primaryEmail ?? null,
-          primaryPhone: row.primaryPhone ?? null,
-          source: row.source ?? null,
-          stage: row.stage ?? null,
-          tags: row.tags as string[] | null ?? null,
-          confidenceScore: row.confidenceScore ?? null,
-          createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
-          updatedAt: row.updatedAt?.toISOString() ?? new Date().toISOString(),
-        };
-      };
-
+  describe("Adapter Integration", () => {
+    it("should preserve critical fields in toContactDTO adapter", () => {
       const testRow: Partial<Contact> = {
         id: "test-id",
-        slug: "test-slug",
         displayName: "Test Client",
-        stage: "prospect",
+        lifecycleStage: "prospect",
         tags: ["wellness"],
         confidenceScore: "0.85",
       };
 
-      const result = toOmniClient(testRow);
+      const result = toContactDTO(testRow);
 
       // These will fail if adapter doesn't preserve fields
-      expect(result).toHaveProperty("slug");
-      expect(result.slug).toBe("test-slug");
-      expect(result).toHaveProperty("stage");
+      expect(result).toHaveProperty("lifecycleStage");
       expect(result).toHaveProperty("tags");
       expect(result).toHaveProperty("confidenceScore");
     });
 
-    it("fromOmniClient adapter must handle null slug", () => {
-      const fromOmniClient = (client: OmniClientDTO): Partial<Contact> => {
+    it("should preserve critical fields in API response builder", () => {
+      // This would be your actual API response builder
+      const buildApiResponse = (client: Contact): ContactDTO => {
         return {
           id: client.id,
-          slug: client.slug ?? null, // Must handle null
+          userId: client.userId,
           displayName: client.displayName,
-          stage: client.stage,
-          tags: client.tags,
-          confidenceScore: client.confidenceScore,
-        };
-      };
-
-      const clientWithNullSlug = {
-        id: "test-id",
-        slug: null,
-        displayName: "Test Client",
-      };
-
-      const result = fromOmniClient(clientWithNullSlug);
-      expect(result.slug).toBeNull();
-    });
-  });
-
-  describe("API Response Contract", () => {
-    it("API response must include slug in client data", () => {
-      // Mock API response structure
-      type ApiClientResponse = {
-        ok: boolean;
-        data: {
-          id: string;
-          slug: string | null; // CRITICAL field
-          displayName: string;
-          stage: string | null;
-          tags: unknown[];
-          confidenceScore: string | null;
-        };
-      };
-
-      // This would be your actual API response builder
-      const buildApiResponse = (client: Contact): ApiClientResponse => {
-        return {
-          ok: true,
+          primaryEmail: client.primaryEmail,
+          primaryPhone: client.primaryPhone,
+          source: client.source,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          avatar: client.photoUrl ?? undefined,
+          tags: client.tags as unknown[],
+          lifecycleStage: client.lifecycleStage,
+          lastContactDate: client.lastContactDate ?? undefined,
+          notes: client.notes ?? undefined,
+          company: client.company ?? undefined,
           data: {
             id: client.id,
-            slug: client.slug, // Must be included
             displayName: client.displayName,
-            stage: client.stage,
+            lifecycleStage: client.lifecycleStage,
             tags: client.tags as unknown[],
             confidenceScore: client.confidenceScore,
           },
@@ -228,24 +105,21 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
       const mockClient: Contact = {
         id: "test-id",
         userId: "user-id",
-        slug: "test-client-slug",
         displayName: "Test Client",
         primaryEmail: "test@example.com",
         primaryPhone: null,
         source: "manual",
-        stage: "prospect",
+        lifecycleStage: "prospect",
         tags: ["wellness", "vip"],
         confidenceScore: "0.95",
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
       const response = buildApiResponse(mockClient);
 
       // Critical assertions
-      expect(response.data).toHaveProperty("slug");
-      expect(response.data.slug).toBe("test-client-slug");
-      expect(response.data).toHaveProperty("stage");
+      expect(response.data).toHaveProperty("lifecycleStage");
       expect(response.data).toHaveProperty("tags");
       expect(response.data).toHaveProperty("confidenceScore");
     });

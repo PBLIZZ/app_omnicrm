@@ -1,6 +1,6 @@
 /** GET /api/google/calendar/callback — handle Calendar OAuth redirect (auth required). Errors: 400 invalid_state|missing_code_or_state, 401 Unauthorized */
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 import { GoogleOAuthService } from "@/server/services/google-oauth.service";
 import { z } from "zod";
 
@@ -27,7 +27,7 @@ export const GET = createRouteHandler({
     userId,
     "calendar",
     { code, state, cookieValue },
-    req.url
+    req.url,
   );
 
   if (!result.success) {

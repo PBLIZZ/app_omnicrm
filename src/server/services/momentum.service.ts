@@ -1,6 +1,6 @@
 // OmniMomentum business logic service
 import { MomentumRepository } from "@repo";
-import type { Zone, InboxItem } from "@/server/db/schema";
+import type { Zone, InboxItem } from "@/server/db/types";
 import type {
   ProjectDTO,
   CreateProjectDTO,

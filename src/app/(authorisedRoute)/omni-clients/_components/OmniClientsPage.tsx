@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import {
   Card,
@@ -31,7 +32,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { useEnhancedOmniClients, useOmniClientSuggestions } from "@/hooks/use-omni-clients";
 import type { ClientWithNotes, ClientSuggestion, ClientQuickAddData } from "./types";
-import { validationHelpers } from "./types";
 
 /**
  * OmniClientsPage - Main Client Component
@@ -55,6 +55,8 @@ export function OmniClientsPage(): JSX.Element {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   // Enhanced System Queries using OmniClient endpoints
   const { data: enhancedClientsData, isLoading: enhancedLoading } =
@@ -105,6 +107,18 @@ export function OmniClientsPage(): JSX.Element {
     return undefined;
   }, [suggestionsLoading, suggestions.length, showSuggestions, isDismissed]);
 
+  // Handle addClient URL parameter from sidebar
+  useEffect(() => {
+    const addClient = searchParams.get("addClient");
+    if (addClient === "true") {
+      setIsAddingClient(true);
+      // Clear the parameter from URL to avoid reopening on refresh
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("addClient");
+      router.replace(newUrl.pathname + newUrl.search);
+    }
+  }, [searchParams, router]);
+
   // Streaming enrichment hook
   const streamingEnrichment = useStreamingEnrichment();
 
@@ -146,28 +160,28 @@ export function OmniClientsPage(): JSX.Element {
 
   // Enhanced System Handlers
   const handleAddClient = async (): Promise<void> => {
-    // Validate form data using the validation schema
-    const validation = validationHelpers.validateClientQuickAdd(newClient);
+    // Simple validation without complex error mapping
+    if (!newClient.displayName.trim()) {
+      setFormErrors({ displayName: ["Name is required"] });
+      toast({
+        title: "Validation Error",
+        description: "Please enter a client name",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    if (!validation.success) {
-      // Convert custom error objects to ZodIssue format for getErrorsByField
-      const zodErrors = (validation.errors ?? []).map((error) => ({
-        code: "custom" as const,
-        message: error.message,
-        path: [],
-      }));
-      const errorsByField = validationHelpers.getErrorsByField(zodErrors);
-      setFormErrors(errorsByField);
-
-      // Show first error message
-      const firstError = validation.errors?.[0];
-      if (firstError && "message" in firstError) {
-        toast({
-          title: "Validation Error",
-          description: firstError.message,
-          variant: "destructive",
-        });
-      }
+    if (
+      newClient.primaryEmail &&
+      newClient.primaryEmail.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClient.primaryEmail.trim())
+    ) {
+      setFormErrors({ primaryEmail: ["Please enter a valid email address"] });
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -175,7 +189,13 @@ export function OmniClientsPage(): JSX.Element {
     setFormErrors({});
 
     try {
-      await apiClient.post("/api/omni-clients", validation.data);
+      const clientData = {
+        displayName: newClient.displayName.trim(),
+        primaryEmail: newClient.primaryEmail?.trim() || null,
+        primaryPhone: newClient.primaryPhone?.trim() || null,
+      };
+
+      await apiClient.post("/api/omni-clients", clientData);
 
       await queryClient.invalidateQueries({ queryKey: ["/api/omni-clients"] });
       setIsAddingClient(false);
@@ -184,7 +204,8 @@ export function OmniClientsPage(): JSX.Element {
         title: "Success",
         description: "Client created successfully",
       });
-    } catch {
+    } catch (error) {
+      console.error("Failed to create client:", error);
       toast({
         title: "Error",
         description: "Failed to create client",
@@ -306,15 +327,14 @@ export function OmniClientsPage(): JSX.Element {
                 <Input
                   id="name"
                   placeholder="Enter client name"
-                  value={newClient.displayName}
+                  value={newClient.displayName || ""}
                   onChange={(e) => {
                     setNewClient((prev) => ({ ...prev, displayName: e.target.value }));
                     // Clear field error when user starts typing
                     if (formErrors["displayName"]) {
                       setFormErrors((prev) => {
-                        const newErrors = { ...prev };
-                        delete newErrors["displayName"];
-                        return newErrors;
+                        const { displayName: _displayName, ...rest } = prev;
+                        return rest;
                       });
                     }
                   }}
@@ -331,15 +351,14 @@ export function OmniClientsPage(): JSX.Element {
                   id="email"
                   type="email"
                   placeholder="Enter email address"
-                  value={newClient.primaryEmail}
+                  value={newClient.primaryEmail || ""}
                   onChange={(e) => {
                     setNewClient((prev) => ({ ...prev, primaryEmail: e.target.value }));
                     // Clear field error when user starts typing
                     if (formErrors["primaryEmail"]) {
                       setFormErrors((prev) => {
-                        const newErrors = { ...prev };
-                        delete newErrors["primaryEmail"];
-                        return newErrors;
+                        const { primaryEmail: _primaryEmail, ...rest } = prev;
+                        return rest;
                       });
                     }
                   }}
@@ -355,15 +374,14 @@ export function OmniClientsPage(): JSX.Element {
                 <Input
                   id="phone"
                   placeholder="Enter phone number"
-                  value={newClient.primaryPhone}
+                  value={newClient.primaryPhone || ""}
                   onChange={(e) => {
                     setNewClient((prev) => ({ ...prev, primaryPhone: e.target.value }));
                     // Clear field error when user starts typing
                     if (formErrors["primaryPhone"]) {
                       setFormErrors((prev) => {
-                        const newErrors = { ...prev };
-                        delete newErrors["primaryPhone"];
-                        return newErrors;
+                        const { primaryPhone: _primaryPhone, ...rest } = prev;
+                        return rest;
                       });
                     }
                   }}

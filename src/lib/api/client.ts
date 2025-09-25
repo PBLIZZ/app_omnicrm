@@ -2,7 +2,6 @@
  * Direct API Client (No Abstractions)
  *
  * Features:
- * - Direct envelope pattern ({ ok, data } | { ok, error })
  * - Automatic CSRF token handling
  * - Automatic error toasting with Sonner
  * - Convenience methods: get(), post(), put(), delete()
@@ -45,10 +44,6 @@ function createTimeoutController(timeoutMs?: number): AbortController {
 
   return controller;
 }
-
-// ============================================================================
-// CORE API CLIENT
-// ============================================================================
 
 // ============================================================================
 // DIRECT REQUEST OPTIONS (no abstraction)
@@ -190,7 +185,7 @@ export async function apiRequest<T = unknown>(
     if (error instanceof Error) {
       if (error.name === "AbortError") {
         finalError = new Error(
-          timeout ? `Request timeout after ${timeout}ms` : "Request was aborted"
+          timeout ? `Request timeout after ${timeout}ms` : "Request was aborted",
         );
       } else {
         // Use the error as-is

@@ -16,7 +16,20 @@ import type {
   OmniConnectDashboardState,
   JobStatusResponse,
   ConnectConnectionStatus,
+  EmailPreview,
 } from "@/app/(authorisedRoute)/omni-connect/_components/types";
+
+// Helper interface for Gmail payload structure
+interface GmailPayload {
+  message?: {
+    subject?: string;
+    snippet?: string;
+    bodyText?: string;
+    from?: string;
+    labels?: string[];
+    attachments?: unknown[];
+  };
+}
 
 export async function GET(): Promise<NextResponse> {
   try {
@@ -68,7 +81,7 @@ export async function GET(): Promise<NextResponse> {
 async function getEmailPreview(
   db: Awaited<ReturnType<typeof getDb>>,
   userId: string,
-): Promise<{ emails: any[]; range: { from: string; to: string } | null; previewRange: { from: string; to: string } | null }> {
+): Promise<{ emails: EmailPreview[]; range: { from: string; to: string } | null; previewRange: { from: string; to: string } | null }> {
   try {
     // Get recent Gmail raw events to show as email previews
     const recentEmails = await db
@@ -90,8 +103,8 @@ async function getEmailPreview(
       .limit(10);
 
     // Transform raw events into email preview format
-    const emails = recentEmails.map((event) => {
-      const payload = event.payload as any;
+    const emails: EmailPreview[] = recentEmails.map((event) => {
+      const payload = event.payload as GmailPayload;
       const message = payload?.message || {};
 
       return {

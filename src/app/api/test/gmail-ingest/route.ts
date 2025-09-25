@@ -1,6 +1,6 @@
 /** POST /api/test/gmail-ingest — simple Gmail ingestion test (auth required). */
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 import { GmailIngestionService } from "@/server/services/gmail-ingestion.service";
 import { GmailIngestionResultDTOSchema } from "@omnicrm/contracts";
 
@@ -16,9 +16,6 @@ export const POST = createRouteHandler({
 
     return NextResponse.json(validatedResult);
   } catch {
-    return NextResponse.json(
-      { error: "Gmail ingest failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Gmail ingest failed" }, { status: 500 });
   }
 });

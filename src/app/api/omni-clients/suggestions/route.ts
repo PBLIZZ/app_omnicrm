@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { ContactSuggestionService } from "@/server/services/contact-suggestion.service";
+import { contactSuggestionService } from "@/server/services/contact-suggestion.service";
 
 /**
  * OmniClients Suggestions API
@@ -20,7 +20,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     const userId = await getServerUserId();
 
     // Get contact suggestions from calendar attendees
-    const suggestions = await ContactSuggestionService.getContactSuggestions(userId);
+    const suggestions = await contactSuggestionService.getContactSuggestions(userId);
 
     // Transform ContactSuggestion[] to match OmniClients terminology
     // (The types are already aligned, so no transformation needed)
@@ -46,30 +46,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const validation = CreateFromSuggestionsSchema.safeParse(body);
     if (!validation.success) {
-      return NextResponse.json({
-        error: "Validation failed",
-        details: validation.error.issues
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: validation.error.issues,
+        },
+        { status: 400 },
+      );
     }
 
     // Create contacts from suggestions
-    const result = await ContactSuggestionService.createContactsFromSuggestions(
+    const result = await contactSuggestionService.createContactsFromSuggestions(
       userId,
       validation.data.suggestionIds,
     );
 
     if (!result.success && result.createdCount === 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Failed to create clients",
-            timestamp: new Date().toISOString(),
-          },
-        },
-        { status: 400 },
-      );
+      console.error("Failed to create clients from suggestions:", {
+        userId,
+        suggestionIds: validation.data.suggestionIds,
+        result,
+      });
+      return NextResponse.json({ error: "Failed to create clients" }, { status: 400 });
     }
 
     return NextResponse.json({
@@ -80,6 +78,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   } catch (error) {
     console.error("POST /api/omni-clients/suggestions error:", error);
-    return NextResponse.json({ error: "Failed to create contacts from suggestions" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create contacts from suggestions" },
+      { status: 500 },
+    );
   }
 }

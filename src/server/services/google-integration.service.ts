@@ -10,7 +10,8 @@
  */
 
 import { getDb } from "@/server/db/client";
-import { userIntegrations, jobs, userSyncPrefs, type UserIntegration } from "@/server/db/schema";
+import { userIntegrations, jobs, userSyncPrefs } from "@/server/db/schema";
+import type { UserIntegration } from "@/server/db/types";
 import { desc, eq, and, sql, inArray } from "drizzle-orm";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";

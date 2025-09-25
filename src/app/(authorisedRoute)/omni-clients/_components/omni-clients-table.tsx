@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { CLIENT_STAGES } from "@/constants/clientStages";
 import {
   Table,
   TableBody,
@@ -18,6 +19,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   ColumnDef,
   flexRender,
@@ -38,12 +50,17 @@ import {
   ChevronsRight,
   Settings2,
   Brain,
-  Tag,
   Download,
+  Filter,
 } from "lucide-react";
 import { useBulkDeleteOmniClients } from "@/hooks/use-client-delete";
 import { useBulkEnrichOmniClients } from "@/hooks/use-omni-clients-bridge";
-import type { ExportableClientData, DataTableProps } from "./types";
+import type {
+  ExportableClientData,
+  DataTableProps,
+  ClientSearchFilters,
+  ClientWithNotes,
+} from "./types";
 import { toast } from "sonner";
 
 export function OmniClientsTable<TData, TValue>({
@@ -80,7 +97,42 @@ export function OmniClientsTable<TData, TValue>({
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const handleExportClients = (): void => {
+  // Filter state
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [filters, setFilters] = useState<ClientSearchFilters>({});
+  const [activeFiltersCount, setActiveFiltersCount] = useState(0);
+
+  // Calculate active filters count
+  const calculateActiveFilters = (filterState: ClientSearchFilters): number => {
+    let count = 0;
+    if (filterState.query?.trim()) count++;
+    if (filterState.tags?.length) count++;
+    if (filterState.stage?.length) count++;
+    if (filterState.source?.length) count++;
+    if (filterState.dateRange) count++;
+    if (filterState.hasNotes !== undefined) count++;
+    if (filterState.hasInteractions !== undefined) count++;
+    if (filterState.confidenceScore) count++;
+    return count;
+  };
+
+  // Update active filters count when filters change
+  const updateFilters = useCallback((newFilters: ClientSearchFilters): void => {
+    setFilters(newFilters);
+    setActiveFiltersCount(calculateActiveFilters(newFilters));
+  }, []);
+
+  // Clear all filters
+  const clearAllFilters = useCallback((): void => {
+    updateFilters({});
+  }, [updateFilters]);
+
+  // Optimized clear selection handler
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleExportClients = useCallback((): void => {
     try {
       if (data.length === 0) {
         toast.error("No data to export");
@@ -89,12 +141,12 @@ export function OmniClientsTable<TData, TValue>({
 
       const headers = ["Name", "Email", "Phone", "Stage", "Tags", "AI Insights", "Last Updated"];
       const rows = data.map((item) => {
-        const client = item as unknown as ExportableClientData;
+        const client = item as ClientWithNotes;
         return [
           client.displayName ?? "",
           client.primaryEmail ?? "",
           client.primaryPhone ?? "",
-          client.stage ?? "",
+          client.lifecycleStage ?? "",
           Array.isArray(client.tags) ? client.tags.join(", ") : "",
           "", // Notes are stored separately
           new Date(client.updatedAt).toLocaleDateString(),
@@ -125,10 +177,39 @@ export function OmniClientsTable<TData, TValue>({
     } catch {
       toast.error("Failed to export clients");
     }
-  };
+  }, [data]);
+
+  // Apply client-side filtering with memoization
+  const filteredData = useMemo(() => {
+    return data.filter((item) => {
+      const client = item as ClientWithNotes;
+
+      // Stage filter
+      if (filters.stage?.length && !filters.stage.includes(client.lifecycleStage || "")) {
+        return false;
+      }
+
+      // Source filter
+      if (filters.source?.length && !filters.source.includes(client.source)) {
+        return false;
+      }
+
+      // Has notes filter
+      if (filters.hasNotes && (!client.lastNote || client.lastNote.trim() === "")) {
+        return false;
+      }
+
+      // Has interactions filter
+      if (filters.hasInteractions && (!client.interactions || client.interactions === 0)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [data, filters]);
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns: columns as ColumnDef<TData, unknown>[],
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -138,6 +219,10 @@ export function OmniClientsTable<TData, TValue>({
     onColumnVisibilityChange: handleColumnVisibilityChange,
     onRowSelectionChange: setRowSelection,
     enableRowSelection: true,
+    getRowId: (row) => {
+      const client = row as ClientWithNotes;
+      return client.id;
+    }, // Use contact ID instead of array index
     state: {
       sorting,
       columnVisibility,
@@ -157,6 +242,48 @@ export function OmniClientsTable<TData, TValue>({
     },
   });
 
+  // Optimized bulk delete handler - defined after table creation
+  const handleBulkDelete = useCallback(() => {
+    const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+    const selectedRows = table.getSelectedRowModel().rows;
+    const omniClientNames = selectedRows
+      .map((row) => (row.original as ClientWithNotes).displayName)
+      .join(", ");
+
+    if (
+      confirm(
+        `Are you sure you want to delete ${selectedIds.length} OmniClient(s)?\n\nOmniClients: ${omniClientNames}\n\nThis action cannot be undone.`,
+      )
+    ) {
+      bulkDeleteOmniClients.mutate(selectedIds, {
+        onSuccess: () => {
+          setRowSelection({}); // Clear selection after successful delete
+        },
+      });
+    }
+  }, [rowSelection, table, bulkDeleteOmniClients]);
+
+  // Optimized bulk enrich handler - defined after table creation
+  const handleBulkEnrich = useCallback(() => {
+    const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+    const selectedRows = table.getSelectedRowModel().rows;
+    const omniClientNames = selectedRows
+      .map((row) => (row.original as ClientWithNotes).displayName)
+      .join(", ");
+
+    if (
+      confirm(
+        `Are you sure you want to enrich ${selectedIds.length} OmniClient(s) with AI insights?\n\nOmniClients: ${omniClientNames}\n\nThis may take a few minutes.`,
+      )
+    ) {
+      bulkEnrichOmniClients.mutate(selectedIds, {
+        onSuccess: () => {
+          setRowSelection({}); // Clear selection after successful enrich
+        },
+      });
+    }
+  }, [rowSelection, table, bulkEnrichOmniClients]);
+
   return (
     <div className="space-y-4">
       {/* Bulk Actions */}
@@ -166,32 +293,14 @@ export function OmniClientsTable<TData, TValue>({
             {Object.keys(rowSelection).length} OmniClient(s) selected
           </div>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={() => setRowSelection({})}>
+            <Button variant="outline" size="sm" onClick={handleClearSelection}>
               Clear Selection
             </Button>
             <Button
               variant="destructive"
               size="sm"
               disabled={bulkDeleteOmniClients.isPending}
-              onClick={() => {
-                const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
-                const selectedRows = table.getSelectedRowModel().rows;
-                const omniClientNames = selectedRows
-                  .map((row) => (row.original as { displayName: string }).displayName)
-                  .join(", ");
-
-                if (
-                  confirm(
-                    `Are you sure you want to delete ${selectedIds.length} OmniClient(s)?\n\nOmniClients: ${omniClientNames}\n\nThis action cannot be undone.`,
-                  )
-                ) {
-                  bulkDeleteOmniClients.mutate(selectedIds, {
-                    onSuccess: () => {
-                      setRowSelection({}); // Clear selection after successful delete
-                    },
-                  });
-                }
-              }}
+              onClick={handleBulkDelete}
             >
               {bulkDeleteOmniClients.isPending ? "Deleting..." : "Delete Selected"}
             </Button>
@@ -199,25 +308,7 @@ export function OmniClientsTable<TData, TValue>({
               variant="default"
               size="sm"
               disabled={bulkEnrichOmniClients.isPending}
-              onClick={() => {
-                const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
-                const selectedRows = table.getSelectedRowModel().rows;
-                const omniClientNames = selectedRows
-                  .map((row) => (row.original as { displayName: string }).displayName)
-                  .join(", ");
-
-                if (
-                  confirm(
-                    `Are you sure you want to enrich ${selectedIds.length} OmniClient(s) with AI insights?\n\nOmniClients: ${omniClientNames}\n\nThis may take a few minutes.`,
-                  )
-                ) {
-                  bulkEnrichOmniClients.mutate(selectedIds, {
-                    onSuccess: () => {
-                      setRowSelection({}); // Clear selection after successful enrich
-                    },
-                  });
-                }
-              }}
+              onClick={handleBulkEnrich}
             >
               <Brain className="mr-2 h-4 w-4" />
               {bulkEnrichOmniClients.isPending ? "Enriching..." : "Bulk Enrich"}
@@ -232,10 +323,145 @@ export function OmniClientsTable<TData, TValue>({
           {table.getFilteredRowModel().rows.length} OmniClient(s) found
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
-            <Tag className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
+          <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="relative">
+                <Filter className="h-4 w-4 mr-2" />
+                Filter
+                {activeFiltersCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                  >
+                    {activeFiltersCount}
+                  </Badge>
+                )}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center justify-between">
+                  <span>Filter Clients</span>
+                  {activeFiltersCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAllFilters}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      Clear all
+                    </Button>
+                  )}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Stage filter */}
+                <div className="space-y-2">
+                  <Label>Client Stage</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CLIENT_STAGES.map((stage) => (
+                      <div key={stage} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`stage-${stage}`}
+                          checked={filters.stage?.includes(stage) ?? false}
+                          onCheckedChange={(checked) => {
+                            const currentStages = filters.stage ?? [];
+                            const newStages = checked
+                              ? [...currentStages, stage]
+                              : currentStages.filter((s) => s !== stage);
+                            updateFilters({
+                              ...filters,
+                              stage: newStages.length > 0 ? newStages : undefined,
+                            } as ClientSearchFilters);
+                          }}
+                        />
+                        <Label htmlFor={`stage-${stage}`} className="text-sm">
+                          {stage}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Source filter */}
+                <div className="space-y-2">
+                  <Label>Source</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["manual", "gmail_import", "upload", "calendar_import"].map((source) => (
+                      <div key={source} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`source-${source}`}
+                          checked={filters.source?.includes(source) ?? false}
+                          onCheckedChange={(checked) => {
+                            const currentSources = filters.source ?? [];
+                            const newSources = checked
+                              ? [...currentSources, source]
+                              : currentSources.filter((s) => s !== source);
+                            updateFilters({
+                              ...filters,
+                              source: newSources.length > 0 ? newSources : undefined,
+                            } as ClientSearchFilters);
+                          }}
+                        />
+                        <Label htmlFor={`source-${source}`} className="text-sm capitalize">
+                          {source.replaceAll("_", " ")}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Data presence filters */}
+                <div className="space-y-2">
+                  <Label>Data Presence</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="has-notes"
+                        checked={filters.hasNotes ?? false}
+                        onCheckedChange={(checked) => {
+                          updateFilters({
+                            ...filters,
+                            hasNotes: checked || undefined,
+                          } as ClientSearchFilters);
+                        }}
+                      />
+                      <Label htmlFor="has-notes" className="text-sm">
+                        Has Notes
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="has-interactions"
+                        checked={filters.hasInteractions ?? false}
+                        onCheckedChange={(checked) => {
+                          updateFilters({
+                            ...filters,
+                            hasInteractions: checked || undefined,
+                          } as ClientSearchFilters);
+                        }}
+                      />
+                      <Label htmlFor="has-interactions" className="text-sm">
+                        Has Interactions
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Apply button */}
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setIsFilterDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => setIsFilterDialogOpen(false)}>Apply Filters</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" size="sm" onClick={handleExportClients}>
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -346,7 +572,7 @@ export function OmniClientsTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  data-testid={`client-row-${(row.original as { id: string }).id}`}
+                  data-testid={`client-row-${(row.original as ClientWithNotes).id}`}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

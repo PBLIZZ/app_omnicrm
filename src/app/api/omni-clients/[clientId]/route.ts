@@ -17,7 +17,7 @@ function toOptional(v: string | null | undefined): string | undefined {
 // --- GET /api/omni-clients/[clientId] ---
 export async function GET(
   _: NextRequest,
-  context: { params: { clientId: string } }
+  context: { params: { clientId: string } },
 ): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
@@ -34,17 +34,14 @@ export async function GET(
     return NextResponse.json({ item: toOmniClient(contact) });
   } catch (error) {
     console.error("GET /api/omni-clients/[clientId] error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch omni client" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch omni client" }, { status: 500 });
   }
 }
 
 // --- PATCH /api/omni-clients/[clientId] ---
 export async function PATCH(
   request: NextRequest,
-  context: { params: { clientId: string } }
+  context: { params: { clientId: string } },
 ): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
@@ -63,10 +60,17 @@ export async function PATCH(
       updates.primaryEmail = toOptional(validatedBody.primaryEmail);
     if (validatedBody.primaryPhone !== undefined)
       updates.primaryPhone = toOptional(validatedBody.primaryPhone);
-    if (validatedBody.stage !== undefined) {
-      const stageValue = toOptional(validatedBody.stage);
+    if (validatedBody.lifecycleStage !== undefined) {
+      const stageValue = toOptional(validatedBody.lifecycleStage);
       if (stageValue !== undefined) {
-        updates.stage = stageValue as "New Client" | "VIP Client" | "Core Client" | "Prospect" | "At Risk Client" | "Lost Client" | "Referring Client";
+        updates.lifecycleStage = stageValue as
+          | "New Client"
+          | "VIP Client"
+          | "Core Client"
+          | "Prospect"
+          | "At Risk Client"
+          | "Lost Client"
+          | "Referring Client";
       }
     }
     if (validatedBody.tags !== undefined) {
@@ -74,16 +78,13 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: "No valid updates provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No valid updates provided" }, { status: 400 });
     }
 
     const updatedContact = await ContactsRepository.updateContact(
       userId,
       validatedParams.clientId,
-      updates
+      updates,
     );
 
     if (!updatedContact) {
@@ -93,10 +94,7 @@ export async function PATCH(
     return NextResponse.json({ item: toOmniClient(updatedContact) });
   } catch (error) {
     console.error("PATCH /api/omni-clients/[clientId] error:", error);
-    return NextResponse.json(
-      { error: "Failed to update omni client" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update omni client" }, { status: 500 });
   }
 }
 
@@ -106,7 +104,7 @@ export const PUT = PATCH;
 // --- DELETE /api/omni-clients/[clientId] ---
 export async function DELETE(
   _: NextRequest,
-  context: { params: { clientId: string } }
+  context: { params: { clientId: string } },
 ): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
@@ -120,9 +118,6 @@ export async function DELETE(
     return NextResponse.json({ deleted: deleted ? 1 : 0 });
   } catch (error) {
     console.error("DELETE /api/omni-clients/[clientId] error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete omni client" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete omni client" }, { status: 500 });
   }
 }

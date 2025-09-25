@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
+import { momentumRepository } from "@repo";
 
 /**
  * Project Tasks API Route
@@ -18,24 +18,19 @@ interface RouteParams {
 /**
  * GET /api/omni-momentum/projects/[projectId]/tasks - Get tasks within project
  */
-export async function GET(request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
+export async function GET(_request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
     const { projectId } = params;
-    const { searchParams } = new URL(request.url);
-
-    // Optional filtering
-    const status = searchParams.get("status") || undefined;
-    const parentTaskId = searchParams.get("parentTaskId");
 
     // Ensure project exists and belongs to user
-    const project = await MomentumRepository.getProject(projectId, userId);
+    const project = await momentumRepository.getProject(projectId, userId);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     // Get tasks for this project - use getTasksWithProject method
-    const tasks = await MomentumRepository.getTasksWithProject(userId, projectId);
+    const tasks = await momentumRepository.getTasksWithProject(userId, projectId);
 
     return NextResponse.json(tasks);
   } catch (error) {

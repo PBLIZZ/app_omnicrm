@@ -9,7 +9,7 @@
  * wellness stages, and tags. Supports both streaming and non-streaming operations.
  */
 
-import { ContactIntelligenceService } from "@/server/services/contact-intelligence.service";
+import { generateContactInsights } from "@/server/ai/clients/generate-contact-insights";
 import { ContactsRepository } from "@repo";
 import { listContactsService } from "@/server/services/contacts.service";
 import { getDb } from "@/server/db/client";
@@ -32,10 +32,10 @@ export interface EnrichmentResult {
 }
 
 export interface EnrichmentProgress {
-  type: 'start' | 'progress' | 'enriched' | 'error' | 'complete';
+  type: "start" | "progress" | "enriched" | "error" | "complete";
   contactId?: string;
   contactName?: string;
-  stage?: string;
+  lifecycleStage?: string;
   tags?: string[];
   confidenceScore?: number;
   enrichedCount?: number;
@@ -44,8 +44,29 @@ export interface EnrichmentProgress {
   message?: string;
 }
 
+const validStages = [
+  "Prospect",
+  "New Client",
+  "Core Client",
+  "Referring Client",
+  "VIP Client",
+  "Lost Client",
+  "At Risk Client",
+] as const;
+
+type ValidStage = (typeof validStages)[number];
+
 export class ClientEnrichmentService {
-  private static readonly DEFAULT_BATCH_SIZE = 10;
+  /**
+   * Validate and normalize stage value
+   * @param lifecycleStage - The stage string to validate
+   * @returns The stage if valid, otherwise "Prospect" as default
+   */
+  private static validateLifecycleStage(lifecycleStage: string): ValidStage {
+    return validStages.includes(lifecycleStage as ValidStage)
+      ? (lifecycleStage as ValidStage)
+      : "Prospect";
+  }
   private static readonly DEFAULT_DELAY_MS = 200;
 
   /**
@@ -53,7 +74,7 @@ export class ClientEnrichmentService {
    */
   static async enrichAllClients(
     userId: string,
-    options: EnrichmentOptions = {}
+    options: EnrichmentOptions = {},
   ): Promise<EnrichmentResult> {
     const { batchSize = 1000, delayMs = this.DEFAULT_DELAY_MS } = options;
 
@@ -89,30 +110,20 @@ export class ClientEnrichmentService {
         }
 
         // Generate AI insights using the contact intelligence service
-        const insights = await ContactIntelligenceService.generateContactInsights(
-          userId,
-          contact.primaryEmail,
-        );
+        const insights = await generateContactInsights(userId, contact.primaryEmail, {
+          forceRefresh: true,
+        });
 
         // Update the contact in the database with the insights
         await db
           .update(contacts)
           .set({
-            stage: insights.stage,
+            lifecycleStage: this.validateLifecycleStage(insights.lifecycleStage),
             tags: JSON.stringify(insights.tags),
             confidenceScore: insights.confidenceScore.toString(),
             updatedAt: new Date(),
           })
           .where(eq(contacts.id, contact.id));
-
-        // Create an AI note if there's meaningful content
-        if (insights.noteContent && insights.noteContent.length > 50) {
-          await ContactIntelligenceService.createAINote(
-            contact.id,
-            userId,
-            insights.noteContent,
-          );
-        }
 
         enrichedCount++;
 
@@ -124,15 +135,19 @@ export class ClientEnrichmentService {
         const errorMessage = `${contact.displayName}: ${error instanceof Error ? error.message : "Unknown error"}`;
         errors.push(errorMessage);
 
-        await logger.error("Failed to enrich individual client", {
-          operation: "client_enrichment",
-          additionalData: {
-            userId: userId.slice(0, 8) + "...",
-            contactId: contact.id,
-            contactName: contact.displayName,
-            error: error instanceof Error ? error.message : String(error),
+        await logger.error(
+          "Failed to enrich individual client",
+          {
+            operation: "client_enrichment",
+            additionalData: {
+              userId: userId.slice(0, 8) + "...",
+              contactId: contact.id,
+              contactName: contact.displayName,
+              error: error instanceof Error ? error.message : String(error),
+            },
           },
-        }, ensureError(error));
+          ensureError(error),
+        );
       }
     }
 
@@ -149,7 +164,7 @@ export class ClientEnrichmentService {
     return {
       enrichedCount,
       totalRequested: totalContacts,
-      errors: errors.length > 0 ? errors : undefined,
+      errors: errors.length > 0 ? errors : [],
       message: `Successfully enriched ${enrichedCount} of ${totalContacts} contacts with AI insights`,
     };
   }
@@ -159,7 +174,7 @@ export class ClientEnrichmentService {
    */
   static async *enrichAllClientsStreaming(
     userId: string,
-    options: EnrichmentOptions = {}
+    options: EnrichmentOptions = {},
   ): AsyncGenerator<EnrichmentProgress, void, unknown> {
     try {
       const { batchSize = 1000, delayMs = this.DEFAULT_DELAY_MS } = options;
@@ -221,30 +236,20 @@ export class ClientEnrichmentService {
           }
 
           // Generate AI insights using the contact intelligence service
-          const insights = await ContactIntelligenceService.generateContactInsights(
-            userId,
-            contact.primaryEmail,
-          );
+          const insights = await generateContactInsights(userId, contact.primaryEmail, {
+            forceRefresh: true,
+          });
 
           // Update the contact in the database with the insights
           await db
             .update(contacts)
             .set({
-              stage: insights.stage,
+              lifecycleStage: this.validateLifecycleStage(insights.lifecycleStage),
               tags: JSON.stringify(insights.tags),
               confidenceScore: insights.confidenceScore.toString(),
               updatedAt: new Date(),
             })
             .where(eq(contacts.id, contact.id));
-
-          // Create an AI note if there's meaningful content
-          if (insights.noteContent && insights.noteContent.length > 50) {
-            await ContactIntelligenceService.createAINote(
-              contact.id,
-              userId,
-              insights.noteContent,
-            );
-          }
 
           enrichedCount++;
 
@@ -253,7 +258,7 @@ export class ClientEnrichmentService {
             type: "enriched",
             contactId: contact.id,
             contactName: contact.displayName,
-            stage: insights.stage,
+            lifecycleStage: insights.lifecycleStage,
             tags: insights.tags,
             confidenceScore: insights.confidenceScore,
             enrichedCount,
@@ -276,15 +281,19 @@ export class ClientEnrichmentService {
             error: errorMessage,
           };
 
-          await logger.error("Failed to enrich individual client", {
-            operation: "client_enrichment_streaming",
-            additionalData: {
-              userId: userId.slice(0, 8) + "...",
-              contactId: contact.id,
-              contactName: contact.displayName,
-              error: error instanceof Error ? error.message : String(error),
+          await logger.error(
+            "Failed to enrich individual client",
+            {
+              operation: "client_enrichment_streaming",
+              additionalData: {
+                userId: userId.slice(0, 8) + "...",
+                contactId: contact.id,
+                contactName: contact.displayName,
+                error: error instanceof Error ? error.message : String(error),
+              },
             },
-          }, ensureError(error));
+            ensureError(error),
+          );
         }
       }
 
@@ -305,7 +314,6 @@ export class ClientEnrichmentService {
           errorCount: errors.length,
         },
       });
-
     } catch (error) {
       // Send error and close stream
       yield {
@@ -313,13 +321,17 @@ export class ClientEnrichmentService {
         error: error instanceof Error ? error.message : "Unknown error occurred",
       };
 
-      await logger.error("Streaming client enrichment failed", {
-        operation: "client_enrichment_streaming",
-        additionalData: {
-          userId: userId.slice(0, 8) + "...",
-          error: error instanceof Error ? error.message : String(error),
+      await logger.error(
+        "Streaming client enrichment failed",
+        {
+          operation: "client_enrichment_streaming",
+          additionalData: {
+            userId: userId.slice(0, 8) + "...",
+            error: error instanceof Error ? error.message : String(error),
+          },
         },
-      }, ensureError(error));
+        ensureError(error),
+      );
     }
   }
 
@@ -329,7 +341,7 @@ export class ClientEnrichmentService {
   static async enrichClientsByIds(
     userId: string,
     clientIds: string[],
-    options: EnrichmentOptions = {}
+    options: EnrichmentOptions = {},
   ): Promise<EnrichmentResult> {
     const { delayMs = this.DEFAULT_DELAY_MS } = options;
 
@@ -357,26 +369,16 @@ export class ClientEnrichmentService {
         }
 
         // Generate AI insights for this client
-        const insights = await ContactIntelligenceService.generateContactInsights(
-          userId,
-          client.primaryEmail,
-        );
+        const insights = await generateContactInsights(userId, client.primaryEmail, {
+          forceRefresh: true,
+        });
 
         // Update the client with AI insights using repository
         await ContactsRepository.updateContact(userId, client.id, {
-          stage: insights.stage,
+          lifecycleStage: this.validateLifecycleStage(insights.lifecycleStage),
           tags: insights.tags,
           confidenceScore: insights.confidenceScore?.toString(),
         });
-
-        // Create an AI note if there's meaningful content
-        if (insights.noteContent && insights.noteContent.length > 50) {
-          await ContactIntelligenceService.createAINote(
-            client.id,
-            userId,
-            insights.noteContent,
-          );
-        }
 
         enrichedCount++;
 
@@ -388,15 +390,19 @@ export class ClientEnrichmentService {
         const errorMsg = `${client.displayName}: ${error instanceof Error ? error.message : "Unknown error"}`;
         errors.push(errorMsg);
 
-        await logger.error("Failed to enrich individual client", {
-          operation: "client_enrichment_bulk",
-          additionalData: {
-            userId: userId.slice(0, 8) + "...",
-            clientId: client.id,
-            clientName: client.displayName,
-            error: error instanceof Error ? error.message : String(error),
+        await logger.error(
+          "Failed to enrich individual client",
+          {
+            operation: "client_enrichment_bulk",
+            additionalData: {
+              userId: userId.slice(0, 8) + "...",
+              clientId: client.id,
+              clientName: client.displayName,
+              error: error instanceof Error ? error.message : String(error),
+            },
           },
-        }, ensureError(error));
+          ensureError(error),
+        );
       }
     }
 
@@ -413,7 +419,7 @@ export class ClientEnrichmentService {
     return {
       enrichedCount,
       totalRequested: clientIds.length,
-      errors: errors.length > 0 ? errors : undefined,
+      errors: errors.length > 0 ? errors : [],
       message: `Successfully enriched ${enrichedCount} of ${clientIds.length} client${clientIds.length === 1 ? "" : "s"} with AI insights`,
     };
   }
@@ -427,7 +433,7 @@ export class ClientEnrichmentService {
       if (!client) return false;
 
       // Client needs enrichment if it's missing key AI-generated fields
-      return !client.stage || !client.tags || !client.confidenceScore;
+      return !client.lifecycleStage || !client.tags || !client.confidenceScore;
     } catch (error) {
       await logger.warn("Failed to check if client needs enrichment", {
         operation: "client_enrichment_check",
@@ -460,10 +466,16 @@ export class ClientEnrichmentService {
 
       const totalClients = allClients.length;
       const enrichedClients = allClients.filter(
-        client => client.stage && client.tags && client.confidenceScore
+        (client) =>
+          client &&
+          client.lifecycleStage != null &&
+          client.tags != null &&
+          Array.isArray(client.tags) &&
+          client.confidenceScore != null,
       ).length;
       const needsEnrichment = totalClients - enrichedClients;
-      const enrichmentPercentage = totalClients > 0 ? Math.round((enrichedClients / totalClients) * 100) : 0;
+      const enrichmentPercentage =
+        totalClients > 0 ? Math.round((enrichedClients / totalClients) * 100) : 0;
 
       return {
         totalClients,
@@ -472,13 +484,17 @@ export class ClientEnrichmentService {
         enrichmentPercentage,
       };
     } catch (error) {
-      await logger.error("Failed to get enrichment stats", {
-        operation: "client_enrichment_stats",
-        additionalData: {
-          userId: userId.slice(0, 8) + "...",
-          error: error instanceof Error ? error.message : String(error),
+      await logger.error(
+        "Failed to get enrichment stats",
+        {
+          operation: "client_enrichment_stats",
+          additionalData: {
+            userId: userId.slice(0, 8) + "...",
+            error: error instanceof Error ? error.message : String(error),
+          },
         },
-      }, ensureError(error));
+        ensureError(error),
+      );
 
       return {
         totalClients: 0,

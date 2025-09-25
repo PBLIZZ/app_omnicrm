@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // Avoid importing env at module load to prevent build-time validation
 
 const url = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "";
@@ -10,3 +10,15 @@ export const supabaseServerPublishable = createClient(url, pub);
 
 // Admin client bypasses RLS. Never expose to client code.
 export const supabaseServerAdmin = secret ? createClient(url, secret) : null;
+
+export type ServerSupabaseClient = SupabaseClient;
+
+export function getSupabaseServerClient(): ServerSupabaseClient {
+  const client = supabaseServerAdmin ?? supabaseServerPublishable;
+
+  if (!client) {
+    throw new Error("Supabase server client is not configured");
+  }
+
+  return client;
+}

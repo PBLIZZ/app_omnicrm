@@ -24,7 +24,10 @@ export const InboxItemDTOSchema = z.object({
 
 // Create Inbox Item Schema - for quick capture
 export const CreateInboxItemDTOSchema = z.object({
-  rawText: z.string().min(1, "Please enter some text").max(2000, "Text too long (max 2000 characters)"),
+  rawText: z
+    .string()
+    .min(1, "Please enter some text")
+    .max(2000, "Text too long (max 2000 characters)"),
 });
 
 // Update Inbox Item Schema - for manual status changes
@@ -36,17 +39,23 @@ export const UpdateInboxItemDTOSchema = z.object({
 // AI Processing Request Schema - for triggering AI categorization
 export const ProcessInboxItemDTOSchema = z.object({
   id: z.string().uuid(),
-  userContext: z.object({
-    currentEnergy: z.number().min(1).max(5).optional(), // From daily pulse
-    availableTime: z.number().optional(), // Minutes available
-    preferences: z.object({
-      preferredZone: z.string().optional(),
-      workingHours: z.object({
-        start: z.string().optional(),
-        end: z.string().optional(),
-      }).optional(),
-    }).optional(),
-  }).optional(),
+  userContext: z
+    .object({
+      currentEnergy: z.number().min(1).max(5).optional(), // From daily pulse
+      availableTime: z.number().optional(), // Minutes available
+      preferences: z
+        .object({
+          preferredZone: z.string().optional(),
+          workingHours: z
+            .object({
+              start: z.string().optional(),
+              end: z.string().optional(),
+            })
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 // AI Processing Result Schema - response from AI categorization
@@ -54,12 +63,14 @@ export const InboxProcessingResultDTOSchema = z.object({
   suggestedZone: z.string(),
   suggestedPriority: z.enum(["low", "medium", "high", "urgent"]),
   suggestedProject: z.string().optional(),
-  extractedTasks: z.array(z.object({
-    name: z.string(),
-    description: z.string().optional(),
-    estimatedMinutes: z.number().optional(),
-    dueDate: z.date().optional(),
-  })),
+  extractedTasks: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string().optional(),
+      estimatedMinutes: z.number().optional(),
+      dueDate: z.date().optional(),
+    }),
+  ),
   confidence: z.number().min(0).max(1),
   reasoning: z.string(),
 });
@@ -67,32 +78,49 @@ export const InboxProcessingResultDTOSchema = z.object({
 // Inbox Item with AI suggestions - for UI display
 export const InboxItemWithSuggestionsDTOSchema = InboxItemDTOSchema.extend({
   aiSuggestions: InboxProcessingResultDTOSchema.optional(),
-  relatedZone: z.object({
-    id: z.number(),
-    name: z.string(),
-    color: z.string().nullable(),
-    iconName: z.string().nullable(),
-  }).optional(),
+  relatedZone: z
+    .object({
+      id: z.number(),
+      name: z.string(),
+      color: z.string().nullable(),
+      iconName: z.string().nullable(),
+    })
+    .optional(),
 });
 
 // Bulk processing schema - for processing multiple items
 export const BulkProcessInboxDTOSchema = z.object({
   itemIds: z.array(z.string().uuid()).min(1, "Select at least one item"),
   action: z.enum(["process", "archive", "delete"]),
-  userContext: z.object({
-    currentEnergy: z.number().min(1).max(5).optional(),
-    availableTime: z.number().optional(),
-  }).optional(),
+  userContext: z
+    .object({
+      currentEnergy: z.number().min(1).max(5).optional(),
+      availableTime: z.number().optional(),
+      preferences: z
+        .object({
+          preferredZone: z.string().optional(),
+          workingHours: z
+            .object({
+              start: z.string().optional(),
+              end: z.string().optional(),
+            })
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 // Quick capture with voice support
 export const VoiceInboxCaptureDTOSchema = z.object({
   transcription: z.string().min(1, "Transcription cannot be empty"),
   confidence: z.number().min(0).max(1),
-  audioMetadata: z.object({
-    duration: z.number(),
-    quality: z.enum(["low", "medium", "high"]),
-  }).optional(),
+  audioMetadata: z
+    .object({
+      duration: z.number(),
+      quality: z.enum(["low", "medium", "high"]),
+    })
+    .optional(),
 });
 
 // Filters for inbox items

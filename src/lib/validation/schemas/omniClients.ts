@@ -12,10 +12,10 @@ export const OmniClientSchema = z.object({
   primaryEmail: z.string().email().nullable(),
   primaryPhone: z.string().nullable(),
   source: z.string().nullable(),
-  stage: z.string().nullable(),
+  lifecycleStage: z.string().nullable(),
   tags: z.array(z.string()).nullable(), // jsonb wellness tags array
   confidenceScore: z.string().nullable(),
-  slug: z.string().nullable(), // SEO-friendly URL slug
+  photoUrl: z.string().nullable(),
   createdAt: z.string(), // ISO string
   updatedAt: z.string(), // ISO string
 });
@@ -25,6 +25,15 @@ export const OmniClientWithNotesSchema = OmniClientSchema.extend({
   notesCount: z.number().int().nonnegative(),
   lastNote: z.string().nullable(),
   interactions: z.number().int().nonnegative().optional(),
+  notes: z
+    .array(
+      z.object({
+        id: z.string(),
+        content: z.string(),
+        createdAt: z.string(),
+      }),
+    )
+    .optional(),
 });
 export type OmniClientWithNotesDTO = z.infer<typeof OmniClientWithNotesSchema>;
 
@@ -33,8 +42,8 @@ export const CreateOmniClientSchema = z.object({
   displayName: z.string().min(1).max(200).trim(),
   primaryEmail: z.string().email().nullable().optional(),
   primaryPhone: z.string().max(50).nullable().optional(),
-  source: z.enum(["manual", "gmail_import", "upload", "calendar_import"]).optional(),
-  stage: z.string().max(100).nullable().optional(),
+  source: z.enum(["manual", "gmail_import", "upload", "calendar_import"]).default("manual"),
+  lifecycleStage: z.string().max(100).nullable().optional(),
   tags: z.array(z.string()).nullable().optional(), // wellness tags array
 });
 export type CreateOmniClientInput = z.infer<typeof CreateOmniClientSchema>;
@@ -43,7 +52,7 @@ export const UpdateOmniClientSchema = z.object({
   displayName: z.string().min(1).max(200).trim().optional(),
   primaryEmail: z.string().email().nullable().optional(),
   primaryPhone: z.string().max(50).nullable().optional(),
-  stage: z.string().max(100).nullable().optional(),
+  lifecycleStage: z.string().max(100).nullable().optional(),
   tags: z.array(z.string()).nullable().optional(), // wellness tags array
 });
 export type UpdateOmniClientInput = z.infer<typeof UpdateOmniClientSchema>;
@@ -56,7 +65,7 @@ export const GetOmniClientsQuerySchema = z.object({
   ),
   sort: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.enum(["displayName", "createdAt"]).optional(),
+    z.enum(["displayName", "createdAt", "updatedAt"]).optional(),
   ),
   order: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
@@ -75,6 +84,32 @@ export const GetOmniClientsQuerySchema = z.object({
     z.coerce.number().int().min(1).max(200).optional(),
   ),
   cursor: z.string().optional(),
+  // Support for createdAtFilter from contacts-api.ts
+  createdAtFilter: z.preprocess(
+    (v) => {
+      if (typeof v === "string" && v.trim() === "") return undefined;
+      if (typeof v === "string") {
+        try {
+          return JSON.parse(v);
+        } catch (error) {
+          throw new z.ZodError([
+            {
+              code: z.ZodIssueCode.custom,
+              message: "createdAtFilter: malformed JSON",
+              path: ["createdAtFilter"],
+            },
+          ]);
+        }
+      }
+      return v;
+    },
+    z
+      .object({
+        start: z.string().optional(),
+        end: z.string().optional(),
+      })
+      .optional(),
+  ),
 });
 export type GetOmniClientsQuery = z.infer<typeof GetOmniClientsQuerySchema>;
 

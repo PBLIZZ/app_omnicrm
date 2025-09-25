@@ -9,10 +9,10 @@ import {
   generateNextSteps,
   generateRiskAssessment,
   generatePersonaInsight,
-  type InsightRequest,
-} from "@/server/ai/llm.service";
-import { NewAiInsight } from "@/server/db/schema";
+} from "@/server/ai/core/llm.service"; // Added /core
+import type { NewAiInsight } from "@/server/db/types";
 import { ensureError } from "@/lib/utils/error-handler";
+import { generateContactInsights } from "@/server/ai/clients/generate-contact-insights";
 
 // Extended insight types from insight-writer
 type InsightKind =
@@ -49,6 +49,13 @@ export interface InsightGenerationTask {
   subjectId: string | null;
   kind: InsightKind;
   context?: Record<string, unknown> | undefined;
+}
+
+interface InsightRequest {
+  subjectType: string;
+  subjectId: string;
+  kind: "summary" | "next_step" | "risk" | "persona";
+  context: any;
 }
 
 /**
@@ -237,19 +244,25 @@ export class InsightWriter {
       };
 
       let llmResult: unknown;
-      switch (task.kind) {
-        case "summary":
-          llmResult = await generateContactSummary(task.userId, request);
-          break;
-        case "next_step":
-          llmResult = await generateNextSteps(task.userId, request);
-          break;
-        case "risk":
-          llmResult = await generateRiskAssessment(task.userId, request);
-          break;
-        case "persona":
-          llmResult = await generatePersonaInsight(task.userId, request);
-          break;
+      if (task.kind === "summary") {
+        // Use generateContactInsights for contact summaries
+        llmResult = await generateContactInsights(
+          task.userId,
+          request.context.contact.primaryEmail,
+          {},
+        );
+      } else {
+        switch (task.kind) {
+          case "next_step":
+            llmResult = await generateNextSteps(task.userId, request);
+            break;
+          case "risk":
+            llmResult = await generateRiskAssessment(task.userId, request);
+            break;
+          case "persona":
+            llmResult = await generatePersonaInsight(task.userId, request);
+            break;
+        }
       }
 
       // Convert LLM result to GeneratedInsight format

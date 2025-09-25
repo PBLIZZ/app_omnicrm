@@ -8,7 +8,7 @@
  * - Consistent mock patterns across repositories
  */
 
-import { vi, type MockedFunction } from 'vitest';
+import { vi, type MockedFunction } from "vitest";
 import {
   makeOmniClientWithNotes,
   makeInteraction,
@@ -17,7 +17,7 @@ import {
   makeBatch,
   type NewInteraction,
   type OmniClientWithNotesDTO,
-} from './factories';
+} from "./factories";
 
 // Repository-specific types
 export type ContactListParams = {
@@ -36,8 +36,7 @@ export type ContactListItem = {
   primaryEmail: string | null;
   primaryPhone: string | null;
   source: string | null;
-  slug: string | null;
-  stage: string | null;
+  lifecycleStage: string | null;
   tags: unknown;
   confidenceScore: string | null;
   createdAt: Date;
@@ -73,7 +72,10 @@ export interface UserContext {
 
 export interface OmniClientsRepoFakes {
   listContacts: MockedFunction<
-    (userId: string, params: ContactListParams) => Promise<{ items: ContactListItem[]; total: number }>
+    (
+      userId: string,
+      params: ContactListParams,
+    ) => Promise<{ items: ContactListItem[]; total: number }>
   >;
   createContact: MockedFunction<
     (userId: string, values: CreateContactValues) => Promise<ContactListItem | null>
@@ -86,7 +88,7 @@ export interface OmniClientsRepoFakes {
         primaryEmail?: string | null;
         primaryPhone?: string | null;
         source: "gmail_import" | "manual" | "upload";
-      }>
+      }>,
     ) => Promise<{ created: ContactListItem[]; duplicates: number; errors: number }>
   >;
   searchContactsOptimized: MockedFunction<
@@ -105,18 +107,14 @@ export interface OmniClientsRepoFakes {
 
 export function createOmniClientsRepoFakes(): OmniClientsRepoFakes {
   return {
-    listContacts: vi.fn().mockImplementation(
-      async (userId: string, params: ContactListParams) => {
-        const items = makeBatch(
-          () => makeOmniClientWithNotes({ userId }),
-          params.pageSize || 10
-        );
-        return makePaginatedResponse(items, items.length + 50); // Mock has more total items
-      }
-    ),
+    listContacts: vi.fn().mockImplementation(async (userId: string, params: ContactListParams) => {
+      const items = makeBatch(() => makeOmniClientWithNotes({ userId }), params.pageSize || 10);
+      return makePaginatedResponse(items, items.length + 50); // Mock has more total items
+    }),
 
-    createContact: vi.fn().mockImplementation(
-      async (userId: string, values: CreateContactValues) => {
+    createContact: vi
+      .fn()
+      .mockImplementation(async (userId: string, values: CreateContactValues) => {
         return makeOmniClientWithNotes({
           userId,
           displayName: values.displayName,
@@ -126,17 +124,19 @@ export function createOmniClientsRepoFakes(): OmniClientsRepoFakes {
           notesCount: 0,
           lastNote: null,
         });
-      }
-    ),
+      }),
 
     createContactsBatch: vi.fn().mockImplementation(
-      async (userId: string, contactsData: Array<{
-        displayName: string;
-        primaryEmail?: string | null;
-        primaryPhone?: string | null;
-        source: "gmail_import" | "manual" | "upload";
-      }>) => {
-        const created = contactsData.map(data =>
+      async (
+        userId: string,
+        contactsData: Array<{
+          displayName: string;
+          primaryEmail?: string | null;
+          primaryPhone?: string | null;
+          source: "gmail_import" | "manual" | "upload";
+        }>,
+      ) => {
+        const created = contactsData.map((data) =>
           makeOmniClientWithNotes({
             userId,
             displayName: data.displayName,
@@ -144,30 +144,31 @@ export function createOmniClientsRepoFakes(): OmniClientsRepoFakes {
             primaryPhone: data.primaryPhone,
             source: data.source,
             notesCount: 0,
-            lastNote: null,
-          })
+            lastNote,
+          }),
         );
         return {
           created,
           duplicates: 0,
           errors: 0,
         };
-      }
+      },
     ),
 
-    searchContactsOptimized: vi.fn().mockImplementation(
-      async (userId: string, query: string, limit = 25) => {
+    searchContactsOptimized: vi
+      .fn()
+      .mockImplementation(async (userId: string, query: string, limit = 25) => {
         // Return contacts that match the search query in name or email
         return makeBatch(
-          () => makeOmniClientWithNotes({
-            userId,
-            displayName: `${query} Contact`,
-            primaryEmail: `${query.toLowerCase()}@example.com`,
-          }),
-          Math.min(limit, 5) // Return up to 5 search results
+          () =>
+            makeOmniClientWithNotes({
+              userId,
+              displayName: `${query} Contact`,
+              primaryEmail: `${query.toLowerCase()}@example.com`,
+            }),
+          Math.min(limit, 5), // Return up to 5 search results
         );
-      }
-    ),
+      }),
 
     getContactStatsOptimized: vi.fn().mockResolvedValue({
       total: 100,
@@ -216,7 +217,7 @@ export interface InteractionsRepoFakes {
         limit?: number;
         offset?: number;
         types?: string[];
-      }
+      },
     ) => Promise<InteractionRow[]>
   >;
   getUnlinked: MockedFunction<
@@ -226,7 +227,7 @@ export interface InteractionsRepoFakes {
         limit?: number;
         sources?: string[];
         daysSince?: number;
-      }
+      },
     ) => Promise<InteractionRow[]>
   >;
   linkToContact: MockedFunction<(interactionId: string, contactId: string) => Promise<void>>;
@@ -237,7 +238,7 @@ export interface InteractionsRepoFakes {
         limit?: number;
         hoursBack?: number;
         hasContact?: boolean;
-      }
+      },
     ) => Promise<InteractionRow[]>
   >;
   getWithoutEmbeddings: MockedFunction<
@@ -281,14 +282,15 @@ export function createInteractionsRepoFakes(): InteractionsRepoFakes {
       } as InteractionRow;
     }),
 
-    getByContact: vi.fn().mockImplementation(
-      async (userId: string, contactId: string, options = {}) => {
+    getByContact: vi
+      .fn()
+      .mockImplementation(async (userId: string, contactId: string, options = {}) => {
         const limit = options.limit || 50;
         const interactions = makeBatch(
           () => makeInteraction({ userId, contactId }),
-          Math.min(limit, 10)
+          Math.min(limit, 10),
         );
-        return interactions.map(interaction => ({
+        return interactions.map((interaction) => ({
           id: interaction.id,
           user_id: interaction.userId,
           contact_id: interaction.contactId,
@@ -303,16 +305,15 @@ export function createInteractionsRepoFakes(): InteractionsRepoFakes {
           batch_id: interaction.batchId,
           created_at: interaction.createdAt,
         })) as InteractionRow[];
-      }
-    ),
+      }),
 
     getUnlinked: vi.fn().mockImplementation(async (userId: string, options = {}) => {
       const limit = options.limit || 100;
       const interactions = makeBatch(
         () => makeInteraction({ userId, contactId: null }),
-        Math.min(limit, 5)
+        Math.min(limit, 5),
       );
-      return interactions.map(interaction => ({
+      return interactions.map((interaction) => ({
         id: interaction.id,
         user_id: interaction.userId,
         contact_id: null,
@@ -331,30 +332,25 @@ export function createInteractionsRepoFakes(): InteractionsRepoFakes {
 
     linkToContact: vi.fn().mockResolvedValue(undefined),
 
-    getRecentForTimeline: vi.fn().mockImplementation(
-      async (userId: string, options = {}) => {
-        const limit = options.limit || 100;
-        const interactions = makeBatch(
-          () => makeInteraction({ userId }),
-          Math.min(limit, 20)
-        );
-        return interactions.map(interaction => ({
-          id: interaction.id,
-          user_id: interaction.userId,
-          contact_id: interaction.contactId,
-          type: interaction.type,
-          subject: interaction.subject,
-          body_text: interaction.bodyText,
-          body_raw: interaction.bodyRaw,
-          occurred_at: interaction.occurredAt,
-          source: interaction.source,
-          source_id: interaction.sourceId,
-          source_meta: interaction.sourceMeta,
-          batch_id: interaction.batchId,
-          created_at: interaction.createdAt,
-        })) as InteractionRow[];
-      }
-    ),
+    getRecentForTimeline: vi.fn().mockImplementation(async (userId: string, options = {}) => {
+      const limit = options.limit || 100;
+      const interactions = makeBatch(() => makeInteraction({ userId }), Math.min(limit, 20));
+      return interactions.map((interaction) => ({
+        id: interaction.id,
+        user_id: interaction.userId,
+        contact_id: interaction.contactId,
+        type: interaction.type,
+        subject: interaction.subject,
+        body_text: interaction.bodyText,
+        body_raw: interaction.bodyRaw,
+        occurred_at: interaction.occurredAt,
+        source: interaction.source,
+        source_id: interaction.sourceId,
+        source_meta: interaction.sourceMeta,
+        batch_id: interaction.batchId,
+        created_at: interaction.createdAt,
+      })) as InteractionRow[];
+    }),
 
     getWithoutEmbeddings: vi.fn().mockImplementation(async (userId: string, limit = 50) => {
       return makeBatch(
@@ -365,7 +361,7 @@ export function createInteractionsRepoFakes(): InteractionsRepoFakes {
             bodyText: interaction.bodyText,
           };
         },
-        Math.min(limit, 10)
+        Math.min(limit, 10),
       );
     }),
 
@@ -495,8 +491,8 @@ export function setupRepoMocks() {
   const fakes = createAllRepoFakes();
 
   // Mock all repository modules
-  vi.doMock('@/server/repositories/omni-clients.repo', () => fakes.omniClients);
-  vi.doMock('@/server/repositories/interactions.repo', () => ({
+  vi.doMock("@repo/contacts", () => fakes.omniClients);
+  vi.doMock("@/server/repositories/interactions.repo", () => ({
     InteractionsRepository: class {
       static upsert = fakes.interactions.upsert;
       static bulkUpsert = fakes.interactions.bulkUpsert;
@@ -509,7 +505,7 @@ export function setupRepoMocks() {
       static getStats = fakes.interactions.getStats;
     },
   }));
-  vi.doMock('@/server/repositories/auth-user.repo', () => fakes.authUser);
+  vi.doMock("@/server/repositories/auth-user.repo", () => fakes.authUser);
 
   return fakes;
 }
@@ -518,11 +514,11 @@ export function setupRepoMocks() {
  * Helper to reset all repository mocks
  */
 export function resetRepoMocks(fakes: AllRepoFakes) {
-  Object.values(fakes.omniClients).forEach(mock => mock.mockClear());
-  Object.values(fakes.interactions).forEach(mock => mock.mockClear());
-  Object.values(fakes.authUser).forEach(mock => mock.mockClear());
-  Object.values(fakes.identities).forEach(mock => mock.mockClear());
-  Object.values(fakes.rawEvents).forEach(mock => mock.mockClear());
+  Object.values(fakes.omniClients).forEach((mock) => mock.mockClear());
+  Object.values(fakes.interactions).forEach((mock) => mock.mockClear());
+  Object.values(fakes.authUser).forEach((mock) => mock.mockClear());
+  Object.values(fakes.identities).forEach((mock) => mock.mockClear());
+  Object.values(fakes.rawEvents).forEach((mock) => mock.mockClear());
 }
 
 /**
@@ -544,14 +540,14 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
      * Configure error scenarios
      */
     databaseError: () => {
-      const error = new Error('Database connection error');
-      Object.values(fakes.omniClients).forEach(mock => {
-        if (typeof mock.mockRejectedValue === 'function') {
+      const error = new Error("Database connection error");
+      Object.values(fakes.omniClients).forEach((mock) => {
+        if (typeof mock.mockRejectedValue === "function") {
           mock.mockRejectedValue(error);
         }
       });
-      Object.values(fakes.interactions).forEach(mock => {
-        if (typeof mock.mockRejectedValue === 'function') {
+      Object.values(fakes.interactions).forEach((mock) => {
+        if (typeof mock.mockRejectedValue === "function") {
           mock.mockRejectedValue(error);
         }
       });
@@ -582,7 +578,7 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
       });
 
       fakes.interactions.getByContact.mockResolvedValue(
-        interactions.map(interaction => ({
+        interactions.map((interaction) => ({
           id: interaction.id,
           user_id: interaction.userId,
           contact_id: interaction.contactId,
@@ -596,7 +592,7 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
           source_meta: interaction.sourceMeta,
           batch_id: interaction.batchId,
           created_at: interaction.createdAt,
-        })) as InteractionRow[]
+        })) as InteractionRow[],
       );
     },
 
@@ -606,8 +602,8 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
     contactWithWellnessData: (userId: string) => {
       const contact = makeOmniClientWithNotes({
         userId,
-        stage: 'Core Client',
-        tags: ['Yoga', 'Regular Attendee'],
+        lifecycleStage: "Core Client",
+        tags: ["Yoga", "Regular Attendee"],
         confidenceScore: "0.85",
       });
 
@@ -622,7 +618,7 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
      */
     dataCorruption: () => {
       const corruptContact = makeOmniClientWithNotes({
-        stage: 'Core Client',
+        lifecycleStage: "Core Client",
         // Simulate corrupted tags field
         tags: null,
         confidenceScore: "0.85",

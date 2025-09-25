@@ -26,7 +26,7 @@ export const TaskSchema = z.object({
   status: TaskStatusEnum,
   priority: TaskPriorityEnum,
   dueDate: z.string().datetime().nullable(), // timestamp with timezone
-  details: z.record(z.unknown()).nullable(), // JSONB object field
+  details: z.record(z.string(), z.unknown()).nullable(), // JSONB object field
   completedAt: z.string().datetime().nullable(), // timestamp with timezone
   createdAt: z.string().datetime(), // timestamp with timezone
   updatedAt: z.string().datetime(), // timestamp with timezone
@@ -40,7 +40,7 @@ export const CreateTaskSchema = z.object({
   status: TaskStatusEnum.default("todo"),
   priority: TaskPriorityEnum.default("medium"),
   dueDate: z.string().datetime().nullable().optional(),
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // Schema for updating existing tasks
@@ -51,7 +51,7 @@ export const UpdateTaskSchema = z.object({
   status: TaskStatusEnum.optional(),
   priority: TaskPriorityEnum.optional(),
   dueDate: z.string().datetime().nullable().optional(),
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
   completedAt: z.string().datetime().nullable().optional(),
 });
 
@@ -80,7 +80,7 @@ export const ProjectSchema = z.object({
   name: z.string(),
   status: ProjectStatusEnum,
   dueDate: z.string().datetime().nullable(), // timestamp with timezone
-  details: z.record(z.unknown()).nullable(), // JSONB object field
+  details: z.record(z.string(), z.unknown()).nullable(), // JSONB object field
   createdAt: z.string().datetime(), // timestamp with timezone
   updatedAt: z.string().datetime(), // timestamp with timezone
 });
@@ -91,7 +91,7 @@ export const CreateProjectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(500, "Project name too long"),
   status: ProjectStatusEnum.default("active"),
   dueDate: z.string().datetime().nullable().optional(),
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // Schema for updating existing projects
@@ -100,7 +100,7 @@ export const UpdateProjectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(500, "Project name too long").optional(),
   status: ProjectStatusEnum.optional(),
   dueDate: z.string().datetime().nullable().optional(),
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // ============================================================================
@@ -144,7 +144,7 @@ export const GoalSchema = z.object({
   name: z.string(),
   status: GoalStatusEnum,
   targetDate: z.string().datetime().nullable(), // timestamp with timezone
-  details: z.record(z.unknown()).nullable(), // JSONB object field
+  details: z.record(z.string(), z.unknown()).nullable(), // JSONB object field
   createdAt: z.string().datetime(), // timestamp with timezone
   updatedAt: z.string().datetime(), // timestamp with timezone
 });
@@ -156,7 +156,7 @@ export const CreateGoalSchema = z.object({
   name: z.string().min(1, "Goal name is required").max(500, "Goal name too long"),
   status: GoalStatusEnum.default("on_track"),
   targetDate: z.string().datetime().nullable().optional(),
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // Schema for updating existing goals
@@ -166,7 +166,7 @@ export const UpdateGoalSchema = z.object({
   name: z.string().min(1, "Goal name is required").max(500, "Goal name too long").optional(),
   status: GoalStatusEnum.optional(),
   targetDate: z.string().datetime().nullable().optional(),
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // ============================================================================
@@ -204,19 +204,19 @@ export const DailyPulseLogSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
   logDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"), // Date string YYYY-MM-DD
-  details: z.record(z.unknown()).nullable(), // JSONB object field
+  details: z.record(z.string(), z.unknown()).nullable(), // JSONB object field
   createdAt: z.string().datetime(), // timestamp with timezone
 });
 
 // Schema for creating new daily pulse logs
 export const CreateDailyPulseLogSchema = z.object({
   logDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // Schema for updating existing daily pulse logs
 export const UpdateDailyPulseLogSchema = z.object({
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // ============================================================================

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 import { JobRunner } from "@/server/jobs/runner";
 import { logger } from "@/lib/observability/unified-logger";
 import { ensureError } from "@/lib/utils/error-handler";

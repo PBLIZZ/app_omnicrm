@@ -60,6 +60,19 @@ export const inboxItemStatusEnum = pgEnum("inbox_item_status", [
   "processed",
   "archived",
 ]);
+export const clientStatusEnum = pgEnum("client_status", [
+  "active",
+  "inactive",
+  "at_risk",
+  "churned",
+]);
+export const consentTypeEnum = pgEnum("consent_type", [
+  "data_processing",
+  "marketing",
+  "hipaa",
+  "photography",
+]);
+export const fileTypeEnum = pgEnum("file_type", ["photo", "document", "form"]);
 
 // ---------- Core Tables ----------
 
@@ -104,11 +117,20 @@ export const contacts = pgTable("contacts", {
   primaryEmail: text("primary_email"),
   primaryPhone: text("primary_phone"),
   source: text("source"), // gmail_import | manual | upload | calendar_import
-  // notes column removed - use dedicated notes table instead
-  stage: text("stage"), // Prospect | New Client | Core Client | Referring Client | VIP Client | Lost Client | At Risk Client
+  // Enhanced onboarding fields
+  dateOfBirth: date("date_of_birth"),
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: text("emergency_contact_phone"),
+  clientStatus: clientStatusEnum("client_status"), // active | inactive | at-risk | churned
+  referralSource: text("referral_source"), // how they found the practitioner
+  address: jsonb("address"), // JSON address object
+  healthContext: jsonb("health_context"), // health conditions, allergies, fitness level, stress level
+  preferences: jsonb("preferences"), // session times, preferences
+  photoUrl: text("photo_url"), // Supabase storage URL for client photo
+  // Existing fields (renamed stage -> lifecycleStage)
+  lifecycleStage: text("lifecycle_stage"), // Prospect | New Client | Core Client | Referring Client | VIP Client | Lost Client | At Risk Client
   tags: jsonb("tags").default(sql`'[]'::jsonb`), // Wellness segmentation tags array
   confidenceScore: text("confidence_score"), // AI insight confidence stored as text
-  slug: text("slug").unique(), // SEO-friendly URL slug
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -412,9 +434,7 @@ export const inboxItems = pgTable("inbox_items", {
     .default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull(),
   rawText: text("raw_text").notNull(),
-  status: inboxItemStatusEnum("status")
-    .notNull()
-    .default("unprocessed"),
+  status: inboxItemStatusEnum("status").notNull().default("unprocessed"),
   createdTaskId: uuid("created_task_id"), // Nullable, will be populated after processing
   processedAt: timestamp("processed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -429,9 +449,7 @@ export const projects = pgTable("projects", {
   userId: uuid("user_id").notNull(),
   zoneId: integer("zone_id"), // References zones.id but FK defined in SQL
   name: text("name").notNull(),
-  status: projectStatusEnum("status")
-    .notNull()
-    .default("active"),
+  status: projectStatusEnum("status").notNull().default("active"),
   dueDate: timestamp("due_date", { withTimezone: true }),
   details: jsonb("details").default(sql`'{}'::jsonb`), // For description, icon, metadata
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -447,12 +465,8 @@ export const tasks = pgTable("tasks", {
   projectId: uuid("project_id"), // References projects.id but FK defined in SQL
   parentTaskId: uuid("parent_task_id"), // References tasks.id but FK defined in SQL
   name: text("name").notNull(),
-  status: taskStatusEnum("status")
-    .notNull()
-    .default("todo"),
-  priority: taskPriorityEnum("priority")
-    .notNull()
-    .default("medium"),
+  status: taskStatusEnum("status").notNull().default("todo"),
+  priority: taskPriorityEnum("priority").notNull().default("medium"),
   dueDate: timestamp("due_date", { withTimezone: true }),
   details: jsonb("details").default(sql`'{}'::jsonb`), // For description, steps, blockers
   completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -479,9 +493,7 @@ export const goals = pgTable("goals", {
   contactId: uuid("contact_id"), // References contacts.id but FK defined in SQL, nullable for practitioner goals
   goalType: goalTypeEnum("goal_type").notNull(),
   name: text("name").notNull(),
-  status: goalStatusEnum("status")
-    .notNull()
-    .default("on_track"),
+  status: goalStatusEnum("status").notNull().default("on_track"),
   targetDate: timestamp("target_date", { withTimezone: true }),
   details: jsonb("details").default(sql`'{}'::jsonb`), // For description, metrics, values, etc.
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -503,89 +515,55 @@ export const dailyPulseLogs = pgTable(
   (table) => [uniqueIndex("daily_pulse_logs_user_date_unique").on(table.userId, table.logDate)],
 );
 
-// ---------- Types ----------
+// ---------- Onboarding System Tables ----------
 
-export type AiInsight = typeof aiInsights.$inferSelect;
-export type NewAiInsight = typeof aiInsights.$inferInsert;
+export const onboardingTokens = pgTable("onboarding_tokens", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  maxUses: integer("max_uses").notNull().default(1),
+  usedCount: integer("used_count").notNull().default(0),
+  disabled: boolean("disabled").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // New fields for naming and tracking
+  name: text("name"),
+  description: text("description"),
+  label: text("label"), // User-friendly label for token identification
+  lastAccessedAt: timestamp("last_accessed_at", { withTimezone: true }),
+  accessCount: integer("access_count").notNull().default(0),
+  submissionCount: integer("submission_count").notNull().default(0),
+});
 
-export type Contact = typeof contacts.$inferSelect;
-export type NewContact = typeof contacts.$inferInsert;
+export const clientConsents = pgTable("client_consents", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  contactId: uuid("contact_id").notNull(),
+  consentType: consentTypeEnum("consent_type").notNull(),
+  granted: boolean("granted").notNull(),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  consentTextVersion: text("consent_text_version"),
+  signatureSvg: text("signature_svg"),
+  signatureImageUrl: text("signature_image_url"),
+  userId: uuid("user_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
-export type ContactIdentity = typeof contactIdentities.$inferSelect;
-export type NewContactIdentity = typeof contactIdentities.$inferInsert;
-
-export type Document = typeof documents.$inferSelect;
-export type NewDocument = typeof documents.$inferInsert;
-
-export type Embedding = typeof embeddings.$inferSelect;
-export type NewEmbedding = typeof embeddings.$inferInsert;
-
-export type Interaction = typeof interactions.$inferSelect;
-export type NewInteraction = typeof interactions.$inferInsert;
-
-export type Job = typeof jobs.$inferSelect;
-export type NewJob = typeof jobs.$inferInsert;
-
-export type RawEvent = typeof rawEvents.$inferSelect;
-export type NewRawEvent = typeof rawEvents.$inferInsert;
-
-export type RawEventError = typeof rawEventErrors.$inferSelect;
-export type NewRawEventError = typeof rawEventErrors.$inferInsert;
-
-export type Thread = typeof threads.$inferSelect;
-export type NewThread = typeof threads.$inferInsert;
-
-export type Message = typeof messages.$inferSelect;
-export type NewMessage = typeof messages.$inferInsert;
-
-export type ToolInvocation = typeof toolInvocations.$inferSelect;
-export type NewToolInvocation = typeof toolInvocations.$inferInsert;
-
-export type UserIntegration = typeof userIntegrations.$inferSelect;
-export type NewUserIntegration = typeof userIntegrations.$inferInsert;
-
-export type UserSyncPrefs = typeof userSyncPrefs.$inferSelect;
-export type NewUserSyncPrefs = typeof userSyncPrefs.$inferInsert;
-
-export type SyncAudit = typeof syncAudit.$inferSelect;
-export type NewSyncAudit = typeof syncAudit.$inferInsert;
-
-export type SyncSession = typeof syncSessions.$inferSelect;
-export type NewSyncSession = typeof syncSessions.$inferInsert;
-
-export type AiQuota = typeof aiQuotas.$inferSelect;
-export type NewAiQuota = typeof aiQuotas.$inferInsert;
-
-export type AiUsage = typeof aiUsage.$inferSelect;
-export type NewAiUsage = typeof aiUsage.$inferInsert;
-
-export type Note = typeof notes.$inferSelect;
-export type NewNote = typeof notes.$inferInsert;
-
-export type CalendarEvent = typeof calendarEvents.$inferSelect;
-export type NewCalendarEvent = typeof calendarEvents.$inferInsert;
-
-export type ContactTimeline = typeof contactTimeline.$inferSelect;
-export type NewContactTimeline = typeof contactTimeline.$inferInsert;
-
-// OmniMomentum Types
-export type Zone = typeof zones.$inferSelect;
-export type NewZone = typeof zones.$inferInsert;
-
-export type InboxItem = typeof inboxItems.$inferSelect;
-export type NewInboxItem = typeof inboxItems.$inferInsert;
-
-export type Project = typeof projects.$inferSelect;
-export type NewProject = typeof projects.$inferInsert;
-
-export type Task = typeof tasks.$inferSelect;
-export type NewTask = typeof tasks.$inferInsert;
-
-export type TaskContactTag = typeof taskContactTags.$inferSelect;
-export type NewTaskContactTag = typeof taskContactTags.$inferInsert;
-
-export type Goal = typeof goals.$inferSelect;
-export type NewGoal = typeof goals.$inferInsert;
-
-export type DailyPulseLog = typeof dailyPulseLogs.$inferSelect;
-export type NewDailyPulseLog = typeof dailyPulseLogs.$inferInsert;
+export const clientFiles = pgTable("client_files", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  contactId: uuid("contact_id").notNull(),
+  filePath: text("file_path").notNull(),
+  fileType: fileTypeEnum("file_type").notNull(),
+  mimeType: text("mime_type"),
+  fileSize: integer("file_size"),
+  userId: uuid("user_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -276,7 +276,6 @@ export type Database = {
           id: string;
           primary_email: string | null;
           primary_phone: string | null;
-          slug: string | null;
           source: string | null;
           stage: string | null;
           tags: Json | null;
@@ -290,7 +289,6 @@ export type Database = {
           id?: string;
           primary_email?: string | null;
           primary_phone?: string | null;
-          slug?: string | null;
           source?: string | null;
           stage?: string | null;
           tags?: Json | null;
@@ -304,7 +302,6 @@ export type Database = {
           id?: string;
           primary_email?: string | null;
           primary_phone?: string | null;
-          slug?: string | null;
           source?: string | null;
           stage?: string | null;
           tags?: Json | null;

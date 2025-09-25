@@ -7,7 +7,7 @@ export { ContactsRepository } from "./contacts.repo";
 export { InteractionsRepository } from "./interactions.repo";
 export { NotesRepository } from "./notes.repo";
 export { CalendarEventsRepository } from "./calendar-events.repo";
-export { MomentumRepository } from "./momentum.repo";
+export { MomentumRepository, momentumRepository } from "./momentum.repo";
 export { UserIntegrationsRepository } from "./user-integrations.repo";
 export { SyncSessionsRepository } from "./sync-sessions.repo";
 export { RawEventsRepository } from "./raw-events.repo";

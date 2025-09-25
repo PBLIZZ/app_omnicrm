@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
 
 const postHandler = createRouteHandler({
   auth: true,

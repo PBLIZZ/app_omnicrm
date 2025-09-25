@@ -20,13 +20,13 @@ export const InsightContentSchema = z.object({
       }),
     )
     .optional(),
-  props: z.record(z.unknown()).optional(), // Kind-specific payload
+  props: z.record(z.string(), z.unknown()).optional(), // Kind-specific payload
   actions: z
     .array(
       z.object({
         type: z.string(),
         label: z.string(),
-        payload: z.record(z.unknown()),
+        payload: z.record(z.string(), z.unknown()),
       }),
     )
     .optional(),
@@ -42,7 +42,7 @@ export const AIInsightSchema = z.object({
   subjectType: z.string(), // contact | segment | inbox
   subjectId: z.string().uuid().nullable(),
   kind: z.string(), // summary | next_step | risk | persona
-  content: z.record(z.unknown()), // JSONB field - structured LLM output
+  content: z.record(z.string(), z.unknown()), // JSONB field - structured LLM output
   model: z.string().nullable(),
   createdAt: z.string().datetime(), // timestamp with timezone
   fingerprint: z.string().nullable(), // Generated in database

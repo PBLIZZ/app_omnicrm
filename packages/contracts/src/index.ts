@@ -7,16 +7,47 @@
 
 // Contact Domain
 export {
+  // Core Schemas
   ContactDTOSchema,
-  ContactIdentityDTOSchema,
   CreateContactDTOSchema,
   UpdateContactDTOSchema,
+  WellnessStageEnum,
+  ContactSourceEnum,
+  WellnessTagSchema,
+
+  // Identity Schemas
+  ContactIdentityDTOSchema,
+  CreateContactIdentityDTOSchema,
+  UpdateContactIdentityDTOSchema,
+
+  // Timeline Schemas
+  ContactTimelineDTOSchema,
+  CreateContactTimelineDTOSchema,
+  UpdateContactTimelineDTOSchema,
+
+  // Extended Schemas
   ContactWithNotesDTOSchema,
+  ContactQueryDTOSchema,
+  ContactSuggestionDTOSchema,
+  BulkCreateContactsDTOSchema,
+
+  // Types
   type ContactDTO,
-  type ContactIdentityDTO,
   type CreateContactDTO,
   type UpdateContactDTO,
+  type ContactIdentityDTO,
+  type CreateContactIdentityDTO,
+  type UpdateContactIdentityDTO,
+  type ContactTimelineDTO,
+  type CreateContactTimelineDTO,
+  type UpdateContactTimelineDTO,
   type ContactWithNotesDTO,
+  type ContactQueryDTO,
+  type ContactSuggestionDTO,
+  type BulkCreateContactsDTO,
+  type WellnessStage,
+  type ContactSource,
+  type WellnessTag,
 } from "./contact";
 
 // Interaction Domain
@@ -42,12 +73,10 @@ export {
 // Calendar Event Domain
 export {
   CalendarEventDTOSchema,
-  ContactTimelineDTOSchema,
   CreateCalendarEventDTOSchema,
   UpdateCalendarEventDTOSchema,
   CalendarEventFiltersSchema,
   type CalendarEventDTO,
-  type ContactTimelineDTO,
   type CreateCalendarEventDTO,
   type UpdateCalendarEventDTO,
   type CalendarEventFilters,

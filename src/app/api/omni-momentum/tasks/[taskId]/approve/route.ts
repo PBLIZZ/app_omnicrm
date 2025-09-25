@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
+import { momentumRepository } from "@repo";
 
 /**
  * Task Approval API Route
@@ -25,7 +25,7 @@ export async function POST(_: NextRequest, { params }: RouteParams): Promise<Nex
     const { taskId } = params;
 
     // Get the task to ensure it exists and belongs to the user
-    const task = await MomentumRepository.getTask(taskId, userId);
+    const task = await momentumRepository.getTask(taskId, userId);
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
@@ -34,12 +34,14 @@ export async function POST(_: NextRequest, { params }: RouteParams): Promise<Nex
     // this feature might need implementation. For now, just update status.
 
     // Update task to approved status
-    const updatedTask = await MomentumRepository.updateTask(taskId, userId, {
+    await momentumRepository.updateTask(taskId, userId, {
       status: "todo", // Move to active todo status
     });
 
+    // Get the updated task to return
+    const updatedTask = await momentumRepository.getTask(taskId, userId);
     if (!updatedTask) {
-      return NextResponse.json({ error: "Failed to approve task" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to retrieve updated task" }, { status: 500 });
     }
 
     // Note: createMomentumAction method doesn't exist yet,

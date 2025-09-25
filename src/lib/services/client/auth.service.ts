@@ -1,71 +1,123 @@
+/**
+ * Client-side Auth Service
+ *
+ * Provides auth utilities for client components including user management,
+ * password updates, and error handling.
+ */
+
 "use client";
+
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowser } from "@/lib/supabase/browser-client";
+import { PASSWORD_MIN_LENGTH } from "@/lib/constants/auth";
 
-// Debug logging helper
-function debugLog(message: string, data?: unknown): void {
-  if (process.env.NODE_ENV === "development") {
-    // Using console.warn instead of console.log for ESLint compliance
-    console.warn(`[AUTH-DEBUG] ${message}`, data ? data : "");
-  }
+interface SupabaseAuthError {
+  code: string;
+  message?: string;
 }
 
-// Timeout promise helper
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>(() =>
-      setTimeout(() => new Error(`Operation timed out after ${timeoutMs}ms`), timeoutMs),
-    ),
-  ]);
+function isSupabaseAuthError(value: unknown): value is SupabaseAuthError {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "code" in value &&
+    typeof value.code === "string" &&
+    ("message" in value ? typeof value.message === "string" : true)
+  );
 }
 
-export async function fetchCurrentUser(): Promise<{ user: User | null; error: Error | null }> {
-  debugLog("Starting fetchCurrentUser...");
+const SUPABASE_ERROR_MESSAGES: Record<string, string> = {
+  invalid_credentials: "Invalid email or password. Please try again.",
+  email_not_confirmed: "Please check your email and click the confirmation link.",
+  weak_password: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`,
+  user_already_registered: "An account with this email already exists.",
+  signup_disabled: "New account registration is currently disabled.",
+  too_many_requests: "Too many attempts. Please try again later.",
+} as const;
 
+/**
+ * Fetch the current authenticated user
+ */
+export async function fetchCurrentUser(): Promise<{ user: User | null; error?: Error }> {
   try {
-    // Add timeout to prevent infinite hanging
-    const authPromise = getSupabaseBrowser().auth.getUser();
-    debugLog("Calling Supabase auth.getUser() with 10s timeout...");
-
-    const { data, error } = await withTimeout(authPromise, 10000); // 10 second timeout
+    const supabase = getSupabaseBrowser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
     if (error) {
-      debugLog("Supabase auth error:", error);
-      return { user: null, error } as { user: null; error: Error };
+      console.error("Error fetching current user:", error);
+      return { user: null, error: new Error(error.message) };
     }
 
-    debugLog("Auth successful, user:", data.user ? "found" : "null");
-    return { user: data.user, error: null };
-  } catch (e) {
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    debugLog("Auth exception caught:", errorMessage);
-
-    // Provide more specific error messages
-    if (errorMessage.includes("timed out")) {
-      debugLog("Auth operation timed out - possible network or Supabase connection issue");
-    }
-
-    return { user: null, error: e instanceof Error ? e : new Error(String(e)) };
+    return { user };
+  } catch (error) {
+    console.error("Failed to fetch current user:", error);
+    return { user: null, error: error instanceof Error ? error : new Error(String(error)) };
   }
 }
 
+/**
+ * Update user password
+ */
 export async function updateUserPassword(newPassword: string): Promise<{ error: Error | null }> {
   try {
-    const { error } = await getSupabaseBrowser().auth.updateUser({ password: newPassword });
-    return { error: (error as unknown as Error) ?? null };
-  } catch (e) {
-    return { error: e instanceof Error ? e : new Error(String(e)) };
+    const supabase = getSupabaseBrowser();
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      // Use structured error handling with mapped messages
+      const mappedMessage = mapAuthErrorMessage(error);
+      return { error: new Error(mappedMessage) };
+    }
+
+    return { error: null };
+  } catch (error) {
+    // Use mapAuthErrorMessage for non-Error throwables too
+    const mappedMessage = mapAuthErrorMessage(error instanceof Error ? error : String(error));
+    return { error: new Error(mappedMessage) };
   }
 }
 
-export function mapAuthErrorMessage(message: string): string {
-  const msg = message.toLowerCase();
-  if (msg.includes("invalid login")) return "Invalid email or password";
-  if (msg.includes("email not confirmed") || msg.includes("confirm"))
-    return "Please confirm your email address to continue";
-  if (msg.includes("rate limit") || msg.includes("too many"))
-    return "Too many attempts. Please try again later";
-  if (msg.includes("password")) return "There was a problem with your password";
+/**
+ * Map Supabase auth error messages to user-friendly messages
+ */
+export function mapAuthErrorMessage(error: Error | string): string {
+  const message = typeof error === "string" ? error : error.message;
+
+  // Check for Supabase error codes first
+  if (isSupabaseAuthError(error)) {
+    return SUPABASE_ERROR_MESSAGES[error.code] || "An authentication error occurred.";
+  }
+
+  // Fallback to message-based checks
+  if (message.includes("Invalid login credentials")) {
+    return "Invalid email or password. Please try again.";
+  }
+
+  if (message.includes("Email not confirmed")) {
+    return "Please check your email and click the confirmation link.";
+  }
+
+  if (message.includes("Password should be at least")) {
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`;
+  }
+
+  if (message.includes("User already registered")) {
+    return "An account with this email already exists.";
+  }
+
+  if (message.includes("Signup is disabled")) {
+    return "New account registration is currently disabled.";
+  }
+
+  if (message.includes("Too many requests")) {
+    return "Too many attempts. Please try again later.";
+  }
+
+  // Return original message if no mapping found
   return message;
 }

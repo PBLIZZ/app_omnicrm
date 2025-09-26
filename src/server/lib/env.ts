@@ -96,7 +96,7 @@ export const env: Env = (() => {
 
   const secretKey: string | undefined = parsed.SUPABASE_SECRET_KEY;
 
-  // Service-role key required in production (server-side only)
+  // Secret key required in production (server-side only)
   if (parsed.NODE_ENV === "production" && !secretKey) {
     throw new Error("SUPABASE_SECRET_KEY is required in production");
   }

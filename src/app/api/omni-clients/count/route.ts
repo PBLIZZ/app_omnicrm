@@ -11,26 +11,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const userId = await getServerUserId();
     const { searchParams } = new URL(request.url);
 
-    // Parse query parameters (only search for filtering)
+    // Parse query parameters
     const queryParams = Object.fromEntries(searchParams.entries());
     const validatedQuery = GetOmniClientsQuerySchema.parse(queryParams);
 
-    // For count, we only need search param
-    const repoParams = {
-      search: validatedQuery.search,
-    };
-
-    const total = await ContactsRepository.countContacts(userId, repoParams.search);
+    // Get count using repository
+    const total = await ContactsRepository.countContacts(userId, validatedQuery.search);
 
     return NextResponse.json({ count: total });
   } catch (error) {
-    logger.error("Failed to count omni clients", {
-      error: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
-      userId,
-      search: validatedQuery?.search,
-    });
-
     // Handle validation errors
     if (isValidationError(error)) {
       return NextResponse.json(
@@ -43,6 +32,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (isAuthError(error)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    logger.error("Failed to count omni clients", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
 
     return NextResponse.json(
       {

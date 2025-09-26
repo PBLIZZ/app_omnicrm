@@ -73,6 +73,27 @@ const CalendarItemSchema = z.object({
 
 export class GoogleCalendarService {
   /**
+   * Check if user has Google Calendar integration set up
+   */
+  static async hasCalendarIntegration(userId: string): Promise<boolean> {
+    const db = await getDb();
+
+    const integration = await db
+      .select()
+      .from(userIntegrations)
+      .where(
+        and(
+          eq(userIntegrations.userId, userId),
+          eq(userIntegrations.provider, "google"),
+          eq(userIntegrations.service, "calendar"),
+        ),
+      )
+      .limit(1);
+
+    return integration.length > 0;
+  }
+
+  /**
    * Get OAuth2 client for a user with automatic token refresh
    */
   public static async getAuth(userId: string): Promise<OAuth2Type> {
@@ -827,6 +848,232 @@ export class GoogleCalendarService {
       lastSynced: event.lastSynced ?? event.updatedAt,
       googleUpdated: event.googleUpdated ?? event.updatedAt,
     })) as CalendarEvent[];
+  }
+
+  /**
+   * Get calendar-specific status (for deprecated /api/google/calendar/status route)
+   */
+  static async getCalendarStatus(userId: string): Promise<{
+    isConnected: boolean;
+    reason: string;
+    expiryDate: string | null;
+    hasRefreshToken: boolean;
+    lastSync: string | null;
+    importedCount: number;
+    upcomingEventsCount: number;
+    autoRefreshed?: boolean;
+  }> {
+    const db = await getDb();
+
+    // Check if user has Google Calendar integration
+    const integration = await db
+      .select()
+      .from(userIntegrations)
+      .where(
+        and(
+          eq(userIntegrations.userId, userId),
+          eq(userIntegrations.provider, "google"),
+          eq(userIntegrations.service, "calendar"),
+        ),
+      )
+      .limit(1);
+
+    if (!integration[0]) {
+      return {
+        isConnected: false,
+        reason: "no_integration",
+        expiryDate: null,
+        hasRefreshToken: false,
+        lastSync: null,
+        importedCount: 0,
+        upcomingEventsCount: 0,
+      };
+    }
+
+    // Check if token is expired
+    const now = new Date();
+    const isExpired = integration[0].expiryDate && integration[0].expiryDate < now;
+    let autoRefreshed = false;
+
+    // If token is expired but we have a refresh token, attempt to refresh automatically
+    if (isExpired && integration[0].refreshToken) {
+      try {
+        // Attempt automatic token refresh using the GoogleCalendarService
+        await this.getAuth(userId);
+        autoRefreshed = true;
+
+        // Re-check the integration after refresh attempt
+        const refreshedIntegration = await db
+          .select()
+          .from(userIntegrations)
+          .where(
+            and(
+              eq(userIntegrations.userId, userId),
+              eq(userIntegrations.provider, "google"),
+              eq(userIntegrations.service, "calendar"),
+            ),
+          )
+          .limit(1);
+
+        if (refreshedIntegration[0]) {
+          const stillExpired =
+            refreshedIntegration[0].expiryDate && refreshedIntegration[0].expiryDate < now;
+
+          if (!stillExpired) {
+            // Get stats and return successful refresh
+            const stats = await this.getCalendarStats(userId);
+            const upcomingEventsCount = await this.getUpcomingEventsCount(userId);
+
+            return {
+              isConnected: true,
+              reason: "connected",
+              expiryDate: refreshedIntegration[0].expiryDate?.toISOString() ?? null,
+              hasRefreshToken: !!refreshedIntegration[0].refreshToken,
+              lastSync: stats.lastSync,
+              importedCount: stats.importedCount,
+              upcomingEventsCount,
+              autoRefreshed: true,
+            };
+          }
+        }
+      } catch (refreshError) {
+        // If refresh fails, fall back to showing expired status
+        console.warn("Automatic Calendar token refresh failed:", refreshError);
+      }
+    }
+
+    // Get last successful raw_events insert and total imported for Google Calendar
+    const stats = await this.getCalendarStats(userId);
+
+    // Add upcoming events count for connected users
+    const upcomingEventsCount = !isExpired ? await this.getUpcomingEventsCount(userId) : 0;
+
+    return {
+      isConnected: !isExpired,
+      reason: isExpired ? "token_expired" : "connected",
+      expiryDate: integration[0].expiryDate?.toISOString() ?? null,
+      hasRefreshToken: !!integration[0].refreshToken,
+      lastSync: stats.lastSync,
+      importedCount: stats.importedCount,
+      upcomingEventsCount,
+      autoRefreshed,
+    };
+  }
+
+  /**
+   * Get calendar sync stats
+   */
+  private static async getCalendarStats(userId: string): Promise<{
+    lastSync: string | null;
+    importedCount: number;
+  }> {
+    const db = await getDb();
+
+    const [lastCalendar] = await db
+      .select({ createdAt: rawEvents.createdAt })
+      .from(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, "google_calendar")))
+      .orderBy(desc(rawEvents.createdAt))
+      .limit(1);
+
+    const [importedCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, "google_calendar")))
+      .limit(1);
+
+    return {
+      lastSync: lastCalendar?.createdAt?.toISOString() ?? null,
+      importedCount: importedCount?.count ?? 0,
+    };
+  }
+
+  /**
+   * Get count of upcoming events
+   */
+  private static async getUpcomingEventsCount(userId: string): Promise<number> {
+    try {
+      const auth = await this.getAuth(userId);
+      const calendar = google.calendar({ version: "v3", auth });
+
+      const timeMin = new Date().toISOString();
+      const timeMax = new Date();
+      timeMax.setDate(timeMax.getDate() + 30); // 30 days ahead
+
+      const response = await calendar.events.list({
+        calendarId: "primary",
+        timeMin,
+        timeMax: timeMax.toISOString(),
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 50,
+      });
+
+      return response.data.items?.length ?? 0;
+    } catch {
+      // If preview fails, return 0
+      return 0;
+    }
+  }
+
+  /**
+   * Get formatted calendar events for API responses
+   */
+  static async getFormattedEvents(userId: string, limit = 500): Promise<{
+    events: Array<{
+      id: string;
+      googleEventId: string;
+      title: string;
+      description: string | null;
+      startTime: string | undefined;
+      endTime: string | undefined;
+      attendees: unknown;
+      location: string | null;
+      status: string | null;
+      timeZone: string | null;
+      isAllDay: boolean;
+      visibility: string | null;
+      eventType: string | null;
+      businessCategory: string | null;
+      keywords: unknown;
+    }>;
+    isConnected: boolean;
+    totalCount: number;
+  }> {
+    const db = await getDb();
+
+    // Fetch calendar events for the user
+    const events = await db
+      .select()
+      .from(calendarEvents)
+      .where(eq(calendarEvents.userId, userId))
+      .orderBy(desc(calendarEvents.startTime))
+      .limit(limit);
+
+    // Transform to match expected format
+    const transformedEvents = events.map(event => ({
+      id: event.id,
+      googleEventId: event.googleEventId,
+      title: event.title,
+      description: event.description,
+      startTime: event.startTime?.toISOString(),
+      endTime: event.endTime?.toISOString(),
+      attendees: event.attendees || [],
+      location: event.location,
+      status: event.status,
+      timeZone: event.timeZone,
+      isAllDay: event.isAllDay || false,
+      visibility: event.visibility,
+      eventType: event.eventType,
+      businessCategory: event.businessCategory,
+      keywords: event.keywords || [],
+    }));
+
+    return {
+      events: transformedEvents,
+      isConnected: true,
+      totalCount: events.length,
+    };
   }
 
   /**

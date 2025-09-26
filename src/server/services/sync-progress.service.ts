@@ -70,21 +70,19 @@ export class SyncProgressService {
 
     const sessionData: NewSyncSession = {
       id: sessionId,
-      userId,
+      user_id: userId,
       service,
       status: "started",
-      progressPercentage: 0,
-      currentStep: "Initializing sync...",
-      totalItems: 0,
-      importedItems: 0,
-      processedItems: 0,
-      failedItems: 0,
-      errorDetails: {},
+      progress_percentage: 0,
+      current_step: "Initializing sync...",
+      total_items: 0,
+      imported_items: 0,
+      processed_items: 0,
+      failed_items: 0,
+      error_details: {},
       preferences: {},
-      startedAt: new Date(),
-      completedAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      started_at: new Date(),
+      completed_at: null,
     };
 
     await db.insert(syncSessions).values(sessionData);
@@ -97,9 +95,7 @@ export class SyncProgressService {
   static async updateProgress(sessionId: string, updates: SyncProgressUpdate): Promise<void> {
     const db = await getDb();
 
-    const updateData: Partial<SyncSession> = {
-      updatedAt: new Date(),
-    };
+    const updateData: Partial<SyncSession> = {};
 
     if (updates.status !== undefined) {
       updateData.status = updates.status;
@@ -108,7 +104,7 @@ export class SyncProgressService {
         updates.status === "failed" ||
         updates.status === "cancelled"
       ) {
-        updateData.completedAt = new Date();
+        updateData.completed_at = new Date();
       }
     }
 
@@ -119,11 +115,11 @@ export class SyncProgressService {
       ) {
         throw new Error("progressPercentage must be a finite number");
       }
-      updateData.progressPercentage = Math.max(0, Math.min(100, updates.progressPercentage));
+      updateData.progress_percentage = Math.max(0, Math.min(100, updates.progressPercentage));
     }
 
     if (updates.currentStep !== undefined) {
-      updateData.currentStep = updates.currentStep;
+      updateData.current_step = updates.currentStep;
     }
 
     if (updates.totalItems !== undefined) {
@@ -134,7 +130,7 @@ export class SyncProgressService {
       ) {
         throw new Error("totalItems must be a non-negative integer");
       }
-      updateData.totalItems = updates.totalItems;
+      updateData.total_items = updates.totalItems;
     }
 
     if (updates.importedItems !== undefined) {
@@ -145,7 +141,7 @@ export class SyncProgressService {
       ) {
         throw new Error("importedItems must be a non-negative integer");
       }
-      updateData.importedItems = updates.importedItems;
+      updateData.imported_items = updates.importedItems;
     }
 
     if (updates.processedItems !== undefined) {
@@ -156,7 +152,7 @@ export class SyncProgressService {
       ) {
         throw new Error("processedItems must be a non-negative integer");
       }
-      updateData.processedItems = updates.processedItems;
+      updateData.processed_items = updates.processedItems;
     }
 
     if (updates.failedItems !== undefined) {
@@ -167,11 +163,11 @@ export class SyncProgressService {
       ) {
         throw new Error("failedItems must be a non-negative integer");
       }
-      updateData.failedItems = updates.failedItems;
+      updateData.failed_items = updates.failedItems;
     }
 
     if (updates.errorDetails !== undefined) {
-      updateData.errorDetails = updates.errorDetails;
+      updateData.error_details = updates.errorDetails;
     }
 
     await db.update(syncSessions).set(updateData).where(eq(syncSessions.id, sessionId));

@@ -2,81 +2,19 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { gmail_v1, google } from "googleapis";
-import { GoogleGmailService } from "@/server/services/google-gmail.service";
+import { GmailLabelsService } from "@/server/services/gmail-labels.service";
 import { logger } from "@/lib/observability";
-
-interface GmailLabel {
-  id: string;
-  name: string;
-  type: "user" | "system";
-  messagesTotal?: number;
-  messagesUnread?: number;
-  threadsTotal?: number;
-  threadsUnread?: number;
-}
-
-interface GmailLabelsResponse {
-  labels: GmailLabel[];
-  totalLabels: number;
-}
+import { ApiEnvelope } from "@/lib/utils/type-guards";
 
 export async function GET(_: NextRequest): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
-    // Get authenticated OAuth2 client using the new service
-    const oauth2Client = await GoogleGmailService.getAuth(userId);
 
-    // Create Gmail client
-    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+    // Delegate to service layer
+    const result = await GmailLabelsService.getUserLabels(userId);
 
-    // Fetch labels
-    const response = await gmail.users.labels.list({
-      userId: "me",
-    });
-
-    if (!response.data.labels) {
-      return NextResponse.json({ labels: [], totalLabels: 0 });
-    }
-
-    // Transform labels to our format
-    const labels: GmailLabel[] = response.data.labels.map((label: gmail_v1.Schema$Label) => {
-      const gmailLabel: GmailLabel = {
-        id: label.id ?? "",
-        name: label.name ?? "",
-        type: label.type === "user" ? "user" : "system",
-      };
-
-      if (label.messagesTotal) {
-        gmailLabel.messagesTotal = parseInt(String(label.messagesTotal), 10);
-      }
-      if (label.messagesUnread) {
-        gmailLabel.messagesUnread = parseInt(String(label.messagesUnread), 10);
-      }
-      if (label.threadsTotal) {
-        gmailLabel.threadsTotal = parseInt(String(label.threadsTotal), 10);
-      }
-      if (label.threadsUnread) {
-        gmailLabel.threadsUnread = parseInt(String(label.threadsUnread), 10);
-      }
-
-      return gmailLabel;
-    });
-
-    // Sort labels: system labels first, then user labels alphabetically
-    labels.sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === "system" ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-
-    const result: GmailLabelsResponse = {
-      labels,
-      totalLabels: labels.length,
-    };
-
-    return NextResponse.json(result);
+    const envelope: ApiEnvelope<typeof result> = { ok: true, data: result };
+    return NextResponse.json(envelope);
   } catch (error: unknown) {
     console.error("GET /api/google/gmail/labels error:", error);
 
@@ -104,23 +42,26 @@ export async function GET(_: NextRequest): Promise<NextResponse> {
     if (error instanceof Error) {
       // Handle specific Google API errors
       if (error.message.includes("insufficient authentication scopes")) {
-        return NextResponse.json(
-          { error: "Insufficient Gmail permissions. Please reconnect your Gmail account." },
-          { status: 403 },
-        );
+        const envelope: ApiEnvelope = {
+          ok: false,
+          error: "Insufficient Gmail permissions. Please reconnect your Gmail account.",
+        };
+        return NextResponse.json(envelope, { status: 403 });
       }
 
       if (
         error.message.includes("invalid_grant") ||
         error.message.includes("Token has been expired or revoked")
       ) {
-        return NextResponse.json(
-          { error: "Gmail access token has expired. Please reconnect your account." },
-          { status: 401 },
-        );
+        const envelope: ApiEnvelope = {
+          ok: false,
+          error: "Gmail access token has expired. Please reconnect your account.",
+        };
+        return NextResponse.json(envelope, { status: 401 });
       }
     }
 
-    return NextResponse.json({ error: "Failed to fetch Gmail labels" }, { status: 500 });
+    const envelope: ApiEnvelope = { ok: false, error: "Failed to fetch Gmail labels" };
+    return NextResponse.json(envelope, { status: 500 });
   }
 }

@@ -60,7 +60,7 @@ export async function optimizePhoto(
 
     // Iteratively reduce quality if file is too large
     while (optimized.length > config.targetFileSize && attempts < maxAttempts && quality > 20) {
-      quality = Math.max(20, quality - 15); // Reduce quality by 15 each iteration, min 20
+      quality = Math.max(20, quality - 15) as 60; // Reduce quality by 15 each iteration, min 20
 
       optimized = await sharp(fileBuffer)
         .resize(config.maxWidth, config.maxHeight, {

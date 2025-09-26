@@ -1,45 +1,36 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { JobRunner } from "@/server/jobs/runner";
-import { logger } from "@/lib/observability";
+import { NextResponse } from "next/server";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { JobProcessingService } from "@/server/services/job-processing.service";
 
 /**
  * Manual job processing endpoint for testing and manual triggers
  * POST /api/jobs/process
  */
-export async function POST(_: NextRequest): Promise<NextResponse> {
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "manual_job_processing" },
+})(async () => {
   try {
-    const userId = await getServerUserId();
-
-    logger.progress("Processing jobs...", "Manual job processing started");
-    await logger.info("Manual job processing triggered by user", {
-      operation: "manual_job_processing",
-      userId,
-    });
-
-    const runner = new JobRunner();
-
-    // Process jobs (can be user-specific or all jobs)
-    const result = await runner.processPendingJobs(50); // Process up to 50 jobs
-
-    logger.success(
-      "Jobs processed successfully",
-      `Processed: ${result.processed}, Succeeded: ${result.succeeded}, Failed: ${result.failed}`,
-      {
-        description: `Successfully processed ${result.processed} jobs`,
-      },
-    );
+    const result = await JobProcessingService.processAllPendingJobs(50);
 
     return NextResponse.json({
-      success: true,
-      message: "Jobs processed successfully",
-      ...result,
+      ok: true,
+      data: {
+        message: "Jobs processed successfully",
+        processed: result.processed,
+        succeeded: result.succeeded,
+        failed: result.failed,
+        errors: result.errors.length > 0 ? result.errors : undefined,
+      },
     });
   } catch (error) {
-    console.error("POST /api/jobs/process error:", error);
     return NextResponse.json(
-      { error: "Manual job processing failed" },
-      { status: 500 }
+      {
+        ok: false,
+        error: "Manual job processing failed",
+        details: error instanceof Error ? error.message : "Unknown error occurred",
+      },
+      { status: 500 },
     );
   }
-}
+});

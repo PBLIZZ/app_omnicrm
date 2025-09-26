@@ -5,7 +5,9 @@
  * @param error - The error to check
  * @returns true if the error is an authentication error
  */
-export function isAuthError(error: unknown): error is Error & { status?: number; statusCode?: number } {
+export function isAuthError(
+  error: unknown,
+): error is Error & { status?: number; statusCode?: number } {
   if (!(error instanceof Error)) {
     return false;
   }

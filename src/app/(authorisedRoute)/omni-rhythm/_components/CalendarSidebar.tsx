@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { CalendarEventCreateData, getHtmlLink, safeParseApiData } from "./types";
-import { fetchPost } from "@/lib/api";
+import { post } from "@/lib/api";
 
 export function CalendarSidebar(): JSX.Element {
   const pathname = usePathname();
@@ -24,7 +24,7 @@ export function CalendarSidebar(): JSX.Element {
 
   const handleCreateEvent = async (eventData: CalendarEventCreateData): Promise<void> => {
     try {
-      const result = await fetchPost<unknown>("/api/google/calendar/create", eventData);
+      const result = await post<unknown>("/api/google/calendar/create", eventData);
       const parsedData = safeParseApiData(result);
       const htmlLink = getHtmlLink(parsedData.data);
       toast({

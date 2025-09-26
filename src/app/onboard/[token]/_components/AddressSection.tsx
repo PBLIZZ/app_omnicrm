@@ -3,16 +3,9 @@
 import { Control, FieldErrors, Controller } from "react-hook-form";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OnboardingFormData } from "@/app/onboard/[token]/_components/OnboardingForm";
-import { COUNTRIES } from "@/constants/countries";
+import { CountrySelect } from "@/components/ui/country-select";
 
 interface AddressSectionProps {
   control: Control<OnboardingFormData>;
@@ -37,6 +30,7 @@ export function AddressSection({ control, errors }: AddressSectionProps) {
               <Input
                 id="addressLine1"
                 {...field}
+                value={field.value || ""}
                 className={errors.address?.line1 ? "border-red-500" : ""}
                 placeholder="Street address"
               />
@@ -57,6 +51,7 @@ export function AddressSection({ control, errors }: AddressSectionProps) {
               <Input
                 id="addressLine2"
                 {...field}
+                value={field.value || ""}
                 className={errors.address?.line2 ? "border-red-500" : ""}
                 placeholder="Apartment, suite, unit, etc. (optional)"
               />
@@ -78,6 +73,7 @@ export function AddressSection({ control, errors }: AddressSectionProps) {
                 <Input
                   id="city"
                   {...field}
+                  value={field.value || ""}
                   className={errors.address?.city ? "border-red-500" : ""}
                   placeholder="City"
                 />
@@ -97,6 +93,7 @@ export function AddressSection({ control, errors }: AddressSectionProps) {
                 <Input
                   id="state"
                   {...field}
+                  value={field.value || ""}
                   className={errors.address?.state ? "border-red-500" : ""}
                   placeholder="State or Province"
                 />
@@ -119,6 +116,7 @@ export function AddressSection({ control, errors }: AddressSectionProps) {
                 <Input
                   id="zipCode"
                   {...field}
+                  value={field.value || ""}
                   className={errors.address?.zipCode ? "border-red-500" : ""}
                   placeholder="ZIP or Postal Code"
                 />
@@ -135,18 +133,14 @@ export function AddressSection({ control, errors }: AddressSectionProps) {
               name="address.country"
               control={control}
               render={({ field }) => (
-                <Select {...field}>
-              <SelectTrigger className={errors.address?.country ? "border-red-500" : ""}>
-                <SelectValue placeholder="Select country" />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRIES.map((country) => (
-                  <SelectItem key={country.value} value={country.value}>
-                    {country.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <CountrySelect
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  placeholder="Select country"
+                  className={errors.address?.country ? "border-red-500" : ""}
+                />
+              )}
+            />
             {errors.address?.country && (
               <p className="text-sm text-red-500">{errors.address.country.message}</p>
             )}

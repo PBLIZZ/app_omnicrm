@@ -1,5 +1,5 @@
 import { useQuery, QueryKey } from "@tanstack/react-query";
-import { fetchGet, fetchPost, buildUrl } from "@/lib/api";
+import { get, post, buildUrl } from "@/lib/api";
 
 export interface GetFileUrlResponse {
   signedUrl: string | null;
@@ -10,7 +10,7 @@ export interface GetFileUrlResponse {
 export async function getFileUrl(filePath: string): Promise<GetFileUrlResponse> {
   try {
     const url = buildUrl("/api/storage/file-url", { filePath });
-    return await fetchGet<GetFileUrlResponse>(url);
+    return await get<GetFileUrlResponse>(url);
   } catch (error) {
     return {
       signedUrl: null,
@@ -49,7 +49,7 @@ export interface GetUploadUrlResponse {
 
 export async function getUploadUrl(args: GetUploadUrlArgs): Promise<GetUploadUrlResponse> {
   try {
-    return await fetchPost<GetUploadUrlResponse>("/api/storage/upload-url", args);
+    return await post<GetUploadUrlResponse>("/api/storage/upload-url", args);
   } catch (error) {
     return {
       signedUrl: null,

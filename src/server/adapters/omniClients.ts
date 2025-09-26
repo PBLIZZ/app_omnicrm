@@ -11,6 +11,11 @@ import type {
 } from "@omnicrm/contracts";
 import { isValidSource, isValidStage, normalizeTags } from "@/lib/utils/validation-helpers";
 
+function normalizeTagsOrNull(tags: unknown): string[] | null {
+  const normalized = normalizeTags(tags);
+  return normalized && normalized.length > 0 ? normalized : null;
+}
+
 // Re-export unified types for backward compatibility
 export type OmniClient = ContactDTO;
 export type OmniClientWithNotes = ContactWithNotesDTO;
@@ -83,7 +88,7 @@ export function toContactDTO(contact: ContactInput): ContactDTO {
       photoUrl: contact.photo_url,
       source: ensureValidSource(contact.source),
       lifecycleStage: ensureValidStage(contact.lifecycle_stage),
-      tags: normalizeTags(contact.tags),
+      tags: normalizeTagsOrNull(contact.tags),
       confidenceScore: contact.confidence_score,
       createdAt,
       updatedAt,
@@ -99,7 +104,7 @@ export function toContactDTO(contact: ContactInput): ContactDTO {
     photoUrl: contact.photoUrl ?? null,
     source: ensureValidSource(contact.source),
     lifecycleStage: ensureValidStage(contact.lifecycleStage),
-    tags: normalizeTags(contact.tags),
+    tags: normalizeTagsOrNull(contact.tags),
     confidenceScore: contact.confidenceScore ?? null,
     createdAt,
     updatedAt,
@@ -145,7 +150,7 @@ export function fromCreateContactDTO(input: CreateContactDTO): {
   displayName: string;
   primaryEmail?: string | null;
   primaryPhone?: string | null;
-  source: "manual" | "gmail_import" | "upload" | "calendar_import";
+  source: "manual" | "gmail_import" | "upload" | "calendar_import" | "onboarding_form";
   lifecycleStage?:
     | "Prospect"
     | "New Client"
@@ -164,7 +169,7 @@ export function fromCreateContactDTO(input: CreateContactDTO): {
     primaryPhone: input.primaryPhone ?? null,
     source: input.source ?? "manual",
     lifecycleStage: input.lifecycleStage ?? null,
-    tags: normalizeTags(input.tags),
+    tags: normalizeTagsOrNull(input.tags),
     confidenceScore: input.confidenceScore ?? null,
   };
 }

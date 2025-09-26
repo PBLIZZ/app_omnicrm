@@ -25,10 +25,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const filters = {
       search: searchParams.get("search") || undefined,
       status: searchParams.getAll("status").filter(Boolean),
-      zoneId: searchParams.get("zoneId") ? parseInt(searchParams.get("zoneId")!) : undefined,
-      dueAfter: searchParams.get("dueAfter") ? new Date(searchParams.get("dueAfter")!) : undefined,
+      zoneId: searchParams.get("zoneId") ? parseInt(searchParams.get("zoneId") || "0") : undefined,
+      dueAfter: searchParams.get("dueAfter") ? new Date(searchParams.get("dueAfter") || "") : undefined,
       dueBefore: searchParams.get("dueBefore")
-        ? new Date(searchParams.get("dueBefore")!)
+        ? new Date(searchParams.get("dueBefore") || "")
         : undefined,
     };
 

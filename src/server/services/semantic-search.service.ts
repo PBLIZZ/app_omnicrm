@@ -91,6 +91,59 @@ export function resolveResultUrl(type: SearchResultType, id: string): string {
   return resolver ? resolver(id) : "/";
 }
 
+export interface SearchRequest {
+  query?: unknown;
+  type?: unknown;
+  limit?: unknown;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  searchType: SearchKind;
+  query: string;
+}
+
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 50;
+const MIN_LIMIT = 1;
+
+const SEARCH_TYPES: readonly SearchKind[] = ["traditional", "semantic", "hybrid"] as const;
+
+/**
+ * Process search request with validation and normalization
+ */
+export async function processSearchRequest(
+  request: SearchRequest,
+  client?: ServerSupabaseClient,
+): Promise<SearchResponse> {
+  // Normalize and validate query
+  const query = typeof request.query === "string" ? request.query.trim() : "";
+  if (!query) {
+    return {
+      results: [],
+      searchType: "hybrid",
+      query: "",
+    };
+  }
+
+  // Normalize and validate search type
+  const requestedType = typeof request.type === "string" ? (request.type as SearchKind) : "hybrid";
+  const searchType: SearchKind = SEARCH_TYPES.includes(requestedType) ? requestedType : "hybrid";
+
+  // Normalize and validate limit
+  const rawLimit = typeof request.limit === "number" ? request.limit : DEFAULT_LIMIT;
+  const limit = clamp(Math.floor(rawLimit), MIN_LIMIT, MAX_LIMIT);
+
+  // Perform search
+  const results = await performSearch(query, searchType, limit, client);
+
+  return {
+    results,
+    searchType,
+    query,
+  };
+}
+
 export async function performSearch(
   query: string,
   type: SearchKind,
@@ -107,6 +160,10 @@ export async function performSearch(
     default:
       return searchHybrid(query, limit, client);
   }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 export async function searchTraditional(

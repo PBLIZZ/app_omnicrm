@@ -162,7 +162,7 @@ ${JSON.stringify(request.context, null, 2)}`,
     });
 
     return response.data;
-  } catch (error) {
+  } catch (_error) {
     return {
       title: "Contact Summary",
       summary: "Unable to generate summary due to processing error",
@@ -212,7 +212,7 @@ ${JSON.stringify(request.context, null, 2)}`,
     });
 
     return response.data;
-  } catch (error) {
+  } catch (_error) {
     return {
       title: "Next Steps",
       summary: "Unable to generate next steps due to processing error",
@@ -262,7 +262,7 @@ ${JSON.stringify(request.context, null, 2)}`,
     });
 
     return response.data;
-  } catch (error) {
+  } catch (_error) {
     return {
       title: "Risk Assessment",
       summary: "Unable to assess risks due to processing error",
@@ -312,7 +312,7 @@ ${JSON.stringify(request.context, null, 2)}`,
     });
 
     return response.data;
-  } catch (error) {
+  } catch (_error) {
     return {
       title: "Persona Insight",
       summary: "Unable to analyze persona due to processing error",

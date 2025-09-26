@@ -1,4 +1,4 @@
-// Service-role client for RLS-bypassing writes (raw_events, embeddings, ai_insights).
+// Secret key client for RLS-bypassing writes (raw_events, embeddings, ai_insights).
 import { createClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/observability";
 
@@ -53,14 +53,14 @@ if (!isTest && (!adminUrl || !adminKey)) {
     })
     .catch(console.error);
 }
-// Only initialize the service-role client when both URL and KEY are present, and not in tests.
+// Only initialize the secret key client when both URL and KEY are present, and not in tests.
 // This prevents build-time failures during Next.js page data collection when secrets are not set.
 const supaAdmin =
   !isTest && adminUrl && adminKey
     ? createClient(adminUrl, adminKey, { auth: { persistSession: false } })
     : null;
 
-// Allow-list of tables that the service role may write to.
+// Allow-list of tables that the secret key client may write to.
 export const ALLOWED_TABLES = ["raw_events", "interactions", "ai_insights", "embeddings"] as const;
 export type AllowedTable = (typeof ALLOWED_TABLES)[number];
 

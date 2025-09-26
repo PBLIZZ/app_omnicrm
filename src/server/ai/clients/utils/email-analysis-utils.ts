@@ -10,7 +10,7 @@ export interface EmailContent {
  * @returns string - Sentiment trend analysis result
  * @todo Implement sentiment analysis using AI/ML models
  */
-export function analyzeSentimentTrend(emails: EmailContent[]): string {
+export function analyzeSentimentTrend(_emails: EmailContent[]): string {
   // TODO: Implement sentiment analysis using AI/ML models
   return "neutral";
 }
@@ -21,7 +21,7 @@ export function analyzeSentimentTrend(emails: EmailContent[]): string {
  * @returns string[] - Array of detected intents
  * @todo Implement intent detection using NLP models
  */
-export function detectEmailIntents(emails: EmailContent[]): string[] {
+export function detectEmailIntents(_emails: EmailContent[]): string[] {
   // TODO: Implement intent detection using NLP models
   return [];
 }
@@ -32,7 +32,7 @@ export function detectEmailIntents(emails: EmailContent[]): string[] {
  * @returns Promise<string[]> - Array of identified business contexts
  * @todo Implement business context extraction using AI models
  */
-export function identifyBusinessContext(emails: EmailContent[]): string[] {
+export function identifyBusinessContext(_emails: EmailContent[]): string[] {
   // TODO: Implement business context extraction using AI models
   return [];
 }
@@ -43,7 +43,7 @@ export function identifyBusinessContext(emails: EmailContent[]): string[] {
  * @returns Promise<string[]> - Array of urgency assessments
  * @todo Implement urgency assessment using keyword analysis and AI
  */
-export function assessUrgencyLevel(emails: EmailContent[]): string[] {
+export function assessUrgencyLevel(_emails: EmailContent[]): string[] {
   // TODO: Implement urgency assessment using keyword analysis and AI
   return [];
 }
@@ -54,7 +54,7 @@ export function assessUrgencyLevel(emails: EmailContent[]): string[] {
  * @returns Promise<string[]> - Array of relationship stage assessments
  * @todo Implement relationship stage analysis using communication patterns
  */
-export function determineRelationshipStage(emails: EmailContent[]): string[] {
+export function determineRelationshipStage(_emails: EmailContent[]): string[] {
   // TODO: Implement relationship stage analysis using communication patterns
   return [];
 }
@@ -65,7 +65,7 @@ export function determineRelationshipStage(emails: EmailContent[]): string[] {
  * @returns Promise<string[]> - Array of extracted key topics
  * @todo Implement topic extraction using NLP and keyword analysis
  */
-export function extractKeyTopics(emails: EmailContent[]): string[] {
+export function extractKeyTopics(_emails: EmailContent[]): string[] {
   // TODO: Implement topic extraction using NLP and keyword analysis
   return [];
 }
@@ -76,7 +76,7 @@ export function extractKeyTopics(emails: EmailContent[]): string[] {
  * @returns Promise<string[]> - Array of generated summaries
  * @todo Implement content summarization using AI models
  */
-export function generateContentSummary(emails: EmailContent[]): string[] {
+export function generateContentSummary(_emails: EmailContent[]): string[] {
   // TODO: Implement content summarization using AI models
   return [];
 }

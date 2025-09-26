@@ -41,7 +41,7 @@ export function GlobalSearchProvider({ children }: { children: React.ReactNode }
   // Global search hotkeys: Cmd/Ctrl + K
   useHotkeys(
     "cmd+k,ctrl+k",
-    (e) => {
+    (e: KeyboardEvent) => {
       e.preventDefault();
       openSearch();
     },

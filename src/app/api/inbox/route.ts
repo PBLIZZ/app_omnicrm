@@ -22,10 +22,24 @@ import {
 const GetInboxQuerySchema = z.object({
   status: z.array(z.enum(["unprocessed", "processed", "archived"])).optional(),
   search: z.string().optional(),
-  createdAfter: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
-  createdBefore: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
-  hasAiSuggestions: z.string().optional().transform(val => val === "true"),
-  stats: z.string().optional().transform(val => val === "true"),
+  createdAfter: z
+    .string()
+    .datetime()
+    .optional()
+    .transform((val) => (val ? new Date(val) : undefined)),
+  createdBefore: z
+    .string()
+    .datetime()
+    .optional()
+    .transform((val) => (val ? new Date(val) : undefined)),
+  hasAiSuggestions: z
+    .string()
+    .optional()
+    .transform((val) => val === "true"),
+  stats: z
+    .string()
+    .optional()
+    .transform((val) => val === "true"),
 });
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -35,7 +49,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Validate query parameters
     const validatedQuery = GetInboxQuerySchema.optional().parse(
-      Object.fromEntries(searchParams.entries())
+      Object.fromEntries(searchParams.entries()),
     );
 
     const wantsStats = validatedQuery?.stats ?? false;
@@ -46,10 +60,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ stats });
     } else {
       // Return inbox items with filtering
-      // Extract stats and pass remaining params to service
-      const filterParams = validatedQuery ? Object.fromEntries(
-        Object.entries(validatedQuery).filter(([key]) => key !== 'stats')
-      ) : {};
+      const filterParams = InboxService.extractFilterParams(validatedQuery);
       const items = await InboxService.listInboxItems(userId, filterParams);
       return NextResponse.json({
         items,
@@ -63,14 +74,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (error instanceof Error && error.name === "ZodError") {
       return NextResponse.json(
         { error: "Invalid query parameters", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to fetch inbox items" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch inbox items" }, { status: 500 });
   }
 }
 
@@ -80,44 +88,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body: unknown = await request.json();
 
     // Validate request body
-    const validatedBody = z.discriminatedUnion("type", [
-      z.object({
-        type: z.literal("quick_capture"),
-        data: CreateInboxItemDTOSchema,
-      }),
-      z.object({
-        type: z.literal("voice_capture"),
-        data: VoiceInboxCaptureDTOSchema,
-      }),
-      z.object({
-        type: z.literal("bulk_process"),
-        data: BulkProcessInboxDTOSchema,
-      }),
-    ]).parse(body);
+    const validatedBody = z
+      .discriminatedUnion("type", [
+        z.object({
+          type: z.literal("quick_capture"),
+          data: CreateInboxItemDTOSchema,
+        }),
+        z.object({
+          type: z.literal("voice_capture"),
+          data: VoiceInboxCaptureDTOSchema,
+        }),
+        z.object({
+          type: z.literal("bulk_process"),
+          data: BulkProcessInboxDTOSchema,
+        }),
+      ])
+      .parse(body);
 
     const { type, data } = validatedBody;
 
     switch (type) {
       case "quick_capture": {
-        const item = await InboxService.quickCapture(userId, data as CreateInboxItemDTO);
+        const item = await InboxService.quickCapture(userId, data);
         return NextResponse.json({ item }, { status: 201 });
       }
 
       case "voice_capture": {
-        const item = await InboxService.voiceCapture(userId, data as VoiceInboxCaptureDTO);
+        const item = await InboxService.voiceCapture(userId, data);
         return NextResponse.json({ item }, { status: 201 });
       }
 
       case "bulk_process": {
-        const result = await InboxService.bulkProcessInbox(userId, data as BulkProcessInboxDTO);
+        const result = await InboxService.bulkProcessInbox(userId, data);
         return NextResponse.json({ result }, { status: 200 });
       }
 
       default: {
-        return NextResponse.json(
-          { error: "Invalid request type" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Invalid request type" }, { status: 400 });
       }
     }
   } catch (error) {
@@ -127,13 +134,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (error instanceof Error && error.name === "ZodError") {
       return NextResponse.json(
         { error: "Invalid request data", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to process inbox request" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to process inbox request" }, { status: 500 });
   }
 }

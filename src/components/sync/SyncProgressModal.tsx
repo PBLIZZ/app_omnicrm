@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle, XCircle, Clock, X } from "lucide-react";
 import { SyncProgressIndicator } from "./SyncProgressIndicator";
 import { SyncResultsSummary } from "./SyncResultsSummary";
 import { NavigationBlocker } from "./NavigationBlocker";
-import { fetchGet, fetchDelete } from "@/lib/api";
+import { get, delete } from "@/lib/api";
 import { toast } from "sonner";
 
 interface SyncProgress {
@@ -67,7 +67,7 @@ export function SyncProgressModal({
 
     const pollProgress = async (): Promise<void> => {
       try {
-        const result = await fetchGet<SyncProgress>(`/api/sync-progress/${sessionId}`);
+        const result = await get<SyncProgress>(`/api/sync-progress/${sessionId}`);
 
         setProgress(result);
         setError(null);
@@ -129,7 +129,7 @@ export function SyncProgressModal({
 
     setIsCancelling(true);
     try {
-      await fetchDelete(`/api/sync-progress/${sessionId}`);
+      await delete(`/api/sync-progress/${sessionId}`);
 
       toast.success("Sync cancelled");
       // Update progress immediately to show cancelled state
@@ -157,10 +157,10 @@ export function SyncProgressModal({
           className="max-w-md"
           // Prevent closing during active sync
           showCloseButton={!isActive}
-          onPointerDownOutside={(e) => {
+          onPointerDownOutside={(e: PointerEvent) => {
             if (isActive) e.preventDefault();
           }}
-          onEscapeKeyDown={(e) => {
+          onEscapeKeyDown={(e: KeyboardEvent) => {
             if (isActive) e.preventDefault();
           }}
         >

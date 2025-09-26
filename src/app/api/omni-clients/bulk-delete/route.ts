@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { BulkDeleteBodySchema } from "@/lib/validation/schemas/omniClients";
-import { ContactsRepository } from "@repo";
+import { BulkDeleteService } from "@/server/services/bulk-delete.service";
 import { logger } from "@/lib/observability";
 
 /**
@@ -32,29 +32,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { ids } = validation.data;
 
-    // Delete contacts using repository
-    const deletedCount = await ContactsRepository.deleteContactsByIds(userId, ids);
+    // Delegate to service layer
+    const result = await BulkDeleteService.deleteContacts(userId, { ids });
 
-    if (deletedCount === 0) {
-      return NextResponse.json({
-        deleted: 0,
-        message: "No clients found to delete",
-      });
-    }
-
-    await logger.info("Bulk deleted OmniClients", {
-      operation: "omni_clients_bulk_delete",
-      additionalData: {
-        userId: userId.slice(0, 8) + "...",
-        deletedCount: deletedCount,
-        requestedIds: ids.length,
-      },
-    });
-
-    return NextResponse.json({
-      deleted: deletedCount,
-      message: `Successfully deleted ${deletedCount} client${deletedCount === 1 ? "" : "s"}`,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("POST /api/omni-clients/bulk-delete error:", error);
 

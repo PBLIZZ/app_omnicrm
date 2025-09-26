@@ -1,6 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // Avoid importing env at module load to prevent build-time validation
 
+export type ServerSupabaseClient = SupabaseClient;
+
 const url = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "";
 const pub = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"] ?? ""; // publishable
 const secret = process.env["SUPABASE_SECRET_KEY"] ?? ""; // secret (server-only)

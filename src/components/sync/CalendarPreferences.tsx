@@ -13,7 +13,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Calendar, Clock, AlertTriangle, Info, CalendarDays } from "lucide-react";
 import type { CalendarPreferences, SyncPreviewResponse } from "@/lib/validation/schemas/sync";
 import type { CalendarItem } from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
-import { fetchGet } from "@/lib/api";
+import { get } from "@/lib/api";
 
 interface CalendarPreferencesProps {
   onPreferencesChange: (preferences: CalendarPreferences) => void;
@@ -53,11 +53,11 @@ export function CalendarPreferences({
       try {
         setIsLoadingCalendars(true);
         setCalendarError(null);
-        const response = await fetchGet<{ calendars: CalendarItem[] }>("/api/google/calendar/list");
+        const response = await get<{ calendars: CalendarItem[] }>("/api/google/calendar/list");
 
         setCalendars(response.calendars);
         // Auto-select primary calendar
-        const primaryCalendar = response.calendars.find(cal => cal.primary);
+        const primaryCalendar = response.calendars.find((cal: CalendarItem) => cal.primary);
         if (primaryCalendar) {
           setSelectedCalendarIds([primaryCalendar.id]);
         }
@@ -88,14 +88,14 @@ export function CalendarPreferences({
 
   const handleCalendarToggle = (calendarId: string, checked: boolean) => {
     if (checked) {
-      setSelectedCalendarIds(prev => [...prev, calendarId]);
+      setSelectedCalendarIds((prev) => [...prev, calendarId]);
     } else {
-      setSelectedCalendarIds(prev => prev.filter(id => id !== calendarId));
+      setSelectedCalendarIds((prev) => prev.filter((id) => id !== calendarId));
     }
   };
 
   const handleSelectAllCalendars = () => {
-    setSelectedCalendarIds(calendars.map(cal => cal.id));
+    setSelectedCalendarIds(calendars.map((cal: CalendarItem) => cal.id));
   };
 
   const handleDeselectAllCalendars = () => {
@@ -126,7 +126,8 @@ export function CalendarPreferences({
           Calendar Sync Preferences
         </h3>
         <p className="text-sm text-muted-foreground">
-          Configure your Google Calendar import preferences. This is a one-time setup and cannot be changed after the initial sync.
+          Configure your Google Calendar import preferences. This is a one-time setup and cannot be
+          changed after the initial sync.
         </p>
       </div>
 
@@ -134,9 +135,7 @@ export function CalendarPreferences({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Calendar Selection</CardTitle>
-          <CardDescription>
-            Choose which calendars to sync from your Google account
-          </CardDescription>
+          <CardDescription>Choose which calendars to sync from your Google account</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {calendarError && (
@@ -191,11 +190,11 @@ export function CalendarPreferences({
                     >
                       {calendar.summary}
                       {calendar.primary && (
-                        <Badge variant="secondary" className="text-xs">Primary</Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          Primary
+                        </Badge>
                       )}
-                      <span className="text-xs text-muted-foreground">
-                        ({calendar.accessRole})
-                      </span>
+                      <span className="text-xs text-muted-foreground">({calendar.accessRole})</span>
                     </Label>
                   </div>
                 ))}
@@ -218,9 +217,7 @@ export function CalendarPreferences({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Date Range</CardTitle>
-          <CardDescription>
-            Configure the time window for calendar events
-          </CardDescription>
+          <CardDescription>Configure the time window for calendar events</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Past Days Slider */}
@@ -289,9 +286,7 @@ export function CalendarPreferences({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Additional Options</CardTitle>
-          <CardDescription>
-            Configure additional calendar sync settings
-          </CardDescription>
+          <CardDescription>Configure additional calendar sync settings</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -299,9 +294,7 @@ export function CalendarPreferences({
               <Label htmlFor="include-private" className="text-sm font-medium">
                 Include Private Events
               </Label>
-              <p className="text-xs text-muted-foreground">
-                Import events marked as private
-              </p>
+              <p className="text-xs text-muted-foreground">Import events marked as private</p>
             </div>
             <Switch
               id="include-private"
@@ -368,7 +361,9 @@ export function CalendarPreferences({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Total Events</p>
-                <p className="text-2xl font-semibold">{previewData.estimatedItems.toLocaleString()}</p>
+                <p className="text-2xl font-semibold">
+                  {previewData.estimatedItems.toLocaleString()}
+                </p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Estimated Size</p>
@@ -382,7 +377,10 @@ export function CalendarPreferences({
                 <p className="text-sm font-medium">Events by Calendar</p>
                 <div className="space-y-2">
                   {previewData.details.calendars.map((cal) => (
-                    <div key={cal.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                    <div
+                      key={cal.id}
+                      className="flex items-center justify-between p-2 bg-muted rounded"
+                    >
                       <span className="text-sm">{cal.name}</span>
                       <Badge variant="outline">{cal.eventCount.toLocaleString()} events</Badge>
                     </div>
@@ -416,7 +414,9 @@ export function CalendarPreferences({
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-sm">
-                <strong>Important:</strong> This is a one-time setup. After the initial sync, only new and updated events will be imported automatically. You cannot change these preferences later.
+                <strong>Important:</strong> This is a one-time setup. After the initial sync, only
+                new and updated events will be imported automatically. You cannot change these
+                preferences later.
               </AlertDescription>
             </Alert>
           </CardContent>

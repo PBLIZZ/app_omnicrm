@@ -20,7 +20,7 @@ export default function OnboardingSettingsPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         {/* Token Generation */}
         <Card>
           <CardHeader>

@@ -1,4 +1,4 @@
-// Server-side admin database operations using Drizzle with service role permissions
+// Server-side admin database operations using Drizzle with secret key permissions
 // This provides RLS-bypassing operations for system processes like sync jobs
 import { logger } from "@/lib/observability";
 import { getDb } from "./client";
@@ -46,7 +46,7 @@ type AdminSelectRow<T extends AdminAllowedTable> = T extends "raw_events"
 
 export const drizzleAdminGuard = {
   /**
-   * Insert records using Drizzle with service role permissions
+   * Insert records using Drizzle with secret key permissions
    * Supports camelCase field names that automatically map to snake_case database columns
    */
   async insert<T extends AdminAllowedTable>(
@@ -99,7 +99,7 @@ export const drizzleAdminGuard = {
   },
 
   /**
-   * Upsert records using Drizzle with service role permissions
+   * Upsert records using Drizzle with secret key permissions
    * Uses onConflictDoNothing to handle duplicate key violations gracefully
    */
   async upsert<T extends AdminAllowedTable>(

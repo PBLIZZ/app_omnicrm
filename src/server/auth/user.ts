@@ -25,7 +25,7 @@ export async function getServerUserId(): Promise<string> {
   }
   const cookieStore = await cookies();
   // Lazily read minimal env vars here to avoid importing full env validation at module load.
-  // Use the publishable (anon) key for RLS-aware server client, never the service-role secret.
+  // Use the publishable key for RLS-aware server client, never the secret key.
   const supabaseUrl = process.env["NEXT_PUBLIC_SUPABASE_URL"];
   const supabasePublishableKey = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
   if (!supabaseUrl || !supabasePublishableKey) {

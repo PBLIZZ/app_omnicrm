@@ -17,7 +17,6 @@ import { post } from "@/lib/api";
 
 interface TokenGenerationRequest {
   hoursValid: number;
-  maxUses: number;
   label?: string;
 }
 
@@ -25,7 +24,6 @@ interface TokenGenerationResponse {
   token: string;
   expiresAt: string;
   onboardingUrl: string;
-  maxUses: number;
   label?: string;
 }
 
@@ -33,7 +31,6 @@ export function TokenGeneratorSection() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedToken, setGeneratedToken] = useState<TokenGenerationResponse | null>(null);
   const [hoursValid, setHoursValid] = useState<number>(72); // 3 days default
-  const [maxUses, setMaxUses] = useState<number>(1);
   const [label, setLabel] = useState<string>("");
 
   const handleGenerateToken = async () => {
@@ -42,8 +39,7 @@ export function TokenGeneratorSection() {
     try {
       const payload: TokenGenerationRequest = {
         hoursValid,
-        maxUses,
-        label: label.trim() || undefined,
+        ...(label.trim() && { label: label.trim() }),
       };
 
       const response = await post<TokenGenerationResponse>(
@@ -76,16 +72,18 @@ export function TokenGeneratorSection() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Configuration Form */}
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="hoursValid">Valid Duration</Label>
+          <Label htmlFor="hoursValid" className="text-sm font-medium">
+            Valid Duration
+          </Label>
           <Select
             value={hoursValid.toString()}
             onValueChange={(value) => setHoursValid(parseInt(value))}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-10">
               <SelectValue placeholder="Select duration" />
             </SelectTrigger>
             <SelectContent>
@@ -95,25 +93,15 @@ export function TokenGeneratorSection() {
               <SelectItem value="168">168 Hours (1 week)</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">
+            Each link can only be used once and will expire after the selected duration
+          </p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="maxUses">Maximum Uses</Label>
-          <Select value={maxUses.toString()} onValueChange={(value) => setMaxUses(parseInt(value))}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select uses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Single Use</SelectItem>
-              <SelectItem value="3">3 Uses</SelectItem>
-              <SelectItem value="5">5 Uses</SelectItem>
-              <SelectItem value="10">10 Uses</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="label">Label (Optional)</Label>
+          <Label htmlFor="label" className="text-sm font-medium">
+            Label (Optional)
+          </Label>
           <Input
             id="label"
             type="text"
@@ -121,13 +109,19 @@ export function TokenGeneratorSection() {
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             maxLength={100}
+            className="h-10"
           />
           <p className="text-xs text-muted-foreground">
             Add a label to help identify this token for follow-up
           </p>
         </div>
 
-        <Button onClick={handleGenerateToken} disabled={isGenerating} className="w-full">
+        <Button
+          onClick={handleGenerateToken}
+          disabled={isGenerating}
+          className="w-full h-11 text-base font-medium"
+          size="lg"
+        >
           {isGenerating ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -141,16 +135,24 @@ export function TokenGeneratorSection() {
 
       {/* Generated Token Display */}
       {generatedToken && (
-        <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Generated Link</Label>
+        <div className="space-y-4 p-6 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Input value={generatedToken.onboardingUrl} readOnly className="text-xs font-mono" />
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <Label className="text-base font-semibold text-green-800">Generated Link</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={generatedToken.onboardingUrl}
+                readOnly
+                className="text-sm font-mono bg-white border-green-300 focus:border-green-400"
+              />
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => copyToClipboard(generatedToken.onboardingUrl)}
                 aria-label="Copy onboarding URL"
+                className="border-green-300 hover:bg-green-50"
               >
                 <Copy className="h-4 w-4" />
               </Button>
@@ -159,45 +161,53 @@ export function TokenGeneratorSection() {
                 size="sm"
                 onClick={() => openInNewTab(generatedToken.onboardingUrl)}
                 aria-label="Open onboarding URL in new tab"
+                className="border-green-300 hover:bg-green-50"
               >
                 <ExternalLink className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">
-              <strong>Expires:</strong>{" "}
-              {(() => {
-                try {
-                  const date = new Date(generatedToken.expiresAt);
-                  if (isNaN(date.getTime())) {
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-700">Expires</p>
+              <p className="text-sm text-gray-600">
+                {(() => {
+                  try {
+                    const date = new Date(generatedToken.expiresAt);
+                    if (isNaN(date.getTime())) {
+                      return "Invalid date";
+                    }
+                    return new Intl.DateTimeFormat(navigator.language, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(date);
+                  } catch (error) {
+                    console.error(
+                      "Date formatting error:",
+                      error,
+                      "expiresAt:",
+                      generatedToken.expiresAt,
+                    );
                     return "Invalid date";
                   }
-                  return new Intl.DateTimeFormat(navigator.language, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(date);
-                } catch (error) {
-                  console.error(
-                    "Date formatting error:",
-                    error,
-                    "expiresAt:",
-                    generatedToken.expiresAt,
-                  );
-                  return "Invalid date";
-                }
-              })()}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              <strong>Uses allowed:</strong> {generatedToken?.maxUses ?? maxUses}{" "}
-              {(generatedToken?.maxUses ?? maxUses) === 1 ? "use" : "uses"}
-            </p>
+                })()}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-700">Usage</p>
+              <p className="text-sm text-gray-600">Single use only</p>
+            </div>
           </div>
 
-          <div className="text-xs text-muted-foreground bg-background p-2 rounded border">
-            💡 <strong>Tip:</strong> Send this link to your client via email or text message. The
-            link is secure and expires automatically.
+          <div className="text-sm text-green-700 bg-green-100 p-3 rounded border border-green-200">
+            <div className="flex items-start gap-2">
+              <span className="text-lg">💡</span>
+              <div>
+                <strong>Tip:</strong> Send this link to your client via email or text message. The
+                link is secure and expires automatically.
+              </div>
+            </div>
           </div>
         </div>
       )}

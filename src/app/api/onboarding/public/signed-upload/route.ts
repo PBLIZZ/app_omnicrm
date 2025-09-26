@@ -1,116 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { randomUUID } from "crypto";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/types";
-import {
-  isValidImageType,
-  isValidFileSize,
-  getOptimizedExtension,
-} from "@/lib/utils/photo-validation";
-
-// Validation schema for upload request
-const UploadRequestSchema = z.object({
-  token: z.string().min(1, "Token is required"),
-  mimeType: z.string().min(1, "MIME type is required"),
-  fileSize: z.number().int().min(1, "File size must be greater than 0 bytes"),
-});
+import { SignedUploadService } from "@/server/services/signed-upload.service";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     // Parse and validate request body
     const body = (await req.json()) as unknown;
-    const { token, mimeType, fileSize } = UploadRequestSchema.parse(body);
+    const uploadData = SignedUploadService.validateUploadRequest(body);
 
-    // Validate image type and file size
-    if (!isValidImageType(mimeType)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Invalid image type. Supported types: JPEG, PNG, WebP, GIF",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (!isValidFileSize(fileSize)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "File size exceeds 512KB limit",
-        },
-        { status: 400 },
-      );
-    }
-
-    // Validate environment variables
-    const supabaseUrl = process.env["NEXT_PUBLIC_SUPABASE_URL"];
-    const supabaseSecretKey = process.env["SUPABASE_SECRET_KEY"];
-
-    if (!supabaseUrl || !supabaseSecretKey) {
-      console.error("Missing required environment variables for Supabase client");
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Server configuration error",
-        },
-        { status: 500 },
-      );
-    }
-
-    // Create Supabase client with service role for admin operations
-    const supabase = createClient<Database>(supabaseUrl, supabaseSecretKey);
-
-    // Validate token and get associated user in a single query
-    const now = new Date().toISOString();
-    const { data: tokenData, error: tokenError } = await supabase
-      .from("onboarding_tokens")
-      .select("user_id, disabled, expires_at, used_count, max_uses")
-      .eq("token", token)
-      .eq("disabled", false)
-      .gt("expires_at", now)
-      .lt("used_count", "max_uses")
-      .single();
-
-    if (tokenError || !tokenData) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Invalid or expired token",
-        },
-        { status: 403 },
-      );
-    }
-
-    // Generate unique file path with timestamp and optimized extension
-    const userId = tokenData.user_id;
-    const fileId = randomUUID();
-    const timestamp = Date.now();
-    const extension = getOptimizedExtension(mimeType);
-    const filePath = `client-photos/${userId}/${timestamp}-${fileId}.${extension}`;
-
-    // Generate signed upload URL
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("client-photos")
-      .createSignedUploadUrl(filePath);
-
-    if (uploadError) {
-      console.error("Storage upload URL error:", uploadError);
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Failed to generate upload URL",
-        },
-        { status: 500 },
-      );
-    }
+    // Process signed upload using service
+    const result = await SignedUploadService.processSignedUpload(uploadData);
 
     return NextResponse.json({
       ok: true,
       data: {
-        uploadUrl: uploadData.signedUrl,
-        filePath,
-        token: uploadData.token,
+        uploadUrl: result.uploadUrl,
+        filePath: result.filePath,
+        token: result.token,
       },
     });
   } catch (error) {
@@ -125,6 +31,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         },
         { status: 400 },
       );
+    }
+
+    if (error instanceof Error) {
+      // Handle specific service errors
+      if (error.message.includes("Invalid image type") ||
+          error.message.includes("File size exceeds") ||
+          error.message.includes("Invalid token") ||
+          error.message.includes("Token not found") ||
+          error.message.includes("Token is disabled") ||
+          error.message.includes("Token has expired") ||
+          error.message.includes("Token usage limit exceeded")) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: error.message,
+          },
+          { status: 403 },
+        );
+      }
+
+      if (error.message.includes("Failed to generate upload URL")) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: error.message,
+          },
+          { status: 500 },
+        );
+      }
     }
 
     return NextResponse.json(

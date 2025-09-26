@@ -98,9 +98,13 @@ async function getNotesDataForContacts(
   }
 
   // Update with actual data from database
-  for (const row of notesData as any[]) {
+  for (const row of notesData as Array<{
+    contact_id: string;
+    count: string | number;
+    last_note: string | null;
+  }>) {
     const contactId = row.contact_id;
-    const count = parseInt(row.count, 10);
+    const count = parseInt(String(row.count), 10);
     const lastNote = row.last_note;
 
     result.set(contactId, { count, lastNote });

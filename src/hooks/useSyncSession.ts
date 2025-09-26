@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchPost, fetchGet } from "@/lib/api";
+import { post, get } from "@/lib/api";
 import { toast } from "sonner";
 
 interface SyncProgress {
@@ -44,17 +44,29 @@ interface SyncSessionResult {
 }
 
 export function useSyncSession(): {
-  startGmailSync: ReturnType<typeof useMutation<SyncSessionResult, Error, {
-    preferences?: Record<string, unknown>;
-    incremental?: boolean;
-    overlapHours?: number;
-  }>>;
-  startCalendarSync: ReturnType<typeof useMutation<SyncSessionResult, Error, {
-    preferences?: Record<string, unknown>;
-    daysPast?: number;
-    daysFuture?: number;
-    maxResults?: number;
-  }>>;
+  startGmailSync: ReturnType<
+    typeof useMutation<
+      SyncSessionResult,
+      Error,
+      {
+        preferences?: Record<string, unknown>;
+        incremental?: boolean;
+        overlapHours?: number;
+      }
+    >
+  >;
+  startCalendarSync: ReturnType<
+    typeof useMutation<
+      SyncSessionResult,
+      Error,
+      {
+        preferences?: Record<string, unknown>;
+        daysPast?: number;
+        daysFuture?: number;
+        maxResults?: number;
+      }
+    >
+  >;
 } {
   const queryClient = useQueryClient();
 
@@ -65,7 +77,7 @@ export function useSyncSession(): {
       incremental?: boolean;
       overlapHours?: number;
     }) => {
-      const result = await fetchPost<SyncSessionResult>("/api/google/gmail/sync-blocking", params);
+      const result = await post<SyncSessionResult>("/api/google/gmail/sync-blocking", params);
       return result;
     },
     onSuccess: () => {
@@ -87,7 +99,7 @@ export function useSyncSession(): {
       daysFuture?: number;
       maxResults?: number;
     }) => {
-      const result = await fetchPost<SyncSessionResult>("/api/google/calendar/sync-blocking", params);
+      const result = await post<SyncSessionResult>("/api/google/calendar/sync-blocking", params);
       return result;
     },
     onSuccess: () => {
@@ -108,18 +120,24 @@ export function useSyncSession(): {
   };
 }
 
-export function useSyncProgress(sessionId: string | null, enabled = true): ReturnType<typeof useQuery<SyncProgress, Error>> {
+export function useSyncProgress(
+  sessionId: string | null,
+  enabled = true,
+): ReturnType<typeof useQuery<SyncProgress, Error>> {
   return useQuery({
     queryKey: ["/api/sync-progress", sessionId],
     queryFn: async () => {
       if (!sessionId) throw new Error("No session ID provided");
-      const result = await fetchGet<SyncProgress>(`/api/sync-progress/${sessionId}`);
+      const result = await get<SyncProgress>(`/api/sync-progress/${sessionId}`);
       return result;
     },
     enabled: enabled && !!sessionId,
     refetchInterval: (query) => {
       // Stop polling if sync is completed, failed, or cancelled
-      if (query.state.data?.status && ["completed", "failed", "cancelled"].includes(query.state.data.status)) {
+      if (
+        query.state.data?.status &&
+        ["completed", "failed", "cancelled"].includes(query.state.data.status)
+      ) {
         return false;
       }
       return 2000; // Poll every 2 seconds while active
@@ -142,7 +160,11 @@ export function useManualSync(): {
   isModalOpen: boolean;
   triggerGmailSync: (preferences?: Record<string, unknown>) => Promise<SyncSessionResult>;
   triggerCalendarSync: (preferences?: Record<string, unknown>) => Promise<SyncSessionResult>;
-  handleSyncComplete: (result: { success: boolean; stats?: Record<string, unknown>; error?: string }) => void;
+  handleSyncComplete: (result: {
+    success: boolean;
+    stats?: Record<string, unknown>;
+    error?: string;
+  }) => void;
   closeModal: () => void;
   isGmailSyncLoading: boolean;
   isCalendarSyncLoading: boolean;
@@ -153,67 +175,76 @@ export function useManualSync(): {
 
   const { startGmailSync, startCalendarSync } = useSyncSession();
 
-  const triggerGmailSync = useCallback(async (preferences?: Record<string, unknown>) => {
-    try {
-      const payload: { incremental: boolean; preferences?: Record<string, unknown> } = {
-        incremental: false, // Manual sync is typically full sync
-      };
+  const triggerGmailSync = useCallback(
+    async (preferences?: Record<string, unknown>) => {
+      try {
+        const payload: { incremental: boolean; preferences?: Record<string, unknown> } = {
+          incremental: false, // Manual sync is typically full sync
+        };
 
-      // Only add preferences if they're defined
-      if (preferences) {
-        payload.preferences = preferences;
+        // Only add preferences if they're defined
+        if (preferences) {
+          payload.preferences = preferences;
+        }
+
+        const result = await startGmailSync.mutateAsync(payload);
+
+        setCurrentSessionId(result.sessionId);
+        setIsModalOpen(true);
+
+        return result;
+      } catch (error) {
+        console.error("Failed to trigger Gmail sync:", error);
+        throw error;
       }
+    },
+    [startGmailSync],
+  );
 
-      const result = await startGmailSync.mutateAsync(payload);
+  const triggerCalendarSync = useCallback(
+    async (preferences?: Record<string, unknown>) => {
+      try {
+        const payload: { preferences?: Record<string, unknown> } = {};
 
-      setCurrentSessionId(result.sessionId);
-      setIsModalOpen(true);
+        // Only add preferences if they're defined
+        if (preferences) {
+          payload.preferences = preferences;
+        }
 
-      return result;
-    } catch (error) {
-      console.error("Failed to trigger Gmail sync:", error);
-      throw error;
-    }
-  }, [startGmailSync]);
+        const result = await startCalendarSync.mutateAsync(payload);
 
-  const triggerCalendarSync = useCallback(async (preferences?: Record<string, unknown>) => {
-    try {
-      const payload: { preferences?: Record<string, unknown> } = {};
+        setCurrentSessionId(result.sessionId);
+        setIsModalOpen(true);
 
-      // Only add preferences if they're defined
-      if (preferences) {
-        payload.preferences = preferences;
+        return result;
+      } catch (error) {
+        console.error("Failed to trigger Calendar sync:", error);
+        throw error;
       }
+    },
+    [startCalendarSync],
+  );
 
-      const result = await startCalendarSync.mutateAsync(payload);
+  const handleSyncComplete = useCallback(
+    (result: { success: boolean; stats?: Record<string, unknown>; error?: string }) => {
+      setIsModalOpen(false);
+      setCurrentSessionId(null);
 
-      setCurrentSessionId(result.sessionId);
-      setIsModalOpen(true);
+      if (result.success) {
+        toast.success("Sync completed successfully!");
 
-      return result;
-    } catch (error) {
-      console.error("Failed to trigger Calendar sync:", error);
-      throw error;
-    }
-  }, [startCalendarSync]);
-
-  const handleSyncComplete = useCallback((result: { success: boolean; stats?: Record<string, unknown>; error?: string }) => {
-    setIsModalOpen(false);
-    setCurrentSessionId(null);
-
-    if (result.success) {
-      toast.success("Sync completed successfully!");
-
-      // Invalidate all sync-related queries to refresh UI
-      void queryClient.invalidateQueries({ queryKey: ["/api/google/status"] });
-      void queryClient.invalidateQueries({ queryKey: ["/api/contacts-new"] });
-      void queryClient.invalidateQueries({ queryKey: ["/api/omni-connect/dashboard"] });
-      void queryClient.invalidateQueries({ queryKey: ["/api/google/calendar/events"] });
-      void queryClient.invalidateQueries({ queryKey: ["/api/omni-rhythm"] });
-    } else {
-      toast.error(`Sync failed: ${result.error ?? "Unknown error"}`);
-    }
-  }, [queryClient]);
+        // Invalidate all sync-related queries to refresh UI
+        void queryClient.invalidateQueries({ queryKey: ["/api/google/status"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/contacts-new"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/omni-connect/dashboard"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/google/calendar/events"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/omni-rhythm"] });
+      } else {
+        toast.error(`Sync failed: ${result.error ?? "Unknown error"}`);
+      }
+    },
+    [queryClient],
+  );
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);

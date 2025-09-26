@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +25,7 @@ import type {
   SyncPreviewResponse,
   SyncPreferencesSetup,
 } from "@/lib/validation/schemas/sync";
-import { fetchPost } from "@/lib/api";
+import { post } from "@/lib/api";
 
 type ServiceType = "gmail" | "calendar" | "drive";
 
@@ -37,7 +43,13 @@ const STEPS = [
   { id: "confirm", title: "Confirm Setup", description: "Confirm and save preferences" },
 ];
 
-export function PreferencesModal({ isOpen, onClose, service, onComplete, enableImmediateSync = false }: PreferencesModalProps): React.JSX.Element {
+export function PreferencesModal({
+  isOpen,
+  onClose,
+  service,
+  onComplete,
+  enableImmediateSync = false,
+}: PreferencesModalProps): React.JSX.Element {
   const [currentStep, setCurrentStep] = useState(0);
   const [preferences, setPreferences] = useState<{
     gmail?: GmailPrefsType;
@@ -58,8 +70,10 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
   const isLastStep = currentStep === STEPS.length - 1;
   const canProceed = currentPreferences && (currentStep === 0 || previewData);
 
-  const handlePreferencesChange = (newPrefs: GmailPrefsType | CalendarPrefsType | DrivePrefsType) => {
-    setPreferences(prev => ({
+  const handlePreferencesChange = (
+    newPrefs: GmailPrefsType | CalendarPrefsType | DrivePrefsType,
+  ) => {
+    setPreferences((prev) => ({
       ...prev,
       [service]: newPrefs,
     }));
@@ -71,14 +85,12 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
       setIsPreviewLoading(true);
       setError(null);
 
-      const response = await fetchPost<SyncPreviewResponse>(
-        `/api/google/${service}/preview`,
-        prefs
-      );
+      const response = await post<SyncPreviewResponse>(`/api/google/${service}/preview`, prefs);
 
       setPreviewData(response);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to generate preview. Please try again.";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to generate preview. Please try again.";
       setError(errorMessage);
       console.error("Preview error:", err);
     } finally {
@@ -93,13 +105,13 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
     }
 
     if (currentStep < STEPS.length - 1) {
-      setCurrentStep(prev => prev + 1);
+      setCurrentStep((prev) => prev + 1);
     }
   };
 
   const handleBack = () => {
     if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
+      setCurrentStep((prev) => prev - 1);
     }
   };
 
@@ -116,7 +128,7 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
       };
 
       // Save preferences to backend
-      await fetchPost("/api/google/prefs", {
+      await post("/api/google/prefs", {
         ...currentPreferences,
         initialSyncCompleted: false,
         initialSyncDate: new Date().toISOString(),
@@ -126,12 +138,12 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
       if (enableImmediateSync && (service === "gmail" || service === "calendar")) {
         try {
           // Start blocking sync with the preferences
-          const syncResponse = await fetchPost<{ sessionId: string; stats: Record<string, unknown> }>(
+          const syncResponse = await post<{ sessionId: string; stats: Record<string, unknown> }>(
             `/api/google/${service}/sync-blocking`,
             {
               preferences: currentPreferences,
               incremental: false, // Full sync for initial setup
-            }
+            },
           );
 
           // Show sync progress modal
@@ -155,7 +167,8 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
         onClose();
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to save preferences. Please try again.";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to save preferences. Please try again.";
       setError(errorMessage);
       console.error("Save error:", err);
     } finally {
@@ -169,7 +182,11 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
     }
   };
 
-  const handleSyncComplete = (result: { success: boolean; stats?: Record<string, unknown>; error?: string }) => {
+  const handleSyncComplete = (result: {
+    success: boolean;
+    stats?: Record<string, unknown>;
+    error?: string;
+  }) => {
     setShowSyncProgress(false);
     setSyncSessionId(null);
 
@@ -201,10 +218,14 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
 
   const getServiceDisplayName = () => {
     switch (service) {
-      case "gmail": return "Gmail";
-      case "calendar": return "Google Calendar";
-      case "drive": return "Google Drive";
-      default: return "Google Service";
+      case "gmail":
+        return "Gmail";
+      case "calendar":
+        return "Google Calendar";
+      case "drive":
+        return "Google Drive";
+      default:
+        return "Google Service";
     }
   };
 
@@ -332,7 +353,9 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Items to sync:</span>
-                <span className="ml-2 font-medium">{previewData.estimatedItems.toLocaleString()}</span>
+                <span className="ml-2 font-medium">
+                  {previewData.estimatedItems.toLocaleString()}
+                </span>
               </div>
               <div>
                 <span className="text-muted-foreground">Estimated size:</span>
@@ -346,8 +369,8 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
           <Info className="h-4 w-4" />
           <AlertDescription className="space-y-2">
             <p className="text-sm">
-              <strong>Important:</strong> These preferences cannot be changed after the initial sync.
-              Only new data will be synced automatically going forward.
+              <strong>Important:</strong> These preferences cannot be changed after the initial
+              sync. Only new data will be synced automatically going forward.
             </p>
             <p className="text-sm">
               Click "Complete Setup" to save your preferences and enable syncing.
@@ -385,91 +408,87 @@ export function PreferencesModal({ isOpen, onClose, service, onComplete, enableI
             </DialogDescription>
           </DialogHeader>
 
-        {/* Progress Steps */}
-        <div className="space-y-4">
-          <Progress value={((currentStep + 1) / STEPS.length) * 100} className="w-full" />
-          <div className="flex justify-between">
-            {STEPS.map((step, index) => (
-              <div key={step.id} className="flex flex-col items-center gap-1">
-                <Badge
-                  variant={index <= currentStep ? "default" : "outline"}
-                  className="w-8 h-8 rounded-full flex items-center justify-center p-0"
-                >
-                  {index < currentStep ? (
-                    <CheckCircle className="h-4 w-4" />
-                  ) : (
-                    <span className="text-xs">{index + 1}</span>
-                  )}
-                </Badge>
-                <div className="text-center">
-                  <p className="text-xs font-medium">{step.title}</p>
-                  <p className="text-xs text-muted-foreground">{step.description}</p>
+          {/* Progress Steps */}
+          <div className="space-y-4">
+            <Progress value={((currentStep + 1) / STEPS.length) * 100} className="w-full" />
+            <div className="flex justify-between">
+              {STEPS.map((step, index) => (
+                <div key={step.id} className="flex flex-col items-center gap-1">
+                  <Badge
+                    variant={index <= currentStep ? "default" : "outline"}
+                    className="w-8 h-8 rounded-full flex items-center justify-center p-0"
+                  >
+                    {index < currentStep ? (
+                      <CheckCircle className="h-4 w-4" />
+                    ) : (
+                      <span className="text-xs">{index + 1}</span>
+                    )}
+                  </Badge>
+                  <div className="text-center">
+                    <p className="text-xs font-medium">{step.title}</p>
+                    <p className="text-xs text-muted-foreground">{step.description}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Error Display */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+          {/* Error Display */}
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        {/* Step Content */}
-        <div className="min-h-[400px]">
-          {renderStepContent()}
-        </div>
+          {/* Step Content */}
+          <div className="min-h-[400px]">{renderStepContent()}</div>
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between pt-4 border-t">
-          <Button
-            onClick={handleBack}
-            variant="outline"
-            disabled={isFirstStep || isSaving}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-
-          <div className="flex gap-2">
-            <Button onClick={handleClose} variant="outline" disabled={isSaving}>
-              Cancel
+          {/* Navigation Buttons */}
+          <div className="flex justify-between pt-4 border-t">
+            <Button onClick={handleBack} variant="outline" disabled={isFirstStep || isSaving}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
             </Button>
 
-            {isLastStep ? (
-              <Button onClick={() => void handleComplete()} disabled={!canProceed || isSaving}>
-                {isSaving ? (
-                  <>
-                    <LoadingSpinner className="mr-2 h-4 w-4" />
-                    {enableImmediateSync ? "Starting Sync..." : "Saving..."}
-                  </>
-                ) : (
-                  enableImmediateSync ? "Complete Setup & Sync Now" : "Complete Setup"
-                )}
+            <div className="flex gap-2">
+              <Button onClick={handleClose} variant="outline" disabled={isSaving}>
+                Cancel
               </Button>
-            ) : (
-              <Button
-                onClick={() => void handleNext()}
-                disabled={!canProceed || isPreviewLoading}
-              >
-                {isPreviewLoading ? (
-                  <>
-                    <LoadingSpinner className="mr-2 h-4 w-4" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    Next
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            )}
+
+              {isLastStep ? (
+                <Button onClick={() => void handleComplete()} disabled={!canProceed || isSaving}>
+                  {isSaving ? (
+                    <>
+                      <LoadingSpinner className="mr-2 h-4 w-4" />
+                      {enableImmediateSync ? "Starting Sync..." : "Saving..."}
+                    </>
+                  ) : enableImmediateSync ? (
+                    "Complete Setup & Sync Now"
+                  ) : (
+                    "Complete Setup"
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => void handleNext()}
+                  disabled={!canProceed || isPreviewLoading}
+                >
+                  {isPreviewLoading ? (
+                    <>
+                      <LoadingSpinner className="mr-2 h-4 w-4" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      Next
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
         </DialogContent>
       </Dialog>
 

@@ -9,11 +9,11 @@ export function buildParseEventAttendeesPrompt(description: string): ChatMessage
   return [
     {
       role: "system",
-+      content: `You are an AI that extracts attendee information from calendar event descriptions. Parse names and emails accurately. Respond with a valid JSON array of objects with schema: {displayName: string, email: string}. Requirements:
-+- Return empty array [] if no attendees found
-+- Validate email format (must contain @ and domain)
-+- Ignore system/noreply emails
-+- Remove duplicates based on email address`,
+      content: `You are an AI that extracts attendee information from calendar event descriptions. Parse names and emails accurately. Respond with a valid JSON array of objects with schema: {displayName: string, email: string}. Requirements:
+- Return empty array [] if no attendees found
+- Validate email format (must contain @ and domain)
+- Ignore system/noreply emails
+- Remove duplicates based on email address`,
     },
     {
       role: "user",

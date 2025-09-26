@@ -136,10 +136,11 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // 2) Enforce on UNSAFE requests (except tests & cron). If cookies missing, return 403 and
+  // 2) Enforce on UNSAFE requests (except tests & cron & public onboarding). If cookies missing, return 403 and
   //    ALSO issue fresh cookies so the client can retry with header on the next request.
   const isCronEndpoint = url.pathname.startsWith("/api/cron/");
-  if (isUnsafeMethod && process.env.NODE_ENV !== "test" && !isCronEndpoint) {
+  const isPublicOnboarding = url.pathname.startsWith("/api/onboarding/public/");
+  if (isUnsafeMethod && process.env.NODE_ENV !== "test" && !isCronEndpoint && !isPublicOnboarding) {
     const nonceCookie = req.cookies.get("csrf")?.value;
     const sigCookie = req.cookies.get("csrf_sig")?.value;
     const csrfHeader = req.headers.get("x-csrf-token") ?? "";

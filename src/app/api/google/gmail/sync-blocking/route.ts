@@ -17,204 +17,48 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { getDb } from "@/server/db/client";
-import { syncSessions } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { GmailSyncBlockingService } from "@/server/services/gmail-sync-blocking.service";
 import { logger } from "@/lib/observability";
 import { ensureError } from "@/lib/utils/error-handler";
-import { GmailSyncService } from "@/server/services/gmail-sync.service";
-import { ErrorTrackingService } from "@/server/services/error-tracking.service";
-import { z } from "zod";
-
-// Request schema: includes sync preferences and parameters
-const syncBlockingSchema = z.object({
-  // Sync preferences (from Phase 3)
-  preferences: z.object({
-    gmailQuery: z.string().optional(),
-    gmailLabelIncludes: z.array(z.string()).optional(),
-    gmailLabelExcludes: z.array(z.string()).optional(),
-    gmailTimeRangeDays: z.number().int().min(1).max(730).optional(),
-  }).optional(),
-  // Sync parameters
-  incremental: z.boolean().optional().default(false), // Default to full sync for manual operations
-  overlapHours: z.number().int().min(0).max(72).optional().default(0),
-});
-
-type SyncBlockingRequest = z.infer<typeof syncBlockingSchema>;
+import { ApiEnvelope } from "@/lib/utils/type-guards";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  let sessionId: string | null = null;
-  let preferences: SyncBlockingRequest['preferences'] = undefined;
-  let incremental: boolean | undefined = undefined;
-
   try {
     const userId = await getServerUserId();
 
     // Validate request body
     const body: unknown = await request.json();
-    const validatedBody = syncBlockingSchema.parse(body);
-    const extractedData = validatedBody;
-    preferences = extractedData.preferences;
-    incremental = extractedData.incremental;
-    const overlapHours = extractedData.overlapHours;
 
-    const db = await getDb();
+    // Execute blocking sync using service
+    const result = await GmailSyncBlockingService.executeBlockingSync(userId, body);
 
-    // Create sync session
-    const sessionInsert = await db
-      .insert(syncSessions)
-      .values({
-        userId,
-        service: "gmail",
-        status: "started",
-        currentStep: "Initializing Gmail sync...",
-        progressPercentage: 0,
-        preferences: preferences ?? {},
-      })
-      .returning({ id: syncSessions.id });
-
-    sessionId = sessionInsert[0]?.id || null;
-    if (!sessionId) {
-      return NextResponse.json({ error: "Failed to create sync session" }, { status: 500 });
-    }
-
-    // Update session: starting sync
-    await db
-      .update(syncSessions)
-      .set({
-        status: "importing",
-        currentStep: "Starting Gmail sync...",
-        progressPercentage: 10,
-      })
-      .where(eq(syncSessions.id, sessionId));
-
-    // Calculate time range based on preferences
-    const timeRangeDays = preferences?.gmailTimeRangeDays ?? 365;
-
-    // Use the service for the actual sync with blocking behavior
-    const result = await GmailSyncService.syncGmailBlocking(userId, {
-      incremental,
-      overlapHours,
-      daysBack: timeRangeDays,
-      blocking: true,
-    });
-
-    // Update session with final results
-    await db
-      .update(syncSessions)
-      .set({
-        status: "completed",
-        totalItems: result.stats.totalFound,
-        importedItems: result.stats.inserted,
-        processedItems: result.normalizedCount || 0,
-        failedItems: result.stats.errors,
-        currentStep: "Gmail sync completed",
-        progressPercentage: 100,
-        completedAt: new Date(),
-      })
-      .where(eq(syncSessions.id, sessionId));
-
-    await logger.info("Blocking Gmail sync completed", {
-      operation: "gmail_sync_blocking",
-      additionalData: {
-        userId,
-        sessionId,
-        stats: result.stats,
-        normalizedCount: result.normalizedCount,
-      },
-    });
-
-    // Get error summary if there were errors
-    const errorSummary = result.stats.errors > 0 ? await ErrorTrackingService.getErrorSummary(userId, {
-      includeResolved: false,
-      timeRangeHours: 1,
-    }) : null;
-
-    const successRate = result.stats.processed > 0 ? (result.stats.inserted / result.stats.processed) * 100 : 100;
-
-    return NextResponse.json({
-      sessionId,
-      message: result.message,
-      stats: {
-        ...result.stats,
-        processedJobs: result.normalizedCount || 0,
-        successRate: Math.round(successRate),
-      },
-      partialFailure: result.stats.errors > 0,
-      errorSummary: errorSummary ? {
-        totalErrors: errorSummary.totalErrors,
-        criticalErrors: errorSummary.criticalErrors.length,
-        retryableErrors: errorSummary.retryableErrors.length,
-        errorsByCategory: errorSummary.errorsByCategory,
-        recentErrors: errorSummary.recentErrors.slice(0, 3),
-      } : null,
-      recommendations: result.stats.errors > 0 ? [
-        result.stats.errors > 10 ? "High error rate detected. Check your network connection and Google account status." : null,
-        errorSummary?.retryableErrors.length ? `${errorSummary.retryableErrors.length} errors can be automatically retried.` : null,
-        errorSummary?.criticalErrors.length ? "Critical errors detected that may require immediate attention." : null,
-        "View detailed error analysis in the sync results for specific recovery steps."
-      ].filter(Boolean) : null,
-    });
-
+    const envelope: ApiEnvelope<typeof result> = { ok: true, data: result };
+    return NextResponse.json(envelope);
   } catch (error) {
     console.error("POST /api/google/gmail/sync-blocking error:", error);
-    // Record the sync failure if we have a userId
-    try {
-      const userId = await getServerUserId();
-      await ErrorTrackingService.recordError(userId, ensureError(error), {
-        provider: 'gmail',
-        stage: 'ingestion',
-        operation: 'gmail_sync_blocking_failure',
-        sessionId: sessionId ?? undefined,
-        additionalMeta: {
-          syncType: 'blocking_sync',
-          preferences,
-          incremental,
-        }
-      });
-    } catch (authError) {
-      // If we can't get userId, just log the original error without recording
-      console.error("Could not record error due to auth failure:", authError);
+
+    await logger.error(
+      "Gmail sync blocking failed",
+      {
+        operation: "gmail_sync_blocking",
+        additionalData: {
+          errorType: error instanceof Error ? error.constructor.name : typeof error,
+        },
+      },
+      ensureError(error),
+    );
+
+    // Handle validation errors
+    if (error instanceof Error && error.name === "ZodError") {
+      const envelope: ApiEnvelope = {
+        ok: false,
+        error: "Invalid request parameters",
+        details: error.message,
+      };
+      return NextResponse.json(envelope, { status: 400 });
     }
 
-    // Update session with error if we have one
-    if (sessionId) {
-      try {
-        const db = await getDb();
-        await db
-          .update(syncSessions)
-          .set({
-            status: "failed",
-            currentStep: "Sync failed",
-            errorDetails: {
-              error: error instanceof Error ? error.message : String(error),
-              timestamp: new Date().toISOString(),
-            },
-            completedAt: new Date(),
-          })
-          .where(eq(syncSessions.id, sessionId));
-      } catch (updateError) {
-        await logger.error("Failed to update session with error", {
-          operation: "gmail_sync_blocking",
-          additionalData: { sessionId, originalError: String(error) },
-        }, ensureError(updateError));
-      }
-    }
-
-    if (error instanceof Error && error.message === "Gmail not connected") {
-      return NextResponse.json({ error: "Gmail not connected", sessionId }, { status: 400 });
-    }
-
-    return NextResponse.json({
-      error: "Failed to sync Gmail messages",
-      sessionId,
-      canRetry: true,
-      suggestions: [
-        "Check your internet connection",
-        "Verify your Google account is still connected",
-        "Try again in a few minutes",
-        "Contact support if the problem persists"
-      ]
-    }, { status: 500 });
+    const envelope: ApiEnvelope = { ok: false, error: "Gmail sync failed" };
+    return NextResponse.json(envelope, { status: 500 });
   }
 }

@@ -30,6 +30,14 @@ interface EventPatterns {
   averageEventsPerMonth: number;
 }
 
+interface ContentInsights {
+  keywords: string[];
+  topics: string[];
+  sentiment: "positive" | "neutral" | "negative";
+  urgencyLevel: "low" | "medium" | "high";
+  communicationStyle: string;
+}
+
 interface GmailPatterns {
   totalEmails: number;
   recentEmails: number;
@@ -42,7 +50,7 @@ interface GmailPatterns {
   averageEmailsPerMonth: number;
   responseRate: number;
   commonLabels: string[];
-  contentInsights: any;
+  contentInsights: ContentInsights;
 }
 
 interface ContactInsightsWithNote {

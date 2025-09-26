@@ -40,7 +40,7 @@ export function ClientFilterDialog({
     const currentStages = localFilters.stage ?? [];
     const newStages = checked
       ? [...currentStages, stage]
-      : currentStages.filter((s) => s !== stage);
+      : currentStages.filter((s: string) => s !== stage);
     
     setLocalFilters({
       ...localFilters,
@@ -52,7 +52,7 @@ export function ClientFilterDialog({
     const currentSources = localFilters.source ?? [];
     const newSources = checked
       ? [...currentSources, source]
-      : currentSources.filter((s) => s !== source);
+      : currentSources.filter((s: string) => s !== source);
     
     setLocalFilters({
       ...localFilters,

@@ -17,7 +17,10 @@ export {
   buildUrl,
   safeRequest,
   type ApiRequestOptions,
+  // Backward compatibility aliases
+  get as get,
+  post as post,
+  put as put,
+  patch as fetchPatch,
+  del as delete,
 } from "./api/client";
-
-// Legacy aliases for backward compatibility
-export { post as fetchPost, get as fetchGet, del as fetchDelete } from "./api/client";

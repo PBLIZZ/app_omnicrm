@@ -7,8 +7,8 @@ import { PreferencesModal } from "../PreferencesModal";
 
 // Mock the API functions
 vi.mock("@/lib/api", () => ({
-  fetchPost: vi.fn(),
-  fetchGet: vi.fn().mockResolvedValue({
+  post: vi.fn(),
+  get: vi.fn().mockResolvedValue({
     ok: true,
     data: { calendars: [] },
   }),

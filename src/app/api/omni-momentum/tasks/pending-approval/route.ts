@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { momentumService } from "@/server/services/momentum.service";
 
 /**
  * Pending Approval Tasks API Route
@@ -12,27 +14,17 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * GET /api/omni-momentum/tasks/pending-approval - Get AI-generated tasks awaiting approval
  */
-export async function GET(_: NextRequest): Promise<NextResponse> {
+export const GET = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "pending_approval_tasks" },
+})(async ({ userId }) => {
   try {
-    // Remove unused userId since approval system is not implemented yet
-    // const userId = await getServerUserId();
-
-    // Get tasks with pending approval status
-    // const pendingTasks = await momentumRepository.getTasks(userId, {
-    // Note: The repository currently doesn't have approval status filtering
-    // This will need to be enhanced once the approval system is implemented
-    // });
-
-    // Note: approvalStatus field doesn't exist in current schema
-    // For now, return empty array until the approval system is implemented
-    const filteredTasks: never[] = [];
-
-    return NextResponse.json(filteredTasks);
-  } catch (error) {
-    console.error("Failed to get pending approval tasks:", error);
+    const pendingTasks = await momentumService.getPendingApprovalTasks(userId);
+    return NextResponse.json(pendingTasks);
+  } catch {
     return NextResponse.json(
       { error: "Failed to retrieve pending approval tasks" },
       { status: 500 },
     );
   }
-}
+});

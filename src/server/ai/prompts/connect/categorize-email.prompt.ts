@@ -1,13 +1,9 @@
-import { ChatMessage } from "@/server/ai/core/llm.service";
+import type { ChatMessage } from "@/server/ai/core/llm.service";
 import {
   PRIMARY_CATEGORIES,
   SUB_CATEGORIES,
-  URGENCY_LEVELS,
   PRIMARY_CATEGORY_DESCRIPTIONS,
   SUB_CATEGORY_DESCRIPTIONS,
-  type PrimaryCategory,
-  type SubCategory,
-  type UrgencyLevel,
 } from "@/constants/email-categories";
 
 export function buildCategorizeEmailPrompt(emailData: {

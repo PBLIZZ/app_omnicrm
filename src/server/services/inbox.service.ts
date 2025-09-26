@@ -164,6 +164,19 @@ export class InboxService {
   }
 
   /**
+   * Extract filter parameters from query object, removing stats parameter
+   */
+  static extractFilterParams(queryParams?: Record<string, unknown>): InboxFilters {
+    if (!queryParams) {
+      return {};
+    }
+
+    // Remove 'stats' parameter and return remaining as filters
+    const filterEntries = Object.entries(queryParams).filter(([key]) => key !== "stats");
+    return Object.fromEntries(filterEntries) as InboxFilters;
+  }
+
+  /**
    * Get inbox statistics
    */
   static async getInboxStats(userId: string): Promise<{

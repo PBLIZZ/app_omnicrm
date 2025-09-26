@@ -208,7 +208,7 @@ export async function generateContactInsights(
     });
 
     return aiInsights;
-  } catch (error) {
+  } catch (_error) {
     logger
       .error("Insights generation failed", {
         operation: "insights_error",

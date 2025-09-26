@@ -35,12 +35,10 @@ export const ContactSourceEnum = z.enum([
 /**
  * Wellness Tag Schema
  *
- * Structured wellness business tags with categories
+ * Simple string-based wellness tags (matches database structure)
+ * Database stores tags as Json array of strings, not complex objects
  */
-export const WellnessTagSchema = z.object({
-  category: z.enum(["services", "demographics", "goals_health", "engagement_patterns"]),
-  tag: z.string(),
-});
+export const WellnessTagSchema = z.string();
 
 /**
  * Contact DTO Schema
@@ -57,7 +55,11 @@ export const ContactDTOSchema = z.object({
   photoUrl: z.string().nullable(),
   source: ContactSourceEnum.nullable(),
   lifecycleStage: WellnessStageEnum.nullable(),
-  tags: z.array(WellnessTagSchema).nullable(),
+  tags: z
+    .preprocess(
+      (value) => normalizeTagArray(value),
+      z.array(z.string()).nullable(),
+    ),
   confidenceScore: z
     .preprocess(
       (val) => {
@@ -81,18 +83,69 @@ export const ContactDTOSchema = z.object({
 export type ContactDTO = z.infer<typeof ContactDTOSchema>;
 
 /**
- * Normalizes a tag to the structured WellnessTag format
- * Converts string tags to WellnessTag objects for backward compatibility
+ * Normalizes a tag to a simple string format
+ * Converts complex tag objects to strings for backward compatibility
  */
-export function normalizeTag(tag: string | WellnessTag): WellnessTag {
+export function normalizeTag(tag: string | { tag?: string; name?: string } | unknown): string {
   if (typeof tag === "string") {
-    return {
-      name: tag,
-      category: "goals_health", // Default to a valid category
-      confidence: "0.8", // Default confidence for string tags
-    };
+    return tag;
   }
-  return tag;
+  if (typeof tag === "object" && tag !== null) {
+    // Handle old complex tag formats
+    const tagObj = tag as Record<string, unknown>;
+    return String(tagObj["tag"] || tagObj["name"] || "");
+  }
+  return String(tag || "");
+}
+
+function normalizeTagArray(value: unknown): string[] | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalizeCollection = (items: unknown[]): string[] => {
+    const results: string[] = [];
+    for (const item of items) {
+      const normalized = normalizeTag(item).trim();
+      if (normalized.length > 0) {
+        results.push(normalized);
+      }
+    }
+    return results;
+  };
+
+  if (Array.isArray(value)) {
+    const normalized = normalizeCollection(value);
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const normalized = normalizeCollection(parsed);
+        return normalized.length > 0 ? normalized : null;
+      }
+    } catch {
+      // swallow JSON parse errors and treat the string as a single tag value
+    }
+
+    const normalized = normalizeTag(trimmed).trim();
+    return normalized.length > 0 ? [normalized] : null;
+  }
+
+  if (typeof value === "object") {
+    const normalized = normalizeTag(value).trim();
+    return normalized.length > 0 ? [normalized] : null;
+  }
+
+  const fallback = normalizeTag(value).trim();
+  return fallback.length > 0 ? [fallback] : null;
 }
 
 /**
@@ -108,8 +161,10 @@ export const CreateContactDTOSchema = z.object({
   source: ContactSourceEnum.nullable().optional(),
   lifecycleStage: WellnessStageEnum.nullable().optional(),
   tags: z
-    .array(z.union([z.string(), WellnessTagSchema]))
-    .nullable()
+    .preprocess(
+      (value) => normalizeTagArray(value),
+      z.array(z.string()).nullable(),
+    )
     .optional(),
   confidenceScore: z
     .string()
@@ -133,11 +188,14 @@ export const UpdateContactDTOSchema = z.object({
     .optional(),
   primaryEmail: z.string().email("Invalid email format").nullable().optional(),
   primaryPhone: z.string().max(50, "Phone number too long").nullable().optional(),
+  photoUrl: z.string().url("Invalid photo URL format").nullable().optional(),
   source: ContactSourceEnum.nullable().optional(),
   lifecycleStage: WellnessStageEnum.nullable().optional(),
   tags: z
-    .array(z.union([z.string(), WellnessTagSchema]))
-    .nullable()
+    .preprocess(
+      (value) => normalizeTagArray(value),
+      z.array(z.string()).nullable(),
+    )
     .optional(),
   confidenceScore: z
     .string()

@@ -1,4 +1,4 @@
-import { eq, and, ilike, desc, asc, inArray, sql } from "drizzle-orm";
+import { eq, and, ilike, desc, asc, inArray, sql, count } from "drizzle-orm";
 import { contacts, notes } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
 import type {
@@ -39,7 +39,7 @@ export class ContactsRepository {
 
     // Count total using Drizzle's typed count helper
     const countResult = await db
-      .select({ count: contacts.id.count() })
+      .select({ count: count() })
       .from(contacts)
       .where(and(...conditions));
 

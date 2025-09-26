@@ -1,18 +1,6 @@
-import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { ContactsRepository } from "@repo";
-import type { UpdateContactDTO } from "@contracts/contact";
-import { UpdateOmniClientSchema } from "@/lib/validation/schemas/omniClients";
-import { toOmniClient } from "@/server/adapters/omniClients";
-
-// --- helpers ---
-const IdParams = z.object({ clientId: z.string().uuid() });
-
-function toOptional(v: string | null | undefined): string | undefined {
-  if (typeof v === "string" && v.trim().length === 0) return undefined;
-  return v ?? undefined;
-}
+import { OmniClientService } from "@/server/services/omni-client.service";
 
 // --- GET /api/omni-clients/[clientId] ---
 export async function GET(
@@ -21,17 +9,15 @@ export async function GET(
 ): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
+    const { clientId } = context.params;
 
-    // Validate params
-    const validatedParams = IdParams.parse(context.params);
+    const omniClient = await OmniClientService.getOmniClient(userId, clientId);
 
-    const contact = await ContactsRepository.getContactById(userId, validatedParams.clientId);
-
-    if (!contact) {
+    if (!omniClient) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ item: toOmniClient(contact) });
+    return NextResponse.json({ item: omniClient });
   } catch (error) {
     console.error("GET /api/omni-clients/[clientId] error:", error);
     return NextResponse.json({ error: "Failed to fetch omni client" }, { status: 500 });
@@ -45,103 +31,34 @@ export async function PATCH(
 ): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
-
-    // Validate params
-    const validatedParams = IdParams.parse(context.params);
+    const { clientId } = context.params;
 
     // Validate request body
     const body: unknown = await request.json();
-    const validatedBody = UpdateOmniClientSchema.parse(body);
 
-    const updates: UpdateContactDTO = {};
-
-    if (validatedBody.displayName !== undefined) updates.displayName = validatedBody.displayName;
-    if (validatedBody.primaryEmail !== undefined)
-      updates.primaryEmail = toOptional(validatedBody.primaryEmail);
-    if (validatedBody.primaryPhone !== undefined)
-      updates.primaryPhone = toOptional(validatedBody.primaryPhone);
-    if (validatedBody.lifecycleStage !== undefined) {
-      const stageValue = toOptional(validatedBody.lifecycleStage);
-      if (stageValue !== undefined) {
-        const allowedStages = [
-          "New Client",
-          "VIP Client",
-          "Core Client",
-          "Prospect",
-          "At Risk Client",
-          "Lost Client",
-          "Referring Client",
-        ] as const;
-
-        if (allowedStages.includes(stageValue as any)) {
-          updates.lifecycleStage = stageValue as (typeof allowedStages)[number];
-        } else {
-          return NextResponse.json(
-            { error: `Invalid lifecycle stage: ${stageValue}` },
-            { status: 400 },
-          );
-        }
-      }
-    }
-    if (validatedBody.tags !== undefined) {
-      updates.tags = validatedBody.tags ?? undefined;
-    }
-
-    if (Object.keys(updates).length === 0) {
-      // Analyze what was provided vs what's valid
-      const providedFields = Object.keys(validatedBody);
-      const allowedFields = [
-        "displayName",
-        "primaryEmail",
-        "primaryPhone",
-        "lifecycleStage",
-        "tags",
-      ];
-      const invalidFields = providedFields.filter((field) => !allowedFields.includes(field));
-      const emptyFields = providedFields.filter((field) => {
-        const value = validatedBody[field as keyof typeof validatedBody];
-        return (
-          value === null ||
-          value === undefined ||
-          (typeof value === "string" && value.trim() === "")
-        );
-      });
-
-      const errors = [];
-      if (invalidFields.length > 0) {
-        errors.push(`Invalid fields: ${invalidFields.join(", ")}`);
-      }
-      if (emptyFields.length > 0) {
-        errors.push(`Empty fields: ${emptyFields.join(", ")}`);
-      }
-      if (errors.length === 0) {
-        errors.push("No valid updates provided");
-      }
-
+    // Type guard to ensure body is a record
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
       return NextResponse.json(
-        {
-          error: "Validation failed",
-          details: errors,
-          providedFields,
-          allowedFields,
-        },
-        { status: 400 },
+        { error: "Invalid request body format" },
+        { status: 400 }
       );
     }
 
-    const updatedContact = await ContactsRepository.updateContact(
-      userId,
-      validatedParams.clientId,
-      updates,
-    );
+    const omniClient = await OmniClientService.updateOmniClient(userId, clientId, body);
 
-    if (!updatedContact) {
+    if (!omniClient) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ item: toOmniClient(updatedContact) });
+    return NextResponse.json({ item: omniClient });
   } catch (error) {
     console.error("PATCH /api/omni-clients/[clientId] error:", error);
+
+    // Handle validation errors
+    if (error instanceof Error && error.message.includes("Validation failed")) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     return NextResponse.json({ error: "Failed to update omni client" }, { status: 500 });
   }
 }
@@ -156,11 +73,9 @@ export async function DELETE(
 ): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
+    const { clientId } = context.params;
 
-    // Validate params
-    const validatedParams = IdParams.parse(context.params);
-
-    const deleted = await ContactsRepository.deleteContact(userId, validatedParams.clientId);
+    const deleted = await OmniClientService.deleteOmniClient(userId, clientId);
 
     // idempotent delete - return success even if contact didn't exist
     return NextResponse.json({ deleted: deleted ? 1 : 0 });

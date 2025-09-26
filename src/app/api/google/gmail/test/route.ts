@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { GoogleGmailService, GmailAuthError } from "@/server/services/google-gmail.service";
+import { ApiEnvelope } from "@/lib/utils/type-guards";
 
 export async function GET(): Promise<NextResponse> {
   try {
@@ -8,22 +9,28 @@ export async function GET(): Promise<NextResponse> {
     // Test Gmail connection
     const isConnected = await GoogleGmailService.testConnection(userId);
 
-    return NextResponse.json({
+    const data = {
       isConnected,
       message: isConnected ? "Gmail connection successful" : "Gmail connection failed",
       timestamp: new Date().toISOString(),
-    });
+    };
+
+    const envelope: ApiEnvelope<typeof data> = { ok: true, data };
+    return NextResponse.json(envelope);
   } catch (error: unknown) {
     console.error("GET /api/google/gmail/test error:", error);
     if (error instanceof GmailAuthError) {
-      return NextResponse.json({
+      const data = {
         isConnected: false,
         message: error.message,
         errorCode: error.code,
         timestamp: new Date().toISOString(),
-      });
+      };
+      const envelope: ApiEnvelope<typeof data> = { ok: true, data };
+      return NextResponse.json(envelope);
     }
 
-    return NextResponse.json({ error: "Failed to test Gmail connection" }, { status: 500 });
+    const envelope: ApiEnvelope = { ok: false, error: "Failed to test Gmail connection" };
+    return NextResponse.json(envelope, { status: 500 });
   }
 }

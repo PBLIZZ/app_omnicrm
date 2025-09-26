@@ -304,25 +304,28 @@ function extractTextFromParts(parts: unknown[]): string[] {
         textParts.push(decoded);
       } catch (error) {
         // Log decode warning with proper error handling
-        try {
-          await logger.warn("Failed to decode Gmail message part", {
-            operation: "jobs.normalize.decode_message",
-            additionalData: {
+        // Use void for fire-and-forget logging - errors here shouldn't block processing
+        void (async () => {
+          try {
+            await logger.warn("Failed to decode Gmail message part", {
+              operation: "jobs.normalize.decode_message",
+              additionalData: {
+                mimeType: part.mimeType,
+                error: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined,
+              },
+            });
+          } catch (loggingError) {
+            // Fallback diagnostic when logging fails
+            console.error("Failed to log decode warning:", {
+              originalError: error instanceof Error ? error.message : String(error),
+              loggingError:
+                loggingError instanceof Error ? loggingError.message : String(loggingError),
               mimeType: part.mimeType,
-              error: error instanceof Error ? error.message : String(error),
-              stack: error instanceof Error ? error.stack : undefined,
-            },
-          });
-        } catch (loggingError) {
-          // Fallback diagnostic when logging fails
-          console.error("Failed to log decode warning:", {
-            originalError: error instanceof Error ? error.message : String(error),
-            loggingError:
-              loggingError instanceof Error ? loggingError.message : String(loggingError),
-            mimeType: part.mimeType,
-            operation: "jobs.normalize.decode_message",
-          });
-        }
+              operation: "jobs.normalize.decode_message",
+            });
+          }
+        })();
       }
     }
   }

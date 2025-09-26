@@ -205,22 +205,10 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
       // Submit onboarding data
 
       // Get CSRF token from cookie
-      const getCsrfToken = (): string => {
-        if (typeof document === "undefined") return "";
-        const match = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
-        return match ? decodeURIComponent(match[1] ?? "") : "";
-      };
-
-      const csrfToken = getCsrfToken();
-      if (!csrfToken) {
-        throw new Error("CSRF token not found. Please refresh the page and try again.");
-      }
-
       const response = await fetch("/api/onboarding/public/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify(submissionData),
       });

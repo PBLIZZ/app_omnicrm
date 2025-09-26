@@ -1,8 +1,35 @@
 // Extracted from contact-ai-actions.service.ts
 
-import { generateText } from "@/server/ai/core/llm.service";
-import { getContactData } from "@/server/ai/clients/utils/contact-utils"; // Assume extracted helper
+import { generateText, ChatMessage } from "@/server/ai/core/llm.service";
+import { getContactData, ContactWithContext } from "@/server/ai/clients/utils/contact-utils";
 import { sanitizeText, sanitizeTitle, sanitizeDate } from "@/lib/utils/sanitization";
+import type { InferSelectModel } from "drizzle-orm";
+import type { contacts, interactions, calendarEvents, notes } from "@/server/db/schema";
+
+// Type interfaces for contact data structures
+interface ContactMessage {
+  subject: string;
+  date: string;
+}
+
+interface ContactTimelineEvent {
+  title: string;
+  date: string;
+}
+
+interface ContactData {
+  contact: {
+    id: string;
+    name: string;
+    title?: string;
+    company?: string;
+    lastInteraction?: string;
+    notes?: string;
+    messages: ContactMessage[];
+    tags: string[];
+    rawTimeline: ContactTimelineEvent[];
+  };
+}
 
 export interface ContactAIInsightResponse {
   insights: string;
@@ -14,21 +41,37 @@ export interface ContactAIInsightResponse {
   errorMessage?: string;
 }
 
-function buildAskAIAboutContactPrompt(data: any): any[] {
+// Type guard to validate contact data structure
+function isValidContactData(data: unknown): data is ContactData {
+  if (!data || typeof data !== "object") return false;
+
+  const contactData = data as Record<string, unknown>;
+  if (!contactData.contact || typeof contactData.contact !== "object") return false;
+
+  const contact = contactData.contact as Record<string, unknown>;
+  return (
+    (typeof contact.name === "string" || typeof contact.id === "string") &&
+    Array.isArray((contact as { messages?: unknown }).messages) &&
+    Array.isArray((contact as { tags?: unknown }).tags) &&
+    Array.isArray((contact as { rawTimeline?: unknown }).rawTimeline)
+  );
+}
+
+function buildAskAIAboutContactPrompt(data: ContactWithContext): ChatMessage[] {
   // Validate presence of contact basics
-  if (!data.contact || (!data.contact.name && !data.contact.id)) {
-    throw new Error("Contact data is missing required fields (name or id)");
+  if (!data.contact || (!data.contact.displayName && !data.contact.id)) {
+    throw new Error("Contact data is missing required fields (displayName or id)");
   }
 
   const contact = data.contact;
-  const name = sanitizeText(contact.name) || "Unknown";
-  const title = sanitizeText(contact.title) || "Unknown";
-  const company = sanitizeText(contact.company) || "Unknown";
-  const lastInteraction = sanitizeText(contact.lastInteraction) || "Unknown";
-  const notes = sanitizeText(contact.notes) || "None";
-  const messages = contact.messages || [];
-  const tags = contact.tags || [];
-  const rawTimeline = contact.rawTimeline || [];
+  const name = sanitizeText(contact.displayName) || "Unknown";
+  const email = sanitizeText(contact.primaryEmail) || "Unknown";
+  const phone = sanitizeText(contact.primaryPhone) || "Unknown";
+  const lastInteraction = data.interactions[0] ? sanitizeDate(data.interactions[0].occurredAt.toISOString()) : "Unknown";
+  const notesText = data.notes.map(note => note.content).join("; ") || "None";
+  const messages = data.interactions.filter(i => i.type === "email") || [];
+  const tags = Array.isArray(contact.tags) ? (contact.tags as string[]) : [];
+  const timeline = data.timeline || [];
 
   const systemMessage = {
     role: "system" as const,
@@ -51,28 +94,28 @@ Be concise, professional, and data-driven. Use bullet points for arrays.`,
 
 **Basic Info:**
 - Name: ${name}
-- Title: ${title}
-- Company: ${company}
+- Email: ${email}
+- Phone: ${phone}
 - Last Interaction: ${lastInteraction}
 
-**Notes:** ${notes}
+**Notes:** ${notesText}
 
 **Messages (${messages.length} total):**
 ${messages
   .slice(0, 5)
   .map(
-    (msg: any, i: number) => `${i + 1}. ${sanitizeTitle(msg.subject)} - ${sanitizeDate(msg.date)}`,
+    (msg, i) => `${i + 1}. ${sanitizeTitle(msg.subject || "No Subject")} - ${sanitizeDate(msg.occurredAt.toISOString())}`,
   )
   .join("\n")}
 
 **Tags:** ${tags.join(", ") || "None"}
 
-**Timeline Events (${rawTimeline.length} total):**
-${rawTimeline
+**Timeline Events (${timeline.length} total):**
+${timeline
   .slice(0, 3)
   .map(
-    (event: any, i: number) =>
-      `${i + 1}. ${sanitizeTitle(event.title)} - ${sanitizeDate(event.date)}`,
+    (event, i) =>
+      `${i + 1}. ${sanitizeTitle(event.title)} - ${sanitizeDate(event.occurredAt.toISOString())}`,
   )
   .join("\n")}
 
@@ -103,7 +146,7 @@ export async function askAIAboutContact(
     tags: string[];
   }>(userId, {
     model: "default",
-    messages,
+    messages: messages,
     responseSchema: {
       type: "object",
       properties: {

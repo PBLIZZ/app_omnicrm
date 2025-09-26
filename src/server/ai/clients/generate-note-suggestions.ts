@@ -1,10 +1,9 @@
 // Extracted from contact-ai-actions.service.ts
 
-import { generateText } from "@/server/ai/core/llm.service";
-import { ChatMessage } from "@/server/ai/core/llm.service"; // Assuming type location
-import { getContactData } from "@/server/ai/clients/utils/contact-utils";
+import { generateText, ChatMessage } from "@/server/ai/core/llm.service";
+import { getContactData, ContactWithContext } from "@/server/ai/clients/utils/contact-utils";
 
-function buildGenerateNotePrompt(data: any): ChatMessage[] {
+function buildGenerateNotePrompt(data: ContactWithContext): ChatMessage[] {
   return [
     {
       role: "system",

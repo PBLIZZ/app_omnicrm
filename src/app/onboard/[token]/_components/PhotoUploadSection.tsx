@@ -13,6 +13,16 @@ interface PhotoUploadSectionProps {
   onPhotoUploaded: (photoUrl: string | null) => void;
 }
 
+interface FileError {
+  code: string;
+  message: string;
+}
+
+interface FileRejection {
+  file: File;
+  errors: FileError[];
+}
+
 export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectionProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -27,24 +37,11 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
         const preview = URL.createObjectURL(file);
         setPreviewUrl(preview);
 
-        // Get CSRF token from cookie
-        const getCsrfToken = (): string => {
-          if (typeof document === "undefined") return "";
-          const match = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
-          return match ? decodeURIComponent(match[1] ?? "") : "";
-        };
-
-        const csrfToken = getCsrfToken();
-        if (!csrfToken) {
-          throw new Error("CSRF token not found. Please refresh the page and try again.");
-        }
-
         // Step 1: Get signed upload URL from our API
         const signedUrlResponse = await fetch("/api/onboarding/public/signed-upload", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-csrf-token": csrfToken,
           },
           body: JSON.stringify({
             token,
@@ -95,15 +92,15 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
   );
 
   const onDrop = useCallback(
-    (acceptedFiles: File[], rejectedFiles: { errors: { code: string }[] }[]) => {
+    (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
       // Handle rejected files first
       if (rejectedFiles.length > 0) {
         const rejection = rejectedFiles[0];
-        if (rejection.errors.some((e: { code: string }) => e.code === "file-too-large")) {
+        if (rejection?.errors?.some((e: FileError) => e.code === "file-too-large")) {
           toast.error(
             `File too large. Maximum size is ${Math.round(PHOTO_CONFIG.maxFileSize / 1024)}KB`,
           );
-        } else if (rejection.errors.some((e: { code: string }) => e.code === "file-invalid-type")) {
+        } else if (rejection?.errors?.some((e: FileError) => e.code === "file-invalid-type")) {
           toast.error("Invalid file type. Please select a JPEG, PNG, WebP, or GIF image.");
         } else {
           toast.error("File rejected. Please try another image.");

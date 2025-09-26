@@ -41,25 +41,8 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       }, { status: 400 });
     }
 
-    // Build a proper update object without explicit undefined values
-    const updateData: Parameters<typeof GoogleIntegrationService.updateSyncPreferences>[1] = {};
-    const data = validation.data;
-
-    if (data.gmailQuery !== undefined) updateData.gmailQuery = data.gmailQuery;
-    if (data.gmailLabelIncludes !== undefined) updateData.gmailLabelIncludes = data.gmailLabelIncludes;
-    if (data.gmailLabelExcludes !== undefined) updateData.gmailLabelExcludes = data.gmailLabelExcludes;
-    if (data.gmailTimeRangeDays !== undefined) updateData.gmailTimeRangeDays = data.gmailTimeRangeDays;
-    if (data.calendarIncludeOrganizerSelf !== undefined) updateData.calendarIncludeOrganizerSelf = data.calendarIncludeOrganizerSelf;
-    if (data.calendarIncludePrivate !== undefined) updateData.calendarIncludePrivate = data.calendarIncludePrivate;
-    if (data.calendarTimeWindowDays !== undefined) updateData.calendarTimeWindowDays = data.calendarTimeWindowDays;
-    if (data.calendarIds !== undefined) updateData.calendarIds = data.calendarIds;
-    if (data.calendarFutureDays !== undefined) updateData.calendarFutureDays = data.calendarFutureDays;
-    if (data.driveIngestionMode !== undefined) updateData.driveIngestionMode = data.driveIngestionMode;
-    if (data.driveFolderIds !== undefined) updateData.driveFolderIds = data.driveFolderIds;
-    if (data.driveMaxSizeMB !== undefined) updateData.driveMaxSizeMB = data.driveMaxSizeMB;
-    if (data.initialSyncCompleted !== undefined) updateData.initialSyncCompleted = data.initialSyncCompleted;
-    if (data.initialSyncDate !== undefined) updateData.initialSyncDate = data.initialSyncDate;
-
+    // Use service to build clean update object and process the update
+    const updateData = GoogleIntegrationService.buildCleanUpdateObject(validation.data);
     await GoogleIntegrationService.updateSyncPreferences(userId, updateData);
     return NextResponse.json({});
   } catch (error: unknown) {

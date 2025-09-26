@@ -230,6 +230,56 @@ export class MomentumService {
     return subtasks;
   }
 
+  /**
+   * Get subtasks with parent task validation
+   */
+  async getSubtasksWithValidation(taskId: string, userId: string): Promise<{ subtasks: TaskDTO[], parentTask: TaskDTO | null }> {
+    // Ensure parent task exists and belongs to user
+    const parentTask = await this.momentumRepository.getTask(taskId, userId);
+
+    if (!parentTask) {
+      return { subtasks: [], parentTask: null };
+    }
+
+    // Get subtasks for this parent task
+    const subtasks = await this.momentumRepository.getSubtasks(taskId, userId);
+
+    return { subtasks, parentTask };
+  }
+
+  /**
+   * Create subtask with parent task validation and business logic
+   */
+  async createSubtaskWithValidation(
+    taskId: string,
+    userId: string,
+    subtaskData: CreateTaskDTO
+  ): Promise<{ subtask: TaskDTO | null, parentTask: TaskDTO | null }> {
+    // Ensure parent task exists and belongs to user
+    const parentTask = await this.momentumRepository.getTask(taskId, userId);
+
+    if (!parentTask) {
+      return { subtask: null, parentTask: null };
+    }
+
+    // Build validated data with parent task context
+    const taskData: CreateTaskDTO = {
+      ...subtaskData,
+      parentTaskId: taskId, // Ensure subtask is linked to parent
+      // Inherit project from parent if not specified
+      projectId: subtaskData.projectId ?? parentTask.projectId,
+    };
+
+    const subtask = await this.momentumRepository.createTask(userId, taskData);
+
+    // Add contact tags if provided
+    if (taskData.taggedContactIds && taskData.taggedContactIds.length > 0) {
+      await this.momentumRepository.addTaskContactTags(subtask.id, taskData.taggedContactIds);
+    }
+
+    return { subtask, parentTask };
+  }
+
   async updateTask(taskId: string, userId: string, data: UpdateTaskDTO): Promise<TaskDTO | null> {
     // Handle completion status changes
     const updates: UpdateTaskDTO = { ...data };
@@ -434,6 +484,42 @@ export class MomentumService {
       tasks: taskStats,
       projects: projectStats,
     };
+  }
+
+  // ============================================================================
+  // PENDING APPROVAL TASKS (AI-generated tasks awaiting user approval)
+  // ============================================================================
+
+  async getPendingApprovalTasks(userId: string): Promise<TaskDTO[]> {
+    // Note: The current schema doesn't have an approval status field.
+    // This method is a placeholder for when the approval system is implemented.
+    // For now, return empty array until the approval system and database schema
+    // are enhanced to support task approval workflows.
+    return [];
+  }
+
+  /**
+   * Approve an AI-generated task by changing its status to active
+   */
+  async approveTask(taskId: string, userId: string): Promise<TaskDTO | null> {
+    // Get the task to ensure it exists and belongs to the user
+    const existingTask = await this.momentumRepository.getTask(taskId, userId);
+    if (!existingTask) {
+      return null;
+    }
+
+    // Update task to active status (business rule: approval moves task to todo)
+    const updatedTask = await this.momentumRepository.updateTask(taskId, userId, {
+      status: "todo", // Move to active todo status
+    });
+
+    // TODO: When approval system is implemented, add audit trail here
+    // await this.momentumRepository.createMomentumAction(taskId, userId, "approve", {
+    //   previousStatus: existingTask.status,
+    //   newStatus: "todo"
+    // });
+
+    return updatedTask;
   }
 
 }

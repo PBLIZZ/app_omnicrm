@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 import { GmailSyncService } from "@/server/services/gmail-sync.service";
 import { z } from "zod";
+import { ApiEnvelope } from "@/lib/utils/type-guards";
 
 // Request schema: incremental sync from last successful raw_event by default
 const syncSchema = z.object({
@@ -39,17 +40,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       daysBack: daysBack ?? undefined,
     });
 
-    return NextResponse.json(result);
+    const envelope: ApiEnvelope<typeof result> = { ok: true, data: result };
+    return NextResponse.json(envelope);
   } catch (error) {
     console.error("POST /api/google/gmail/sync error:", error);
 
     if (error instanceof Error && error.message === "Gmail not connected") {
-      return NextResponse.json({ error: "Gmail not connected" }, { status: 400 });
+      const envelope: ApiEnvelope = { ok: false, error: "Gmail not connected" };
+      return NextResponse.json(envelope, { status: 400 });
     }
 
-    return NextResponse.json(
-      { error: "Failed to sync Gmail messages" },
-      { status: 500 }
-    );
+    const envelope: ApiEnvelope = { ok: false, error: "Failed to sync Gmail messages" };
+    return NextResponse.json(envelope, { status: 500 });
   }
 }

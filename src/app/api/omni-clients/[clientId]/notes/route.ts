@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { CreateNoteSchema } from "@/lib/validation/schemas/omniClients";
-import { NotesRepository } from "@repo";
+import { OmniClientNotesService } from "@/server/services/omni-client-notes.service";
 import { logger } from "@/lib/observability";
-import { z } from "zod";
 
 /**
  * OmniClient Notes endpoint
@@ -13,10 +11,6 @@ import { z } from "zod";
  * UI boundary transformation: presents "OmniClient" while using "contacts" backend
  */
 
-const paramsSchema = z.object({
-  clientId: z.string().uuid(),
-});
-
 export async function GET(
   _: NextRequest,
   context: { params: { clientId: string } }
@@ -24,22 +18,10 @@ export async function GET(
   try {
     const userId = await getServerUserId();
 
-    // Validate params
-    const validatedParams = paramsSchema.parse(context.params);
-    const { clientId } = validatedParams;
+    // Get client notes using service
+    const result = await OmniClientNotesService.getClientNotes(userId, context.params.clientId);
 
-    // Get all notes for this client (contactId in DB = clientId from API)
-    const clientNotes = await NotesRepository.getNotesByContactId(userId, clientId);
-
-    const formattedNotes = clientNotes.map((note) => ({
-      id: note.id,
-      title: note.title,
-      content: note.content,
-      createdAt: note.createdAt.toISOString(),
-      updatedAt: note.updatedAt.toISOString(),
-    }));
-
-    return NextResponse.json({ notes: formattedNotes });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("GET /api/omni-clients/[clientId]/notes error:", error);
     await logger.error(
@@ -63,30 +45,17 @@ export async function POST(
   try {
     const userId = await getServerUserId();
 
-    // Validate params
-    const validatedParams = paramsSchema.parse(context.params);
-    const { clientId } = validatedParams;
-
-    // Validate request body
+    // Parse request body
     const body: unknown = await request.json();
-    const validatedBody = CreateNoteSchema.parse(body);
 
-    // Create note for client using repository
-    const newNote = await NotesRepository.createNote(userId, {
-      contactId: clientId,
-      title: validatedBody.title,
-      content: validatedBody.content,
-    });
+    // Create note using service
+    const newNote = await OmniClientNotesService.createClientNote(
+      userId,
+      context.params.clientId,
+      body,
+    );
 
-    const formattedNote = {
-      id: newNote.id,
-      title: newNote.title,
-      content: newNote.content,
-      createdAt: newNote.createdAt.toISOString(),
-      updatedAt: newNote.updatedAt.toISOString(),
-    };
-
-    return NextResponse.json(formattedNote, { status: 201 });
+    return NextResponse.json(newNote, { status: 201 });
   } catch (error) {
     console.error("POST /api/omni-clients/[clientId]/notes error:", error);
     await logger.error(

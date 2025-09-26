@@ -1,6 +1,6 @@
 // New file for categorize inbox item prompt
 
-import { ChatMessage } from "@/server/ai/core/llm.service";
+import type { ChatMessage } from "@/server/ai/core/llm.service";
 
 interface InboxProcessingContext {
   zones: Array<{ name: string }>;
@@ -12,13 +12,6 @@ interface InboxProcessingContext {
       workingHours?: { start: string; end: string };
     };
   };
-}
-
-interface InboxItem {
-  id: string;
-  content: string;
-  priority: "low" | "medium" | "high" | "urgent";
-  zone: string;
 }
 
 export function buildCategorizeInboxItemPrompt(

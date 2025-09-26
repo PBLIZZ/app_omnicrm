@@ -32,9 +32,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           ? null
           : searchParams.get("parentTaskId") || undefined,
       taggedContactId: searchParams.get("taggedContactId") || undefined,
-      dueAfter: searchParams.get("dueAfter") ? new Date(searchParams.get("dueAfter")!) : undefined,
+      dueAfter: searchParams.get("dueAfter") ? new Date(searchParams.get("dueAfter") || "") : undefined,
       dueBefore: searchParams.get("dueBefore")
-        ? new Date(searchParams.get("dueBefore")!)
+        ? new Date(searchParams.get("dueBefore") || "")
         : undefined,
       hasSubtasks: searchParams.get("hasSubtasks")
         ? searchParams.get("hasSubtasks") === "true"

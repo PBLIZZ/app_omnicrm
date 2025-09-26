@@ -129,30 +129,3 @@ export async function apiFetchContact(id: string): Promise<ContactDTO> {
   const result = await get<ApiContactResponse>(`/api/omni-clients/${id}`);
   return result.item;
 }
-
-/** ---- Legacy Function Aliases (for backward compatibility) ---- */
-
-/**
- * @deprecated Use apiFetchContacts instead
- */
-export const fetchContacts = apiFetchContacts;
-
-/**
- * @deprecated Use apiCreateContact instead
- */
-export const createContact = apiCreateContact;
-
-/**
- * @deprecated Use apiUpdateContact instead
- */
-export const updateContact = apiUpdateContact;
-
-/**
- * @deprecated Use apiDeleteContacts instead
- */
-export const deleteContacts = apiDeleteContacts;
-
-/**
- * @deprecated Use apiFetchContact instead
- */
-export const fetchContact = apiFetchContact;

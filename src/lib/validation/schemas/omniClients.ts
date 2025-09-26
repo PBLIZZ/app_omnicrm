@@ -57,6 +57,15 @@ export const UpdateOmniClientSchema = z.object({
 });
 export type UpdateOmniClientInput = z.infer<typeof UpdateOmniClientSchema>;
 
+// --- Filter Schemas ---
+export const ClientSearchFiltersSchema = z.object({
+  stage: z.array(z.string()).optional(),
+  source: z.array(z.string()).optional(),
+  hasNotes: z.boolean().optional(),
+  hasInteractions: z.boolean().optional(),
+});
+export type ClientSearchFilters = z.infer<typeof ClientSearchFiltersSchema>;
+
 // --- Query Schemas ---
 export const GetOmniClientsQuerySchema = z.object({
   search: z.preprocess(

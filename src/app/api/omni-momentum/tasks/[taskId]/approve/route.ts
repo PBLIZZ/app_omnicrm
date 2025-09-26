@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
-import { momentumRepository } from "@repo";
+import { momentumService } from "@/server/services/momentum.service";
 
 /**
  * Task Approval API Route
@@ -11,41 +11,28 @@ import { momentumRepository } from "@repo";
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     taskId: string;
-  };
+  }>;
 }
 
 /**
  * POST /api/omni-momentum/tasks/[taskId]/approve - Approve an AI-generated task
  */
-export async function POST(_: NextRequest, { params }: RouteParams): Promise<NextResponse> {
+export async function POST(_: NextRequest, context: RouteParams): Promise<NextResponse> {
   try {
     const userId = await getServerUserId();
+    const params = await context.params;
     const { taskId } = params;
 
-    // Get the task to ensure it exists and belongs to the user
-    const task = await momentumRepository.getTask(taskId, userId);
-    if (!task) {
+    // Approve task using service
+    const approvedTask = await momentumService.approveTask(taskId, userId);
+
+    if (!approvedTask) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    // Note: approvalStatus field might not exist in current schema,
-    // this feature might need implementation. For now, just update status.
-
-    // Update task to approved status and get the updated task
-    const updatedTask = await momentumRepository.updateTask(taskId, userId, {
-      status: "todo", // Move to active todo status
-    });
-
-    if (!updatedTask) {
-      return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
-    }
-
-    // Note: createMomentumAction method doesn't exist yet,
-    // this would need to be implemented for full audit trail
-
-    return NextResponse.json(updatedTask);
+    return NextResponse.json(approvedTask);
   } catch (error) {
     console.error("Failed to approve task:", error);
     return NextResponse.json({ error: "Failed to approve task" }, { status: 500 });

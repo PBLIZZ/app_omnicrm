@@ -6,7 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Copy, ExternalLink, Trash2, Clock, Users, AlertCircle } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  Trash2,
+  Clock,
+  Users,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import { get, del } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -35,12 +44,13 @@ function formatTokenCreatedAt(createdAt: string | null | undefined): string {
     }
     const createdDate = new Date(createdAt);
     if (isNaN(createdDate.getTime())) {
-      return "Invalid date";
+      return "Unknown";
     }
-    return formatDistanceToNow(createdDate);
+    const timeAgo = formatDistanceToNow(createdDate);
+    return timeAgo || "Unknown";
   } catch (error) {
     console.error("Date formatting error:", error, "createdAt:", createdAt);
-    return "Invalid date";
+    return "Unknown";
   }
 }
 
@@ -76,15 +86,17 @@ export function ActiveTokensList() {
     data: tokens = [],
     isLoading,
     error,
+    refetch,
   } = useQuery<OnboardingToken[]>({
     queryKey: ["onboarding-tokens"],
     queryFn: async () => {
       const response = await get<TokensListResponse>("/api/onboarding/admin/tokens");
       return response.tokens;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 10000, // Refresh every 10 seconds for more real-time updates
     retry: 3, // Retry up to 3 times on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff with max 30s
+    staleTime: 5000, // Consider data stale after 5 seconds
   });
 
   // Delete token mutation
@@ -141,10 +153,13 @@ export function ActiveTokensList() {
   };
 
   const getTokenStatus = (token: OnboardingToken) => {
-    if (token.disabled) return { label: "Disabled", variant: "secondary" as const };
-    if (isExpired(token.expiresAt)) return { label: "Expired", variant: "destructive" as const };
-    if (isFullyUsed(token)) return { label: "Used Up", variant: "outline" as const };
-    return { label: "Active", variant: "default" as const };
+    if (token.disabled)
+      return { label: "Disabled", variant: "secondary" as const, category: "disabled" as const };
+    if (isExpired(token.expiresAt))
+      return { label: "Expired", variant: "destructive" as const, category: "expired" as const };
+    if (isFullyUsed(token))
+      return { label: "Used", variant: "outline" as const, category: "used" as const };
+    return { label: "Active", variant: "default" as const, category: "active" as const };
   };
 
   if (isLoading) {
@@ -185,93 +200,153 @@ export function ActiveTokensList() {
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {tokens.map((token) => {
-        const status = getTokenStatus(token);
-        const isActive = status.label === "Active";
+  // Group tokens by status
+  const activeTokens = tokens.filter((t) => getTokenStatus(t).category === "active");
+  const usedTokens = tokens.filter((t) => getTokenStatus(t).category === "used");
+  const expiredTokens = tokens.filter((t) => getTokenStatus(t).category === "expired");
+  const disabledTokens = tokens.filter((t) => getTokenStatus(t).category === "disabled");
 
-        return (
-          <div
-            key={token.id}
-            className={cn(
-              "p-3 border rounded-lg transition-colors",
-              isActive ? "border-green-200 bg-green-50/50" : "border-gray-200",
-            )}
-          >
-            {/* Header with status */}
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex items-center gap-2">
-                <Badge variant={status.variant}>{status.label}</Badge>
-                {isActive && (
-                  <span className="text-xs text-muted-foreground">
-                    {token.maxUses - token.usedCount} uses left
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                {isActive && (
-                  <>
-                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(token.token)}>
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => openInNewTab(token.token)}>
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteTokenMutation.mutate(token.id)}
-                  disabled={deletingTokenId === token.id}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
+  const renderTokenCard = (token: OnboardingToken) => {
+    const status = getTokenStatus(token);
+    const isActive = status.category === "active";
 
-            {/* Label */}
-            {token.label && (
-              <div className="mb-2">
-                <span className="text-sm font-medium text-gray-700">{token.label}</span>
-              </div>
-            )}
-
-            {/* Usage stats */}
-            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
-              <div className="flex items-center gap-1">
-                <Users className="h-3 w-3" />
-                <span>
-                  {token.usedCount}/{token.maxUses} used
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                <span>{formatTokenExpiry(token.expiresAt)}</span>
-              </div>
-            </div>
-
-            {/* Created date */}
-            <p className="text-xs text-muted-foreground">
-              Created {formatTokenCreatedAt(token.createdAt)} ago
-            </p>
-
-            {/* Token URL preview (for active tokens only) */}
-            {isActive && (
-              <div className="mt-2 p-2 bg-gray-50 rounded text-xs font-mono truncate">
-                {origin || ""}/onboard/{token.token}
-              </div>
-            )}
+    return (
+      <div
+        key={token.id}
+        className={cn(
+          "p-3 border rounded-lg transition-colors",
+          isActive ? "border-green-200 bg-green-50/50" : "border-gray-200",
+        )}
+      >
+        {/* Header with status */}
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex items-center gap-2">
+            <Badge variant={status.variant}>{status.label}</Badge>
+            {isActive && <span className="text-xs text-muted-foreground">Single use</span>}
           </div>
-        );
-      })}
+          <div className="flex items-center gap-1">
+            {isActive && (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(token.token)}>
+                  <Copy className="h-3 w-3" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => openInNewTab(token.token)}>
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => deleteTokenMutation.mutate(token.id)}
+              disabled={deletingTokenId === token.id}
+              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+            >
+              {deletingTokenId === token.id ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Label */}
+        {token.label && (
+          <div className="mb-2">
+            <span className="text-sm font-medium text-gray-700">{token.label}</span>
+          </div>
+        )}
+
+        {/* Usage stats */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
+          <div className="flex items-center gap-1">
+            <Users className="h-3 w-3" />
+            <span>{(Number(token.usedCount) || 0) > 0 ? "Used" : "Unused"}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            <span>{formatTokenExpiry(token.expiresAt)}</span>
+          </div>
+        </div>
+
+        {/* Created date */}
+        <p className="text-xs text-muted-foreground">
+          Created {formatTokenCreatedAt(token.createdAt)} ago
+        </p>
+
+        {/* Token URL preview (for active tokens only) */}
+        {isActive && (
+          <div className="mt-2 p-2 bg-gray-50 rounded text-xs font-mono truncate">
+            {origin || ""}/onboard/{token.token}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Active Tokens */}
+      {activeTokens.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              Active Links ({activeTokens.length})
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isLoading}
+              className="text-xs"
+            >
+              <RefreshCw className={`h-3 w-3 mr-1 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+          <div className="space-y-3">{activeTokens.map(renderTokenCard)}</div>
+        </div>
+      )}
+
+      {/* Used Tokens */}
+      {usedTokens.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            Used Links ({usedTokens.length})
+          </h3>
+          <div className="space-y-3">{usedTokens.map(renderTokenCard)}</div>
+        </div>
+      )}
+
+      {/* Expired Tokens */}
+      {expiredTokens.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+            Expired Links ({expiredTokens.length})
+          </h3>
+          <div className="space-y-3">{expiredTokens.map(renderTokenCard)}</div>
+        </div>
+      )}
+
+      {/* Disabled Tokens */}
+      {disabledTokens.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+            Disabled Links ({disabledTokens.length})
+          </h3>
+          <div className="space-y-3">{disabledTokens.map(renderTokenCard)}</div>
+        </div>
+      )}
 
       {/* Summary footer */}
       <div className="text-xs text-muted-foreground pt-2 border-t">
-        {tokens.length} total link{tokens.length === 1 ? "" : "s"} •{" "}
-        {tokens.filter((t) => getTokenStatus(t).label === "Active").length} active
+        {tokens.length} total link{tokens.length === 1 ? "" : "s"} • {activeTokens.length} active •{" "}
+        {usedTokens.length} used • {expiredTokens.length} expired
       </div>
     </div>
   );

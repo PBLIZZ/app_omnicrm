@@ -1,55 +1,36 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { logger } from "@/lib/observability";
-import { JobRunner } from "@/server/jobs/runner";
+import { NextResponse } from "next/server";
+import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { JobProcessingService } from "@/server/services/job-processing.service";
 
-export async function POST(_: NextRequest): Promise<NextResponse> {
-  let userId: string | undefined;
+/**
+ * POST /api/jobs/runner - Process user-specific jobs
+ */
+export const POST = createRouteHandler({
+  auth: true,
+  rateLimit: { operation: "job_runner_processing" },
+})(async ({ userId, requestId }) => {
   try {
-    userId = await getServerUserId();
+    const result = await JobProcessingService.processUserSpecificJobs(userId, requestId);
 
-    // Use the new JobRunner to process queued jobs
-    const jobRunner = new JobRunner();
-
-    // Process jobs for the authenticated user
-    const result = await jobRunner.processUserJobs(userId);
-
-    await logger.info("Job runner processing completed", {
-      operation: "job_runner.complete",
-      additionalData: {
-        userId,
+    return NextResponse.json({
+      ok: true,
+      data: {
+        message: `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
+        runner: "job_runner",
         processed: result.processed,
         succeeded: result.succeeded,
         failed: result.failed,
-        errorCount: result.errors.length,
+        errors: result.errors.length > 0 ? result.errors : undefined,
       },
     });
-
-    return NextResponse.json({
-      message: `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
-      runner: "job_runner",
-      processed: result.processed,
-      succeeded: result.succeeded,
-      failed: result.failed,
-      errors: result.errors.length > 0 ? result.errors : undefined,
-    });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    await logger.error(
-      "Simple job processing failed",
-      {
-        operation: "job_runner.simple_failed",
-        additionalData: {
-          userId,
-        },
-      },
-      error instanceof Error ? error : new Error(errorMessage),
-    );
-
-    // SECURITY: Don't expose internal error details to client
+  } catch {
     return NextResponse.json(
-      { error: "Job processing failed due to internal error" },
-      { status: 500 }
+      {
+        ok: false,
+        error: "Job processing failed due to internal error",
+        details: "The job runner encountered an unexpected error. Please try again or contact support.",
+      },
+      { status: 500 },
     );
   }
-}
+});

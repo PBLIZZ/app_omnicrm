@@ -1,46 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { handlePublic } from "@/lib/api-edge-cases";
 import { OnboardingTrackingService } from "@/server/services/onboarding-tracking.service";
+import {
+  TrackAccessRequestSchema,
+  TrackAccessResponseSchema,
+} from "@/server/db/business-schemas";
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
-  try {
-    // Parse and validate request body
-    const body = (await req.json()) as unknown;
-    const trackAccessData = OnboardingTrackingService.validateTrackAccessRequest(body);
-
+export const POST = handlePublic(
+  TrackAccessRequestSchema,
+  TrackAccessResponseSchema,
+  async (data, request) => {
     // Extract client IP data from headers
     const clientIpData = OnboardingTrackingService.extractClientIpData({
-      "x-forwarded-for": req.headers.get("x-forwarded-for"),
-      "x-real-ip": req.headers.get("x-real-ip"),
-      "user-agent": req.headers.get("user-agent"),
+      "x-forwarded-for": request.headers.get("x-forwarded-for"),
+      "x-real-ip": request.headers.get("x-real-ip"),
+      "user-agent": request.headers.get("user-agent"),
     });
 
     // Track access using service
-    const result = await OnboardingTrackingService.trackTokenAccess(trackAccessData, clientIpData);
+    const result = await OnboardingTrackingService.trackTokenAccess(data, clientIpData);
 
-    return NextResponse.json({
+    return {
       ok: true,
       message: result.message,
-    });
-  } catch (error) {
-    console.error("Track access error:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Invalid request data",
-        },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Internal server error",
-      },
-      { status: 500 },
-    );
+    };
   }
-}
+);

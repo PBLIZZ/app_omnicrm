@@ -28,7 +28,7 @@ import type {
   CreatedAtFilter,
   BulkDeleteBody,
   // Legacy Contact types for backward compatibility
-  ContactDTO,
+  Contact,
   ContactListResponse,
   CreateContactBody,
   UpdateContactBody,
@@ -36,7 +36,7 @@ import type {
   CreateContactInput,
   UpdateContactInput,
   FetchContactsParams,
-} from "@/lib/validation/schemas/omniClients";
+} from "@/server/db/business-schemas/omniClients";
 
 // Import additional types needed
 import type { ColumnDef } from "@tanstack/react-table";
@@ -61,7 +61,7 @@ export type {
   CreatedAtFilter,
   BulkDeleteBody,
   // Legacy Contact types for backward compatibility
-  ContactDTO,
+  Contact,
   ContactListResponse,
   CreateContactBody,
   UpdateContactBody,
@@ -72,7 +72,7 @@ export type {
 };
 
 // Re-export utility function
-export { toDateRange } from "@/lib/validation/schemas/omniClients";
+export { toDateRange } from "@/server/db/business-schemas/omniClients";
 
 // Re-export Zod schemas for validation
 export {
@@ -93,12 +93,12 @@ export {
   UpdateNoteSchema,
   CreatedAtFilterSchema,
   BulkDeleteBodySchema,
-  ContactDTOSchema,
+  ContactSchema,
   ContactListResponseSchema,
   CreateContactBodySchema,
   UpdateContactBodySchema,
   GetContactsQuerySchema,
-} from "@/lib/validation/schemas/omniClients";
+} from "@/server/db/business-schemas/omniClients";
 
 // --- Additional Validation Schemas for Components ---
 

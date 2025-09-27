@@ -1,73 +1,65 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
 import { OmniClientNotesService } from "@/server/services/omni-client-notes.service";
-import { logger } from "@/lib/observability";
+import {
+  GetNotesQuerySchema,
+  NotesListResponseSchema,
+  CreateNoteBodySchema,
+  CreatedNoteResponseSchema
+} from "@/server/db/business-schemas";
+import { z } from "zod";
+import { NextRequest } from "next/server";
 
 /**
- * OmniClient Notes endpoint
+ * OmniClient Notes API Routes
  *
- * GET: List all notes for a client
- * POST: Create a new note for a client
- * UI boundary transformation: presents "OmniClient" while using "contacts" backend
+ * Migrated to new auth pattern:
+ * ✅ handleGetWithQueryAuth for GET
+ * ✅ handleAuth for POST
+ * ✅ Zod validation and type safety
  */
 
-export async function GET(
-  _: NextRequest,
-  context: { params: { clientId: string } }
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-
-    // Get client notes using service
-    const result = await OmniClientNotesService.getClientNotes(userId, context.params.clientId);
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error("GET /api/omni-clients/[clientId]/notes error:", error);
-    await logger.error(
-      "Failed to fetch OmniClient notes",
-      {
-        operation: "api.omni_clients.notes.list",
-        additionalData: {
-          errorType: error instanceof Error ? error.constructor.name : typeof error,
-        },
-      },
-      error instanceof Error ? error : undefined,
-    );
-    return NextResponse.json({ error: "Failed to fetch client notes" }, { status: 500 });
-  }
+interface RouteParams {
+  params: {
+    clientId: string;
+  };
 }
 
+/**
+ * GET /api/omni-clients/[clientId]/notes - Get client notes
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: RouteParams
+) {
+  const handler = handleGetWithQueryAuth(
+    GetNotesQuerySchema,
+    NotesListResponseSchema,
+    async (query, userId) => {
+      return await OmniClientNotesService.getClientNotes(userId, params.clientId);
+    }
+  );
+
+  return handler(request);
+}
+
+/**
+ * POST /api/omni-clients/[clientId]/notes - Create client note
+ */
 export async function POST(
   request: NextRequest,
-  context: { params: { clientId: string } }
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+  { params }: RouteParams
+) {
+  const handler = handleAuth(
+    CreateNoteBodySchema,
+    CreatedNoteResponseSchema,
+    async (data, userId) => {
+      return await OmniClientNotesService.createClientNote(
+        userId,
+        params.clientId,
+        data,
+      );
+    }
+  );
 
-    // Parse request body
-    const body: unknown = await request.json();
-
-    // Create note using service
-    const newNote = await OmniClientNotesService.createClientNote(
-      userId,
-      context.params.clientId,
-      body,
-    );
-
-    return NextResponse.json(newNote, { status: 201 });
-  } catch (error) {
-    console.error("POST /api/omni-clients/[clientId]/notes error:", error);
-    await logger.error(
-      "Failed to create OmniClient note",
-      {
-        operation: "api.omni_clients.notes.create",
-        additionalData: {
-          errorType: error instanceof Error ? error.constructor.name : typeof error,
-        },
-      },
-      error instanceof Error ? error : undefined,
-    );
-    return NextResponse.json({ error: "Failed to create client note" }, { status: 500 });
-  }
+  return handler(request);
 }

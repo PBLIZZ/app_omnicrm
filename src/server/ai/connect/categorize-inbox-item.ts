@@ -1,7 +1,7 @@
 // New file for categorizing inbox items
 import { generateText } from "@/server/ai/core/llm.service";
 import { logger } from "@/lib/observability";
-import { InboxProcessingResultDTO, InboxProcessingContext } from "@contracts/inbox";
+import { InboxProcessingResultDTO, InboxProcessingContext } from "@/server/db/business-schemas";
 
 // Prompt function defined inline until separate file is created
 function buildCategorizeInboxItemPrompt(rawText: string, context: InboxProcessingContext) {

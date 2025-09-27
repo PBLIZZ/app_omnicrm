@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
 import { momentumService } from "@/server/services/momentum.service";
+import { TaskSchema } from "@/server/db/business-schemas";
+import { z } from "zod";
 
 /**
  * Task Approval API Route
@@ -10,31 +10,56 @@ import { momentumService } from "@/server/services/momentum.service";
  * This is part of the AI workflow where users review and approve suggested tasks
  */
 
-interface RouteParams {
-  params: Promise<{
-    taskId: string;
-  }>;
-}
-
-/**
- * POST /api/omni-momentum/tasks/[taskId]/approve - Approve an AI-generated task
- */
-export async function POST(_: NextRequest, context: RouteParams): Promise<NextResponse> {
+export const POST = async (req: Request, { params }: { params: { taskId: string } }) => {
   try {
+    // Lazy import to avoid circular dependencies
+    const { getServerUserId } = await import("@/server/auth/user");
+
     const userId = await getServerUserId();
-    const params = await context.params;
-    const { taskId } = params;
+
+    // Validate taskId from URL params
+    const taskId = z.string().uuid().parse(params.taskId);
 
     // Approve task using service
     const approvedTask = await momentumService.approveTask(taskId, userId);
 
     if (!approvedTask) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+      return new Response(JSON.stringify({ error: "Task not found" }), {
+        headers: { "content-type": "application/json" },
+        status: 404,
+      });
     }
 
-    return NextResponse.json(approvedTask);
+    // Validate response
+    const validated = TaskSchema.parse(approvedTask);
+
+    return new Response(JSON.stringify(validated), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
   } catch (error) {
-    console.error("Failed to approve task:", error);
-    return NextResponse.json({ error: "Failed to approve task" }, { status: 500 });
+    if (error instanceof z.ZodError) {
+      return new Response(
+        JSON.stringify({
+          error: "Validation failed",
+          details: error.issues,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 400,
+        },
+      );
+    }
+
+    // Handle auth errors
+    if (error instanceof Error && "status" in error && error.status === 401) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { "content-type": "application/json" },
+        status: 401,
+      });
+    }
+
+    // Re-throw unexpected errors to be handled by global error boundary
+    throw error;
   }
-}
+};

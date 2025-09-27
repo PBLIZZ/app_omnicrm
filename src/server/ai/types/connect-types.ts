@@ -1,7 +1,10 @@
 // Shared types for AI connect functionality
 
-// Re-export types from contracts for convenience
-export type { InboxProcessingResultDTO, InboxProcessingContext } from "@contracts/inbox";
+// Re-export types from business-schemas for convenience
+export type {
+  InboxProcessingResultDTO,
+  InboxProcessingContext,
+} from "@/server/db/business-schemas";
 
 export interface EmailClassification {
   primaryCategory: string;

@@ -1,7 +1,7 @@
 // src/server/services/contacts.service.ts
 // Unified contacts service using the unified repository pattern
 import { ContactsRepository } from "@repo";
-import type { ContactDTO, CreateContactDTO } from "@omnicrm/contracts";
+import type { Contact, CreateContact } from "@/server/db/business-schemas/business-schema";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 
@@ -33,7 +33,7 @@ export type CreateContactInput = {
 };
 
 // Enhanced type that includes the extra fields from omni-clients repo
-export type ContactListItem = ContactDTO & {
+export type ContactListItem = Contact & {
   notesCount: number;
   lastNote: string | null;
 };
@@ -133,12 +133,12 @@ export async function listContactsService(
   try {
     // Call repository and explicitly type the result
     const repoResult = (await ContactsRepository.listContacts(userId, repoParams)) as {
-      items: ContactDTO[];
+      items: Contact[];
       total: number;
     };
 
     // Ensure we have valid items array and total
-    const contactItems: ContactDTO[] = Array.isArray(repoResult.items) ? repoResult.items : [];
+    const contactItems: Contact[] = Array.isArray(repoResult.items) ? repoResult.items : [];
     const total: number = typeof repoResult.total === "number" ? repoResult.total : 0;
 
     // Get notes data for all contacts in a single query
@@ -184,7 +184,7 @@ export async function createContactService(
   userId: string,
   input: CreateContactInput,
 ): Promise<ContactListItem | null> {
-  const createData: CreateContactDTO = {
+  const createData: CreateContact = {
     displayName: input.displayName,
     primaryEmail: emptyToNull(input.primaryEmail),
     primaryPhone: emptyToNull(input.primaryPhone),
@@ -214,7 +214,7 @@ export async function createContactService(
 export async function getContactByIdService(
   userId: string,
   contactId: string,
-): Promise<ContactDTO | null> {
+): Promise<Contact | null> {
   return await ContactsRepository.getContactById(userId, contactId);
 }
 
@@ -225,7 +225,7 @@ export async function updateContactService(
   userId: string,
   contactId: string,
   updateData: Partial<CreateContactInput>,
-): Promise<ContactDTO | null> {
+): Promise<Contact | null> {
   return await ContactsRepository.updateContact(userId, contactId, updateData);
 }
 
@@ -242,7 +242,7 @@ export async function deleteContactService(userId: string, contactId: string): P
 export async function findContactByEmailService(
   userId: string,
   email: string,
-): Promise<ContactDTO | null> {
+): Promise<Contact | null> {
   return await ContactsRepository.findContactByEmail(userId, email);
 }
 

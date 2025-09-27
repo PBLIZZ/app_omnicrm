@@ -1,4 +1,4 @@
-import { DrivePreferencesSchema } from "@/lib/validation/schemas/sync";
+import { DrivePreferencesSchema } from "@/server/db/business-schema/sync";
 
 export interface DrivePreviewRequest {
   folderId?: string;

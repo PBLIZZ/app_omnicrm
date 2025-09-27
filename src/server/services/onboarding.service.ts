@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/types";
+import type { Database } from "@/server/db/business-schemas/business-schema";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
@@ -233,7 +233,10 @@ export class OnboardingService {
   /**
    * Prepare consent data with tracking information
    */
-  static prepareConsentData(consent: OnboardingSubmissionData["consent"], clientIpData: ClientIpData) {
+  static prepareConsentData(
+    consent: OnboardingSubmissionData["consent"],
+    clientIpData: ClientIpData,
+  ) {
     return {
       ...consent,
       ip_address: clientIpData.ip,
@@ -248,7 +251,7 @@ export class OnboardingService {
     token: string,
     clientData: ReturnType<typeof OnboardingService.prepareClientData>,
     consentData: ReturnType<typeof OnboardingService.prepareConsentData>,
-    photoPath?: string
+    photoPath?: string,
   ): Promise<string> {
     const supabase = createClient<Database>(
       getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
@@ -301,7 +304,7 @@ export class OnboardingService {
    */
   static async processOnboardingSubmission(
     submissionData: OnboardingSubmissionData,
-    clientIpData: ClientIpData
+    clientIpData: ClientIpData,
   ): Promise<{ contactId: string; message: string }> {
     const { token, client, consent, photo_path } = submissionData;
 

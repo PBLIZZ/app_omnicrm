@@ -11,16 +11,16 @@ import {
   fromOmniClientInput
 } from "@/server/adapters/omniClients";
 
-export interface GetContactSuggestionsResult {
+export type GetContactSuggestionsResult = {
   ok: true;
   data: ContactSuggestion[];
 } | {
   ok: false;
   error: string;
   status: number;
-}
+};
 
-export interface CreateContactsFromSuggestionsResult {
+export type CreateContactsFromSuggestionsResult = {
   ok: true;
   data: {
     success: boolean;
@@ -32,7 +32,7 @@ export interface CreateContactsFromSuggestionsResult {
   ok: false;
   error: string;
   status: number;
-}
+};
 
 export interface ListOmniClientsParams {
   page?: number;

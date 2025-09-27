@@ -1,7 +1,7 @@
 // Database query service for AI assistant
 import { ContactsRepository } from "packages/repo/src/contacts.repo";
 import { NotesRepository } from "packages/repo/src/notes.repo";
-import type { ContactDTO } from "@omnicrm/contracts";
+import type { Contact } from "@/server/db/business-schemas/business-schema";
 
 // Specific result data types
 export interface ContactsSummaryData {
@@ -48,7 +48,7 @@ export interface FilterContactsData {
 
 export interface ContactDetailsData {
   message: string;
-  contact?: ContactDTO;
+  contact?: Contact;
 }
 
 export interface ContactNamesData {

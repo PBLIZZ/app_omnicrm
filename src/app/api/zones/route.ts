@@ -1,5 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { handleGetWithQueryAuth } from "@/lib/api";
 import { ZonesRepository } from "@repo";
+import {
+  ZonesQuerySchema,
+  ZonesListResponseSchema,
+  ZonesWithStatsResponseSchema,
+} from "@/server/db/business-schemas";
 
 /**
  * Zones API - List zones and get zones with statistics
@@ -8,34 +13,27 @@ import { ZonesRepository } from "@repo";
  * Zone creation/modification is an admin function not exposed here.
  */
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  try {
-    const { searchParams } = new URL(request.url);
-
-    // Parse query parameters
-    const withStats = searchParams.get("withStats") === "true";
+export const GET = handleGetWithQueryAuth(
+  ZonesQuerySchema,
+  ZonesListResponseSchema.or(ZonesWithStatsResponseSchema),
+  async (query, _userId) => {
+    const { withStats } = query;
 
     if (withStats) {
       const zones = await ZonesRepository.getZonesWithStats();
-      return NextResponse.json({
+      return {
         items: zones,
         total: zones.length,
-      });
+      };
     } else {
       const zones = await ZonesRepository.listZones();
-      return NextResponse.json({
+      return {
         items: zones,
         total: zones.length,
-      });
+      };
     }
-  } catch (error) {
-    console.error("Failed to fetch zones:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch zones" },
-      { status: 500 }
-    );
   }
-}
+);
 
 // Zone creation is an admin function - would be in /api/admin/zones/route.ts
 // Not implementing POST here as zones are predefined for wellness practitioners

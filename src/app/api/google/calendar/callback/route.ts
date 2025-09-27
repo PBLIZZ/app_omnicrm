@@ -1,51 +1,60 @@
 /** GET /api/google/calendar/callback — handle Calendar OAuth redirect (auth required). Errors: 400 invalid_state|missing_code_or_state, 401 Unauthorized */
-import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleAuthFlow } from "@/lib/api-edge-cases";
 import { GoogleOAuthService } from "@/server/services/google-oauth.service";
-import { z } from "zod";
+import { CalendarOAuthQuerySchema } from "@/server/db/business-schemas/business-schema";
 
-const QuerySchema = z.object({
-  code: z.string(),
-  state: z.string(),
-});
+export const GET = handleAuthFlow(CalendarOAuthQuerySchema, async (query, request) => {
+  // OAuth flows need to extract userId manually since they handle their own auth
+  const { getServerUserId } = await import("@/server/auth/user");
+  const userId = await getServerUserId();
 
-export const GET = createRouteHandler({
-  auth: true,
-  validation: {
-    query: QuerySchema,
-  },
-  rateLimit: { operation: "google_calendar_callback" },
-})(async ({ userId, validated: { query } }, req: NextRequest) => {
   const { code, state } = query;
 
-  const cookieValue = req.cookies.get("calendar_auth")?.value ?? "";
+  if (!code || !state) {
+    const errorUrl = new URL("/omni-rhythm?error=missing_code_or_state", request.url);
+    return Response.redirect(errorUrl.toString(), 302);
+  }
+
+  // Extract cookie value from request
+  const cookies = request.headers.get("cookie");
+  const cookieValue = cookies?.match(/calendar_auth=([^;]+)/)?.[1] ?? "";
+
   if (!cookieValue) {
-    return NextResponse.json({ error: "Invalid state parameter" }, { status: 400 });
+    const errorUrl = new URL("/omni-rhythm?error=invalid_state", request.url);
+    return Response.redirect(errorUrl.toString(), 302);
   }
 
   const result = await GoogleOAuthService.handleOAuthCallback(
     userId,
     "calendar",
     { code, state, cookieValue },
-    req.url,
+    request.url,
   );
 
   if (!result.success) {
     // Clear nonce cookie even on error
-    const errorResponse = NextResponse.redirect(
-      new URL(`/omni-rhythm?error=${encodeURIComponent(result.error)}`, req.url),
-    );
+    const errorUrl = new URL(`/omni-rhythm?error=${encodeURIComponent(result.error)}`, request.url);
+    const response = Response.redirect(errorUrl.toString(), 302);
     const cookieConfig = GoogleOAuthService.clearOAuthCookie("calendar");
-    errorResponse.cookies.set(cookieConfig.name, "", cookieConfig.options);
-    return errorResponse;
+    response.headers.set(
+      "Set-Cookie",
+      `${cookieConfig.name}=; ${Object.entries(cookieConfig.options)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("; ")}`,
+    );
+    return response;
   }
 
   // Clear nonce cookie and redirect to Omni Rhythm for post-connect sync setup
-  const response = NextResponse.redirect(
-    new URL("/omni-rhythm?connected=true&step=calendar-sync", req.url),
-  );
+  const successUrl = new URL("/omni-rhythm?connected=true&step=calendar-sync", request.url);
+  const response = Response.redirect(successUrl.toString(), 302);
   const cookieConfig = GoogleOAuthService.clearOAuthCookie("calendar");
-  response.cookies.set(cookieConfig.name, "", cookieConfig.options);
+  response.headers.set(
+    "Set-Cookie",
+    `${cookieConfig.name}=; ${Object.entries(cookieConfig.options)
+      .map(([k, v]) => `${k}=${v}`)
+      .join("; ")}`,
+  );
 
   return response;
 });

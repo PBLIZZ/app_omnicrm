@@ -1,13 +1,44 @@
 import { eq, and, desc, gte, lte } from "drizzle-orm";
-import { calendarEvents } from "./schema";
+import { calendarEvents } from "../../../src/server/db/schema";
 import { getDb } from "./db";
-import type {
-  CalendarEventDTO,
-  CreateCalendarEventDTO,
-  UpdateCalendarEventDTO,
-  CalendarEventFilters
-} from "@omnicrm/contracts";
-import { CalendarEventDTOSchema } from "@omnicrm/contracts";
+import type { InsertCalendarEvent } from "../../../src/server/db/business-schemas";
+
+// Raw database types (without computed fields)
+type RawCalendarEvent = {
+  id: string;
+  userId: string;
+  googleEventId: string;
+  title: string;
+  description: string | null;
+  startTime: Date;
+  endTime: Date;
+  attendees: unknown;
+  location: string | null;
+  status: string | null;
+  timeZone: string | null;
+  isAllDay: boolean | null;
+  visibility: string | null;
+  eventType: string | null;
+  businessCategory: string | null;
+  keywords: unknown;
+  googleUpdated: Date | null;
+  lastSynced: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+// Local type aliases for repository layer
+type CalendarEventDTO = RawCalendarEvent;
+type CreateCalendarEventDTO = InsertCalendarEvent;
+type UpdateCalendarEventDTO = Partial<InsertCalendarEvent>;
+
+interface CalendarEventFilters {
+  fromDate?: Date;
+  toDate?: Date;
+  eventType?: string;
+  businessCategory?: string;
+  status?: string;
+}
 
 export class CalendarEventsRepository {
   /**
@@ -15,7 +46,7 @@ export class CalendarEventsRepository {
    */
   static async listCalendarEvents(
     userId: string,
-    filters?: CalendarEventFilters
+    filters?: CalendarEventFilters,
   ): Promise<CalendarEventDTO[]> {
     const db = await getDb();
 
@@ -71,14 +102,16 @@ export class CalendarEventsRepository {
 
     const rows = await query;
 
-    // Validate and transform DB rows to DTOs
-    return rows.map(row => CalendarEventDTOSchema.parse(row));
+    return rows.map((row) => row);
   }
 
   /**
    * Get a single calendar event by ID
    */
-  static async getCalendarEventById(userId: string, eventId: string): Promise<CalendarEventDTO | null> {
+  static async getCalendarEventById(
+    userId: string,
+    eventId: string,
+  ): Promise<CalendarEventDTO | null> {
     const db = await getDb();
 
     const rows = await db
@@ -112,7 +145,7 @@ export class CalendarEventsRepository {
       return null;
     }
 
-    return CalendarEventDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -120,7 +153,7 @@ export class CalendarEventsRepository {
    */
   static async getCalendarEventByGoogleId(
     userId: string,
-    googleEventId: string
+    googleEventId: string,
   ): Promise<CalendarEventDTO | null> {
     const db = await getDb();
 
@@ -148,46 +181,51 @@ export class CalendarEventsRepository {
         updatedAt: calendarEvents.updatedAt,
       })
       .from(calendarEvents)
-      .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.googleEventId, googleEventId)))
+      .where(
+        and(eq(calendarEvents.userId, userId), eq(calendarEvents.googleEventId, googleEventId)),
+      )
       .limit(1);
 
     if (rows.length === 0) {
       return null;
     }
 
-    return CalendarEventDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
    * Create a new calendar event
    */
-  static async createCalendarEvent(userId: string, data: CreateCalendarEventDTO): Promise<CalendarEventDTO> {
+  static async createCalendarEvent(
+    userId: string,
+    data: CreateCalendarEventDTO,
+  ): Promise<CalendarEventDTO> {
     const db = await getDb();
 
     const [newEvent] = await db
       .insert(calendarEvents)
       .values({
         userId: userId,
-        googleEventId: data.googleEventId,
+        googleEventId: data.google_event_id,
         title: data.title,
         description: data.description ?? null,
-        startTime: data.startTime,
-        endTime: data.endTime,
+        startTime: new Date(data.start_time),
+        endTime: new Date(data.end_time),
         attendees: data.attendees ?? null,
         location: data.location ?? null,
         status: data.status ?? null,
-        timeZone: data.timeZone ?? null,
-        isAllDay: data.isAllDay ?? null,
+        timeZone: data.time_zone ?? null,
+        isAllDay: data.is_all_day ?? null,
         visibility: data.visibility ?? null,
-        eventType: data.eventType ?? null,
-        businessCategory: data.businessCategory ?? null,
+        eventType: data.event_type ?? null,
+        businessCategory: data.business_category ?? null,
         keywords: data.keywords ?? null,
-        googleUpdated: data.googleUpdated ?? null,
+        googleUpdated: data.google_updated ? new Date(data.google_updated) : null,
         lastSynced: new Date(),
       })
       .returning();
 
-    return CalendarEventDTOSchema.parse(newEvent);
+    return newEvent;
   }
 
   /**
@@ -196,7 +234,7 @@ export class CalendarEventsRepository {
   static async updateCalendarEvent(
     userId: string,
     eventId: string,
-    data: UpdateCalendarEventDTO
+    data: UpdateCalendarEventDTO,
   ): Promise<CalendarEventDTO | null> {
     const db = await getDb();
 
@@ -205,18 +243,22 @@ export class CalendarEventsRepository {
       updatedAt: new Date(),
       ...(data.title !== undefined && { title: data.title }),
       ...(data.description !== undefined && { description: data.description ?? null }),
-      ...(data.startTime !== undefined && { startTime: data.startTime }),
-      ...(data.endTime !== undefined && { endTime: data.endTime }),
+      ...(data.start_time !== undefined && { startTime: new Date(data.start_time) }),
+      ...(data.end_time !== undefined && { endTime: new Date(data.end_time) }),
       ...(data.attendees !== undefined && { attendees: data.attendees ?? null }),
       ...(data.location !== undefined && { location: data.location ?? null }),
       ...(data.status !== undefined && { status: data.status ?? null }),
-      ...(data.timeZone !== undefined && { timeZone: data.timeZone ?? null }),
-      ...(data.isAllDay !== undefined && { isAllDay: data.isAllDay ?? null }),
+      ...(data.time_zone !== undefined && { timeZone: data.time_zone ?? null }),
+      ...(data.is_all_day !== undefined && { isAllDay: data.is_all_day ?? null }),
       ...(data.visibility !== undefined && { visibility: data.visibility ?? null }),
-      ...(data.eventType !== undefined && { eventType: data.eventType ?? null }),
-      ...(data.businessCategory !== undefined && { businessCategory: data.businessCategory ?? null }),
+      ...(data.event_type !== undefined && { eventType: data.event_type ?? null }),
+      ...(data.business_category !== undefined && {
+        businessCategory: data.business_category ?? null,
+      }),
       ...(data.keywords !== undefined && { keywords: data.keywords ?? null }),
-      ...(data.googleUpdated !== undefined && { googleUpdated: data.googleUpdated ?? null }),
+      ...(data.google_updated !== undefined && {
+        googleUpdated: data.google_updated ? new Date(data.google_updated) : null,
+      }),
     };
 
     const [updatedEvent] = await db
@@ -229,7 +271,7 @@ export class CalendarEventsRepository {
       return null;
     }
 
-    return CalendarEventDTOSchema.parse(updatedEvent);
+    return updatedEvent;
   }
 
   /**
@@ -248,12 +290,15 @@ export class CalendarEventsRepository {
   /**
    * Bulk upsert calendar events (for sync operations)
    */
-  static async upsertCalendarEvents(userId: string, data: CreateCalendarEventDTO[]): Promise<CalendarEventDTO[]> {
+  static async upsertCalendarEvents(
+    userId: string,
+    data: CreateCalendarEventDTO[],
+  ): Promise<CalendarEventDTO[]> {
     const results: CalendarEventDTO[] = [];
 
     for (const eventData of data) {
       // Check if event exists by googleEventId
-      const existing = await this.getCalendarEventByGoogleId(userId, eventData.googleEventId);
+      const existing = await this.getCalendarEventByGoogleId(userId, eventData.google_event_id);
 
       if (existing) {
         // Update existing event
@@ -277,7 +322,7 @@ export class CalendarEventsRepository {
   static async getEventsInDateRange(
     userId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Promise<CalendarEventDTO[]> {
     const db = await getDb();
 
@@ -309,11 +354,11 @@ export class CalendarEventsRepository {
         and(
           eq(calendarEvents.userId, userId),
           gte(calendarEvents.startTime, startDate),
-          lte(calendarEvents.startTime, endDate)
-        )
+          lte(calendarEvents.startTime, endDate),
+        ),
       )
       .orderBy(calendarEvents.startTime);
 
-    return rows.map(row => CalendarEventDTOSchema.parse(row));
+    return rows.map((row) => row);
   }
 }

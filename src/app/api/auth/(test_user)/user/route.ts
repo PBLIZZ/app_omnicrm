@@ -1,24 +1,29 @@
 /** GET /api/auth/user — get current authenticated user data */
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleGet } from "@/lib/api";
+import { z } from "zod";
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "auth_user" },
-})(async ({ userId }) => {
-  try {
+const UserResponseSchema = z.object({
+  id: z.string(),
+  email: z.string().nullable(),
+  user_metadata: z.record(z.unknown()).optional(),
+  created_at: z.string(),
+});
+
+export const GET = handleGet(
+  UserResponseSchema,
+  async (): Promise<z.infer<typeof UserResponseSchema>> => {
     // For E2E mode, return minimal user data
     if (process.env["NODE_ENV"] !== "production" && process.env["E2E_USER_ID"]) {
-      return NextResponse.json({
-        id: userId,
+      return {
+        id: process.env["E2E_USER_ID"],
         email: "test-e2e@example.com",
         user_metadata: {
           name: "E2E Test User",
         },
         created_at: new Date().toISOString(),
-      });
+      };
     }
 
     // For real auth, get full user data from Supabase
@@ -27,7 +32,7 @@ export const GET = createRouteHandler({
     const supabasePublishableKey = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"];
 
     if (!supabaseUrl || !supabasePublishableKey) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+      throw new Error("Server misconfigured");
     }
 
     const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
@@ -52,22 +57,15 @@ export const GET = createRouteHandler({
     const { data, error } = await supabase.auth.getUser();
 
     if (error || !data?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      throw new Error("Unauthorized");
     }
 
     // Return user data (safe to expose to client)
-    return NextResponse.json({
+    return {
       id: data.user.id,
       email: data.user.email,
       user_metadata: data.user.user_metadata,
       created_at: data.user.created_at,
-    });
-  } catch (error: unknown) {
-    const status =
-      typeof (error as { status?: number }).status === "number"
-        ? (error as { status: number }).status
-        : 401;
-    const message = error instanceof Error ? error.message : "Unauthorized";
-    return NextResponse.json({ error: message }, { status });
+    };
   }
-});
+);

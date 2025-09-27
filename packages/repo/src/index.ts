@@ -11,11 +11,12 @@ export { MomentumRepository, momentumRepository } from "./momentum.repo";
 export { UserIntegrationsRepository } from "./user-integrations.repo";
 export { SyncSessionsRepository } from "./sync-sessions.repo";
 export { RawEventsRepository } from "./raw-events.repo";
+export type { RawEventListParams, RawEventListItem } from "./raw-events.repo";
 export { JobsRepository } from "./jobs.repo";
 
 // OmniMomentum Repository classes
 export { InboxRepository } from "./inbox.repo";
 export { ZonesRepository } from "./zones.repo";
 
-// Re-export all contract types for convenience
-export * from "@omnicrm/contracts";
+// Re-export database schema types for convenience
+export * from "@/server/db/schema";

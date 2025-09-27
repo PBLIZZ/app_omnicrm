@@ -76,7 +76,99 @@ export default [
     },
   },
 
-  // 3) API routes: NextResponse allowed universally (no restrictions)
+  // 3) API routes: Enforce new standardized patterns, ban legacy patterns
+  {
+    files: ["src/app/api/**/route.{ts,tsx}"],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        project: path.join(__dirname, "tsconfig.json"),
+        tsconfigRootDir: __dirname,
+      },
+    },
+    rules: {
+      // Ban legacy patterns and enforce standardized API handlers
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/server",
+              importNames: ["NextResponse", "NextRequest"],
+              message: "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of NextResponse/NextRequest. See migration guide in memories."
+            }
+          ],
+          patterns: [
+            {
+              group: ["@omnicrm/contracts", "@omnicrm/contracts/**"],
+              message: "Removed. Use '@/server/db/business-schemas' for validation schemas."
+            },
+            {
+              group: ["@/lib/validation/schemas", "@/lib/validation/schemas/**"],
+              message: "Removed. Use '@/server/db/business-schemas' for validation schemas."
+            },
+            {
+              group: ["**/packages/contracts/**"],
+              message: "Removed. Use '@/server/db/business-schemas' for validation schemas."
+            },
+            {
+              group: ["@/server/utils/api-helpers", "@/server/utils/api-helpers/**"],
+              message: "Legacy API helpers removed. Use '@/lib/api' or '@/lib/api-edge-cases' handlers."
+            },
+            {
+              group: ["@/lib/api-client", "@/lib/api-client/**"],
+              message: "Legacy API client removed. Use '@/lib/api' handlers."
+            },
+            {
+              group: ["@/lib/api-request", "@/lib/api-request/**"],
+              message: "Legacy API request removed. Use '@/lib/api' handlers."
+            }
+          ]
+        }
+      ],
+
+      // Ban legacy syntax patterns
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.object.name='NextResponse'][callee.property.name='json']",
+          message: "Use standardized API handlers (handle, handleAuth, handleGetWithQueryAuth) from '@/lib/api' instead of NextResponse.json(). This ensures consistent error handling and validation."
+        },
+        {
+          selector: "FunctionDeclaration[params.0.typeAnnotation.typeAnnotation.typeName.name='NextRequest']",
+          message: "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of manual NextRequest handling. This ensures type safety and consistent patterns."
+        },
+        {
+          selector: "ArrowFunctionExpression[params.0.typeAnnotation.typeAnnotation.typeName.name='NextRequest']",
+          message: "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of manual NextRequest handling."
+        },
+        {
+          selector: "NewExpression[callee.name='Response']",
+          message: "Use standardized API handlers from '@/lib/api' that return proper Response objects with consistent error handling."
+        }
+      ],
+
+      // Require proper imports for API routes
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "NextResponse",
+          message: "Import standardized handlers from '@/lib/api' or '@/lib/api-edge-cases' instead."
+        }
+      ],
+
+      // Ensure API routes use proper patterns
+      "@typescript-eslint/explicit-function-return-type": [
+        "error", 
+        { 
+          allowExpressions: false,
+          allowTypedFunctionExpressions: false,
+          allowHigherOrderFunctions: true,
+          allowConciseArrowFunctionExpressionsStartingWithVoid: false 
+        }
+      ],
+    }
+  },
 
   // 4) Tests: explicitly turn off unsafe rules that mocks trigger
   {

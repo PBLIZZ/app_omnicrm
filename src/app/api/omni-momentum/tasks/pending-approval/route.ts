@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleGetWithQueryAuth } from "@/lib/api";
 import { momentumService } from "@/server/services/momentum.service";
+import { z } from "zod";
 
 /**
  * Pending Approval Tasks API Route
@@ -11,20 +11,26 @@ import { momentumService } from "@/server/services/momentum.service";
  * but users must approve them before they become active
  */
 
-/**
- * GET /api/omni-momentum/tasks/pending-approval - Get AI-generated tasks awaiting approval
- */
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "pending_approval_tasks" },
-})(async ({ userId }) => {
-  try {
-    const pendingTasks = await momentumService.getPendingApprovalTasks(userId);
-    return NextResponse.json(pendingTasks);
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to retrieve pending approval tasks" },
-      { status: 500 },
-    );
-  }
+const PendingTasksResponseSchema = z.object({
+  tasks: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string().nullable(),
+      priority: z.enum(["low", "medium", "high", "urgent"]),
+      status: z.string(),
+      createdAt: z.string(),
+      aiGenerated: z.boolean().optional(),
+    }),
+  ),
+  total: z.number(),
 });
+
+export const GET = handleGetWithQueryAuth(
+  z.object({}), // No query parameters needed
+  PendingTasksResponseSchema,
+  async (query, userId): Promise<z.infer<typeof PendingTasksResponseSchema>> => {
+    const pendingTasks = await momentumService.getPendingApprovalTasks(userId);
+    return pendingTasks;
+  },
+);

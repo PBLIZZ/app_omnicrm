@@ -11,17 +11,14 @@
  * - Job processing metrics
  * - Server-side caching to prevent UI flickering
  */
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGetWithQueryAuth } from "@/lib/api";
+import { GoogleStatusQuerySchema, GoogleStatusResponseSchema } from "@/server/db/business-schemas";
 import { GoogleIntegrationService } from "@/server/services/google-integration.service";
 
-export async function GET(_request: NextRequest): Promise<NextResponse> {
+export const GET = handleGetWithQueryAuth(GoogleStatusQuerySchema, GoogleStatusResponseSchema, async (query, userId) => {
   try {
-    const userId = await getServerUserId();
-    const status = await GoogleIntegrationService.getGoogleStatus(userId);
-    return NextResponse.json(status);
+    return await GoogleIntegrationService.getGoogleStatus(userId);
   } catch (error: unknown) {
-    console.error("GET /api/google/status error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
     // Classify error types for better user experience
@@ -38,13 +35,6 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
       errorCode = "UNKNOWN_ERROR";
     }
 
-    return NextResponse.json({
-      error: "Failed to get Google status",
-      code: errorCode,
-      timestamp: new Date().toISOString(),
-      operation: "google_status_check",
-      recoverable: errorCode !== "DATABASE_ERROR",
-      retryable: ["NETWORK_ERROR", "QUOTA_ERROR"].includes(errorCode),
-    }, { status: 500 });
+    throw new Error(`Failed to get Google status: ${errorCode} - ${errorMessage}`);
   }
-}
+});

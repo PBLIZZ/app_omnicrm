@@ -1,13 +1,11 @@
 import { eq, and, ilike, desc, asc, inArray, sql, count } from "drizzle-orm";
-import { contacts, notes } from "@/server/db/schema";
-import { getDb } from "@/server/db/client";
-import type {
-  ContactDTO,
-  CreateContactDTO,
-  UpdateContactDTO,
-  ContactWithNotesDTO,
-} from "@omnicrm/contracts";
-import { ContactDTOSchema, ContactWithNotesDTOSchema } from "@omnicrm/contracts";
+import { contacts, notes, type Contact, type CreateContact, type Note } from "./schema";
+import { getDb } from "./db";
+
+export type ContactDTO = Contact;
+export type CreateContactDTO = CreateContact;
+export type UpdateContactDTO = Partial<CreateContact> & { id: string };
+export type ContactWithNotesDTO = Contact & { notes: Note[] };
 
 export class ContactsRepository {
   /**
@@ -55,20 +53,7 @@ export class ContactsRepository {
     const orderByClause = sortDir(sortColumnMap[sortKey] ?? contacts.updatedAt);
 
     const query = db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        photoUrl: contacts.photoUrl,
-        source: contacts.source,
-        lifecycleStage: contacts.lifecycleStage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(...conditions))
       .orderBy(orderByClause)
@@ -77,8 +62,8 @@ export class ContactsRepository {
 
     const rows = await query;
 
-    // Validate and transform DB rows to DTOs
-    const items = rows.map((row) => ContactDTOSchema.parse(row));
+    // Transform DB rows to DTOs
+    const items = rows;
 
     return { items, total };
   }
@@ -90,20 +75,7 @@ export class ContactsRepository {
     const db = await getDb();
 
     const rows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        photoUrl: contacts.photoUrl,
-        source: contacts.source,
-        lifecycleStage: contacts.lifecycleStage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
       .limit(1);
@@ -112,7 +84,7 @@ export class ContactsRepository {
       return null;
     }
 
-    return ContactDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -126,20 +98,7 @@ export class ContactsRepository {
 
     // Get contact
     const contactRows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        photoUrl: contacts.photoUrl,
-        source: contacts.source,
-        lifecycleStage: contacts.lifecycleStage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
       .limit(1);
@@ -150,15 +109,7 @@ export class ContactsRepository {
 
     // Get associated notes
     const noteRows = await db
-      .select({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      })
+      .select()
       .from(notes)
       .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)))
       .orderBy(desc(notes.createdAt));
@@ -168,7 +119,7 @@ export class ContactsRepository {
       notes: noteRows,
     };
 
-    return ContactWithNotesDTOSchema.parse(contactWithNotes);
+    return contactWithNotes;
   }
 
   /**
@@ -190,22 +141,9 @@ export class ContactsRepository {
       confidenceScore: data.confidenceScore ?? null,
     };
 
-    const [newContact] = await db.insert(contacts).values(insertValues).returning({
-      id: contacts.id,
-      userId: contacts.userId,
-      displayName: contacts.displayName,
-      primaryEmail: contacts.primaryEmail,
-      primaryPhone: contacts.primaryPhone,
-      photoUrl: contacts.photoUrl,
-      source: contacts.source,
-      lifecycleStage: contacts.lifecycleStage,
-      tags: contacts.tags,
-      confidenceScore: contacts.confidenceScore,
-      createdAt: contacts.createdAt,
-      updatedAt: contacts.updatedAt,
-    });
+    const [newContact] = await db.insert(contacts).values(insertValues).returning();
 
-    return ContactDTOSchema.parse(newContact);
+    return newContact;
   }
 
   /**
@@ -235,26 +173,13 @@ export class ContactsRepository {
       .update(contacts)
       .set(updateValues)
       .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
-      .returning({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        photoUrl: contacts.photoUrl,
-        source: contacts.source,
-        lifecycleStage: contacts.lifecycleStage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      });
+      .returning();
 
     if (!updatedContact) {
       return null;
     }
 
-    return ContactDTOSchema.parse(updatedContact);
+    return updatedContact;
   }
 
   /**
@@ -277,20 +202,7 @@ export class ContactsRepository {
     const db = await getDb();
 
     const rows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        photoUrl: contacts.photoUrl,
-        source: contacts.source,
-        lifecycleStage: contacts.lifecycleStage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(eq(contacts.userId, userId), eq(contacts.primaryEmail, email)))
       .limit(1);
@@ -299,7 +211,7 @@ export class ContactsRepository {
       return null;
     }
 
-    return ContactDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -313,24 +225,11 @@ export class ContactsRepository {
     const db = await getDb();
 
     const rows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        photoUrl: contacts.photoUrl,
-        source: contacts.source,
-        lifecycleStage: contacts.lifecycleStage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(eq(contacts.userId, userId), inArray(contacts.id, contactIds)));
 
-    return rows.map((row) => ContactDTOSchema.parse(row));
+    return rows;
   }
 
   /**

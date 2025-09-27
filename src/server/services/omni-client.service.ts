@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ContactsRepository } from "@repo";
-import type { UpdateContactDTO } from "@contracts/contact";
-import { UpdateOmniClientSchema } from "@/lib/validation/schemas/omniClients";
+import type { UpdateContact } from "@/server/db/business-schemas";
+import { UpdateOmniClientSchema } from "@/server/db/business-schemas/omniClients";
 import { toOmniClient } from "@/server/adapters/omniClients";
 
 // --- helpers ---
@@ -38,7 +38,7 @@ export interface OmniClientUpdateData {
 
 export interface OmniClientValidationResult {
   valid: boolean;
-  updates: UpdateContactDTO;
+  updates: UpdateContact;
   errors?: string[];
   providedFields?: string[];
   allowedFields?: string[];
@@ -149,7 +149,7 @@ export class OmniClientService {
   private static validateUpdateData(
     validatedBody: Record<string, unknown>,
   ): OmniClientValidationResult {
-    const updates: UpdateContactDTO = {};
+    const updates: UpdateContact = {};
 
     if (validatedBody["displayName"] !== undefined) {
       updates.displayName = validatedBody["displayName"] as string;
@@ -174,7 +174,7 @@ export class OmniClientService {
             errors: [stageValidation.error!],
           };
         }
-        updates.lifecycleStage = stageValidation.stage as UpdateContactDTO["lifecycleStage"];
+        updates.lifecycleStage = stageValidation.stage as UpdateContact["lifecycleStage"];
       }
     }
 

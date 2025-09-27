@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleAuth } from "@/lib/api";
 import { InboxService } from "@/server/services/inbox.service";
-import { ProcessInboxItemDTOSchema, type ProcessInboxItemDTO } from "@omnicrm/contracts";
+import {
+  ProcessInboxItemSchema,
+  InboxProcessResultResponseSchema,
+} from "@/server/db/business-schemas";
 
 /**
  * Inbox Processing API - AI-powered categorization of inbox items
@@ -12,38 +13,37 @@ import { ProcessInboxItemDTOSchema, type ProcessInboxItemDTO } from "@omnicrm/co
  * suggested zones, priorities, and project assignments.
  */
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "inbox_ai_process" },
-  validation: {
-    body: ProcessInboxItemDTOSchema as unknown as z.ZodSchema,
-  },
-})(async ({ userId, validated }) => {
-  try {
-    const processData = validated.body as ProcessInboxItemDTO;
-    const result = await InboxService.processInboxItem(userId, processData);
-    return NextResponse.json({ result });
-  } catch (error) {
-    console.error("Failed to process inbox item with AI:", error);
+export const POST = handleAuth(
+  ProcessInboxItemSchema,
+  InboxProcessResultResponseSchema,
+  async (processData, userId) => {
+    try {
+      const result = await InboxService.processInboxItem(userId, processData);
+      return { result };
+    } catch (error) {
+      // Handle specific error types with proper error messages
+      if (error instanceof Error) {
+        if (error.message.includes("not found")) {
+          const notFoundError = new Error("Inbox item not found");
+          (notFoundError as any).status = 404;
+          throw notFoundError;
+        }
 
-    // Handle specific error types
-    if (error instanceof Error) {
-      if (error.message.includes("not found")) {
-        return NextResponse.json({ error: "Inbox item not found" }, { status: 404 });
+        if (error.message.includes("OpenRouter not configured")) {
+          const serviceError = new Error("AI processing is not available");
+          (serviceError as any).status = 503;
+          throw serviceError;
+        }
+
+        if (error.message.includes("AI categorization failed")) {
+          const serviceError = new Error("AI processing temporarily unavailable");
+          (serviceError as any).status = 503;
+          throw serviceError;
+        }
       }
 
-      if (error.message.includes("OpenRouter not configured")) {
-        return NextResponse.json({ error: "AI processing is not available" }, { status: 503 });
-      }
-
-      if (error.message.includes("AI categorization failed")) {
-        return NextResponse.json(
-          { error: "AI processing temporarily unavailable" },
-          { status: 503 },
-        );
-      }
+      // Re-throw the original error for other cases
+      throw error;
     }
-
-    return NextResponse.json({ error: "Failed to process inbox item" }, { status: 500 });
   }
-});
+);

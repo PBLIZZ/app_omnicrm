@@ -1,5 +1,5 @@
 import { NotesRepository } from "@repo";
-import { CreateNoteSchema } from "@/lib/validation/schemas/omniClients";
+import { CreateNoteSchema } from "@/server/db/business-schemas/omniClients";
 import { z } from "zod";
 
 export interface CreateNoteRequest {

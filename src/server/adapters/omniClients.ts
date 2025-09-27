@@ -2,13 +2,13 @@
 // Transforms backend Contact objects to UI-friendly OmniClient objects
 // Keeps backend as "contacts", presents "OmniClients" to the frontend
 
-import type { Contact } from "@/server/db/types";
+import type { Contact as DbContact } from "@/server/db/types";
 import type {
-  ContactDTO,
+  Contact,
   ContactWithNotesDTO,
-  CreateContactDTO,
-  UpdateContactDTO,
-} from "@omnicrm/contracts";
+  CreateContact,
+  UpdateContact,
+} from "@/server/db/business-schemas/business-schema";
 import { isValidSource, isValidStage, normalizeTags } from "@/lib/utils/validation-helpers";
 
 function normalizeTagsOrNull(tags: unknown): string[] | null {
@@ -17,10 +17,10 @@ function normalizeTagsOrNull(tags: unknown): string[] | null {
 }
 
 // Re-export unified types for backward compatibility
-export type OmniClient = ContactDTO;
+export type OmniClient = Contact;
 export type OmniClientWithNotes = ContactWithNotesDTO;
-export type OmniClientInput = CreateContactDTO;
-export type OmniClientUpdate = UpdateContactDTO;
+export type OmniClientInput = CreateContact;
+export type OmniClientUpdate = UpdateContact;
 
 type ContactWithOptionalNotes<T> = T & {
   notesCount?: number;
@@ -36,17 +36,17 @@ type ContactWithOptionalNotes<T> = T & {
   }>;
 };
 
-type ContactInput = ContactWithOptionalNotes<Contact | ContactDTO>;
+type ContactInput = ContactWithOptionalNotes<Contact | DbContact>;
 
-function isDatabaseContact(contact: ContactInput): contact is ContactWithOptionalNotes<Contact> {
+function isDatabaseContact(contact: ContactInput): contact is ContactWithOptionalNotes<DbContact> {
   return "display_name" in contact;
 }
 
-function ensureValidSource(value: unknown): ContactDTO["source"] {
+function ensureValidSource(value: unknown): Contact["source"] {
   return isValidSource(value) ? value : "manual";
 }
 
-function ensureValidStage(value: unknown): ContactDTO["lifecycleStage"] {
+function ensureValidStage(value: unknown): Contact["lifecycleStage"] {
   return isValidStage(value) ? value : null;
 }
 
@@ -74,8 +74,8 @@ function coerceCreatedAndUpdated(contact: ContactInput): { createdAt: Date; upda
   return { createdAt, updatedAt };
 }
 
-// Transform Contact to ContactDTO
-export function toContactDTO(contact: ContactInput): ContactDTO {
+// Transform Contact to Contact
+export function toContact(contact: ContactInput): Contact {
   const { createdAt, updatedAt } = coerceCreatedAndUpdated(contact);
 
   if (isDatabaseContact(contact)) {
@@ -127,7 +127,7 @@ export function toContactWithNotesDTO(
     }>;
   },
 ): ContactWithNotesDTO {
-  const baseContact = toContactDTO(contact);
+  const baseContact = toContact(contact);
 
   const notes = contact.notes ?? [];
 
@@ -145,8 +145,8 @@ export function toContactWithNotesDTO(
   };
 }
 
-// Transform CreateContactDTO to database Contact input (matches service interface)
-export function fromCreateContactDTO(input: CreateContactDTO): {
+// Transform CreateContact to database Contact input (matches service interface)
+export function fromCreateContact(input: CreateContact): {
   displayName: string;
   primaryEmail?: string | null;
   primaryPhone?: string | null;
@@ -175,8 +175,8 @@ export function fromCreateContactDTO(input: CreateContactDTO): {
 }
 
 // Transform arrays of contacts
-export function toContactDTOs(contacts: Contact[]): ContactDTO[] {
-  return contacts.map(toContactDTO);
+export function toContacts(contacts: Contact[]): Contact[] {
+  return contacts.map(toContact);
 }
 
 export function toContactWithNotesDTOs<
@@ -196,11 +196,11 @@ export function toContactWithNotesDTOs<
 }
 
 // Backward compatibility aliases
-export const toOmniClient = toContactDTO;
+export const toOmniClient = toContact;
 export const toOmniClientWithNotes = toContactWithNotesDTO;
-export const toOmniClients = toContactDTOs;
+export const toOmniClients = toContacts;
 export const toOmniClientsWithNotes = toContactWithNotesDTOs;
-export const fromOmniClientInput = fromCreateContactDTO;
+export const fromOmniClientInput = fromCreateContact;
 
 // Response envelope types (deprecated - use unified types)
 export interface OmniClientsListResponse {
@@ -210,5 +210,5 @@ export interface OmniClientsListResponse {
 }
 
 export interface OmniClientResponse {
-  item: ContactDTO;
+  item: Contact;
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getServerUserId } from "@/server/auth/user";
-import { type ContactDTO } from "@omnicrm/contracts";
+import { type Contact } from "@/server/db/business-schemas/business-schema";
 import { ClientDetailPageWithNavigation } from "./_components/ClientDetailPageWithNavigation";
 import { ContactsRepository } from "@repo";
 
@@ -12,7 +12,7 @@ interface ClientDetailProps {
 /**
  * Fetch client data by ID
  */
-async function getClientById(userId: string, clientId: string): Promise<ContactDTO> {
+async function getClientById(userId: string, clientId: string): Promise<Contact> {
   const contact = await ContactsRepository.getContactById(userId, clientId);
 
   if (!contact) {

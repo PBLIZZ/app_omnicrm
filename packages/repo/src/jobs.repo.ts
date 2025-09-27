@@ -2,10 +2,13 @@ import { eq, and, desc, inArray, count, sql } from "drizzle-orm";
 import { jobs } from "./schema";
 import { getDb } from "./db";
 import type {
-  JobDTO,
-  CreateJobDTO,
-} from "@omnicrm/contracts";
-import { JobDTOSchema } from "@omnicrm/contracts";
+  Job,
+  CreateJob
+} from "./schema";
+
+// Local type aliases for repository layer
+type JobDTO = Job;
+type CreateJobDTO = CreateJob;
 
 export class JobsRepository {
   /**
@@ -40,7 +43,7 @@ export class JobsRepository {
         updatedAt: jobs.updatedAt,
       });
 
-    return JobDTOSchema.parse(newJob);
+    return newJob;
   }
 
   /**
@@ -70,7 +73,7 @@ export class JobsRepository {
       return null;
     }
 
-    return JobDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -122,7 +125,7 @@ export class JobsRepository {
       .limit(limit)
       .offset(offset);
 
-    return rows.map(row => JobDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -211,7 +214,7 @@ export class JobsRepository {
       .orderBy(jobs.createdAt)
       .limit(limit);
 
-    return rows.map(row => JobDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -243,7 +246,7 @@ export class JobsRepository {
       .orderBy(desc(jobs.updatedAt))
       .limit(limit);
 
-    return rows.map(row => JobDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -288,7 +291,7 @@ export class JobsRepository {
       return null;
     }
 
-    return JobDTOSchema.parse(updatedJob);
+    return updatedJob;
   }
 
   /**
@@ -356,7 +359,7 @@ export class JobsRepository {
         )
       );
 
-    return rows.map(row => JobDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -397,6 +400,6 @@ export class JobsRepository {
         updatedAt: jobs.updatedAt,
       });
 
-    return newJobs.map(job => JobDTOSchema.parse(job));
+    return newJobs.map(job => job);
   }
 }

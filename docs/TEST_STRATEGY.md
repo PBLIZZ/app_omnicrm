@@ -36,15 +36,15 @@
 
 ## Critical Test Suites
 
-### 1. Handler System (`src/server/api/handler.ts`)
+### 1. Typed API Boundary Pattern (`src/lib/api.ts`)
 
 ```typescript
 // Priority: HIGH (Tier C design, Tier B implementation)
-- Auth wrapper with getServerUserId mocking
-- Rate limiting with operation-based limits
-- Validation wrapper with Zod schemas
-- Cache wrapper behavior
-- createRouteHandler composition
+- handleAuth wrapper with authentication validation
+- handleGetWithQueryAuth with query parameter validation
+- Input/output schema validation with Zod
+- Error handling and proper HTTP status codes
+- Type safety throughout the request/response cycle
 ```
 
 ### 2. Adapters (`src/server/adapters/`)

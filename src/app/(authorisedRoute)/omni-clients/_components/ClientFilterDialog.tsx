@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Filter } from "lucide-react";
 import { CLIENT_STAGES } from "@/constants/clientStages";
-import type { ClientSearchFilters } from "@/lib/validation/schemas/omniClients";
+import type { ClientSearchFilters } from "@/server/db/business-schemas/omniClients";
 
 interface ClientFilterDialogProps {
   isOpen: boolean;
@@ -41,7 +41,7 @@ export function ClientFilterDialog({
     const newStages = checked
       ? [...currentStages, stage]
       : currentStages.filter((s: string) => s !== stage);
-    
+
     setLocalFilters({
       ...localFilters,
       stage: newStages.length > 0 ? newStages : undefined,
@@ -53,14 +53,17 @@ export function ClientFilterDialog({
     const newSources = checked
       ? [...currentSources, source]
       : currentSources.filter((s: string) => s !== source);
-    
+
     setLocalFilters({
       ...localFilters,
       source: newSources.length > 0 ? newSources : undefined,
     });
   };
 
-  const handleDataPresenceChange = (field: keyof Pick<ClientSearchFilters, 'hasNotes' | 'hasInteractions'>, checked: boolean) => {
+  const handleDataPresenceChange = (
+    field: keyof Pick<ClientSearchFilters, "hasNotes" | "hasInteractions">,
+    checked: boolean,
+  ) => {
     setLocalFilters({
       ...localFilters,
       [field]: checked || undefined,
@@ -160,7 +163,9 @@ export function ClientFilterDialog({
                 <Checkbox
                   id="has-notes"
                   checked={localFilters.hasNotes ?? false}
-                  onCheckedChange={(checked) => handleDataPresenceChange('hasNotes', checked as boolean)}
+                  onCheckedChange={(checked) =>
+                    handleDataPresenceChange("hasNotes", checked as boolean)
+                  }
                 />
                 <Label htmlFor="has-notes" className="text-sm">
                   Has Notes
@@ -170,7 +175,9 @@ export function ClientFilterDialog({
                 <Checkbox
                   id="has-interactions"
                   checked={localFilters.hasInteractions ?? false}
-                  onCheckedChange={(checked) => handleDataPresenceChange('hasInteractions', checked as boolean)}
+                  onCheckedChange={(checked) =>
+                    handleDataPresenceChange("hasInteractions", checked as boolean)
+                  }
                 />
                 <Label htmlFor="has-interactions" className="text-sm">
                   Has Interactions

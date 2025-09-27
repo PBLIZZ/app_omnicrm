@@ -12,7 +12,7 @@ export interface SyncCalendarRequest {
   maxResults: number;
 }
 
-export interface SyncCalendarResult {
+export type SyncCalendarResult = {
   ok: true;
   data: {
     message: string;
@@ -28,7 +28,7 @@ export interface SyncCalendarResult {
   ok: false;
   error: string;
   status: number;
-}
+};
 
 export class GoogleCalendarSyncService {
   /**

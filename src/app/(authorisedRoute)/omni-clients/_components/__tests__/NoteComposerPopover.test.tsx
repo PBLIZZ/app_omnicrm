@@ -4,7 +4,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NoteComposerPopover } from "../NoteComposerPopover";
 import { renderWithProviders, mockToast } from "../../../../../__tests__/test-utils";
-import { setupRepoMocks, resetRepoMocks, makeNoteDTO, testUtils, type AllRepoFakes } from "@packages/testing";
+import { setupRepoMocks, resetRepoMocks, makeNote, testUtils, type AllRepoFakes } from "@packages/testing";
 
 // Mock the API client - still needed for component API calls
 vi.mock("@/lib/api/client", () => ({
@@ -156,7 +156,7 @@ describe("NoteComposerPopover", () => {
   describe("Note Submission", () => {
     it("submits note successfully", async () => {
       // Use factory for consistent test data
-      const mockNote = makeNoteDTO({
+      const mockNote = makeNote({
         id: "note-1",
         content: "[User] Test note",
         contactId: "client-1",
@@ -184,7 +184,7 @@ describe("NoteComposerPopover", () => {
     });
 
     it("submits note with Enter key", async () => {
-      const mockNote = makeNoteDTO({
+      const mockNote = makeNote({
         id: "note-1",
         content: "[User] Test note",
         contactId: "client-1",
@@ -245,7 +245,7 @@ describe("NoteComposerPopover", () => {
     });
 
     it("clears form and closes popover after successful submission", async () => {
-      const mockNote = makeNoteDTO({
+      const mockNote = makeNote({
         id: "note-1",
         content: "[User] Test note",
         contactId: "client-1",
@@ -274,7 +274,7 @@ describe("NoteComposerPopover", () => {
     });
 
     it("dispatches notesUpdated event after successful submission", async () => {
-      const mockNote = makeNoteDTO({
+      const mockNote = makeNote({
         id: "note-1",
         content: "[User] Test note",
         contactId: "client-1",

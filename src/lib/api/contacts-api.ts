@@ -1,19 +1,19 @@
 // Client-side contact API for HTTP interactions
 //
 // Features:
-// - Uses unified types from @omnicrm/contracts
+// - Uses unified types from @/server/db/business-schemas
 // - Descriptive function names with 'api' prefix
 // - Proper error handling with CSRF protection
 // - HTTP client calls only, no business logic
 
 import type {
-  ContactDTO,
-  CreateContactDTO,
-  UpdateContactDTO,
+  Contact,
+  CreateContact,
+  UpdateContact,
   PaginatedResponse,
   PaginationParams,
   ContactFilters,
-} from "@omnicrm/contracts";
+} from "@/server/db/business-schemas";
 import { get, post, put, buildUrl } from "@/lib/api/client";
 import { logger } from "@/lib/observability";
 
@@ -31,13 +31,13 @@ export interface ApiFetchContactsParams extends PaginationParams, ContactFilters
   };
 }
 
-export interface ApiContactsListResponse extends PaginatedResponse<ContactDTO> {
+export interface ApiContactsListResponse extends PaginatedResponse<Contact> {
   total: number;
-  items: ContactDTO[];
+  items: Contact[];
 }
 
 export interface ApiContactResponse {
-  item: ContactDTO;
+  item: Contact;
 }
 
 export interface ApiBulkDeleteResponse {
@@ -98,7 +98,7 @@ export async function apiFetchContacts(
 /**
  * Create a new contact
  */
-export async function apiCreateContact(input: CreateContactDTO): Promise<ContactDTO> {
+export async function apiCreateContact(input: CreateContact): Promise<Contact> {
   const result = await post<ApiContactResponse>("/api/omni-clients", {
     ...input,
     source: input.source ?? "manual",
@@ -109,7 +109,7 @@ export async function apiCreateContact(input: CreateContactDTO): Promise<Contact
 /**
  * Update an existing contact
  */
-export async function apiUpdateContact(id: string, input: UpdateContactDTO): Promise<ContactDTO> {
+export async function apiUpdateContact(id: string, input: UpdateContact): Promise<Contact> {
   const result = await put<ApiContactResponse>(`/api/omni-clients/${id}`, input);
   return result.item;
 }
@@ -125,7 +125,7 @@ export async function apiDeleteContacts(ids: string[]): Promise<number> {
 /**
  * Fetch a single contact by ID
  */
-export async function apiFetchContact(id: string): Promise<ContactDTO> {
+export async function apiFetchContact(id: string): Promise<Contact> {
   const result = await get<ApiContactResponse>(`/api/omni-clients/${id}`);
   return result.item;
 }

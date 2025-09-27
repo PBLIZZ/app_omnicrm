@@ -10,16 +10,16 @@ import { InboxRepository, ZonesRepository } from "@repo";
 import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
 import { logger } from "@/lib/observability";
 import type {
-  InboxItemDTO,
-  CreateInboxItemDTO,
-  UpdateInboxItemDTO,
+  InboxItem,
+  CreateInboxItem,
+  UpdateInboxItem,
   InboxProcessingResultDTO,
-  ProcessInboxItemDTO,
+  ProcessInboxItem,
   BulkProcessInboxDTO,
   VoiceInboxCaptureDTO,
   InboxFilters,
   ZoneDTO,
-} from "@omnicrm/contracts";
+} from "@/server/db/business-schemas/business-schema";
 import { categorizeInboxItem } from "@/server/ai/connect/categorize-inbox-item";
 
 // AI Processing Types
@@ -99,7 +99,7 @@ export class InboxService {
   /**
    * Quick capture - Create a new inbox item
    */
-  static async quickCapture(userId: string, data: CreateInboxItemDTO): Promise<InboxItemDTO> {
+  static async quickCapture(userId: string, data: CreateInboxItem): Promise<InboxItem> {
     try {
       const item = await InboxRepository.createInboxItem({
         ...data,
@@ -128,7 +128,7 @@ export class InboxService {
   /**
    * Voice capture with transcription
    */
-  static async voiceCapture(userId: string, data: VoiceInboxCaptureDTO): Promise<InboxItemDTO> {
+  static async voiceCapture(userId: string, data: VoiceInboxCaptureDTO): Promise<InboxItem> {
     try {
       const item = await InboxRepository.createInboxItem({
         rawText: data.transcription,
@@ -159,7 +159,7 @@ export class InboxService {
   /**
    * List inbox items with filtering
    */
-  static async listInboxItems(userId: string, filters?: InboxFilters): Promise<InboxItemDTO[]> {
+  static async listInboxItems(userId: string, filters?: InboxFilters): Promise<InboxItem[]> {
     return await InboxRepository.listInboxItems(userId, filters);
   }
 
@@ -193,7 +193,7 @@ export class InboxService {
    */
   static async processInboxItem(
     userId: string,
-    data: ProcessInboxItemDTO,
+    data: ProcessInboxItem,
   ): Promise<InboxProcessingResultDTO> {
     assertOpenRouterConfigured();
 
@@ -255,7 +255,7 @@ export class InboxService {
     userId: string,
     data: BulkProcessInboxDTO,
   ): Promise<{
-    processed: InboxItemDTO[];
+    processed: InboxItem[];
     results?: InboxProcessingResultDTO[];
   }> {
     try {
@@ -342,7 +342,7 @@ export class InboxService {
     userId: string,
     itemId: string,
     createdTaskId?: string,
-  ): Promise<InboxItemDTO | null> {
+  ): Promise<InboxItem | null> {
     return await InboxRepository.markAsProcessed(userId, itemId, createdTaskId);
   }
 
@@ -356,7 +356,7 @@ export class InboxService {
   /**
    * Get single inbox item
    */
-  static async getInboxItem(userId: string, itemId: string): Promise<InboxItemDTO | null> {
+  static async getInboxItem(userId: string, itemId: string): Promise<InboxItem | null> {
     return await InboxRepository.getInboxItemById(userId, itemId);
   }
 
@@ -366,8 +366,8 @@ export class InboxService {
   static async updateInboxItem(
     userId: string,
     itemId: string,
-    data: UpdateInboxItemDTO,
-  ): Promise<InboxItemDTO | null> {
+    data: UpdateInboxItem,
+  ): Promise<InboxItem | null> {
     return await InboxRepository.updateInboxItem(userId, itemId, data);
   }
 }

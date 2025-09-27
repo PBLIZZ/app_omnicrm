@@ -6,17 +6,22 @@
  * - /api/google/calendar/status (CONSOLIDATED)
  * - /api/jobs/status
  */
-import { NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGetWithQueryAuth } from "@/lib/api";
 import { OmniConnectDashboardService } from "@/server/services/omni-connect-dashboard.service";
+import {
+  DashboardQuerySchema,
+  DashboardResponseSchema,
+  type DashboardResponse
+} from "@/server/db/business-schemas";
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+export const GET = handleGetWithQueryAuth(
+  DashboardQuerySchema,
+  DashboardResponseSchema,
+  async (query, userId): Promise<DashboardResponse> => {
     const dashboardState = await OmniConnectDashboardService.getDashboardState(userId);
-    return NextResponse.json(dashboardState);
-  } catch (error) {
-    console.error("Failed to load dashboard data:", error);
-    return NextResponse.json({ error: "Failed to load dashboard data" }, { status: 500 });
-  }
-}
+    return {
+      ...dashboardState,
+      timestamp: new Date().toISOString(),
+    };
+  },
+);

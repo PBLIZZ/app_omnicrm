@@ -10,16 +10,17 @@
  * - Replace calls to /api/google/gmail/status with /api/google/status
  * - Access Gmail data via response.services.gmail instead of root level
  */
-import { NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGetWithQueryAuth } from "@/lib/api";
+import { OAuthStartQuerySchema, GmailStatusResponseSchema } from "@/server/db/business-schemas";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+export const GET = handleGetWithQueryAuth(
+  OAuthStartQuerySchema,
+  GmailStatusResponseSchema,
+  async (_query, userId) => {
     const db = await getDb();
 
     // Check if user has Gmail integration (check both gmail-specific and unified)
@@ -52,10 +53,10 @@ export async function GET(): Promise<NextResponse> {
     const integration = unifiedIntegration[0] ?? gmailIntegration[0];
 
     if (!integration) {
-      return NextResponse.json({
+      return {
         isConnected: false,
-        reason: "no_integration",
-      });
+        reason: "no_integration" as const,
+      };
     }
 
     // Check if token is expired
@@ -85,14 +86,14 @@ export async function GET(): Promise<NextResponse> {
           const stillExpired =
             refreshedIntegration[0].expiryDate && refreshedIntegration[0].expiryDate < now;
 
-          return NextResponse.json({
+          return {
             isConnected: !stillExpired,
-            reason: stillExpired ? "token_expired" : "connected",
+            reason: stillExpired ? ("token_expired" as const) : ("connected" as const),
             expiryDate: refreshedIntegration[0].expiryDate?.toISOString() ?? null,
             hasRefreshToken: !!refreshedIntegration[0].refreshToken,
             autoRefreshed: !stillExpired, // Indicate that auto-refresh was attempted
             service: integration.service,
-          });
+          };
         }
       } catch (refreshError) {
         // If refresh fails, fall back to showing expired status
@@ -100,18 +101,12 @@ export async function GET(): Promise<NextResponse> {
       }
     }
 
-    return NextResponse.json({
+    return {
       isConnected: !isExpired,
-      reason: isExpired ? "token_expired" : "connected",
+      reason: isExpired ? ("token_expired" as const) : ("connected" as const),
       expiryDate: integration.expiryDate?.toISOString() ?? null,
       hasRefreshToken: !!integration.refreshToken,
       service: integration.service, // Indicate which integration type is being used
-    });
-  } catch (error) {
-    console.error("Failed to check Gmail status:", error);
-    return NextResponse.json(
-      { error: "Failed to check Gmail status" },
-      { status: 500 }
-    );
-  }
-}
+    };
+  },
+);

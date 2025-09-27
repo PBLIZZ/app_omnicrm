@@ -8,37 +8,21 @@
  * - Data freshness indicators for UI components
  * - Health monitoring and stuck job detection
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleGetWithQueryAuth } from "@/lib/api";
 import { JobStatusService } from "@/server/services/job-status.service";
-import { ComprehensiveJobStatusDTOSchema } from "@omnicrm/contracts";
-import { z } from "zod";
+import { JobStatusQuerySchema, ComprehensiveJobStatusDTOSchema } from "@/server/db/business-schemas";
 
-const jobStatusQuerySchema = z.object({
-  includeHistory: z.coerce.boolean().optional().default(false),
-  includeFreshness: z.coerce.boolean().optional().default(true),
-  batchId: z.string().optional(), // For tracking specific sync session jobs
-});
+export const GET = handleGetWithQueryAuth(JobStatusQuerySchema, ComprehensiveJobStatusDTOSchema, async (query, userId) => {
+  const { includeHistory, includeFreshness, batchId } = query;
 
-export const GET = createRouteHandler({
-  auth: true,
-  validation: { query: jobStatusQuerySchema },
-})(async ({ userId, validated }) => {
   try {
-    const { includeHistory, includeFreshness, batchId } = validated.query;
     const result = await JobStatusService.getComprehensiveJobStatus(userId, {
       includeHistory,
       includeFreshness,
       ...(batchId !== undefined && { batchId }),
     });
 
-    // Validate response with schema
-    const validatedResult = ComprehensiveJobStatusDTOSchema.parse(result);
-
-    return NextResponse.json({
-      ok: true,
-      data: validatedResult,
-    });
+    return result;
   } catch (error) {
     // Return safe, empty state so UI doesn't break
     const emptyState = {
@@ -76,14 +60,6 @@ export const GET = createRouteHandler({
       timestamp: new Date().toISOString(),
     };
 
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Failed to fetch job status",
-        details: "Job status temporarily unavailable",
-        fallback: emptyState,
-      },
-      { status: 503 },
-    );
+    return emptyState;
   }
 });

@@ -10,22 +10,14 @@ import {
   Button,
   Textarea,
 } from "@/components/ui";
-import {
-  Zap,
-  Mic,
-  Send,
-  Sparkles,
-  Plus,
-} from "lucide-react";
+import { Zap, Mic, Send, Sparkles, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 // ✅ Following DTO/Repository architecture - hooks use repository pattern internally
 import { useInbox, useInboxStats } from "@/hooks/use-inbox";
 import { useZones } from "@/hooks/use-zones";
 import { TodaysFocusSection } from "./TodaysFocusSection";
 // ✅ Using validated DTO from @omnicrm/contracts package (Phase 5-6 DTO Migration)
-import type {
-  CreateInboxItemDTO,
-} from "@omnicrm/contracts";
+import type { CreateInboxItem } from "@/server/db/business-schemas/business-schema";
 
 /**
  * QuickCaptureInput - The "Dump Everything" Interface
@@ -55,7 +47,7 @@ function QuickCaptureInput(): JSX.Element {
       setIsProcessing(true);
 
       // ✅ Runtime validation via DTO schema ensures type safety (Phase 5-6 DTO Migration)
-      const data: CreateInboxItemDTO = {
+      const data: CreateInboxItem = {
         rawText: rawText.trim(),
       };
 
@@ -151,7 +143,6 @@ function QuickCaptureInput(): JSX.Element {
   );
 }
 
-
 /**
  * Inbox Stats - Simple overview without overwhelming detail
  */
@@ -235,9 +226,7 @@ export function OmniMomentumPage(): JSX.Element {
             <Plus className="w-5 h-5 text-indigo-500" />
             Your Wellness Zones
           </CardTitle>
-          <CardDescription>
-            Organize your practice across life-business areas
-          </CardDescription>
+          <CardDescription>Organize your practice across life-business areas</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -253,12 +242,8 @@ export function OmniMomentumPage(): JSX.Element {
                       style={{ backgroundColor: zone.color || "#6366f1" }}
                     />
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-medium text-sm text-gray-900 truncate">
-                        {zone.name}
-                      </h3>
-                      <p className="text-xs text-gray-500">
-                        Coming soon
-                      </p>
+                      <h3 className="font-medium text-sm text-gray-900 truncate">{zone.name}</h3>
+                      <p className="text-xs text-gray-500">Coming soon</p>
                     </div>
                   </div>
                 </CardContent>

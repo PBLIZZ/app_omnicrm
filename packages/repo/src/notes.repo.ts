@@ -2,11 +2,14 @@ import { eq, and, desc, ilike } from "drizzle-orm";
 import { notes } from "./schema";
 import { getDb } from "./db";
 import type {
-  NoteDTO,
-  CreateNoteDTO,
-  UpdateNoteDTO
-} from "@omnicrm/contracts";
-import { NoteDTOSchema } from "@omnicrm/contracts";
+  Note,
+  CreateNote
+} from "./schema";
+
+// Local type aliases for repository layer
+type NoteDTO = Note;
+type CreateNoteDTO = CreateNote;
+type UpdateNoteDTO = Partial<CreateNote>;
 
 
 export class NotesRepository {
@@ -39,8 +42,7 @@ export class NotesRepository {
 
     const rows = await query;
 
-    // Validate and transform DB rows to DTOs
-    return rows.map(row => NoteDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -67,7 +69,7 @@ export class NotesRepository {
       return null;
     }
 
-    return NoteDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -90,7 +92,7 @@ export class NotesRepository {
       .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)))
       .orderBy(desc(notes.createdAt));
 
-    return rows.map(row => NoteDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -118,7 +120,7 @@ export class NotesRepository {
       )
       .orderBy(desc(notes.createdAt));
 
-    return rows.map(row => NoteDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -145,7 +147,7 @@ export class NotesRepository {
         updatedAt: notes.updatedAt,
       });
 
-    return NoteDTOSchema.parse(newNote);
+    return newNote;
   }
 
   /**
@@ -183,7 +185,7 @@ export class NotesRepository {
       return null;
     }
 
-    return NoteDTOSchema.parse(updatedNote);
+    return updatedNote;
   }
 
   /**
@@ -223,6 +225,6 @@ export class NotesRepository {
         updatedAt: notes.updatedAt,
       });
 
-    return newNotes.map(row => NoteDTOSchema.parse(row));
+    return newNotes.map(row => row);
   }
 }

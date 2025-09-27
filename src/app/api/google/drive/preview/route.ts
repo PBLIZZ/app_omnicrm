@@ -5,34 +5,31 @@
  * Currently scaffolded for future implementation - Drive sync is not yet implemented.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleAuth } from "@/lib/api";
 import { DrivePreviewService } from "@/server/services/drive-preview.service";
+import { z } from "zod";
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+const DrivePreviewRequestSchema = z.object({
+  folderId: z.string().optional(),
+  includeSubfolders: z.boolean().optional().default(true),
+});
 
-    // Parse request body
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
-    }
+const DrivePreviewResponseSchema = z.object({
+  error: z.string().optional(),
+  fileCount: z.number().optional(),
+  totalSize: z.number().optional(),
+  timestamp: z.string(),
+});
 
+export const POST = handleAuth(
+  DrivePreviewRequestSchema,
+  DrivePreviewResponseSchema,
+  async (data, userId): Promise<z.infer<typeof DrivePreviewResponseSchema>> => {
     // Generate preview using service (currently scaffolded)
-    const preview = await DrivePreviewService.generateDrivePreview(userId, body);
-
-    return NextResponse.json(preview);
-  } catch (error) {
-    console.error("POST /api/google/drive/preview error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-
-    if (errorMessage === "Drive integration coming soon") {
-      return NextResponse.json({ error: "Drive integration coming soon" }, { status: 500 });
-    }
-
-    return NextResponse.json({ error: "Failed to preview Drive sync" }, { status: 500 });
+    const preview = await DrivePreviewService.generateDrivePreview(userId, data);
+    return {
+      ...preview,
+      timestamp: new Date().toISOString(),
+    };
   }
-}
+);

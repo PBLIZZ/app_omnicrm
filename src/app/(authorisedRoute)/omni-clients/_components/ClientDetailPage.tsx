@@ -45,7 +45,7 @@ import {
 import {
   type ClientAIInsightsResponse,
   type OmniClientWithNotesDTO,
-} from "@/lib/validation/schemas/omniClients";
+} from "@/server/db/business-schemas/omniClients";
 
 interface ClientDetailPageProps {
   clientId: string;

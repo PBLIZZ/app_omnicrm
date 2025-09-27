@@ -1,7 +1,7 @@
 // Main orchestrator for contact insights
 
 import { logger } from "@/lib/observability";
-import { getUserContext } from "@/server/repositories/auth-user.repo";
+import { getUserContext } from "packages/repo/src/auth-user.repo";
 import { getContactData } from "./utils/contact-utils";
 import { getDb } from "@/server/db/client";
 import { contacts, notes } from "@/server/db/schema";

@@ -1,21 +1,17 @@
 /** POST /api/test/gmail-ingest — simple Gmail ingestion test (auth required). */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleAuth } from "@/lib/api";
 import { GmailIngestionService } from "@/server/services/gmail-ingestion.service";
-import { GmailIngestionResultDTOSchema } from "@omnicrm/contracts";
+import { GmailIngestionResultDTOSchema } from "@/server/db/business-schemas/business-schema";
+import {
+  GmailIngestTestInputSchema,
+  type GmailIngestTestInput
+} from "@/server/db/business-schemas";
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "gmail_ingest_test" },
-})(async ({ userId }) => {
-  try {
+export const POST = handleAuth(
+  GmailIngestTestInputSchema,
+  GmailIngestionResultDTOSchema,
+  async (_data: GmailIngestTestInput, userId) => {
     const result = await GmailIngestionService.testGmailIngestion(userId);
-
-    // Validate response with schema
-    const validatedResult = GmailIngestionResultDTOSchema.parse(result);
-
-    return NextResponse.json(validatedResult);
-  } catch {
-    return NextResponse.json({ error: "Gmail ingest failed" }, { status: 500 });
-  }
-});
+    return result;
+  },
+);

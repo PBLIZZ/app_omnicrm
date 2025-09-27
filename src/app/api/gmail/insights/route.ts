@@ -3,30 +3,19 @@
  *
  * Provides AI-generated insights and patterns from Gmail data
  */
-import { NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGetWithQueryAuth } from "@/lib/api";
 import { GmailInsightsService } from "@/server/services/gmail-insights.service";
-import { ApiEnvelope } from "@/lib/utils/type-guards";
+import {
+  GmailInsightsQuerySchema,
+  GmailInsightsResponseSchema,
+  type GmailInsightsResponse
+} from "@/server/db/business-schemas";
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+export const GET = handleGetWithQueryAuth(
+  GmailInsightsQuerySchema,
+  GmailInsightsResponseSchema,
+  async (query, userId): Promise<GmailInsightsResponse> => {
     const insights = await GmailInsightsService.generateInsights(userId);
-
-    const envelope: ApiEnvelope<{ insights: typeof insights }> = { ok: true, data: { insights } };
-    return NextResponse.json(envelope);
-
-  } catch (error: unknown) {
-    console.error("GET /api/gmail/insights error:", error);
-
-    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-
-    if (errorMessage.includes("unauthorized") || errorMessage.includes("auth")) {
-      const envelope: ApiEnvelope = { ok: false, error: "Authentication required" };
-      return NextResponse.json(envelope, { status: 401 });
-    }
-
-    const envelope: ApiEnvelope = { ok: false, error: "Failed to generate insights" };
-    return NextResponse.json(envelope, { status: 500 });
-  }
-}
+    return { insights };
+  },
+);

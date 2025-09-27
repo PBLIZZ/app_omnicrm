@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle, XCircle, Clock, X } from "lucide-react";
 import { SyncProgressIndicator } from "./SyncProgressIndicator";
 import { SyncResultsSummary } from "./SyncResultsSummary";
 import { NavigationBlocker } from "./NavigationBlocker";
-import { get, delete } from "@/lib/api";
+import { get, delete as deleteApi } from "@/lib/api";
 import { toast } from "sonner";
 
 interface SyncProgress {
@@ -129,7 +129,7 @@ export function SyncProgressModal({
 
     setIsCancelling(true);
     try {
-      await delete(`/api/sync-progress/${sessionId}`);
+      await deleteApi(`/api/sync-progress/${sessionId}`);
 
       toast.success("Sync cancelled");
       // Update progress immediately to show cancelled state

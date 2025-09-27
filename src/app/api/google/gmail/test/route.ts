@@ -1,36 +1,31 @@
-import { NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleAuth } from "@/lib/api";
+import { OAuthStartQuerySchema, GmailTestResponseSchema } from "@/server/db/business-schemas";
 import { GoogleGmailService, GmailAuthError } from "@/server/services/google-gmail.service";
-import { ApiEnvelope } from "@/lib/utils/type-guards";
+import { z } from "zod";
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    // Test Gmail connection
-    const isConnected = await GoogleGmailService.testConnection(userId);
+export const POST = handleAuth(
+  OAuthStartQuerySchema,
+  GmailTestResponseSchema,
+  async (_data, userId): Promise<z.infer<typeof GmailTestResponseSchema>> => {
+    try {
+      // Test Gmail connection
+      const isConnected = await GoogleGmailService.testConnection(userId);
 
-    const data = {
-      isConnected,
-      message: isConnected ? "Gmail connection successful" : "Gmail connection failed",
-      timestamp: new Date().toISOString(),
-    };
-
-    const envelope: ApiEnvelope<typeof data> = { ok: true, data };
-    return NextResponse.json(envelope);
-  } catch (error: unknown) {
-    console.error("GET /api/google/gmail/test error:", error);
-    if (error instanceof GmailAuthError) {
-      const data = {
-        isConnected: false,
-        message: error.message,
-        errorCode: error.code,
+      return {
+        isConnected,
+        message: isConnected ? "Gmail connection successful" : "Gmail connection failed",
         timestamp: new Date().toISOString(),
       };
-      const envelope: ApiEnvelope<typeof data> = { ok: true, data };
-      return NextResponse.json(envelope);
+    } catch (error: unknown) {
+      if (error instanceof GmailAuthError) {
+        return {
+          isConnected: false,
+          message: error.message,
+          errorCode: error.code,
+          timestamp: new Date().toISOString(),
+        };
+      }
+      throw error; // Re-throw to let handleAuth handle it
     }
-
-    const envelope: ApiEnvelope = { ok: false, error: "Failed to test Gmail connection" };
-    return NextResponse.json(envelope, { status: 500 });
-  }
-}
+  },
+);

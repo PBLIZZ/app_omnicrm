@@ -2,11 +2,14 @@ import { eq, and } from "drizzle-orm";
 import { userIntegrations } from "./schema";
 import { getDb } from "./db";
 import type {
-  UserIntegrationDTO,
-  CreateUserIntegrationDTO,
-  UpdateUserIntegrationDTO
-} from "@omnicrm/contracts";
-import { UserIntegrationDTOSchema } from "@omnicrm/contracts";
+  UserIntegration,
+  CreateUserIntegration
+} from "./schema";
+
+// Local type aliases for repository layer
+type UserIntegrationDTO = UserIntegration & { hasValidToken?: boolean };
+type CreateUserIntegrationDTO = CreateUserIntegration;
+type UpdateUserIntegrationDTO = Partial<CreateUserIntegration>;
 
 export class UserIntegrationsRepository {
   /**
@@ -111,7 +114,7 @@ export class UserIntegrationsRepository {
         )
       );
 
-    return rows.map(row => UserIntegrationDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -150,7 +153,7 @@ export class UserIntegrationsRepository {
         updatedAt: userIntegrations.updatedAt,
       });
 
-    return UserIntegrationDTOSchema.parse(result);
+    return result;
   }
 
   /**
@@ -199,7 +202,7 @@ export class UserIntegrationsRepository {
       return null;
     }
 
-    return UserIntegrationDTOSchema.parse(updatedIntegration);
+    return updatedIntegration;
   }
 
   /**
@@ -296,7 +299,7 @@ export class UserIntegrationsRepository {
         )
       );
 
-    return rows.map(row => UserIntegrationDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**

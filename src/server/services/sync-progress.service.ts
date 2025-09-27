@@ -9,7 +9,7 @@ import { getDb } from "@/server/db/client";
 import { syncSessions } from "@/server/db/schema";
 import { eq, lt } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import type { SyncSession, NewSyncSession } from "@/server/db/types";
+import type { SyncSession, NewSyncSession } from "@/server/db/business-schemas/business-schema";
 
 export interface SyncProgressUpdate {
   status?:

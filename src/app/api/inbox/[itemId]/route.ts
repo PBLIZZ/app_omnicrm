@@ -1,8 +1,11 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleAuth } from "@/lib/api";
 import { InboxService } from "@/server/services/inbox.service";
 import { z } from "zod";
-import { UpdateInboxItemDTOSchema, type UpdateInboxItemDTO } from "@omnicrm/contracts";
+import {
+  InboxItemResponseSchema,
+  InboxUpdateRequestSchema,
+  SuccessResponseSchema,
+} from "@/server/db/business-schemas";
 
 /**
  * Individual Inbox Item API - Get, update, and delete inbox items
@@ -11,122 +14,89 @@ import { UpdateInboxItemDTOSchema, type UpdateInboxItemDTO } from "@omnicrm/cont
  * marking as processed, updating status, and deletion.
  */
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "inbox_get_item" },
-})(async ({ userId }, _request, routeParams) => {
-  try {
-    const params = await routeParams?.params;
-    if (!params?.["itemId"]) {
-      return NextResponse.json({ error: "Item ID is required" }, { status: 400 });
-    }
+// Route parameter schema
+const ItemIdParamsSchema = z.object({
+  itemId: z.string().uuid(),
+});
 
-    const itemId = Array.isArray(params["itemId"]) ? params["itemId"][0] : params["itemId"];
-    if (!itemId) {
-      return NextResponse.json({ error: "Invalid item ID" }, { status: 400 });
-    }
+// Helper function to extract itemId from route params
+async function getItemId(routeParams: Promise<{ params: { itemId: string } }> | undefined) {
+  const params = await routeParams?.params;
+  if (!params?.itemId) {
+    throw new Error("Item ID is required");
+  }
+
+  const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
+  if (!itemId) {
+    throw new Error("Invalid item ID");
+  }
+
+  return itemId;
+}
+
+export const GET = handleAuth(
+  z.void(), // No request body validation needed
+  InboxItemResponseSchema,
+  async (_, userId, request, routeParams) => {
+    const itemId = await getItemId(routeParams);
 
     const item = await InboxService.getInboxItem(userId, itemId);
 
     if (!item) {
-      return NextResponse.json({ error: "Inbox item not found" }, { status: 404 });
+      throw new Error("Inbox item not found");
     }
 
-    return NextResponse.json({ item });
-  } catch (error) {
-    console.error("Failed to fetch inbox item:", error);
-    return NextResponse.json({ error: "Failed to fetch inbox item" }, { status: 500 });
+    return { item };
   }
-});
+);
 
-export const PATCH = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "inbox_update_item" },
-  validation: {
-    body: z.discriminatedUnion("action", [
-      z.object({
-        action: z.literal("update_status"),
-        data: UpdateInboxItemDTOSchema,
-      }),
-      z.object({
-        action: z.literal("mark_processed"),
-        data: z
-          .object({
-            createdTaskId: z.string().uuid().optional(),
-          })
-          .optional(),
-      }),
-    ]),
-  },
-})(async ({ userId, validated }, _request, routeParams) => {
-  try {
-    const params = await routeParams?.params;
-    if (!params?.["itemId"]) {
-      return NextResponse.json({ error: "Item ID is required" }, { status: 400 });
-    }
-
-    const itemId = Array.isArray(params["itemId"]) ? params["itemId"][0] : params["itemId"];
-    if (!itemId) {
-      return NextResponse.json({ error: "Invalid item ID" }, { status: 400 });
-    }
-
-    const { action, data } = validated.body;
+export const PATCH = handleAuth(
+  InboxUpdateRequestSchema,
+  InboxItemResponseSchema,
+  async (requestData, userId, request, routeParams) => {
+    const itemId = await getItemId(routeParams);
+    const { action, data } = requestData;
 
     switch (action) {
       case "update_status": {
-        const item = await InboxService.updateInboxItem(userId, itemId, data as UpdateInboxItemDTO);
+        const item = await InboxService.updateInboxItem(userId, itemId, data);
 
         if (!item) {
-          return NextResponse.json({ error: "Inbox item not found" }, { status: 404 });
+          throw new Error("Inbox item not found");
         }
 
-        return NextResponse.json({ item });
+        return { item };
       }
 
       case "mark_processed": {
         const item = await InboxService.markAsProcessed(userId, itemId, data?.createdTaskId);
 
         if (!item) {
-          return NextResponse.json({ error: "Inbox item not found" }, { status: 404 });
+          throw new Error("Inbox item not found");
         }
 
-        return NextResponse.json({ item });
+        return { item };
       }
 
       default: {
-        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+        throw new Error("Invalid action");
       }
     }
-  } catch (error) {
-    console.error("Failed to update inbox item:", error);
-    return NextResponse.json({ error: "Failed to update inbox item" }, { status: 500 });
   }
-});
+);
 
-export const DELETE = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "inbox_delete_item" },
-})(async ({ userId }, _request, routeParams) => {
-  try {
-    const params = await routeParams?.params;
-    if (!params?.["itemId"]) {
-      return NextResponse.json({ error: "Item ID is required" }, { status: 400 });
-    }
-
-    const itemId = Array.isArray(params["itemId"]) ? params["itemId"][0] : params["itemId"];
-    if (!itemId) {
-      return NextResponse.json({ error: "Invalid item ID" }, { status: 400 });
-    }
+export const DELETE = handleAuth(
+  z.void(), // No request body validation needed
+  SuccessResponseSchema,
+  async (_, userId, request, routeParams) => {
+    const itemId = await getItemId(routeParams);
 
     const deleted = await InboxService.deleteInboxItem(userId, itemId);
 
     if (!deleted) {
-      return NextResponse.json({ error: "Inbox item not found" }, { status: 404 });
+      throw new Error("Inbox item not found");
     }
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Failed to delete inbox item:", error);
-    return NextResponse.json({ error: "Failed to delete inbox item" }, { status: 500 });
+    return { success: true };
   }
-});
+);

@@ -1,5 +1,5 @@
 import { getGoogleGmailClient } from "@/server/google/client";
-import { GmailPreferencesSchema, SyncPreviewResponseSchema } from "@/lib/validation/schemas/sync";
+import { GmailPreferencesSchema, SyncPreviewResponseSchema } from "@/server/db/business-schema/sync";
 import { z } from "zod";
 
 export interface GmailPreviewRequest {

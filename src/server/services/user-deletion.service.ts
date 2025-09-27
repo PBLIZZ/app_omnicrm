@@ -1,6 +1,8 @@
-import { getDb, type DbClient } from "@repo";
+import { getDb } from "@/server/db/client";
 import { eq, inArray } from "drizzle-orm";
 import type { PgTable, PgColumn } from "drizzle-orm/pg-core";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import * as schema from "@/server/db/schema";
 import {
   contacts,
   interactions,
@@ -329,7 +331,7 @@ export class UserDeletionService {
    * Helper to count records in a table for a user
    */
   private static async countRecords(
-    db: DbClient,
+    db: PostgresJsDatabase<typeof schema>,
     table: PgTable & { userId: PgColumn },
     userId: string,
   ): Promise<number> {

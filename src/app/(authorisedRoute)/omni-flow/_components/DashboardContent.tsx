@@ -16,7 +16,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetchContacts } from "@/lib/api/contacts-api";
-import { type ContactDTO } from "@omnicrm/contracts";
+import { type Contact } from "@/server/db/business-schemas/business-schema";
 import MonthlySessionsKpi from "./MonthlySessionsKpi";
 import { getSyncStatus } from "@/lib/api/sync.api";
 
@@ -65,7 +65,7 @@ export default function DashboardContent(): JSX.Element {
     refetchOnWindowFocus: false,
     networkMode: "online",
   });
-  const contacts: ContactDTO[] = data?.items ?? [];
+  const contacts: Contact[] = data?.items ?? [];
 
   const {
     data: sync,
@@ -304,7 +304,7 @@ export default function DashboardContent(): JSX.Element {
                 {contacts && contacts.length > 0 ? (
                   <div className="rounded-md border">
                     <div className="grid grid-cols-1 divide-y">
-                      {contacts.slice(0, 5).map((contact: ContactDTO) => {
+                      {contacts.slice(0, 5).map((contact: Contact) => {
                         // Type guards for strict safety
                         const id =
                           typeof contact.id === "string" || typeof contact.id === "number"
@@ -312,7 +312,7 @@ export default function DashboardContent(): JSX.Element {
                             : undefined;
                         const fullName =
                           typeof contact.displayName === "string" ? contact.displayName : "";
-                        // ContactDTO doesn't have profileImageUrl property
+                        // Contact doesn't have profileImageUrl property
                         const avatarUrl: string | undefined = undefined;
                         const email =
                           typeof contact.primaryEmail === "string" ? contact.primaryEmail : "";

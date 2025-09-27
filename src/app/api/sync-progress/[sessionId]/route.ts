@@ -13,26 +13,16 @@
  * - Session completion detection
  * - User-scoped security (RLS)
  */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
 import { getDb } from "@/server/db/client";
 import { syncSessions } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import { ensureError } from "@/lib/utils/error-handler";
-import { z } from "zod";
+import { SyncProgressQuerySchema, SyncProgressResponseSchema, SyncCancelResponseSchema } from "@/server/db/business-schemas";
 
-// URL params schema
-const paramsSchema = z.object({
-  sessionId: z.string().uuid("Invalid session ID format"),
-});
-
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "sync_progress" },
-  validation: { params: paramsSchema },
-})(async ({ userId, validated }) => {
-  const { sessionId } = validated.params;
+export const GET = handleGetWithQueryAuth(SyncProgressQuerySchema, SyncProgressResponseSchema, async (query, userId) => {
+  const { sessionId } = query;
 
   try {
     const db = await getDb();
@@ -50,7 +40,7 @@ export const GET = createRouteHandler({
       .limit(1);
 
     if (!session[0]) {
-      return NextResponse.json({ error: "Sync session not found" }, { status: 404 });
+      throw new Error("Sync session not found");
     }
 
     const sessionData = session[0];
@@ -111,7 +101,7 @@ export const GET = createRouteHandler({
       },
     });
 
-    return NextResponse.json(progressData);
+    return progressData;
   } catch (error) {
     await logger.error(
       "Failed to get sync progress",
@@ -122,7 +112,7 @@ export const GET = createRouteHandler({
       ensureError(error),
     );
 
-    return NextResponse.json({ error: "Failed to retrieve sync progress" }, { status: 500 });
+    throw error;
   }
 });
 
@@ -138,12 +128,8 @@ export const GET = createRouteHandler({
  * cancellation may not stop the operation immediately but will
  * mark it as cancelled for UI purposes.
  */
-export const DELETE = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "sync_cancel" },
-  validation: { params: paramsSchema },
-})(async ({ userId, validated }) => {
-  const { sessionId } = validated.params;
+export const DELETE = handleAuth(SyncProgressQuerySchema, SyncCancelResponseSchema, async (data, userId) => {
+  const { sessionId } = data;
 
   try {
     const db = await getDb();
@@ -156,17 +142,14 @@ export const DELETE = createRouteHandler({
       .limit(1);
 
     if (!session[0]) {
-      return NextResponse.json({ error: "Sync session not found" }, { status: 404 });
+      throw new Error("Sync session not found");
     }
 
     const sessionData = session[0];
 
     // Only allow cancellation of active sessions
     if (!["started", "importing", "processing"].includes(sessionData.status)) {
-      return NextResponse.json(
-        { error: `Cannot cancel ${sessionData.status} sync session` },
-        { status: 400 },
-      );
+      throw new Error(`Cannot cancel ${sessionData.status} sync session`);
     }
 
     // Update session to cancelled status
@@ -195,11 +178,11 @@ export const DELETE = createRouteHandler({
       },
     });
 
-    return NextResponse.json({
+    return {
       sessionId,
       message: "Sync session cancelled",
       status: "cancelled",
-    });
+    };
   } catch (error) {
     await logger.error(
       "Failed to cancel sync session",
@@ -210,6 +193,6 @@ export const DELETE = createRouteHandler({
       ensureError(error),
     );
 
-    return NextResponse.json({ error: "Failed to cancel sync session" }, { status: 500 });
+    throw error;
   }
 });

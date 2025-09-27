@@ -1,13 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { momentumRepository } from "@repo";
-import { UpdateTaskDTOSchema } from "@omnicrm/contracts";
+import { NextRequest } from "next/server";
+import { handleAuth } from "@/lib/api";
+import { momentumService } from "@/server/services/momentum.service";
+import { UpdateTaskSchema, TaskSchema } from "@/server/db/business-schemas";
+import { notFound } from "next/navigation";
+import { z } from "zod";
 
 /**
  * Individual Task Management API Routes
  *
- * Handles GET/PUT/DELETE operations for specific tasks (momentums)
- * Following established patterns from omni-clients API
+ * Migrated to new auth pattern:
+ * ✅ handleAuth for all operations
+ * ✅ Zod validation and type safety
  */
 
 interface RouteParams {
@@ -19,74 +22,49 @@ interface RouteParams {
 /**
  * GET /api/omni-momentum/tasks/[taskId] - Get task by ID
  */
-export async function GET(_: NextRequest, { params }: RouteParams): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { taskId } = params;
-
-    const task = await momentumRepository.getTask(taskId, userId);
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(z.object({}), TaskSchema, async (_, userId) => {
+    const task = await momentumService.getTask(params.taskId, userId);
 
     if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+      notFound();
     }
 
-    return NextResponse.json(task);
-  } catch (error) {
-    console.error("Failed to get task:", error);
-    return NextResponse.json({ error: "Failed to retrieve task" }, { status: 500 });
-  }
+    return task;
+  });
+
+  return handler(request);
 }
 
 /**
  * PUT /api/omni-momentum/tasks/[taskId] - Update task
  */
-export async function PUT(request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { taskId } = params;
-    const body: unknown = await request.json();
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(UpdateTaskSchema, TaskSchema, async (data, userId) => {
+    const task = await momentumService.updateTask(params.taskId, userId, data);
 
-    // ✅ Runtime validation with Zod schema
-    const validatedData = UpdateTaskDTOSchema.parse(body);
-
-    // Update task (returns void)
-    await momentumRepository.updateTask(taskId, userId, validatedData);
-
-    // Get the updated task to return
-    const task = await momentumRepository.getTask(taskId, userId);
     if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+      notFound();
     }
 
-    return NextResponse.json(task);
-  } catch (error) {
-    console.error("Failed to update task:", error);
+    return task;
+  });
 
-    // Handle validation errors specifically
-    if (error instanceof Error && error.name === "ZodError") {
-      return NextResponse.json(
-        { error: "Invalid task data", details: error.message },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
-  }
+  return handler(request);
 }
 
 /**
  * DELETE /api/omni-momentum/tasks/[taskId] - Delete task
  */
-export async function DELETE(_: NextRequest, { params }: RouteParams): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { taskId } = params;
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(
+    z.object({}),
+    z.object({ success: z.boolean() }),
+    async (_, userId) => {
+      await momentumService.deleteTask(params.taskId, userId);
+      return { success: true };
+    },
+  );
 
-    await momentumRepository.deleteTask(taskId, userId);
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Failed to delete task:", error);
-    return NextResponse.json({ error: "Failed to delete task" }, { status: 500 });
-  }
+  return handler(request);
 }

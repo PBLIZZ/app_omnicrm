@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/types";
+import type { Database } from "@/server/db/business-schemas/business-schema";
 import {
   isValidImageType,
   isValidFileSize,

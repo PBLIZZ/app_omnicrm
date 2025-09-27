@@ -1,60 +1,42 @@
+import { handleGetWithQueryAuth } from "@/lib/api";
 import { ContactAIActionsService } from "@/server/services/contact-ai-actions.service";
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
+import { ClientAIInsightsResponseSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
+import { NextRequest } from "next/server";
 
 /**
  * OmniClient AI Insights endpoint
  *
  * Generates AI insights for a specific client using existing ContactAIActionsService
  * UI boundary transformation: presents "OmniClient" while using "contacts" backend
+ *
+ * Migrated to new auth pattern:
+ * ✅ handleGetWithQueryAuth for GET
+ * ✅ Zod validation and type safety
  */
 
-const ParamsSchema = z.object({
-  clientId: z.string(),
-});
+interface RouteParams {
+  params: {
+    clientId: string;
+  };
+}
 
-export async function POST(
-  _request: NextRequest,
-  { params }: { params: { clientId: string } }
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+// Simple query schema for AI insights (no query params needed currently)
+const AIInsightsQuerySchema = z.object({});
 
-    const validation = ParamsSchema.safeParse(params);
-    if (!validation.success) {
-      return NextResponse.json({
-        error: "Invalid client ID",
-        details: validation.error.issues
-      }, { status: 400 });
+export async function GET(
+  request: NextRequest,
+  { params }: RouteParams
+) {
+  const handler = handleGetWithQueryAuth(
+    AIInsightsQuerySchema,
+    ClientAIInsightsResponseSchema,
+    async (query, userId) => {
+      // Use existing service but present as OmniClient insights
+      const insights = await ContactAIActionsService.askAIAboutContact(userId, params.clientId);
+      return insights;
     }
+  );
 
-    const { clientId } = validation.data;
-
-    // Use existing service but present as OmniClient insights
-    const insights = await ContactAIActionsService.askAIAboutContact(userId, clientId);
-
-    // Transform response to match OmniClient terminology (minimal changes needed)
-    return NextResponse.json(insights);
-  } catch (error) {
-    console.error("POST /api/omni-clients/[clientId]/ai-insights error:", error);
-    await logger.error(
-      "OmniClient AI insights generation failed",
-      {
-        operation: "api.omni_clients.ai_insights",
-        additionalData: {
-          errorType: error instanceof Error ? error.constructor.name : typeof error,
-        },
-      },
-      ensureError(error),
-    );
-
-    if (error instanceof Error && error.message === "Contact not found") {
-      return NextResponse.json({ error: "OmniClient not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ error: "Failed to generate AI insights for OmniClient" }, { status: 500 });
-  }
+  return handler(request);
 }

@@ -3,18 +3,18 @@
  *
  * Returns calendar events for the authenticated user with business intelligence data.
  */
-import { NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGetWithQueryAuth } from "@/lib/api";
+import {
+  CalendarEventsQuerySchema,
+  CalendarEventsResponseSchema,
+} from "@/server/db/business-schemas";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
+import { z } from "zod";
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const result = await GoogleCalendarService.getFormattedEvents(userId);
-    return NextResponse.json(result);
-  } catch (error: unknown) {
-    console.error("GET /api/google/calendar/events error:", error);
-    console.error("Failed to fetch calendar events:", error);
-    return NextResponse.json({ error: "Failed to fetch calendar events" }, { status: 500 });
-  }
-}
+export const GET = handleGetWithQueryAuth(
+  CalendarEventsQuerySchema,
+  CalendarEventsResponseSchema,
+  async (query, userId): Promise<z.infer<typeof CalendarEventsResponseSchema>> => {
+    return await GoogleCalendarService.getFormattedEvents(userId, query.limit);
+  },
+);

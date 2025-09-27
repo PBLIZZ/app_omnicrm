@@ -2,52 +2,62 @@
  * OmniMomentum Service - Handles business logic for momentum/task management endpoints
  */
 import { momentumRepository } from "@repo";
-import type { TaskDTO, UpdateTaskDTO } from "@omnicrm/contracts";
+import type { Task, CreateTask, UpdateTask } from "@/server/db/business-schemas/business-schema";
 
-export interface GetProjectTasksResult {
-  ok: true;
-  data: TaskDTO[];
-} | {
-  ok: false;
-  error: string;
-  status: number;
-}
+export type GetProjectTasksResult =
+  | {
+      ok: true;
+      data: Task[];
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+    };
 
-export interface GetTaskResult {
-  ok: true;
-  data: TaskDTO;
-} | {
-  ok: false;
-  error: string;
-  status: number;
-}
+export type GetTaskResult =
+  | {
+      ok: true;
+      data: Task;
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+    };
 
-export interface UpdateTaskResult {
-  ok: true;
-  data: TaskDTO;
-} | {
-  ok: false;
-  error: string;
-  status: number;
-}
+export type UpdateTaskResult =
+  | {
+      ok: true;
+      data: Task;
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+    };
 
-export interface DeleteTaskResult {
-  ok: true;
-  data: { success: true };
-} | {
-  ok: false;
-  error: string;
-  status: number;
-}
+export type DeleteTaskResult =
+  | {
+      ok: true;
+      data: { success: true };
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+    };
 
-export interface RejectTaskResult {
-  ok: true;
-  data: TaskDTO | { success: true; deleted: true };
-} | {
-  ok: false;
-  error: string;
-  status: number;
-}
+export type RejectTaskResult =
+  | {
+      ok: true;
+      data: Task | { success: true; deleted: true };
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+    };
 
 export class OmniMomentumService {
   /**
@@ -117,7 +127,7 @@ export class OmniMomentumService {
   static async updateTask(
     userId: string,
     taskId: string,
-    updateData: UpdateTaskDTO
+    updateData: UpdateTask,
   ): Promise<UpdateTaskResult> {
     try {
       // Update task (returns void)
@@ -184,7 +194,7 @@ export class OmniMomentumService {
   static async rejectTask(
     userId: string,
     taskId: string,
-    deleteTask: boolean = false
+    deleteTask: boolean = false,
   ): Promise<RejectTaskResult> {
     try {
       // Get the task to ensure it exists and belongs to the user

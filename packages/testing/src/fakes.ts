@@ -492,7 +492,7 @@ export function setupRepoMocks() {
 
   // Mock all repository modules
   vi.doMock("@repo/contacts", () => fakes.omniClients);
-  vi.doMock("@/server/repositories/interactions.repo", () => ({
+  vi.doMock("@repo", () => ({
     InteractionsRepository: class {
       static upsert = fakes.interactions.upsert;
       static bulkUpsert = fakes.interactions.bulkUpsert;

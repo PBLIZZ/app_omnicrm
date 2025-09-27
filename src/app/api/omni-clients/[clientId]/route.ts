@@ -1,86 +1,82 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleAuth } from "@/lib/api";
 import { OmniClientService } from "@/server/services/omni-client.service";
+import {
+  ContactResponseSchema,
+  UpdateContactBodySchema,
+  DeleteContactResponseSchema
+} from "@/server/db/business-schemas";
+import { z } from "zod";
+import { NextRequest } from "next/server";
 
-// --- GET /api/omni-clients/[clientId] ---
-export async function GET(
-  _: NextRequest,
-  context: { params: { clientId: string } },
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { clientId } = context.params;
+/**
+ * Individual OmniClient Management API Routes
+ *
+ * Migrated to new auth pattern:
+ * ✅ handleAuth for all operations
+ * ✅ Zod validation and type safety
+ * ✅ Business schema standardization
+ */
 
-    const omniClient = await OmniClientService.getOmniClient(userId, clientId);
-
-    if (!omniClient) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ item: omniClient });
-  } catch (error) {
-    console.error("GET /api/omni-clients/[clientId] error:", error);
-    return NextResponse.json({ error: "Failed to fetch omni client" }, { status: 500 });
-  }
+interface RouteParams {
+  params: {
+    clientId: string;
+  };
 }
 
-// --- PATCH /api/omni-clients/[clientId] ---
-export async function PATCH(
-  request: NextRequest,
-  context: { params: { clientId: string } },
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { clientId } = context.params;
+/**
+ * GET /api/omni-clients/[clientId] - Get client by ID
+ */
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(z.void(), ContactResponseSchema, async (_, userId) => {
+    const omniClient = await OmniClientService.getOmniClient(userId, params.clientId);
 
-    // Validate request body
-    const body: unknown = await request.json();
+    if (!omniClient) {
+      throw new Error("Client not found");
+    }
 
-    // Type guard to ensure body is a record
-    if (typeof body !== "object" || body === null || Array.isArray(body)) {
-      return NextResponse.json(
-        { error: "Invalid request body format" },
-        { status: 400 }
+    return { item: omniClient };
+  });
+
+  return handler(request);
+}
+
+/**
+ * PUT /api/omni-clients/[clientId] - Update client
+ */
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(
+    UpdateContactBodySchema,
+    ContactResponseSchema,
+    async (data, userId) => {
+      // Add the clientId to the data for the service call
+      const dataWithId = { ...data, id: params.clientId };
+      const omniClient = await OmniClientService.updateOmniClient(
+        userId,
+        params.clientId,
+        dataWithId,
       );
-    }
 
-    const omniClient = await OmniClientService.updateOmniClient(userId, clientId, body);
+      if (!omniClient) {
+        throw new Error("Client not found");
+      }
 
-    if (!omniClient) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
-    }
+      return { item: omniClient };
+    },
+  );
 
-    return NextResponse.json({ item: omniClient });
-  } catch (error) {
-    console.error("PATCH /api/omni-clients/[clientId] error:", error);
-
-    // Handle validation errors
-    if (error instanceof Error && error.message.includes("Validation failed")) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ error: "Failed to update omni client" }, { status: 500 });
-  }
+  return handler(request);
 }
 
-// Optional: keep PUT for backward compatibility, delegate to PATCH
-export const PUT = PATCH;
-
-// --- DELETE /api/omni-clients/[clientId] ---
-export async function DELETE(
-  _: NextRequest,
-  context: { params: { clientId: string } },
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { clientId } = context.params;
-
-    const deleted = await OmniClientService.deleteOmniClient(userId, clientId);
+/**
+ * DELETE /api/omni-clients/[clientId] - Delete client
+ */
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(z.void(), DeleteContactResponseSchema, async (_, userId) => {
+    const deleted = await OmniClientService.deleteOmniClient(userId, params.clientId);
 
     // idempotent delete - return success even if contact didn't exist
-    return NextResponse.json({ deleted: deleted ? 1 : 0 });
-  } catch (error) {
-    console.error("DELETE /api/omni-clients/[clientId] error:", error);
-    return NextResponse.json({ error: "Failed to delete omni client" }, { status: 500 });
-  }
+    return { deleted: deleted ? 1 : 0 };
+  });
+
+  return handler(request);
 }

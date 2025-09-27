@@ -1,14 +1,44 @@
-import { eq, and, desc, inArray, count } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, inArray, count, sql, type SQL } from "drizzle-orm";
 import { rawEvents, rawEventErrors } from "./schema";
 import { getDb } from "./db";
-import type {
-  RawEventDTO,
-  CreateRawEventDTO,
-  RawEventErrorDTO,
-  CreateRawEventErrorDTO,
-  RawEventFilters,
-} from "@omnicrm/contracts";
-import { RawEventDTOSchema, RawEventErrorDTOSchema } from "@omnicrm/contracts";
+import type { RawEvent, CreateRawEvent, RawEventError, CreateRawEventError } from "./schema";
+
+// Local type aliases for repository layer
+type RawEventDTO = RawEvent;
+type CreateRawEventDTO = CreateRawEvent;
+type RawEventErrorDTO = RawEventError;
+type CreateRawEventErrorDTO = CreateRawEventError;
+
+interface RawEventFilters {
+  provider?: string[];
+  contactId?: string;
+  batchId?: string;
+  sourceId?: string;
+  occurredAfter?: Date;
+  occurredBefore?: Date;
+}
+
+export type RawEventListParams = {
+  provider?: string; // e.g. 'gmail'
+  sort?: "occurredAt" | "createdAt";
+  order?: "asc" | "desc";
+  page: number;
+  pageSize: number;
+  dateRange?: { from?: Date; to?: Date }; // applied to occurredAt
+};
+
+export type RawEventListItem = {
+  id: string;
+  userId: string;
+  provider: string;
+  payload: unknown;
+  contactId: string | null;
+  occurredAt: Date;
+  sourceMeta: unknown | null;
+  batchId: string | null;
+  sourceId: string | null;
+  createdAt: Date | null;
+};
 
 export class RawEventsRepository {
   /**
@@ -28,30 +58,31 @@ export class RawEventsRepository {
       sourceId: data.sourceId ?? null,
     };
 
-    const [newRawEvent] = await db
-      .insert(rawEvents)
-      .values(insertValues)
-      .returning({
-        id: rawEvents.id,
-        userId: rawEvents.userId,
-        provider: rawEvents.provider,
-        payload: rawEvents.payload,
-        contactId: rawEvents.contactId,
-        occurredAt: rawEvents.occurredAt,
-        sourceMeta: rawEvents.sourceMeta,
-        batchId: rawEvents.batchId,
-        sourceId: rawEvents.sourceId,
-        createdAt: rawEvents.createdAt,
-      });
+    const [newRawEvent] = await db.insert(rawEvents).values(insertValues).returning({
+      id: rawEvents.id,
+      userId: rawEvents.userId,
+      provider: rawEvents.provider,
+      payload: rawEvents.payload,
+      contactId: rawEvents.contactId,
+      occurredAt: rawEvents.occurredAt,
+      sourceMeta: rawEvents.sourceMeta,
+      batchId: rawEvents.batchId,
+      sourceId: rawEvents.sourceId,
+      createdAt: rawEvents.createdAt,
+    });
 
-    return RawEventDTOSchema.parse(newRawEvent);
+    if (!newRawEvent) {
+      throw new Error("Failed to create raw event");
+    }
+
+    return newRawEvent;
   }
 
   /**
    * Bulk create raw events for batch ingestion
    */
   static async createBulkRawEvents(
-    events: Array<CreateRawEventDTO & { userId: string }>
+    events: Array<CreateRawEventDTO & { userId: string }>,
   ): Promise<RawEventDTO[]> {
     if (events.length === 0) {
       return [];
@@ -59,7 +90,7 @@ export class RawEventsRepository {
 
     const db = await getDb();
 
-    const insertValues = events.map(event => ({
+    const insertValues = events.map((event) => ({
       userId: event.userId,
       provider: event.provider,
       payload: event.payload,
@@ -70,23 +101,20 @@ export class RawEventsRepository {
       sourceId: event.sourceId ?? null,
     }));
 
-    const newRawEvents = await db
-      .insert(rawEvents)
-      .values(insertValues)
-      .returning({
-        id: rawEvents.id,
-        userId: rawEvents.userId,
-        provider: rawEvents.provider,
-        payload: rawEvents.payload,
-        contactId: rawEvents.contactId,
-        occurredAt: rawEvents.occurredAt,
-        sourceMeta: rawEvents.sourceMeta,
-        batchId: rawEvents.batchId,
-        sourceId: rawEvents.sourceId,
-        createdAt: rawEvents.createdAt,
-      });
+    const newRawEvents = await db.insert(rawEvents).values(insertValues).returning({
+      id: rawEvents.id,
+      userId: rawEvents.userId,
+      provider: rawEvents.provider,
+      payload: rawEvents.payload,
+      contactId: rawEvents.contactId,
+      occurredAt: rawEvents.occurredAt,
+      sourceMeta: rawEvents.sourceMeta,
+      batchId: rawEvents.batchId,
+      sourceId: rawEvents.sourceId,
+      createdAt: rawEvents.createdAt,
+    });
 
-    return newRawEvents.map(event => RawEventDTOSchema.parse(event));
+    return newRawEvents.map((event) => event);
   }
 
   /**
@@ -95,7 +123,7 @@ export class RawEventsRepository {
   static async listRawEvents(
     userId: string,
     filters?: RawEventFilters,
-    limit: number = 100
+    limit: number = 100,
   ): Promise<RawEventDTO[]> {
     const db = await getDb();
 
@@ -117,6 +145,14 @@ export class RawEventsRepository {
       conditions.push(eq(rawEvents.sourceId, filters.sourceId));
     }
 
+    if (filters?.occurredAfter) {
+      conditions.push(gte(rawEvents.occurredAt, filters.occurredAfter));
+    }
+
+    if (filters?.occurredBefore) {
+      conditions.push(lte(rawEvents.occurredAt, filters.occurredBefore));
+    }
+
     const rows = await db
       .select({
         id: rawEvents.id,
@@ -135,7 +171,88 @@ export class RawEventsRepository {
       .orderBy(desc(rawEvents.occurredAt))
       .limit(limit);
 
-    return rows.map(row => RawEventDTOSchema.parse(row));
+    return rows.map((row) => row);
+  }
+
+  /**
+   * List raw events with pagination and advanced filtering (matches server version API)
+   */
+  static async listRawEventsPaginated(
+    userId: string,
+    params: RawEventListParams,
+  ): Promise<{ items: RawEventListItem[]; total: number }> {
+    const db = await getDb();
+
+    let whereExpr: SQL<unknown> = eq(rawEvents.userId, userId);
+    if (params.provider) {
+      whereExpr = and(whereExpr, eq(rawEvents.provider, params.provider)) as SQL<unknown>;
+    }
+    if (params.dateRange?.from)
+      whereExpr = and(
+        whereExpr,
+        gte(rawEvents.occurredAt, params.dateRange.from as Date),
+      ) as SQL<unknown>;
+    if (params.dateRange?.to)
+      whereExpr = and(
+        whereExpr,
+        lte(rawEvents.occurredAt, params.dateRange.to as Date),
+      ) as SQL<unknown>;
+
+    const sortKey = params.sort ?? "occurredAt";
+    const sortDir = params.order === "desc" ? "desc" : "asc";
+    const orderExpr =
+      sortKey === "createdAt"
+        ? sortDir === "desc"
+          ? desc(rawEvents.createdAt)
+          : asc(rawEvents.createdAt)
+        : sortDir === "desc"
+          ? desc(rawEvents.occurredAt)
+          : asc(rawEvents.occurredAt);
+
+    const page = params.page;
+    const pageSize = params.pageSize;
+
+    const [items, totalRow] = await Promise.all([
+      db
+        .select({
+          id: rawEvents.id,
+          userId: rawEvents.userId,
+          provider: rawEvents.provider,
+          payload: rawEvents.payload,
+          contactId: rawEvents.contactId,
+          occurredAt: rawEvents.occurredAt,
+          sourceMeta: rawEvents.sourceMeta,
+          batchId: rawEvents.batchId,
+          sourceId: rawEvents.sourceId,
+          createdAt: rawEvents.createdAt,
+        })
+        .from(rawEvents)
+        .where(whereExpr)
+        .orderBy(orderExpr)
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+      db
+        .select({ n: sql<number>`count(*)` })
+        .from(rawEvents)
+        .where(whereExpr)
+        .limit(1),
+    ]);
+
+    return {
+      items: items.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        provider: r.provider,
+        payload: r.payload,
+        contactId: r.contactId ?? null,
+        occurredAt: r.occurredAt,
+        sourceMeta: r.sourceMeta ?? null,
+        batchId: r.batchId ?? null,
+        sourceId: r.sourceId ?? null,
+        createdAt: r.createdAt,
+      })),
+      total: Number(totalRow[0]?.n) || 0,
+    };
   }
 
   /**
@@ -165,7 +282,7 @@ export class RawEventsRepository {
       return null;
     }
 
-    return RawEventDTOSchema.parse(rows[0]);
+    return rows[0]!;
   }
 
   /**
@@ -217,7 +334,7 @@ export class RawEventsRepository {
    * Create a raw event error
    */
   static async createRawEventError(
-    data: CreateRawEventErrorDTO & { userId: string }
+    data: CreateRawEventErrorDTO & { userId: string },
   ): Promise<RawEventErrorDTO> {
     const db = await getDb();
 
@@ -231,30 +348,28 @@ export class RawEventsRepository {
       context: data.context ?? null,
     };
 
-    const [newError] = await db
-      .insert(rawEventErrors)
-      .values(insertValues)
-      .returning({
-        id: rawEventErrors.id,
-        rawEventId: rawEventErrors.rawEventId,
-        userId: rawEventErrors.userId,
-        provider: rawEventErrors.provider,
-        errorAt: rawEventErrors.errorAt,
-        stage: rawEventErrors.stage,
-        error: rawEventErrors.error,
-        context: rawEventErrors.context,
-      });
+    const [newError] = await db.insert(rawEventErrors).values(insertValues).returning({
+      id: rawEventErrors.id,
+      rawEventId: rawEventErrors.rawEventId,
+      userId: rawEventErrors.userId,
+      provider: rawEventErrors.provider,
+      errorAt: rawEventErrors.errorAt,
+      stage: rawEventErrors.stage,
+      error: rawEventErrors.error,
+      context: rawEventErrors.context,
+    });
 
-    return RawEventErrorDTOSchema.parse(newError);
+    if (!newError) {
+      throw new Error("Failed to create raw event error");
+    }
+
+    return newError;
   }
 
   /**
    * Get raw event errors for a user
    */
-  static async listRawEventErrors(
-    userId: string,
-    limit: number = 50
-  ): Promise<RawEventErrorDTO[]> {
+  static async listRawEventErrors(userId: string, limit: number = 50): Promise<RawEventErrorDTO[]> {
     const db = await getDb();
 
     const rows = await db
@@ -273,7 +388,7 @@ export class RawEventsRepository {
       .orderBy(desc(rawEventErrors.errorAt))
       .limit(limit);
 
-    return rows.map(row => RawEventErrorDTOSchema.parse(row));
+    return rows.map((row) => row);
   }
 
   /**
@@ -282,7 +397,7 @@ export class RawEventsRepository {
   static async findRawEventBySourceId(
     userId: string,
     provider: string,
-    sourceId: string
+    sourceId: string,
   ): Promise<RawEventDTO | null> {
     const db = await getDb();
 
@@ -304,8 +419,8 @@ export class RawEventsRepository {
         and(
           eq(rawEvents.userId, userId),
           eq(rawEvents.provider, provider),
-          eq(rawEvents.sourceId, sourceId)
-        )
+          eq(rawEvents.sourceId, sourceId),
+        ),
       )
       .limit(1);
 
@@ -313,7 +428,7 @@ export class RawEventsRepository {
       return null;
     }
 
-    return RawEventDTOSchema.parse(rows[0]);
+    return rows[0]!;
   }
 
   /**
@@ -339,6 +454,6 @@ export class RawEventsRepository {
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.batchId, batchId)))
       .orderBy(desc(rawEvents.occurredAt));
 
-    return rows.map(row => RawEventDTOSchema.parse(row));
+    return rows.map((row) => row);
   }
 }

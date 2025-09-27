@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/types";
+import type { Database } from "@/server/db/business-schemas/business-schema";
 
 // Validation schema for access tracking
 const TrackAccessSchema = z.object({
@@ -76,7 +76,7 @@ export class OnboardingTrackingService {
    */
   private static async updateLastAccessedAt(
     supabase: ReturnType<typeof createClient<Database>>,
-    token: string
+    token: string,
   ): Promise<void> {
     const { error } = await supabase
       .from("onboarding_tokens")
@@ -97,7 +97,7 @@ export class OnboardingTrackingService {
    */
   private static async incrementAccessCount(
     supabase: ReturnType<typeof createClient<Database>>,
-    token: string
+    token: string,
   ): Promise<void> {
     const { error } = await supabase.rpc("increment_access_count", {
       token_value: token,
@@ -114,7 +114,7 @@ export class OnboardingTrackingService {
    */
   static async trackTokenAccess(
     tokenData: TrackAccessData,
-    clientIpData: ClientIpData
+    clientIpData: ClientIpData,
   ): Promise<TrackAccessResult> {
     const { token } = tokenData;
 

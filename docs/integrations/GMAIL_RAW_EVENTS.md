@@ -7,7 +7,7 @@
 - GET /api/google/gmail/raw-events
 - Route: src/app/api/google/gmail/raw-events/route.ts
 - Service: src/server/services/raw-events.service.ts
-- Repository: src/server/repositories/raw-events.repo.ts
+- Repository: packages/repo/src/raw-events.repo.ts
 - Schemas/validation: src/server/schemas/raw-events.ts
 - HTTP helpers: src/server/lib/http.ts (sanitized errors, ok/err envelopes)
 

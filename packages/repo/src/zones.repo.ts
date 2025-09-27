@@ -2,12 +2,20 @@ import { eq, asc } from "drizzle-orm";
 import { zones } from "./schema";
 import { getDb } from "./db";
 import type {
-  ZoneDTO,
-  CreateZoneDTO,
-  UpdateZoneDTO,
-  ZoneWithStatsDTO,
-} from "@omnicrm/contracts";
-import { ZoneDTOSchema, ZoneWithStatsDTOSchema } from "@omnicrm/contracts";
+  Zone,
+  CreateZone
+} from "./schema";
+
+// Local type aliases for repository layer
+type ZoneDTO = Zone;
+type CreateZoneDTO = CreateZone;
+type UpdateZoneDTO = Partial<CreateZone>;
+
+type ZoneWithStatsDTO = Zone & {
+  projectCount: number;
+  taskCount: number;
+  activeTaskCount: number;
+};
 
 export class ZonesRepository {
   /**
@@ -26,7 +34,7 @@ export class ZonesRepository {
       .from(zones)
       .orderBy(asc(zones.name));
 
-    return rows.map(row => ZoneDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -50,7 +58,7 @@ export class ZonesRepository {
       return null;
     }
 
-    return ZoneDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -74,7 +82,7 @@ export class ZonesRepository {
       return null;
     }
 
-    return ZoneDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -99,7 +107,7 @@ export class ZonesRepository {
         iconName: zones.iconName,
       });
 
-    return ZoneDTOSchema.parse(newZone);
+    return newZone;
   }
 
   /**
@@ -129,7 +137,7 @@ export class ZonesRepository {
       return null;
     }
 
-    return ZoneDTOSchema.parse(updatedZone);
+    return updatedZone;
   }
 
   /**
@@ -170,6 +178,6 @@ export class ZonesRepository {
       activeTaskCount: 0,
     }));
 
-    return zonesWithStats.map(row => ZoneWithStatsDTOSchema.parse(row));
+    return zonesWithStats.map(row => row);
   }
 }

@@ -1,5 +1,4 @@
 /** DELETE /api/user/delete — Permanent account deletion for GDPR compliance (auth required). */
-import { handleAuth } from "@/lib/api";
 import {
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,

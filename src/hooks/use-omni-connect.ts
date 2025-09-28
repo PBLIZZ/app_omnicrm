@@ -32,7 +32,7 @@ import type {
   ConnectConnectionStatus,
   ConnectDashboardState,
   Job,
-} from "@/app/(authorisedRoute)/omni-connect/_components/types";
+} from "@/server/db/business-schemas";
 
 export interface UseOmniConnectResult {
   // Main dashboard data

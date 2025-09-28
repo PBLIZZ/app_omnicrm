@@ -2,6 +2,7 @@ import { JobsRepository } from "@repo";
 import { ContactsRepository } from "@repo";
 import { InteractionsRepository } from "@repo";
 import { RawEventsRepository } from "@repo";
+import { Result } from "@/lib/utils/result";
 import type {
   ComprehensiveJobStatusDTO,
   JobQueueStatusDTO,
@@ -9,7 +10,7 @@ import type {
   DataFreshnessDTO,
   ProcessingHealthDTO,
   JobDTO,
-} from "@/server/db/business-schemas/business-schema";
+} from "@/server/db/business-schemas/jobs";
 import { logger } from "@/lib/observability";
 
 interface JobStatusOptions {
@@ -32,7 +33,7 @@ export class JobStatusService {
   static async getComprehensiveJobStatus(
     userId: string,
     options: JobStatusOptions = {},
-  ): Promise<ComprehensiveJobStatusDTO> {
+  ): Promise<Result<ComprehensiveJobStatusDTO, string>> {
     const { includeHistory = false, includeFreshness = true, batchId } = options;
 
     try {

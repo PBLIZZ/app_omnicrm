@@ -27,7 +27,7 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Retry other errors up to 2 times
   return retryCount < 2;
 };
-import type { CalendarEvent, Client } from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
+import type { CalendarEvent, Client } from "@/server/db/business-schemas";
 
 export interface CalendarStats {
   upcomingEventsCount: number;

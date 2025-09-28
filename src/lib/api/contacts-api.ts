@@ -72,7 +72,7 @@ export async function apiFetchContacts(
 ): Promise<ApiContactsListResponse> {
   debugLog("Starting apiFetchContacts with params:", params);
 
-  const url = buildUrl("/api/omni-clients", {
+  const url = buildUrl("/api/contacts", {
     search: params.search,
     sort: params.sort,
     order: params.order,
@@ -99,7 +99,7 @@ export async function apiFetchContacts(
  * Create a new contact
  */
 export async function apiCreateContact(input: CreateContact): Promise<Contact> {
-  const result = await post<ApiContactResponse>("/api/omni-clients", {
+  const result = await post<ApiContactResponse>("/api/contacts", {
     ...input,
     source: input.source ?? "manual",
   });
@@ -110,7 +110,7 @@ export async function apiCreateContact(input: CreateContact): Promise<Contact> {
  * Update an existing contact
  */
 export async function apiUpdateContact(id: string, input: UpdateContact): Promise<Contact> {
-  const result = await put<ApiContactResponse>(`/api/omni-clients/${id}`, input);
+  const result = await put<ApiContactResponse>(`/api/contacts/${id}`, input);
   return result.item;
 }
 
@@ -118,7 +118,7 @@ export async function apiUpdateContact(id: string, input: UpdateContact): Promis
  * Delete multiple contacts by IDs
  */
 export async function apiDeleteContacts(ids: string[]): Promise<number> {
-  const result = await post<ApiBulkDeleteResponse>(`/api/omni-clients/bulk-delete`, { ids });
+  const result = await post<ApiBulkDeleteResponse>(`/api/contacts/bulk-delete`, { ids });
   return result.deleted;
 }
 
@@ -126,6 +126,6 @@ export async function apiDeleteContacts(ids: string[]): Promise<number> {
  * Fetch a single contact by ID
  */
 export async function apiFetchContact(id: string): Promise<Contact> {
-  const result = await get<ApiContactResponse>(`/api/omni-clients/${id}`);
+  const result = await get<ApiContactResponse>(`/api/contacts/${id}`);
   return result.item;
 }

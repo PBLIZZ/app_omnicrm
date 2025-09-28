@@ -1,6 +1,5 @@
 import { getGoogleGmailClient } from "@/server/google/client";
 import { GmailPreferencesSchema, SyncPreviewResponseSchema } from "@/server/db/business-schema/sync";
-import { z } from "zod";
 
 export interface GmailPreviewRequest {
   timeRangeDays: number;

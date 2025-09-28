@@ -1,11 +1,11 @@
 import { apiClient } from "@/lib/api/client";
 import {
-  GmailStats,
-  JobStatus,
+  ConnectConnectionStatus,
+  ConnectDashboardState,
   EmailPreview,
   SearchResult,
-  Insights,
-} from "../../app/(authorisedRoute)/omni-connect/_components/types";
+  EmailInsights,
+} from "@/server/db/business-schemas";
 
 /**
  * OmniConnect API Service with integrated rate limiting
@@ -54,14 +54,14 @@ interface SearchResponse {
 }
 
 interface InsightsResponse {
-  insights: Insights | null;
+  insights: EmailInsights | null;
 }
 
 export class OmniConnectApiService {
   /**
    * Fetch Gmail statistics with rate-limited Google API calls
    */
-  static async fetchGmailStats(): Promise<GmailStats> {
+  static async fetchGmailStats(): Promise<ConnectConnectionStatus> {
     // Get unified Google status (connection + sync info)
     const syncData = await apiClient.get<SyncStatusResponse>("/api/google/status", {
       showErrorToast: false,
@@ -137,13 +137,14 @@ export class OmniConnectApiService {
     return data.results || [];
   }
 
-  static async loadInsights(): Promise<Insights | null> {
+  static async loadInsights(): Promise<EmailInsights | null> {
     const data = await apiClient.get<InsightsResponse>("/api/gmail/insights");
     return data.insights;
   }
 
-  static async fetchJobStatus(): Promise<JobStatus> {
-    return await apiClient.get<JobStatus>("/api/jobs/status");
+  static async fetchJobStatus(): Promise<ConnectDashboardState["jobs"]> {
+    const data = await apiClient.get<ConnectDashboardState>("/api/jobs/status");
+    return data.jobs;
   }
 
   static async fetchRecentEmails(): Promise<EmailPreview[]> {

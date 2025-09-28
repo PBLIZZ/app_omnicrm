@@ -3,8 +3,6 @@
 import { generateText, ChatMessage } from "@/server/ai/core/llm.service";
 import { getContactData, ContactWithContext } from "@/server/ai/clients/utils/contact-utils";
 import { sanitizeText, sanitizeTitle, sanitizeDate } from "@/lib/utils/sanitization";
-import type { InferSelectModel } from "drizzle-orm";
-import type { contacts, interactions, calendarEvents, notes } from "@/server/db/schema";
 
 // Type interfaces for contact data structures
 interface ContactMessage {

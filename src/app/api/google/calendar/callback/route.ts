@@ -1,7 +1,7 @@
 /** GET /api/google/calendar/callback — handle Calendar OAuth redirect (auth required). Errors: 400 invalid_state|missing_code_or_state, 401 Unauthorized */
 import { handleAuthFlow } from "@/lib/api-edge-cases";
 import { GoogleOAuthService } from "@/server/services/google-oauth.service";
-import { CalendarOAuthQuerySchema } from "@/server/db/business-schemas/business-schema";
+import { CalendarOAuthQuerySchema } from "@/server/db/business-schemas/calendar";
 
 export const GET = handleAuthFlow(CalendarOAuthQuerySchema, async (query, request) => {
   // OAuth flows need to extract userId manually since they handle their own auth

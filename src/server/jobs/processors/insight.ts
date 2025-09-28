@@ -5,7 +5,6 @@ import { eq, desc, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import {
-  generateContactSummary,
   generateNextSteps,
   generateRiskAssessment,
   generatePersonaInsight,

@@ -17,7 +17,7 @@ import type {
   Client,
   Appointment,
   WeeklyStats
-} from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
+} from "@/server/db/business-schemas";
 
 export interface SessionMetrics {
   sessionsNext7Days: number;

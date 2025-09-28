@@ -9,7 +9,7 @@ import {
   type ClientAIInsightsResponse,
   type ClientEmailSuggestion,
   type ClientNoteSuggestion,
-} from "@/lib/validation/schemas/omniClients";
+} from "@/server/db/business-schemas/contacts";
 
 // Hook to ask AI about an OmniClient - uses omni-clients API
 export function useAskAIAboutOmniClient(): UseMutationResult<
@@ -21,7 +21,7 @@ export function useAskAIAboutOmniClient(): UseMutationResult<
   return useMutation({
     mutationFn: async (clientId: string): Promise<ClientAIInsightsResponse> => {
       return await apiClient.post<ClientAIInsightsResponse>(
-        `/api/omni-clients/${clientId}/ai-insights`,
+        `/api/contacts/${clientId}/ai-insights`,
         {},
       );
     },
@@ -47,7 +47,7 @@ export function useGenerateOmniClientEmailSuggestion(): UseMutationResult<
       purpose?: string;
     }): Promise<ClientEmailSuggestion> => {
       return await apiClient.post<ClientEmailSuggestion>(
-        `/api/omni-clients/${contactId}/email-suggestion`,
+        `/api/contacts/${contactId}/email-suggestion`,
         { purpose },
       );
     },
@@ -67,7 +67,7 @@ export function useGenerateOmniClientNoteSuggestions(): UseMutationResult<
   return useMutation({
     mutationFn: async (clientId: string): Promise<ClientNoteSuggestion[]> => {
       return await apiClient.post<ClientNoteSuggestion[]>(
-        `/api/omni-clients/${clientId}/note-suggestions`,
+        `/api/contacts/${clientId}/note-suggestions`,
         {},
       );
     },
@@ -86,7 +86,7 @@ export function useCreateOmniClientNote(): UseMutationResult<
 > {
   return useMutation({
     mutationFn: async ({ contactId, content }: { contactId: string; content: string }) => {
-      return await apiClient.post(`/api/omni-clients/${contactId}/notes`, { content });
+      return await apiClient.post(`/api/contacts/${contactId}/notes`, { content });
     },
     onSuccess: () => {
       toast.success("Note created successfully");
@@ -103,7 +103,7 @@ export { useDeleteOmniClient } from "@/hooks/use-client-delete";
 export function useBulkEnrichOmniClients(): UseMutationResult<unknown, Error, string[], unknown> {
   return useMutation({
     mutationFn: async (clientIds: string[]) => {
-      return await apiClient.post(`/api/omni-clients/bulk-enrich`, { ids: clientIds });
+      return await apiClient.post(`/api/contacts/bulk-enrich`, { ids: clientIds });
     },
     onSuccess: (data, clientIds) => {
       void data;

@@ -24,12 +24,12 @@ import type { Zone, ZoneWithStats } from "@/server/db/business-schemas";
 // TYPES
 // ============================================================================
 
-interface ZonesApiResponse {
+interface ZonesResponse {
   items: Zone[];
   total: number;
 }
 
-interface ZonesWithStatsApiResponse {
+interface ZonesWithStatsResponse {
   items: ZoneWithStats[];
   total: number;
 }
@@ -79,10 +79,10 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
     queryKey: queryKeys.zones.list(withStats),
     queryFn: async (): Promise<Zone[] | ZoneWithStats[]> => {
       if (withStats) {
-        const data = await apiClient.get<ZonesWithStatsApiResponse>(apiUrl);
+        const data = await apiClient.get<ZonesWithStatsResponse>(apiUrl);
         return data.items ?? [];
       } else {
-        const data = await apiClient.get<ZonesApiResponse>(apiUrl);
+        const data = await apiClient.get<ZonesResponse>(apiUrl);
         return data.items ?? [];
       }
     },
@@ -150,7 +150,7 @@ export function useZoneOptions() {
     value: zone.id.toString(),
     label: zone.name,
     color: zone.color,
-    icon: zone.iconName,
+    icon: zone.icon,
   }));
 
   return {
@@ -197,5 +197,5 @@ export function getZoneColor(zones: Zone[], zoneName: string): string {
  */
 export function getZoneIcon(zones: Zone[], zoneName: string): string {
   const zone = zones.find((z) => z.name === zoneName);
-  return zone?.iconName ?? "circle"; // Default circle icon
+  return zone?.icon ?? "circle"; // Default circle icon
 }

@@ -108,33 +108,8 @@ export function getStringArray(obj: unknown, key: string): string[] | undefined 
 // API RESPONSE VALIDATION
 // ============================================================================
 
-/**
- * Type guard for standard API response envelope
- */
-export interface ApiEnvelope<T = unknown> {
-  ok: boolean;
-  data?: T;
-  error?: string;
-  details?: unknown;
-}
-
-export function isApiEnvelope(value: unknown): value is ApiEnvelope {
-  if (!isObject(value)) return false;
-  const ok = getBoolean(value, "ok");
-  return typeof ok === "boolean";
-}
-
-export function isSuccessApiEnvelope<T>(
-  value: unknown,
-): value is ApiEnvelope<T> & { ok: true; data: T } {
-  return isApiEnvelope(value) && value.ok === true && "data" in value;
-}
-
-export function isErrorApiEnvelope(
-  value: unknown,
-): value is ApiEnvelope & { ok: false; error: string } {
-  return isApiEnvelope(value) && value.ok === false;
-}
+// ApiEnvelope pattern has been replaced with Result<T, E> pattern
+// Use isOk, isErr from "@/lib/utils/result" for API response validation
 
 
 

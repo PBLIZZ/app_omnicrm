@@ -11,42 +11,6 @@
 import { faker } from "@faker-js/faker";
 
 // Define the types locally since we're not importing from the main project in tests
-export type OmniClientDTO = {
-  id: string;
-  userId: string;
-  displayName: string;
-  primaryEmail: string | null;
-  primaryPhone: string | null;
-  source: string | null;
-  lifecycleStage: string | null;
-  tags: string[] | null;
-  confidenceScore: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type OmniClientWithNotesDTO = OmniClientDTO & {
-  notesCount: number;
-  lastNote: string | null;
-  interactions?: number;
-};
-
-export type CreateOmniClientInput = {
-  displayName: string;
-  primaryEmail?: string | null;
-  primaryPhone?: string | null;
-  source?: "manual" | "gmail_import" | "upload" | "calendar_import";
-  lifecycleStage?: string | null;
-  tags?: string[] | null;
-};
-
-export type UpdateOmniClientInput = {
-  displayName?: string;
-  primaryEmail?: string | null;
-  primaryPhone?: string | null;
-  lifecycleStage?: string | null;
-  tags?: string[] | null;
-};
 
 export type ContactDTO = {
   id: string;
@@ -59,7 +23,7 @@ export type ContactDTO = {
   updatedAt: string;
   avatar?: string;
   tags?: string[];
-  lifecycleStage?: "lead" | "prospect" | "customer" | "advocate";
+  lifecycleStage?: (typeof LIFECYCLE_CLIENT_STAGES)[number];
   lastContactDate?: string;
   notes?: string;
   company?: string;
@@ -72,7 +36,7 @@ export type CreateContactInput = {
   company?: string | null;
   notes?: string | null;
   tags?: string[];
-  lifecycleStage?: "lead" | "prospect" | "customer" | "advocate";
+  lifecycleStage?: (typeof LIFECYCLE_CLIENT_STAGES)[number];
 };
 
 export type UpdateContactInput = Partial<CreateContactInput>;
@@ -98,20 +62,6 @@ export type ClientAIInsightsResponse = {
     nextSteps?: string[];
   };
   confidence: number;
-};
-
-export type ClientEmailSuggestion = {
-  subject: string;
-  content: string;
-  tone: string;
-  reasoning: string;
-};
-
-export type ClientNoteSuggestion = {
-  title: string;
-  content: string;
-  category: string;
-  priority: "low" | "medium" | "high";
 };
 
 export type Interaction = {
@@ -206,10 +156,6 @@ export type CreateTaskInput = {
   description?: string;
   priority: "low" | "medium" | "high" | "urgent";
   estimatedMinutes?: number;
-};
-
-export type EmailSuggestionInput = {
-  purpose?: string;
 };
 
 export type InsightContent = {
@@ -351,7 +297,7 @@ const WELLNESS_TAGS = [
   "Social Media Active",
 ];
 
-const CLIENT_STAGES = [
+const LIFECYCLE_CLIENT_STAGES = [
   "Prospect",
   "New Client",
   "Core Client",
@@ -361,74 +307,17 @@ const CLIENT_STAGES = [
   "At Risk Client",
 ];
 
-const CONTACT_SOURCES = ["manual", "gmail_import", "upload", "calendar_import"] as const;
+const CONTACT_SOURCES = [
+  "manual",
+  "gmail_import",
+  "upload",
+  "calendar_import",
+  "onboarding_form",
+] as const;
 
 // =============================================================================
 // CONTACT FACTORIES
 // =============================================================================
-
-export function makeOmniClient(overrides: Partial<OmniClientDTO> = {}): OmniClientDTO {
-  const baseClient = {
-    id: faker.string.uuid(),
-    userId: faker.string.uuid(),
-    displayName: faker.person.fullName(),
-    primaryEmail: faker.internet.email(),
-    primaryPhone: faker.phone.number(),
-    source: faker.helpers.arrayElement(CONTACT_SOURCES),
-    lifecycleStage: faker.helpers.arrayElement(CLIENT_STAGES),
-    tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 1, max: 5 }),
-    confidenceScore: faker.number.float({ min: 0.1, max: 1.0, fractionDigits: 1 }).toString(),
-    createdAt: faker.date.past().toISOString(),
-    updatedAt: faker.date.recent().toISOString(),
-  };
-
-  return { ...baseClient, ...overrides };
-}
-
-export function makeOmniClientWithNotes(
-  overrides: Partial<OmniClientWithNotesDTO> = {},
-): OmniClientWithNotesDTO {
-  const baseClient = makeOmniClient(overrides);
-  const defaultNotesCount = faker.number.int({ min: 0, max: 10 });
-
-  // Use override notesCount if provided, otherwise use default
-  const notesCount = overrides.notesCount !== undefined ? overrides.notesCount : defaultNotesCount;
-
-  return {
-    ...baseClient,
-    notesCount,
-    lastNote: notesCount > 0 ? faker.lorem.sentence() : null,
-    interactions: faker.number.int({ min: 0, max: 50 }),
-    ...overrides,
-  };
-}
-
-export function makeCreateOmniClientInput(
-  overrides: Partial<CreateOmniClientInput> = {},
-): CreateOmniClientInput {
-  return {
-    displayName: faker.person.fullName(),
-    primaryEmail: faker.internet.email(),
-    primaryPhone: faker.phone.number(),
-    source: faker.helpers.arrayElement(CONTACT_SOURCES),
-    lifecycleStage: faker.helpers.arrayElement(CLIENT_STAGES),
-    tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 1, max: 3 }),
-    ...overrides,
-  };
-}
-
-export function makeUpdateOmniClientInput(
-  overrides: Partial<UpdateOmniClientInput> = {},
-): UpdateOmniClientInput {
-  return {
-    displayName: faker.person.fullName(),
-    primaryEmail: faker.internet.email(),
-    primaryPhone: faker.phone.number(),
-    lifecycleStage: faker.helpers.arrayElement(CLIENT_STAGES),
-    tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 1, max: 3 }),
-    ...overrides,
-  };
-}
 
 export function makeContactDTO(overrides: Partial<ContactDTO> = {}): ContactDTO {
   return {
@@ -442,7 +331,7 @@ export function makeContactDTO(overrides: Partial<ContactDTO> = {}): ContactDTO 
     updatedAt: faker.date.recent().toISOString(),
     avatar: faker.image.avatar(),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
-    lifecycleStage: faker.helpers.arrayElement(["lead", "prospect", "customer", "advocate"]),
+    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CLIENT_STAGES),
     lastContactDate: faker.date.recent().toISOString(),
     notes: faker.lorem.paragraph(),
     company: faker.company.name(),
@@ -460,7 +349,7 @@ export function makeCreateContactInput(
     company: emptyToNull(faker.company.name()),
     notes: emptyToNull(faker.lorem.paragraph()),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
-    lifecycleStage: faker.helpers.arrayElement(["lead", "prospect", "customer", "advocate"]),
+    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CLIENT_STAGES),
     ...overrides,
   };
 }
@@ -475,7 +364,7 @@ export function makeUpdateContactInput(
     company: emptyToNull(faker.company.name()),
     notes: emptyToNull(faker.lorem.paragraph()),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
-    lifecycleStage: faker.helpers.arrayElement(["lead", "prospect", "customer", "advocate"]),
+    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CLIENT_STAGES),
     ...overrides,
   };
 }
@@ -562,37 +451,6 @@ export function makeClientAIInsightsResponse(
     ...overrides,
   };
 }
-
-export function makeClientEmailSuggestion(
-  overrides: Partial<ClientEmailSuggestion> = {},
-): ClientEmailSuggestion {
-  return {
-    subject: faker.lorem.sentence(),
-    content: faker.lorem.paragraphs(2),
-    tone: faker.helpers.arrayElement(["Professional", "Friendly", "Casual", "Supportive"]),
-    reasoning: faker.lorem.sentence(),
-    ...overrides,
-  };
-}
-
-export function makeClientNoteSuggestion(
-  overrides: Partial<ClientNoteSuggestion> = {},
-): ClientNoteSuggestion {
-  return {
-    title: faker.lorem.words(3),
-    content: faker.lorem.paragraph(),
-    category: faker.helpers.arrayElement([
-      "Progress",
-      "Goals",
-      "Preferences",
-      "Concerns",
-      "Achievements",
-    ]),
-    priority: faker.helpers.arrayElement(["low", "medium", "high"]),
-    ...overrides,
-  };
-}
-
 // =============================================================================
 // INTERACTION FACTORIES
 // =============================================================================
@@ -623,7 +481,7 @@ export function makeInteraction(overrides: Partial<Interaction> = {}): Interacti
     bodyText: faker.lorem.paragraphs(2),
     bodyRaw: { html: faker.lorem.paragraphs(2), metadata: {} },
     occurredAt: faker.date.recent().toISOString(),
-    source: faker.helpers.arrayElement(["gmail", "calendar", "manual"]),
+    source: faker.helpers.arrayElement(CONTACT_SOURCES),
     sourceId: faker.string.alphanumeric(12),
     sourceMeta: { provider: "gmail", messageId: faker.string.alphanumeric(12) },
     batchId: faker.string.uuid(),
@@ -649,7 +507,7 @@ export function makeNormalizedInteraction(
     bodyText: faker.lorem.paragraphs(2),
     bodyRaw: { html: faker.lorem.paragraphs(2) },
     occurredAt: faker.date.recent().toISOString(),
-    source: faker.helpers.arrayElement(["gmail", "calendar", "manual"]),
+    source: faker.helpers.arrayElement(CONTACT_SOURCES),
     sourceId: faker.string.alphanumeric(12),
     sourceMeta: { provider: "gmail" },
     batchId: faker.string.uuid(),
@@ -742,15 +600,6 @@ export function makeCreateTaskInput(overrides: Partial<CreateTaskInput> = {}): C
   };
 }
 
-export function makeEmailSuggestionInput(
-  overrides: Partial<EmailSuggestionInput> = {},
-): EmailSuggestionInput {
-  return {
-    purpose: faker.lorem.sentence(),
-    ...overrides,
-  };
-}
-
 // =============================================================================
 // AI INSIGHTS FACTORIES
 // =============================================================================
@@ -801,7 +650,7 @@ export function makeInsightContent(overrides: Partial<InsightContent> = {}): Ins
     summary: faker.lorem.paragraph(),
     score: faker.number.float({ min: 0, max: 1, fractionDigits: 2 }),
     confidence: faker.number.float({ min: 0.1, max: 1.0, fractionDigits: 2 }),
-    tags: faker.helpers.arrayElements(["wellness", "engagement", "revenue", "risk"], {
+    tags: faker.helpers.arrayElements(WELLNESS_TAGS, {
       min: 1,
       max: 3,
     }),
@@ -872,25 +721,6 @@ export function makeBatch<T>(
 /**
  * Creates realistic contact data with relationships (contact + notes + interactions)
  */
-export function makeContactWithRelations(
-  overrides: {
-    contact?: Partial<OmniClientWithNotesDTO>;
-    noteCount?: number;
-    interactionCount?: number;
-  } = {},
-) {
-  const contact = makeOmniClientWithNotes(overrides.contact);
-  const notes = makeBatch(
-    (o) => makeNoteDTO({ contactId: contact.id, userId: contact.userId, ...o }),
-    overrides.noteCount ?? contact.notesCount,
-  );
-  const interactions = makeBatch(
-    (o) => makeInteraction({ contactId: contact.id, userId: contact.userId, ...o }),
-    overrides.interactionCount ?? (contact.interactions || 0),
-  );
-
-  return { contact, notes, interactions };
-}
 
 /**
  * Creates realistic pagination response data

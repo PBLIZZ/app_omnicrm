@@ -31,9 +31,22 @@ export {
 // Calendar schemas
 export {
   CalendarEventSchema,
+  CreateCalendarEventSchema,
+  UpdateCalendarEventSchema,
+  CalendarOAuthQuerySchema,
+  CalendarItemSchema,
+  ClientSchema,
+  AppointmentSchema,
+  WeeklyStatsSchema,
   type CalendarEvent,
-  type InsertCalendarEvent,
-} from "./business-schema";
+  type CreateCalendarEvent,
+  type UpdateCalendarEvent,
+  type CalendarOAuthQuery,
+  type CalendarItem,
+  type Client,
+  type Appointment,
+  type WeeklyStats,
+} from "./calendar";
 
 export {
   CalendarSyncRequestSchema,
@@ -78,11 +91,50 @@ export * from "./contacts";
 // Note schemas
 export * from "./notes";
 
+// Interaction schemas
+export {
+  InteractionSchema,
+  CreateInteractionSchema,
+  UpdateInteractionSchema,
+  type Interaction,
+  type CreateInteraction,
+  type UpdateInteraction,
+} from "./interactions";
+
+// AI Insights schemas
+export {
+  AiInsightSchema,
+  CreateAiInsightSchema,
+  UpdateAiInsightSchema,
+  type AiInsight,
+  type CreateAiInsight,
+  type UpdateAiInsight,
+} from "./ai-insights";
+
 // Gmail schemas
 export * from "./gmail";
-
-// Google OAuth schemas
-export * from "./google-auth";
+export {
+  EmailClassificationSchema,
+  EmailPreviewSchema,
+  PreviewRangeSchema,
+  ConnectConnectionStatusSchema,
+  JobSchema,
+  ConnectDashboardStateSchema,
+  SearchResultSchema,
+  ContactDataSchema,
+  EmailInsightsSchema
+} from "./gmail";
+export type {
+  EmailClassification,
+  EmailPreview,
+  PreviewRange,
+  ConnectConnectionStatus,
+  Job,
+  ConnectDashboardState,
+  SearchResult,
+  ContactData,
+  EmailInsights
+} from "./gmail";
 
 // Job Processing & Background Tasks
 export {
@@ -114,10 +166,16 @@ export {
   SyncProgressResponseSchema,
   SyncCancelResponseSchema,
   SyncSessionErrorSchema,
+  UserSyncPrefsUpdateSchema,
+  SyncSessionSchema,
+  NewSyncSessionSchema,
   type SyncProgressQuery,
   type SyncProgressResponse,
   type SyncCancelResponse,
   type SyncSessionError,
+  type UserSyncPrefsUpdate,
+  type SyncSession,
+  type NewSyncSession,
 } from "./sync-progress";
 
 // Inbox Management

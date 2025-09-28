@@ -1,10 +1,8 @@
 import { eq, and, desc, ilike, inArray, sql } from "drizzle-orm";
 import { inboxItems } from "@/server/db/schema";
-import { getDb } from "./db";
-import type {
-  InboxItem,
-  CreateInboxItem
-} from "@/server/db/schema";
+import { getDb } from "@/server/db/client";
+import type { InboxItem, CreateInboxItem } from "@/server/db/schema";
+import { ok, err, DbResult } from "@/lib/utils/result";
 
 // Local type aliases for repository layer
 type InboxItemDTO = InboxItem;
@@ -25,47 +23,54 @@ export class InboxRepository {
    */
   static async listInboxItems(
     userId: string,
-    filters?: InboxFilters
-  ): Promise<InboxItemDTO[]> {
-    const db = await getDb();
+    filters?: InboxFilters,
+  ): Promise<DbResult<InboxItemDTO[]>> {
+    try {
+      const db = await getDb();
 
-    // Build conditions array
-    const conditions = [eq(inboxItems.userId, userId)];
+      // Build conditions array
+      const conditions = [eq(inboxItems.userId, userId)];
 
-    if (filters?.status && filters.status.length > 0) {
-      conditions.push(inArray(inboxItems.status, filters.status));
+      if (filters?.status && filters.status.length > 0) {
+        conditions.push(inArray(inboxItems.status, filters.status));
+      }
+
+      if (filters?.search) {
+        conditions.push(ilike(inboxItems.rawText, `%${filters.search}%`));
+      }
+
+      if (filters?.createdAfter) {
+        conditions.push(sql`${inboxItems.createdAt} >= ${filters.createdAfter}`);
+      }
+
+      if (filters?.createdBefore) {
+        conditions.push(sql`${inboxItems.createdAt} <= ${filters.createdBefore}`);
+      }
+
+      const query = db
+        .select({
+          id: inboxItems.id,
+          userId: inboxItems.userId,
+          rawText: inboxItems.rawText,
+          status: inboxItems.status,
+          createdTaskId: inboxItems.createdTaskId,
+          processedAt: inboxItems.processedAt,
+          createdAt: inboxItems.createdAt,
+          updatedAt: inboxItems.updatedAt,
+        })
+        .from(inboxItems)
+        .where(and(...conditions))
+        .orderBy(desc(inboxItems.createdAt));
+
+      const rows = await query;
+      return ok(rows.map((row) => row));
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to list inbox items",
+        details: error,
+      });
     }
-
-    if (filters?.search) {
-      conditions.push(ilike(inboxItems.rawText, `%${filters.search}%`));
-    }
-
-    if (filters?.createdAfter) {
-      conditions.push(sql`${inboxItems.createdAt} >= ${filters.createdAfter}`);
-    }
-
-    if (filters?.createdBefore) {
-      conditions.push(sql`${inboxItems.createdAt} <= ${filters.createdBefore}`);
-    }
-
-    const query = db
-      .select({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      })
-      .from(inboxItems)
-      .where(and(...conditions))
-      .orderBy(desc(inboxItems.createdAt));
-
-    const rows = await query;
-
-    return rows.map(row => row);
   }
 
   /**
@@ -93,13 +98,15 @@ export class InboxRepository {
       return null;
     }
 
-    return rows[0];
+    return rows[0] ?? null;
   }
 
   /**
    * Create a new inbox item
    */
-  static async createInboxItem(data: CreateInboxItemDTO & { userId: string }): Promise<InboxItemDTO> {
+  static async createInboxItem(
+    data: CreateInboxItemDTO & { userId: string },
+  ): Promise<InboxItemDTO> {
     const db = await getDb();
 
     const insertValues = {
@@ -110,19 +117,20 @@ export class InboxRepository {
       processedAt: null,
     };
 
-    const [newItem] = await db
-      .insert(inboxItems)
-      .values(insertValues)
-      .returning({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      });
+    const [newItem] = await db.insert(inboxItems).values(insertValues).returning({
+      id: inboxItems.id,
+      userId: inboxItems.userId,
+      rawText: inboxItems.rawText,
+      status: inboxItems.status,
+      createdTaskId: inboxItems.createdTaskId,
+      processedAt: inboxItems.processedAt,
+      createdAt: inboxItems.createdAt,
+      updatedAt: inboxItems.updatedAt,
+    });
+
+    if (!newItem) {
+      throw new Error("Failed to create inbox item - no data returned");
+    }
 
     return newItem;
   }
@@ -133,7 +141,7 @@ export class InboxRepository {
   static async updateInboxItem(
     userId: string,
     itemId: string,
-    data: UpdateInboxItemDTO
+    data: UpdateInboxItemDTO,
   ): Promise<InboxItemDTO | null> {
     const db = await getDb();
 
@@ -185,7 +193,7 @@ export class InboxRepository {
   static async bulkUpdateStatus(
     userId: string,
     itemIds: string[],
-    status: InboxItemStatus
+    status: InboxItemStatus,
   ): Promise<InboxItemDTO[]> {
     if (itemIds.length === 0) {
       return [];
@@ -214,7 +222,7 @@ export class InboxRepository {
         updatedAt: inboxItems.updatedAt,
       });
 
-    return updatedItems.map(item => item);
+    return updatedItems.map((item) => item);
   }
 
   /**
@@ -306,7 +314,7 @@ export class InboxRepository {
       .orderBy(desc(inboxItems.createdAt))
       .limit(limit);
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
@@ -315,7 +323,7 @@ export class InboxRepository {
   static async markAsProcessed(
     userId: string,
     itemId: string,
-    createdTaskId?: string
+    createdTaskId?: string,
   ): Promise<InboxItemDTO | null> {
     const db = await getDb();
 

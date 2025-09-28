@@ -3,7 +3,7 @@
 import { generateText } from "@/server/ai/core/llm.service";
 import { ChatMessage } from "@/server/ai/core/llm.service"; // Assuming types are exported
 import { buildCategorizeEmailPrompt } from "@/server/ai/prompts/connect/categorize-email.prompt";
-import { EmailClassification } from "@/server/ai/types/email-types";
+import { EmailClassification } from "@/server/db/business-schemas/gmail";
 
 export async function categorizeEmail(
   userId: string,

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { contacts } from "@/server/db/schema";
-import type { Contact as DbContact } from "@/server/db/types";
-import type { Contact as BusinessContact } from "@/server/db/business-schemas/omniClients";
+import type { Contact as DbContact } from "@/server/db/schema";
+import type { Contact as BusinessContact } from "@/server/db/business-schemas/contacts";
 import { toContact } from "@/server/adapters/omniClients";
 
 /**
@@ -39,7 +39,7 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
   describe("TypeScript Types", () => {
     it("Contact type must have nullable confidenceScore", () => {
       // Type-level test using conditional types
-      type ConfidenceScoreType = DbContact["confidence_score"];
+      type ConfidenceScoreType = DbContact["confidenceScore"];
       type IsNullable = null extends ConfidenceScoreType ? true : false;
 
       const typeCheck: IsNullable = true;
@@ -60,10 +60,10 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
     it("should preserve critical fields in toContact adapter", () => {
       const testRow: Partial<DbContact> = {
         id: "test-id",
-        display_name: "Test Client",
-        lifecycle_stage: "prospect",
+        displayName: "Test Client",
+        lifecycleStage: "prospect",
         tags: ["wellness"],
-        confidence_score: "0.85",
+        confidenceScore: "0.85",
       };
 
       const result = toContact(testRow);
@@ -76,7 +76,12 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
 
     it("should preserve critical fields in API response builder", () => {
       // This would be your actual API response builder
-      const buildApiResponse = (client: BusinessContact): BusinessContact => {
+      type ApiContactResponse = Omit<BusinessContact, "createdAt" | "updatedAt"> & {
+        createdAt: string;
+        updatedAt: string;
+      };
+
+      const buildApiResponse = (client: BusinessContact): ApiContactResponse => {
         return {
           id: client.id,
           userId: client.userId,
@@ -86,19 +91,18 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
           source: client.source,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          avatar: client.photoUrl ?? undefined,
-          tags: client.tags as unknown[],
+          tags: client.tags as string[],
           lifecycleStage: client.lifecycleStage,
-          lastContactDate: client.lastContactDate ?? undefined,
-          notes: client.notes ?? undefined,
-          company: client.company ?? undefined,
-          data: {
-            id: client.id,
-            displayName: client.displayName,
-            lifecycleStage: client.lifecycleStage,
-            tags: client.tags as unknown[],
-            confidenceScore: client.confidenceScore,
-          },
+          confidenceScore: client.confidenceScore,
+          dateOfBirth: client.dateOfBirth,
+          emergencyContactName: client.emergencyContactName,
+          emergencyContactPhone: client.emergencyContactPhone,
+          clientStatus: client.clientStatus,
+          referralSource: client.referralSource,
+          address: client.address,
+          healthContext: client.healthContext,
+          preferences: client.preferences,
+          photoUrl: client.photoUrl,
         };
       };
 
@@ -112,16 +116,25 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
         lifecycleStage: "prospect",
         tags: ["wellness", "vip"],
         confidenceScore: "0.95",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        dateOfBirth: null,
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+        clientStatus: null,
+        referralSource: null,
+        address: null,
+        healthContext: null,
+        preferences: null,
+        photoUrl: null,
       };
 
       const response = buildApiResponse(mockClient);
 
       // Critical assertions
-      expect(response.data).toHaveProperty("lifecycleStage");
-      expect(response.data).toHaveProperty("tags");
-      expect(response.data).toHaveProperty("confidenceScore");
+      expect(response).toHaveProperty("lifecycleStage");
+      expect(response).toHaveProperty("tags");
+      expect(response).toHaveProperty("confidenceScore");
     });
   });
 });

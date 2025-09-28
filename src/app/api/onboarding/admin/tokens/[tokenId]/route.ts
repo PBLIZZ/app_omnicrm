@@ -1,4 +1,3 @@
-import { handleAuth } from "@/lib/api";
 import { OnboardingTokenService } from "@/server/services/onboarding-token.service";
 import {
   DeleteTokenRequestSchema,

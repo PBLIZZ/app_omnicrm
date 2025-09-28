@@ -8,7 +8,7 @@ export function useDeleteOmniClient(): UseMutationResult<void, Error, string, un
 
   return useMutation({
     mutationFn: async (clientId: string): Promise<void> => {
-      await apiClient.delete(`/api/omni-clients/${clientId}`);
+      await apiClient.delete(`/api/contacts/${clientId}`);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.clients.list() });
@@ -27,7 +27,7 @@ export function useBulkDeleteOmniClients(): UseMutationResult<void, Error, strin
 
   return useMutation({
     mutationFn: async (clientIds: string[]): Promise<void> => {
-      await apiClient.post("/api/omni-clients/bulk-delete", { ids: clientIds });
+      await apiClient.post("/api/contacts/bulk-delete", { ids: clientIds });
     },
     onSuccess: (data, clientIds) => {
       void data;

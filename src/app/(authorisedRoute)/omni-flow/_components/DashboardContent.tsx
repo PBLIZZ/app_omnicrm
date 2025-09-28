@@ -16,7 +16,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetchContacts } from "@/lib/api/contacts-api";
-import { type Contact } from "@/server/db/business-schemas/business-schema";
+import { type Contact } from "@/server/db/business-schemas/contacts";
 import MonthlySessionsKpi from "./MonthlySessionsKpi";
 import { getSyncStatus } from "@/lib/api/sync.api";
 

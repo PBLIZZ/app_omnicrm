@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/business-schemas/business-schema";
+import type { Database } from "@/server/db/database.types";
 
 // Validation schema for access tracking
 const TrackAccessSchema = z.object({
@@ -114,7 +114,7 @@ export class OnboardingTrackingService {
    */
   static async trackTokenAccess(
     tokenData: TrackAccessData,
-    clientIpData: ClientIpData,
+    _clientIpData: ClientIpData,
   ): Promise<TrackAccessResult> {
     const { token } = tokenData;
 

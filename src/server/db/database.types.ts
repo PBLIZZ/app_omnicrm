@@ -727,8 +727,8 @@ export type Database = {
         };
         Insert: {
           contact_id?: string | null;
-          created_at?: string;
           content: string;
+          created_at?: string;
           id?: string;
           title?: string | null;
           updated_at?: string;
@@ -736,8 +736,8 @@ export type Database = {
         };
         Update: {
           contact_id?: string | null;
-          created_at?: string;
           content?: string;
+          created_at?: string;
           id?: string;
           title?: string | null;
           updated_at?: string;

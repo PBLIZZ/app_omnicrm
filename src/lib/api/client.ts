@@ -10,6 +10,7 @@
  */
 
 import { toast } from "sonner";
+import { type Result, isOk, isErr } from "@/lib/utils/result";
 
 // ============================================================================
 // CSRF TOKEN UTILITIES
@@ -163,11 +164,26 @@ export async function apiRequest<T = unknown>(
     // Parse response
     const responseData = (await response.json()) as unknown;
 
-    // Check if response is in envelope format (direct pattern)
+    // Check if response is in Result format
+    if (responseData && typeof responseData === "object" && "success" in responseData) {
+      const result = responseData as Result<T, { message: string }>;
+
+      // Handle Result pattern errors
+      if (isErr(result)) {
+        const error = new Error(result.error.message ?? "Unknown error");
+        throw error;
+      }
+
+      if (isOk(result)) {
+        return result.data;
+      }
+    }
+
+    // Check for legacy envelope format and convert to error
     if (responseData && typeof responseData === "object" && "ok" in responseData) {
       const envelope = responseData as { ok: boolean; data?: T; error?: string; details?: unknown };
 
-      // Handle API envelope errors
+      // Handle API envelope errors (legacy support)
       if (!envelope.ok) {
         const error = new Error(envelope.error ?? "Unknown error");
         throw error;

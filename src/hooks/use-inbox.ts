@@ -27,8 +27,8 @@ import type {
   ProcessInboxItemDTO,
   BulkProcessInboxDTO,
   VoiceInboxCaptureDTO,
-  InboxFilters,
-} from "@/server/db/business-schemas";
+} from "@/server/db/business-schemas/inbox";
+import type { InboxFilters } from "@/server/services/inbox.service";
 
 // ============================================================================
 // TYPES
@@ -183,6 +183,11 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
         processedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
+        // Computed fields
+        isProcessed: false,
+        wordCount: newItemData.rawText.split(/\s+/).length,
+        preview:
+          newItemData.rawText.slice(0, 100) + (newItemData.rawText.length > 100 ? "..." : ""),
       };
 
       queryClient.setQueryData<InboxItem[]>(queryKeys.inbox.list(filters), (old) => [

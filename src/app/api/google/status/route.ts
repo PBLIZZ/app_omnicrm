@@ -12,29 +12,17 @@
  * - Server-side caching to prevent UI flickering
  */
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { GoogleStatusQuerySchema, GoogleStatusResponseSchema } from "@/server/db/business-schemas";
+import { GoogleStatusQuerySchema, GoogleStatusResponseSchema } from "@/server/db/business-schemas/google-prefs";
 import { GoogleIntegrationService } from "@/server/services/google-integration.service";
 
 export const GET = handleGetWithQueryAuth(GoogleStatusQuerySchema, GoogleStatusResponseSchema, async (query, userId) => {
-  try {
-    return await GoogleIntegrationService.getGoogleStatus(userId);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+  const result = await GoogleIntegrationService.getGoogleStatus(userId);
 
-    // Classify error types for better user experience
-    let errorCode: string;
-    if (errorMessage.includes("auth") || errorMessage.includes("token")) {
-      errorCode = "AUTH_ERROR";
-    } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
-      errorCode = "NETWORK_ERROR";
-    } else if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
-      errorCode = "QUOTA_ERROR";
-    } else if (errorMessage.includes("database") || errorMessage.includes("db")) {
-      errorCode = "DATABASE_ERROR";
-    } else {
-      errorCode = "UNKNOWN_ERROR";
-    }
-
-    throw new Error(`Failed to get Google status: ${errorCode} - ${errorMessage}`);
+  if (result.success) {
+    return result.data;
   }
+
+  // Service already classified and logged the error, just propagate it with proper context
+  const { code, message, retryable, userActionRequired } = result.error;
+  throw new Error(`Google status error [${code}]: ${message}${retryable ? ' (retryable)' : ''}${userActionRequired ? ' (user action required)' : ''}`);
 });

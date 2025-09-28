@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { GmailApiService } from "./gmail-api.service";
 import type {
-  JobStatus,
   SearchResult,
   EmailInsights as GmailInsights,
-} from "../../app/(authorisedRoute)/omni-connect/_components/types";
+} from "@/server/db/business-schemas";
 
 // Mock the API client
 vi.mock("@/lib/api/client", () => ({

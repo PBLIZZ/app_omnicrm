@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { logger } from "@/lib/observability";
+import { Result, ok, err } from "@/lib/utils/result";
 
 interface DebugInfo {
   userId: string;
@@ -26,83 +27,92 @@ export class DebugService {
   /**
    * Get debug information for authenticated user
    */
-  static async getUserDebugInfo(userId: string): Promise<DebugInfo> {
-    const cookieStore = await cookies();
-    const allCookies = cookieStore.getAll();
-    const supabaseCookies = allCookies.filter(
-      (c) => c.name.includes("sb") || c.name.includes("supabase"),
-    );
+  static async getUserDebugInfo(userId: string): Promise<Result<DebugInfo, string>> {
+    try {
+      const cookieStore = await cookies();
+      const allCookies = cookieStore.getAll();
+      const supabaseCookies = allCookies.filter(
+        (c) => c.name.includes("sb") || c.name.includes("supabase"),
+      );
 
-    await logger.warn("[DEBUG] User debug info requested", {
-      operation: "debug_service.get_user_info",
-      additionalData: {
-        userId: userId.slice(0, 8) + "...",
-        totalCookies: allCookies.length,
-        supabaseCookies: supabaseCookies.length,
-      },
-    });
+      await logger.warn("[DEBUG] User debug info requested", {
+        operation: "debug_service.get_user_info",
+        additionalData: {
+          userId: userId.slice(0, 8) + "...",
+          totalCookies: allCookies.length,
+          supabaseCookies: supabaseCookies.length,
+        },
+      });
 
-    await logger.warn("[DEBUG] All cookies", {
-      operation: "debug_service.get_user_info",
-      additionalData: { cookieNames: allCookies.map((c) => c.name) },
-    });
+      await logger.warn("[DEBUG] All cookies", {
+        operation: "debug_service.get_user_info",
+        additionalData: { cookieNames: allCookies.map((c) => c.name) },
+      });
 
-    await logger.warn("[DEBUG] Supabase cookies", {
-      operation: "debug_service.get_user_info",
-      additionalData: { cookieNames: supabaseCookies.map((c) => c.name) },
-    });
+      await logger.warn("[DEBUG] Supabase cookies", {
+        operation: "debug_service.get_user_info",
+        additionalData: { cookieNames: supabaseCookies.map((c) => c.name) },
+      });
 
-    return {
-      userId,
-      debug: {
-        totalCookies: allCookies.length,
-        supabaseCookies: supabaseCookies.length,
-        cookieNames: allCookies.map((c) => c.name),
-        environment: process.env.NODE_ENV || "unknown",
-        timestamp: new Date().toISOString(),
-      },
-    };
+      return ok({
+        userId,
+        debug: {
+          totalCookies: allCookies.length,
+          supabaseCookies: supabaseCookies.length,
+          cookieNames: allCookies.map((c) => c.name),
+          environment: process.env.NODE_ENV || "unknown",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : "Failed to get user debug info");
+    }
   }
 
   /**
    * Get debug information for authentication failures
    */
-  static async getAuthFailureDebugInfo(error: unknown): Promise<AuthFailureDebugInfo> {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    const status = (error as { status?: number })?.status ?? 500;
+  static async getAuthFailureDebugInfo(error: unknown): Promise<Result<AuthFailureDebugInfo, string>> {
+    try {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const status = (error as { status?: number })?.status ?? 500;
 
-    const cookieStore = await cookies();
-    const allCookies = cookieStore.getAll();
+      const cookieStore = await cookies();
+      const allCookies = cookieStore.getAll();
 
-    await logger.warn("[DEBUG] Auth failed, cookies available", {
-      operation: "debug_service.auth_failure",
-      additionalData: {
+      await logger.warn("[DEBUG] Auth failed, cookies available", {
+        operation: "debug_service.auth_failure",
+        additionalData: {
+          error: message,
+          status,
+          cookieNames: allCookies.map((c) => c.name),
+        },
+      });
+
+      return ok({
         error: message,
-        status,
-        cookieNames: allCookies.map((c) => c.name),
-      },
-    });
-
-    return {
-      error: message,
-      debug: {
-        totalCookies: allCookies.length,
-        cookieNames: allCookies.map((c) => c.name),
-        file: "debug.service.ts",
-        timestamp: new Date().toISOString(),
-      },
-    };
+        debug: {
+          totalCookies: allCookies.length,
+          cookieNames: allCookies.map((c) => c.name),
+          file: "debug.service.ts",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (debugError) {
+      return err(debugError instanceof Error ? debugError.message : "Failed to get auth failure debug info");
+    }
   }
 
   /**
    * Get environment information
    */
-  static async getEnvironmentInfo(): Promise<{
+  static async getEnvironmentInfo(): Promise<Result<{
     environment: string;
     nodeVersion: string;
     timestamp: string;
     features: Record<string, boolean>;
-  }> {
+  }, string>> {
+    try {
     const features = {
       googleIntegration: !!(process.env["GOOGLE_CLIENT_ID"] && process.env["GOOGLE_CLIENT_SECRET"]),
       supabaseIntegration: !!(process.env["NEXT_PUBLIC_SUPABASE_URL"] && process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"]),
@@ -119,23 +129,27 @@ export class DebugService {
       },
     });
 
-    return {
-      environment: process.env.NODE_ENV || "unknown",
-      nodeVersion: process.version,
-      timestamp: new Date().toISOString(),
-      features,
-    };
+      return ok({
+        environment: process.env.NODE_ENV || "unknown",
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        features,
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : "Failed to get environment info");
+    }
   }
 
   /**
    * Get system health information
    */
-  static async getSystemHealth(): Promise<{
+  static async getSystemHealth(): Promise<Result<{
     uptime: number;
     memory: NodeJS.MemoryUsage;
     timestamp: string;
     status: "healthy" | "degraded" | "unhealthy";
-  }> {
+  }, string>> {
+    try {
     const memoryUsage = process.memoryUsage();
     const uptime = process.uptime();
 
@@ -160,12 +174,15 @@ export class DebugService {
       },
     });
 
-    return {
-      uptime,
-      memory: memoryUsage,
-      timestamp: new Date().toISOString(),
-      status,
-    };
+      return ok({
+        uptime,
+        memory: memoryUsage,
+        timestamp: new Date().toISOString(),
+        status,
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error.message : "Failed to get system health");
+    }
   }
 
   /**
@@ -205,13 +222,14 @@ export class DebugService {
   /**
    * Get cookie analysis for debugging authentication issues
    */
-  static async analyzeCookies(): Promise<{
+  static async analyzeCookies(): Promise<Result<{
     total: number;
     supabaseRelated: string[];
     authRelated: string[];
     sessionRelated: string[];
     timestamp: string;
-  }> {
+  }, string>> {
+    try {
     const cookieStore = await cookies();
     const allCookies = cookieStore.getAll();
 
@@ -240,6 +258,9 @@ export class DebugService {
       additionalData: analysis,
     });
 
-    return analysis;
+      return ok(analysis);
+    } catch (error) {
+      return err(error instanceof Error ? error.message : "Failed to analyze cookies");
+    }
   }
 }

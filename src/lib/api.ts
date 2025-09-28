@@ -29,7 +29,7 @@ export {
  *
  * @example
  * ```typescript
- * import { ContactInputSchema, ContactSchema } from "@/server/db/business-schema";
+ * import { ContactInputSchema, ContactSchema } from "@/server/db/business-schemas/contacts";
  * import { handle } from "@/lib/api";
  * import { contactsRepo } from "@omnicrm/repo";
  *

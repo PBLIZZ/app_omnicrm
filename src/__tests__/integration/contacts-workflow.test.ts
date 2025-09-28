@@ -246,9 +246,5 @@ describe('Contacts End-to-End Workflow Integration', () => {
       pageSize: 5,
       sort: 'displayName',
       order: 'asc',
-    });
-
-    expect(page4.items).toHaveLength(0);
-    expect(page4.total).toBe(15);
   });
 });

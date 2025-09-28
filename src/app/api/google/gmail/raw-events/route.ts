@@ -4,7 +4,7 @@ import {
   GmailRawEventsQuerySchema,
   GmailRawEventsResponseSchema,
 } from "@/server/db/business-schemas";
-import { toDateRange, type CreatedAtFilter } from "@/server/db/business-schemas/omniClients";
+import { toDateRange, type CreatedAtFilter } from "@/server/db/business-schemas/contacts";
 import { listRawEventsService } from "@/server/services/raw-events.service";
 
 export const GET = handleGetWithQueryAuth(

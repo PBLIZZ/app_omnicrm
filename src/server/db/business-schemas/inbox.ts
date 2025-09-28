@@ -30,7 +30,7 @@ const BaseInboxItemSchema = z.object({
  */
 export const InboxItemSchema = BaseInboxItemSchema.transform((data) => ({
   ...data,
-  // UI computed fields
+  // UI computed fields derived from rawText
   isProcessed: data.status === "processed",
   wordCount: data.rawText.split(/\s+/).length,
   preview: data.rawText.slice(0, 100) + (data.rawText.length > 100 ? "..." : ""),
@@ -264,14 +264,13 @@ export const InboxProcessingContextSchema = z.object({
     z.object({
       id: z.number(),
       name: z.string(),
-      description: z.string().nullable(),
       color: z.string().nullable(),
+      iconName: z.string().nullable(),
+      // UI computed fields from Zone transform
       icon: z.string().nullable(),
-      category: z.string().nullable(),
-      isActive: z.boolean(),
-      sortOrder: z.number().nullable(),
-      createdAt: z.coerce.date(),
-      updatedAt: z.coerce.date(),
+      displayName: z.string(),
+      hasIcon: z.boolean(),
+      hasColor: z.boolean(),
     }),
   ),
 });
@@ -298,3 +297,5 @@ export const InboxProcessingResultDTOSchema = z.object({
 });
 
 export type InboxProcessingResultDTO = z.infer<typeof InboxProcessingResultDTOSchema>;
+
+// Note: VoiceInboxCaptureDTOSchema and BulkProcessInboxDTOSchema are defined above to avoid duplicates

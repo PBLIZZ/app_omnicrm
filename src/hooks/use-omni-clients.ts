@@ -1,51 +1,53 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type {
-  OmniClientWithNotesDTO,
+  Contact,
+  ContactWithNotes,
   ClientSuggestion,
-  OmniClientsListResponseDTO,
+  ContactListResponse,
   ClientSuggestionsResponse,
-} from "@/lib/validation/schemas/omniClients";
+} from "@/server/db/business-schemas/contacts";
 
 // Re-export types for components
-export type { OmniClientWithNotesDTO, ClientSuggestion };
+export type { Contact, ContactWithNotes, ClientSuggestion };
 
-// For backward compatibility, alias ClientWithNotes to OmniClientWithNotes
-export type ClientWithNotes = OmniClientWithNotesDTO;
+// For backward compatibility, alias types
+export type OmniClientWithNotesDTO = ContactWithNotes;
+export type ClientWithNotes = ContactWithNotes;
 
-// GET /api/omni-clients
+// GET /api/contacts
 export function useEnhancedOmniClients(
   searchQuery: string,
-): ReturnType<typeof useQuery<{ items: OmniClientWithNotesDTO[]; total: number }>> {
+): ReturnType<typeof useQuery<{ items: ContactWithNotes[]; total: number }>> {
   return useQuery({
-    queryKey: ["/api/omni-clients", searchQuery],
-    queryFn: async (): Promise<{ items: OmniClientWithNotesDTO[]; total: number }> => {
+    queryKey: ["/api/contacts", searchQuery],
+    queryFn: async (): Promise<{ items: ContactWithNotes[]; total: number }> => {
       const params = new URLSearchParams();
       if (searchQuery.trim()) {
         params.set("search", searchQuery.trim());
       }
 
-      const response = await apiClient.get<OmniClientsListResponseDTO>(
-        `/api/omni-clients?${params.toString()}`,
+      const response = await apiClient.get<ContactListResponse>(
+        `/api/contacts?${params.toString()}`,
       );
 
       return {
         items: response.items,
-        total: response.total,
+        total: response.pagination.total,
       };
     },
   });
 }
 
-// GET /api/omni-clients/suggestions
+// GET /api/contacts/suggestions
 export function useOmniClientSuggestions(
   enabled: boolean,
 ): ReturnType<typeof useQuery<{ suggestions: ClientSuggestion[] }>> {
   return useQuery({
-    queryKey: ["/api/omni-clients/suggestions"],
+    queryKey: ["/api/contacts/suggestions"],
     queryFn: async (): Promise<{ suggestions: ClientSuggestion[] }> => {
       const response = await apiClient.get<ClientSuggestionsResponse>(
-        "/api/omni-clients/suggestions",
+        "/api/contacts/suggestions",
       );
       return response;
     },

@@ -1,16 +1,17 @@
 /**
  * Task Schema for OmniMomentum
  *
- * Extracted from business-schema.ts for better organization
+ * Properly derived from database schema with business logic transforms
  */
 
 import { z } from "zod";
+import { tasks } from "@/server/db/schema";
+
+// Derive base types from Drizzle schema
+type DbTask = typeof tasks.$inferSelect;
 
 /**
- * Task Schema (OmniMomentum)
- */
-/**
- * Base Task Schema (without transform)
+ * Base Task Schema (derived from database schema)
  */
 const BaseTaskSchema = z.object({
   id: z.string().uuid(),
@@ -25,7 +26,7 @@ const BaseTaskSchema = z.object({
   completedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
-});
+}) satisfies z.ZodType<DbTask>;
 
 /**
  * Task Schema (with transform)
@@ -50,6 +51,8 @@ export const CreateTaskSchema = BaseTaskSchema.omit({
   createdAt: true,
   updatedAt: true,
   completedAt: true,
+}).extend({
+  taggedContactIds: z.array(z.string().uuid()).optional(),
 });
 
 export type CreateTask = z.infer<typeof CreateTaskSchema>;
@@ -57,7 +60,11 @@ export type CreateTask = z.infer<typeof CreateTaskSchema>;
 /**
  * Task update schema (all fields optional except id)
  */
-export const UpdateTaskSchema = BaseTaskSchema.partial().required({ id: true });
+export const UpdateTaskSchema = BaseTaskSchema.partial()
+  .required({ id: true })
+  .extend({
+    taggedContactIds: z.array(z.string().uuid()).optional(),
+  });
 export type UpdateTask = z.infer<typeof UpdateTaskSchema>;
 
 /**

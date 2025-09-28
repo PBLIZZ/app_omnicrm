@@ -1,8 +1,9 @@
-import { getSupabaseServerClient, type ServerSupabaseClient } from "@/server/db/supabase/server";
 import { getOrGenerateEmbedding } from "@/server/lib/embeddings";
+import { Result, ok, err } from "@/lib/utils/result";
+import { SearchRepository, type SearchResultDTO } from "packages/repo/src/search.repo";
 
 export type SearchKind = "traditional" | "semantic" | "hybrid";
-export type SearchResultType = "client" | "appointment" | "task" | "note" | "email" | "goal";
+export type SearchResultType = "contact" | "note" | "interaction" | "calendar_event" | "task";
 export type SearchSource = "traditional" | "semantic" | "hybrid";
 
 export interface SearchResult {
@@ -15,73 +16,30 @@ export interface SearchResult {
   similarity?: number;
   score?: number;
   source?: SearchSource;
-}
-
-interface ClientRow {
-  id: string;
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-  created_at: string | null;
-}
-
-interface AppointmentRow {
-  id: string;
-  title: string | null;
-  description: string | null;
-  date_time: string | null;
-  client_id: string | null;
-  clients: { name: string | null } | null;
-}
-
-interface TaskRow {
-  id: string;
-  title: string | null;
-  description: string | null;
-  status: string | null;
-  due_date: string | null;
-}
-
-interface NoteRow {
-  id: string;
-  title: string | null;
-  content: string | null;
-  created_at: string | null;
-  client_id: string | null;
-  clients: { name: string | null } | null;
-}
-
-interface SemanticSearchRow {
-  id: string;
-  content_id: string | null;
-  content_type: string;
-  title: string | null;
-  content: string | null;
-  metadata: Record<string, unknown> | null;
-  similarity: number | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
 }
 
 interface SemanticSearchOptions {
   matchCount?: number;
   similarityThreshold?: number;
+  types?: SearchResultType[];
 }
 
-const SEARCH_RESULT_TYPES: ReadonlySet<SearchResultType> = new Set([
-  "client",
-  "appointment",
-  "task",
+const _SEARCH_RESULT_TYPES: ReadonlySet<SearchResultType> = new Set([
+  "contact",
   "note",
-  "email",
-  "goal",
+  "interaction",
+  "calendar_event",
+  "task",
 ]);
 
 const RESULT_ROUTE_MAP: Record<SearchResultType, (id: string) => string> = {
-  client: (id) => `/clients/${id}`,
-  appointment: (id) => `/appointments/${id}`,
+  contact: (id) => `/omni-clients/details?contactId=${id}`,
+  note: (id) => `/omni-clients/details?contactId=${id}&tab=notes`,
+  interaction: (id) => `/omni-clients/details?contactId=${id}&tab=interactions`,
+  calendar_event: (id) => `/calendar/${id}`,
   task: (id) => `/tasks/${id}`,
-  note: (id) => `/notes/${id}`,
-  email: (id) => `/emails/${id}`,
-  goal: (id) => `/goals/${id}`,
 };
 
 const DEFAULT_SIMILARITY_THRESHOLD = 0.7;
@@ -92,9 +50,11 @@ export function resolveResultUrl(type: SearchResultType, id: string): string {
 }
 
 export interface SearchRequest {
-  query?: unknown;
-  type?: unknown;
-  limit?: unknown;
+  userId: string;
+  query: string;
+  type?: SearchKind;
+  limit?: number;
+  types?: SearchResultType[];
 }
 
 export interface SearchResponse {
@@ -114,51 +74,66 @@ const SEARCH_TYPES: readonly SearchKind[] = ["traditional", "semantic", "hybrid"
  */
 export async function processSearchRequest(
   request: SearchRequest,
-  client?: ServerSupabaseClient,
-): Promise<SearchResponse> {
-  // Normalize and validate query
-  const query = typeof request.query === "string" ? request.query.trim() : "";
-  if (!query) {
-    return {
-      results: [],
-      searchType: "hybrid",
-      query: "",
-    };
+): Promise<Result<SearchResponse, { code: string; message: string; details?: unknown }>> {
+  try {
+    // Validate query
+    if (!request.query || !request.query.trim()) {
+      return ok({
+        results: [],
+        searchType: "hybrid",
+        query: "",
+      });
+    }
+
+    const query = request.query.trim();
+    const searchType: SearchKind = SEARCH_TYPES.includes(request.type || "hybrid") ? (request.type || "hybrid") : "hybrid";
+    const limit = clamp(request.limit || DEFAULT_LIMIT, MIN_LIMIT, MAX_LIMIT);
+
+    // Perform search
+    const searchResult = await performSearch(request.userId, query, searchType, limit, request.types);
+
+    if (!searchResult.success) {
+      return err(searchResult.error);
+    }
+
+    return ok({
+      results: searchResult.data,
+      searchType,
+      query,
+    });
+  } catch (error) {
+    return err({
+      code: "SEARCH_FAILED",
+      message: error instanceof Error ? error.message : "Search processing failed",
+      details: error,
+    });
   }
-
-  // Normalize and validate search type
-  const requestedType = typeof request.type === "string" ? (request.type as SearchKind) : "hybrid";
-  const searchType: SearchKind = SEARCH_TYPES.includes(requestedType) ? requestedType : "hybrid";
-
-  // Normalize and validate limit
-  const rawLimit = typeof request.limit === "number" ? request.limit : DEFAULT_LIMIT;
-  const limit = clamp(Math.floor(rawLimit), MIN_LIMIT, MAX_LIMIT);
-
-  // Perform search
-  const results = await performSearch(query, searchType, limit, client);
-
-  return {
-    results,
-    searchType,
-    query,
-  };
 }
 
 export async function performSearch(
+  userId: string,
   query: string,
   type: SearchKind,
   limit: number,
-  client?: ServerSupabaseClient,
-): Promise<SearchResult[]> {
-  switch (type) {
-    case "traditional":
-      return searchTraditional(query, limit, client);
-    case "semantic":
-      return searchSemantic(query, limit, client);
-    case "hybrid":
-      return searchHybrid(query, limit, client);
-    default:
-      return searchHybrid(query, limit, client);
+  types?: SearchResultType[],
+): Promise<Result<SearchResult[], { code: string; message: string; details?: unknown }>> {
+  try {
+    switch (type) {
+      case "traditional":
+        return await searchTraditional(userId, query, limit, types);
+      case "semantic":
+        return await searchSemantic(userId, query, limit, undefined, types);
+      case "hybrid":
+        return await searchHybrid(userId, query, limit, types);
+      default:
+        return await searchHybrid(userId, query, limit, types);
+    }
+  } catch (error) {
+    return err({
+      code: "SEARCH_FAILED",
+      message: error instanceof Error ? error.message : "Search failed",
+      details: error,
+    });
   }
 }
 
@@ -167,250 +142,169 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export async function searchTraditional(
+  userId: string,
   query: string,
   limit: number,
-  client?: ServerSupabaseClient,
-): Promise<SearchResult[]> {
-  const supabase = client ?? getSupabaseServerClient();
-  const effectiveLimit = Math.max(1, limit);
-  const limitPerCollection = Math.max(1, Math.ceil(effectiveLimit / 4));
-  const searchTerm = `%${query}%`;
+  types?: SearchResultType[],
+): Promise<Result<SearchResult[], { code: string; message: string; details?: unknown }>> {
+  try {
+    const searchResult = await SearchRepository.searchTraditional({
+      userId,
+      query,
+      limit,
+      types,
+    });
 
-  const [clientsResponse, appointmentsResponse, tasksResponse, notesResponse] = await Promise.all([
-    supabase
-      .from("clients")
-      .select("id, name, email, phone, created_at")
-      .or(`name.ilike.${searchTerm},email.ilike.${searchTerm},phone.ilike.${searchTerm}`)
-      .limit(limitPerCollection),
-    supabase
-      .from("appointments")
-      .select("id, title, description, date_time, client_id, clients(name)")
-      .or(`title.ilike.${searchTerm},description.ilike.${searchTerm}`)
-      .limit(limitPerCollection),
-    supabase
-      .from("tasks")
-      .select("id, title, description, status, due_date")
-      .or(`title.ilike.${searchTerm},description.ilike.${searchTerm}`)
-      .limit(limitPerCollection),
-    supabase
-      .from("notes")
-      .select("id, title, content, created_at, client_id, clients(name)")
-      .or(`title.ilike.${searchTerm},content.ilike.${searchTerm}`)
-      .limit(limitPerCollection),
-  ]);
+    if (!searchResult.success) {
+      return err(searchResult.error);
+    }
 
-  if (clientsResponse.error) {
-    throw new Error(`Traditional search (clients) failed: ${clientsResponse.error.message}`);
+    const results = searchResult.data.map(mapSearchResultDTOToSearchResult);
+    return ok(results);
+  } catch (error) {
+    return err({
+      code: "TRADITIONAL_SEARCH_FAILED",
+      message: error instanceof Error ? error.message : "Traditional search failed",
+      details: error,
+    });
   }
-  if (appointmentsResponse.error) {
-    throw new Error(
-      `Traditional search (appointments) failed: ${appointmentsResponse.error.message}`,
-    );
-  }
-  if (tasksResponse.error) {
-    throw new Error(`Traditional search (tasks) failed: ${tasksResponse.error.message}`);
-  }
-  if (notesResponse.error) {
-    throw new Error(`Traditional search (notes) failed: ${notesResponse.error.message}`);
-  }
-
-  const results: SearchResult[] = [];
-
-  for (const row of clientsResponse.data ?? []) {
-    results.push(mapClientRow(row));
-  }
-
-  for (const row of appointmentsResponse.data ?? []) {
-    results.push(mapAppointmentRow(row));
-  }
-
-  for (const row of tasksResponse.data ?? []) {
-    results.push(mapTaskRow(row));
-  }
-
-  for (const row of notesResponse.data ?? []) {
-    results.push(mapNoteRow(row));
-  }
-
-  return results.slice(0, effectiveLimit);
 }
 
 export async function searchSemantic(
+  userId: string,
   query: string,
   limit: number,
-  client?: ServerSupabaseClient,
-): Promise<SearchResult[]> {
-  const embedding = await getOrGenerateEmbedding(query);
-  return searchSemanticByEmbedding(embedding, { matchCount: limit }, client);
+  options?: SemanticSearchOptions,
+  types?: SearchResultType[],
+): Promise<Result<SearchResult[], { code: string; message: string; details?: unknown }>> {
+  try {
+    const embedding = await getOrGenerateEmbedding(query);
+    return await searchSemanticByEmbedding(userId, embedding, {
+      matchCount: limit,
+      similarityThreshold: options?.similarityThreshold,
+      types: types || options?.types,
+    });
+  } catch (error) {
+    return err({
+      code: "SEMANTIC_SEARCH_FAILED",
+      message: error instanceof Error ? error.message : "Semantic search failed",
+      details: error,
+    });
+  }
 }
 
 export async function searchSemanticByEmbedding(
+  userId: string,
   embedding: number[],
   options?: SemanticSearchOptions,
-  client?: ServerSupabaseClient,
-): Promise<SearchResult[]> {
-  const supabase = client ?? getSupabaseServerClient();
-  const matchCount = Math.max(1, options?.matchCount ?? 10);
-  const similarityThreshold = options?.similarityThreshold ?? DEFAULT_SIMILARITY_THRESHOLD;
+): Promise<Result<SearchResult[], { code: string; message: string; details?: unknown }>> {
+  try {
+    const searchResult = await SearchRepository.searchSemantic({
+      userId,
+      embedding,
+      limit: options?.matchCount ?? 10,
+      similarityThreshold: options?.similarityThreshold ?? DEFAULT_SIMILARITY_THRESHOLD,
+      types: options?.types,
+    });
 
-  const { data, error } = await supabase.rpc<SemanticSearchRow>("semantic_search", {
-    query_embedding: embedding,
-    similarity_threshold: similarityThreshold,
-    match_count: matchCount,
-  });
+    if (!searchResult.success) {
+      return err(searchResult.error);
+    }
 
-  if (error) {
-    throw new Error(`Semantic search failed: ${error.message}`);
+    const results = searchResult.data.map(mapSearchResultDTOToSearchResult);
+    return ok(results);
+  } catch (error) {
+    return err({
+      code: "SEMANTIC_EMBEDDING_SEARCH_FAILED",
+      message: error instanceof Error ? error.message : "Semantic embedding search failed",
+      details: error,
+    });
   }
-
-  return (data ?? []).map(mapSemanticRow).slice(0, matchCount);
 }
 
 export async function searchHybrid(
+  userId: string,
   query: string,
   limit: number,
-  client?: ServerSupabaseClient,
-): Promise<SearchResult[]> {
-  const supabase = client ?? getSupabaseServerClient();
-  const effectiveLimit = Math.max(1, limit);
-  const traditionalLimit = Math.max(1, Math.ceil(effectiveLimit * 0.6));
-  const semanticLimit = Math.max(1, Math.ceil(effectiveLimit * 0.4));
+  types?: SearchResultType[],
+): Promise<Result<SearchResult[], { code: string; message: string; details?: unknown }>> {
+  try {
+    const effectiveLimit = Math.max(1, limit);
+    const traditionalLimit = Math.max(1, Math.ceil(effectiveLimit * 0.6));
+    const semanticLimit = Math.max(1, Math.ceil(effectiveLimit * 0.4));
 
-  const [traditionalResults, semanticResults] = await Promise.all([
-    searchTraditional(query, traditionalLimit, supabase),
-    searchSemantic(query, semanticLimit, supabase),
-  ]);
+    const [traditionalResult, semanticResult] = await Promise.all([
+      searchTraditional(userId, query, traditionalLimit, types),
+      searchSemantic(userId, query, semanticLimit, undefined, types),
+    ]);
 
-  const merged = new Map<string, SearchResult>();
-
-  const addResult = (result: SearchResult) => {
-    const key = `${result.type}:${result.id}`;
-    merged.set(key, result);
-  };
-
-  traditionalResults.forEach((result) => {
-    addResult({ ...result, score: result.score ?? 1, source: "traditional" });
-  });
-
-  semanticResults.forEach((result) => {
-    const key = `${result.type}:${result.id}`;
-    const existing = merged.get(key);
-    const semanticScore = result.similarity ?? 0.5;
-
-    if (existing) {
-      merged.set(key, {
-        ...existing,
-        similarity: result.similarity ?? existing.similarity,
-        score: Math.min((existing.score ?? 1) + semanticScore, 2),
-        source: "hybrid",
+    // Handle errors from either search
+    if (!traditionalResult.success && !semanticResult.success) {
+      return err({
+        code: "HYBRID_SEARCH_FAILED",
+        message: "Both traditional and semantic search failed",
+        details: { traditionalError: traditionalResult.error, semanticError: semanticResult.error },
       });
-    } else {
-      addResult({ ...result, score: semanticScore, source: "semantic" });
     }
-  });
 
-  return Array.from(merged.values())
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, effectiveLimit);
-}
+    const traditionalResults = traditionalResult.success ? traditionalResult.data : [];
+    const semanticResults = semanticResult.success ? semanticResult.data : [];
 
-function mapClientRow(row: ClientRow): SearchResult {
-  const metadata: Record<string, unknown> = {};
-  if (row.email) metadata.email = row.email;
-  if (row.phone) metadata.phone = row.phone;
-  if (row.created_at) metadata.created = row.created_at;
+    const merged = new Map<string, SearchResult>();
 
-  return {
-    id: row.id,
-    type: "client",
-    title: row.name ?? "Unnamed Client",
-    content: [row.email, row.phone].filter(Boolean).join(" ").trim(),
-    metadata,
-    url: resolveResultUrl("client", row.id),
-    score: 1,
-    source: "traditional",
-  };
-}
+    const addResult = (result: SearchResult): void => {
+      const key = `${result.type}:${result.id}`;
+      merged.set(key, result);
+    };
 
-function mapAppointmentRow(row: AppointmentRow): SearchResult {
-  const metadata: Record<string, unknown> = {};
-  if (row.date_time) metadata.date = row.date_time;
-  if (row.clients?.name) metadata.client = row.clients.name;
+    traditionalResults.forEach((result) => {
+      addResult({ ...result, score: result.score ?? 1, source: "traditional" });
+    });
 
-  return {
-    id: row.id,
-    type: "appointment",
-    title: row.title ?? "Appointment",
-    content: row.description ?? "",
-    metadata,
-    url: resolveResultUrl("appointment", row.id),
-    score: 1,
-    source: "traditional",
-  };
-}
+    semanticResults.forEach((result) => {
+      const key = `${result.type}:${result.id}`;
+      const existing = merged.get(key);
+      const semanticScore = result.similarity ?? 0.5;
 
-function mapTaskRow(row: TaskRow): SearchResult {
-  const metadata: Record<string, unknown> = {};
-  if (row.status) metadata.status = row.status;
-  if (row.due_date) metadata.due = row.due_date;
+      if (existing) {
+        merged.set(key, {
+          ...existing,
+          similarity: result.similarity ?? existing.similarity,
+          score: Math.min((existing.score ?? 1) + semanticScore, 2),
+          source: "hybrid",
+        });
+      } else {
+        addResult({ ...result, score: semanticScore, source: "semantic" });
+      }
+    });
 
-  return {
-    id: row.id,
-    type: "task",
-    title: row.title ?? "Task",
-    content: row.description ?? "",
-    metadata,
-    url: resolveResultUrl("task", row.id),
-    score: 1,
-    source: "traditional",
-  };
-}
+    const results = Array.from(merged.values())
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .slice(0, effectiveLimit);
 
-function mapNoteRow(row: NoteRow): SearchResult {
-  const metadata: Record<string, unknown> = {};
-  if (row.clients?.name) metadata.client = row.clients.name;
-  if (row.created_at) metadata.created = row.created_at;
-
-  return {
-    id: row.id,
-    type: "note",
-    title: row.title ?? "Note",
-    content: row.content ?? "",
-    metadata,
-    url: resolveResultUrl("note", row.id),
-    score: 1,
-    source: "traditional",
-  };
-}
-
-function mapSemanticRow(row: SemanticSearchRow): SearchResult {
-  const type = toSearchResultType(row.content_type);
-  const identifier = row.content_id ?? row.id;
-  const metadata = normalizeMetadata(row.metadata);
-
-  return {
-    id: identifier,
-    type,
-    title: row.title ?? "Untitled",
-    content: row.content ?? "",
-    metadata,
-    similarity: row.similarity ?? undefined,
-    score: row.similarity ?? undefined,
-    url: resolveResultUrl(type, identifier),
-    source: "semantic",
-  };
-}
-
-function toSearchResultType(value: string): SearchResultType {
-  if (SEARCH_RESULT_TYPES.has(value as SearchResultType)) {
-    return value as SearchResultType;
+    return ok(results);
+  } catch (error) {
+    return err({
+      code: "HYBRID_SEARCH_FAILED",
+      message: error instanceof Error ? error.message : "Hybrid search failed",
+      details: error,
+    });
   }
-  return "note";
 }
 
-function normalizeMetadata(metadata: Record<string, unknown> | null): Record<string, unknown> {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return {};
-  }
-  return metadata;
+function mapSearchResultDTOToSearchResult(dto: SearchResultDTO): SearchResult {
+  return {
+    id: dto.id,
+    type: dto.type,
+    title: dto.title,
+    content: dto.content,
+    metadata: dto.metadata,
+    url: resolveResultUrl(dto.type, dto.id),
+    similarity: dto.similarity,
+    score: dto.score,
+    source: dto.source,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  };
 }
+

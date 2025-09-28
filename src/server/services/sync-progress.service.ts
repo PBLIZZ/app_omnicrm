@@ -6,10 +6,9 @@
  */
 
 import { getDb } from "@/server/db/client";
-import { syncSessions } from "@/server/db/schema";
+import { syncSessions, type SyncSession } from "@/server/db/schema";
 import { eq, lt } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import type { SyncSession, NewSyncSession } from "@/server/db/business-schemas/business-schema";
 
 export interface SyncProgressUpdate {
   status?:
@@ -230,9 +229,9 @@ export class SyncProgressService {
         errors.push(
           ...errorObj.errors.filter(isErrorObject).map(
             (err): ErrorDetail => ({
-              stage: typeof err["stage"] === "string" ? err["stage"] : "unknown",
-              message: typeof err["message"] === "string" ? err["message"] : "Unknown error",
-              recoverable: typeof err["recoverable"] === "boolean" ? err["recoverable"] : true, // Default to recoverable
+              stage: typeof err.stage === "string" ? err.stage : "unknown",
+              message: typeof err.message === "string" ? err.message : "Unknown error",
+              recoverable: typeof err.recoverable === "boolean" ? err.recoverable : true, // Default to recoverable
             }),
           ),
         );
@@ -241,8 +240,8 @@ export class SyncProgressService {
 
     // Calculate time estimate based on progress
     let timeEstimate: { remainingSeconds: number; completedAt?: string } | undefined;
-    if (session.status === "importing" || session.status === "processing") {
-      const startTime = session.startedAt.getTime();
+    if ((session.status === "importing" || session.status === "processing") && session.startedAt) {
+      const startTime = session.startedAt instanceof Date ? session.startedAt.getTime() : new Date(session.startedAt).getTime();
       const currentTime = Date.now();
       const elapsed = currentTime - startTime;
       const progress = session.progressPercentage ?? 0;
@@ -280,8 +279,8 @@ export class SyncProgressService {
       },
       timeEstimate,
       errors: errors.length > 0 ? errors : undefined,
-      startedAt: session.startedAt.toISOString(),
-      completedAt: session.completedAt?.toISOString(),
+      startedAt: session.startedAt instanceof Date ? session.startedAt.toISOString() : session.startedAt ? new Date(session.startedAt).toISOString() : undefined,
+      completedAt: session.completedAt instanceof Date ? session.completedAt.toISOString() : session.completedAt ? new Date(session.completedAt).toISOString() : undefined,
     };
   }
 
@@ -351,14 +350,14 @@ export class SyncProgressService {
     const sessionsToDelete = await db
       .select({ id: syncSessions.id })
       .from(syncSessions)
-      .where(lt(syncSessions.createdAt, cutoffDate));
+      .where(lt(syncSessions.startedAt, cutoffDate));
 
     if (sessionsToDelete.length === 0) {
       return 0;
     }
 
     // Delete the sessions
-    await db.delete(syncSessions).where(lt(syncSessions.createdAt, cutoffDate));
+    await db.delete(syncSessions).where(lt(syncSessions.startedAt, cutoffDate));
 
     return sessionsToDelete.length;
   }

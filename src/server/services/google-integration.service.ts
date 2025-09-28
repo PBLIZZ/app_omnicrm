@@ -16,6 +16,8 @@ import { desc, eq, and, sql, inArray } from "drizzle-orm";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { logger } from "@/lib/observability";
+import { Result, ok, err } from "@/lib/utils/result";
+import type { GoogleServiceError, GoogleErrorCode } from "@/server/db/business-schemas/google-prefs";
 
 export interface GoogleStatusResponse {
   googleConnected: boolean;
@@ -120,18 +122,70 @@ export class GoogleIntegrationService {
   private static readonly CACHE_TTL_MS = 30 * 1000; // 30 seconds
 
   /**
+   * Classify error types for better user experience and retry logic
+   */
+  private static classifyError(error: unknown): GoogleServiceError {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const lowerMessage = errorMessage.toLowerCase();
+
+    let code: GoogleErrorCode;
+    let retryable = false;
+    let userActionRequired = false;
+
+    if (lowerMessage.includes("auth") || lowerMessage.includes("token") || lowerMessage.includes("unauthorized")) {
+      code = "AUTH_ERROR";
+      retryable = true;
+      userActionRequired = true;
+    } else if (lowerMessage.includes("network") || lowerMessage.includes("fetch") || lowerMessage.includes("connection")) {
+      code = "NETWORK_ERROR";
+      retryable = true;
+      userActionRequired = false;
+    } else if (lowerMessage.includes("quota") || lowerMessage.includes("rate limit") || lowerMessage.includes("429")) {
+      code = "QUOTA_ERROR";
+      retryable = true;
+      userActionRequired = false;
+    } else if (lowerMessage.includes("database") || lowerMessage.includes("db") || lowerMessage.includes("sql")) {
+      code = "DATABASE_ERROR";
+      retryable = true;
+      userActionRequired = false;
+    } else if (lowerMessage.includes("permission") || lowerMessage.includes("forbidden") || lowerMessage.includes("403")) {
+      code = "PERMISSION_ERROR";
+      retryable = false;
+      userActionRequired = true;
+    } else if (lowerMessage.includes("config") || lowerMessage.includes("setup") || lowerMessage.includes("invalid")) {
+      code = "CONFIG_ERROR";
+      retryable = false;
+      userActionRequired = true;
+    } else {
+      code = "UNKNOWN_ERROR";
+      retryable = false;
+      userActionRequired = false;
+    }
+
+    return {
+      code,
+      message: errorMessage,
+      details: error instanceof Error ? error.stack : undefined,
+      retryable,
+      userActionRequired,
+    };
+  }
+
+  /**
    * Get comprehensive Google integration status for a user
    */
-  static async getGoogleStatus(userId: string): Promise<GoogleStatusResponse> {
-    // Check cache first to prevent UI flickering
-    const cachedResult = this.getCachedStatus(userId);
-    if (cachedResult) {
-      return {
-        ...cachedResult,
-        _cached: true,
-        _cacheTime: new Date().toISOString(),
-      };
-    }
+  static async getGoogleStatus(userId: string): Promise<Result<GoogleStatusResponse, GoogleServiceError>> {
+    try {
+      // Check cache first to prevent UI flickering
+      const cachedResult = this.getCachedStatus(userId);
+      if (cachedResult) {
+        const cachedResponse = {
+          ...cachedResult,
+          _cached: true,
+          _cacheTime: new Date().toISOString(),
+        };
+        return ok(cachedResponse);
+      }
 
     const db = await getDb();
 
@@ -353,10 +407,24 @@ export class GoogleIntegrationService {
       },
     };
 
-    // Cache the result to prevent UI flickering on subsequent requests
-    this.setCachedStatus(userId, responseData);
+      // Cache the result to prevent UI flickering on subsequent requests
+      this.setCachedStatus(userId, responseData);
 
-    return responseData;
+      return ok(responseData);
+    } catch (error: unknown) {
+      const classifiedError = this.classifyError(error);
+      await logger.error(`Google status fetch failed`, {
+        operation: "get_google_status",
+        additionalData: {
+          userId,
+          errorCode: classifiedError.code,
+          errorMessage: classifiedError.message,
+          retryable: classifiedError.retryable,
+          userActionRequired: classifiedError.userActionRequired,
+        },
+      });
+      return err(classifiedError);
+    }
   }
 
   /**

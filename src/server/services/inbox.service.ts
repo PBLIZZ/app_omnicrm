@@ -9,6 +9,7 @@
 import { InboxRepository, ZonesRepository } from "@repo";
 import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
 import { logger } from "@/lib/observability";
+import { DbResult, isErr } from "@/lib/utils/result";
 import type {
   InboxItem,
   CreateInboxItem,
@@ -17,12 +18,20 @@ import type {
   ProcessInboxItem,
   BulkProcessInboxDTO,
   VoiceInboxCaptureDTO,
-  InboxFilters,
-  ZoneDTO,
-} from "@/server/db/business-schemas/business-schema";
+} from "@/server/db/business-schemas/inbox";
+import type { Zone } from "@/server/db/business-schemas/zones";
+import { ZoneSchema } from "@/server/db/business-schemas/zones";
 import { categorizeInboxItem } from "@/server/ai/connect/categorize-inbox-item";
 
-// AI Processing Types
+// Repository-compatible filter types
+export interface InboxFilters {
+  status?: ("unprocessed" | "processed" | "archived")[];
+  search?: string;
+  createdAfter?: Date;
+  createdBefore?: Date;
+  hasAiSuggestions?: boolean;
+}
+
 export interface InboxAICategorization {
   suggestedZone: string;
   suggestedPriority: "low" | "medium" | "high" | "urgent";
@@ -49,10 +58,62 @@ export interface InboxProcessingContext {
       };
     };
   };
-  zones: ZoneDTO[];
+  zones: Zone[];
 }
 
 export class InboxService {
+  // Helper function to unwrap DbResult
+  private static unwrapDbResult<T>(result: DbResult<T>): T {
+    if (isErr(result)) {
+      const error = result.error as { message: string };
+      throw new Error(`Database error: ${error.message}`);
+    }
+    return (result as { success: true; data: T }).data;
+  }
+
+  // Helper function to transform repository inbox item to business schema
+  private static transformInboxItem(rawItem: {
+    id: string;
+    userId: string;
+    rawText: string;
+    status: "processed" | "unprocessed" | "archived" | null;
+    createdTaskId: string | null;
+    processedAt: Date | null;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+  }): InboxItem {
+    const baseData = {
+      id: rawItem.id,
+      userId: rawItem.userId,
+      rawText: rawItem.rawText,
+      status: (rawItem.status || "unprocessed") as "unprocessed" | "processed" | "archived",
+      createdTaskId: rawItem.createdTaskId,
+      processedAt: rawItem.processedAt,
+      createdAt: rawItem.createdAt || new Date(),
+      updatedAt: rawItem.updatedAt || new Date(),
+    };
+
+    // Apply business schema transform for computed fields
+    return {
+      ...baseData,
+      isProcessed: baseData.status === "processed",
+      wordCount: baseData.rawText.split(/\s+/).length,
+      preview: baseData.rawText.slice(0, 100) + (baseData.rawText.length > 100 ? "..." : ""),
+    };
+  }
+
+  // Helper function to transform raw zone data to business schema
+  private static transformZoneData(
+    rawZones: Array<{
+      id: number;
+      name: string;
+      color: string | null;
+      iconName: string | null;
+    }>,
+  ): Zone[] {
+    return rawZones.map((zone) => ZoneSchema.parse(zone));
+  }
+
   /**
    * Build processing context with zones and user context
    * @param zones - Available zones for categorization
@@ -60,8 +121,8 @@ export class InboxService {
    * @returns InboxProcessingContext with zones and optional user context
    */
   private static buildProcessingContext(
-    zones: ZoneDTO[],
-    userContextData?: any,
+    zones: Zone[],
+    userContextData?: InboxProcessingContext["userContext"],
   ): InboxProcessingContext {
     const processingContext: InboxProcessingContext = { zones };
 
@@ -101,10 +162,13 @@ export class InboxService {
    */
   static async quickCapture(userId: string, data: CreateInboxItem): Promise<InboxItem> {
     try {
-      const item = await InboxRepository.createInboxItem({
+      // createInboxItem returns direct type, not DbResult
+      const rawItem = await InboxRepository.createInboxItem({
         ...data,
         userId,
       });
+
+      const item = this.transformInboxItem(rawItem);
 
       await logger.info("Inbox item created via quick capture", {
         operation: "inbox_quick_capture",
@@ -130,19 +194,21 @@ export class InboxService {
    */
   static async voiceCapture(userId: string, data: VoiceInboxCaptureDTO): Promise<InboxItem> {
     try {
-      const item = await InboxRepository.createInboxItem({
-        rawText: data.transcription,
+      // createInboxItem returns direct type, not DbResult
+      const rawItem = await InboxRepository.createInboxItem({
+        rawText: data.transcription ?? "",
         userId,
       });
+
+      const item = this.transformInboxItem(rawItem);
 
       await logger.info("Inbox item created via voice capture", {
         operation: "inbox_voice_capture",
         additionalData: {
           userId,
           itemId: item.id,
-          confidence: data.confidence,
-          audioQuality: data.audioMetadata?.quality,
-          audioDuration: data.audioMetadata?.duration,
+          transcriptionLength: data.transcription?.length ?? 0,
+          audioDuration: data.duration,
         },
       });
 
@@ -160,7 +226,11 @@ export class InboxService {
    * List inbox items with filtering
    */
   static async listInboxItems(userId: string, filters?: InboxFilters): Promise<InboxItem[]> {
-    return await InboxRepository.listInboxItems(userId, filters);
+    // listInboxItems returns DbResult, need to unwrap
+    const result = await InboxRepository.listInboxItems(userId, filters);
+    const rawItems = this.unwrapDbResult(result);
+
+    return rawItems.map((item) => this.transformInboxItem(item));
   }
 
   /**
@@ -198,17 +268,20 @@ export class InboxService {
     assertOpenRouterConfigured();
 
     try {
-      // Get the inbox item
-      const item = await InboxRepository.getInboxItemById(userId, data.id);
-      if (!item) {
+      // Get the inbox item (returns direct type, not DbResult)
+      const rawItem = await InboxRepository.getInboxItemById(userId, data.itemId);
+      if (!rawItem) {
         throw new Error("Inbox item not found");
       }
+      const item = this.transformInboxItem(rawItem);
 
-      // Get available zones for categorization
-      const zones = await ZonesRepository.listZones();
+      // Get available zones for categorization (returns DbResult)
+      const zonesResult = await ZonesRepository.listZones();
+      const rawZones = this.unwrapDbResult(zonesResult);
+      const zones = this.transformZoneData(rawZones);
 
       // Process with AI
-      const processingContext = this.buildProcessingContext(zones, data.userContext);
+      const processingContext = this.buildProcessingContext(zones, undefined);
 
       const categorization = await categorizeInboxItem(userId, item.rawText, processingContext);
 
@@ -216,7 +289,7 @@ export class InboxService {
         operation: "inbox_ai_processing",
         additionalData: {
           userId,
-          itemId: data.id,
+          itemId: data.itemId,
           confidence: categorization.confidence,
           suggestedZone: categorization.suggestedZone,
           extractedTasksCount: categorization.extractedTasks.length,
@@ -235,14 +308,14 @@ export class InboxService {
             ) {
               return new Date(t.dueDate);
             }
-            return undefined;
+            return null;
           })(),
         })),
       } as InboxProcessingResultDTO;
     } catch (error) {
       await logger.error("Failed to process inbox item with AI", {
         operation: "inbox_ai_processing",
-        additionalData: { userId, itemId: data.id, error },
+        additionalData: { userId, itemId: data.itemId, error },
       });
       throw error;
     }
@@ -260,8 +333,9 @@ export class InboxService {
   }> {
     try {
       if (data.action === "archive") {
+        // bulkUpdateStatus returns direct type, not DbResult
         const processed = await InboxRepository.bulkUpdateStatus(userId, data.itemIds, "archived");
-        return { processed };
+        return { processed: processed.map((item) => this.transformInboxItem(item)) };
       }
 
       if (data.action === "delete") {
@@ -271,14 +345,17 @@ export class InboxService {
 
       if (data.action === "process") {
         // AI process each item
-        const zones = await ZonesRepository.listZones();
-        const items = [];
-        const results = [];
+        const zonesResult = await ZonesRepository.listZones();
+        const rawZones = this.unwrapDbResult(zonesResult);
+        const zones = this.transformZoneData(rawZones);
+        const items: InboxItem[] = [];
+        const results: InboxProcessingResultDTO[] = [];
 
         for (const itemId of data.itemIds) {
-          const item = await InboxRepository.getInboxItemById(userId, itemId);
-          if (item && item.status === "unprocessed") {
-            const processingContext = this.buildProcessingContext(zones, data.userContext);
+          const rawItem = await InboxRepository.getInboxItemById(userId, itemId);
+          if (rawItem && rawItem.status === "unprocessed") {
+            const item = this.transformInboxItem(rawItem);
+            const processingContext = this.buildProcessingContext(zones, undefined);
 
             const categorization = await categorizeInboxItem(
               userId,
@@ -288,7 +365,7 @@ export class InboxService {
             // Convert date strings to Date objects for type safety
             const result: InboxProcessingResultDTO = {
               ...categorization,
-              suggestedProject: categorization.suggestedProject ?? undefined,
+              suggestedProject: categorization.suggestedProject ?? null,
               extractedTasks: categorization.extractedTasks.map((task) => ({
                 ...task,
                 dueDate: (() => {
@@ -299,16 +376,16 @@ export class InboxService {
                   ) {
                     return new Date(task.dueDate);
                   }
-                  return undefined;
+                  return null;
                 })(),
               })),
             };
             results.push(result);
 
-            // Mark as processed (without creating task yet - that's handled in task creation flow)
-            const processed = await InboxRepository.markAsProcessed(userId, itemId);
-            if (processed) {
-              items.push(processed);
+            // Mark as processed (returns direct type, not DbResult)
+            const processedItem = await InboxRepository.markAsProcessed(userId, itemId);
+            if (processedItem) {
+              items.push(this.transformInboxItem(processedItem));
             }
           }
         }
@@ -343,7 +420,9 @@ export class InboxService {
     itemId: string,
     createdTaskId?: string,
   ): Promise<InboxItem | null> {
-    return await InboxRepository.markAsProcessed(userId, itemId, createdTaskId);
+    // markAsProcessed returns direct type, not DbResult
+    const rawItem = await InboxRepository.markAsProcessed(userId, itemId, createdTaskId);
+    return rawItem ? this.transformInboxItem(rawItem) : null;
   }
 
   /**
@@ -357,7 +436,9 @@ export class InboxService {
    * Get single inbox item
    */
   static async getInboxItem(userId: string, itemId: string): Promise<InboxItem | null> {
-    return await InboxRepository.getInboxItemById(userId, itemId);
+    // getInboxItemById returns direct type, not DbResult
+    const rawItem = await InboxRepository.getInboxItemById(userId, itemId);
+    return rawItem ? this.transformInboxItem(rawItem) : null;
   }
 
   /**
@@ -368,6 +449,24 @@ export class InboxService {
     itemId: string,
     data: UpdateInboxItem,
   ): Promise<InboxItem | null> {
-    return await InboxRepository.updateInboxItem(userId, itemId, data);
+    // updateInboxItem returns direct type, not DbResult
+    // Extract id from data as it's passed separately to repository
+    const { id: _, ...rest } = data;
+
+    // Filter out undefined values to match repository type expectations
+    const updateData = Object.fromEntries(
+      Object.entries(rest).filter(([, value]) => value !== undefined),
+    ) as Partial<{
+      userId: string;
+      rawText: string;
+      status: "unprocessed" | "processed" | "archived" | null;
+      createdTaskId: string | null;
+      processedAt: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+
+    const rawItem = await InboxRepository.updateInboxItem(userId, itemId, updateData);
+    return rawItem ? this.transformInboxItem(rawItem) : null;
   }
 }

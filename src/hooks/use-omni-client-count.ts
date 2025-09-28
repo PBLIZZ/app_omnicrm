@@ -16,7 +16,7 @@ export function useOmniClientCount(): number {
     const loadCount = async (): Promise<void> => {
       try {
         // Use dedicated count endpoint for better performance
-        const data = await apiClient.get<CountResponse>("/api/omni-clients/count");
+        const data = await apiClient.get<CountResponse>("/api/contacts/count");
         if (isMounted) {
           setCount(data.count);
         }

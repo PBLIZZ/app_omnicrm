@@ -1,12 +1,12 @@
 import { apiClient } from "@/lib/api/client";
 import { logger } from "@/lib/observability";
 import {
-  GmailConnectionStatus,
+  ConnectConnectionStatus as GmailConnectionStatus,
   EmailPreview,
-  JobStatus,
+  ConnectDashboardState,
   SearchResult,
   EmailInsights as GmailInsights,
-} from "../../app/(authorisedRoute)/omni-connect/_components/types";
+} from "@/server/db/business-schemas";
 
 /**
  * Gmail API Service with integrated rate limiting
@@ -204,9 +204,10 @@ export class GmailApiService {
     await apiClient.post<Record<string, unknown>>("/api/jobs/runner", {});
   }
 
-  static async checkJobStatus(): Promise<JobStatus> {
+  static async checkJobStatus(): Promise<ConnectDashboardState["jobs"]> {
     try {
-      return await apiClient.get<JobStatus>("/api/jobs/status");
+      const data = await apiClient.get<ConnectDashboardState>("/api/jobs/status");
+      return data.jobs;
     } catch (error) {
       await logger.error(
         "Failed to check job status",
@@ -218,7 +219,16 @@ export class GmailApiService {
         },
         error instanceof Error ? error : undefined,
       );
-      return { jobs: [], currentBatch: null };
+      return {
+        active: [],
+        summary: {
+          queued: 0,
+          running: 0,
+          completed: 0,
+          failed: 0,
+        },
+        currentBatch: null,
+      };
     }
   }
 

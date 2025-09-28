@@ -1,10 +1,11 @@
 import { gmail_v1 } from "googleapis";
 import { getGoogleClients } from "@/server/google/client";
 import { RawEventsRepository } from "@repo";
+import { Result, ok, err } from "@/lib/utils/result";
 import type {
   GmailIngestionResultDTO,
   CreateRawEventDTO,
-} from "@/server/db/business-schemas/business-schema";
+} from "@/server/db/business-schemas/gmail";
 import { logger } from "@/lib/observability";
 
 interface GmailMessage {
@@ -26,7 +27,9 @@ export class GmailIngestionService {
   /**
    * Test Gmail ingestion - fetches the 10 most recent messages
    */
-  static async testGmailIngestion(userId: string): Promise<GmailIngestionResultDTO> {
+  static async testGmailIngestion(
+    userId: string,
+  ): Promise<Result<GmailIngestionResultDTO, string>> {
     await logger.info("Starting Gmail ingest test", {
       operation: "gmail_ingestion_service.test",
       additionalData: { userId: userId.slice(0, 8) + "...", messageLimit: 10 },
@@ -54,27 +57,21 @@ export class GmailIngestionService {
       for (const messageId of messageIds) {
         if (!messageId) continue;
 
-        try {
-          const result = await this.ingestSingleMessage(userId, gmail, messageId);
-          insertedMessages.push(result);
+        const result = await this.ingestSingleMessage(userId, gmail, messageId);
+        insertedMessages.push(result);
 
-          if (result.success) {
-            await logger.info("Successfully inserted message", {
-              operation: "gmail_ingestion_service.test",
-              additionalData: { userId: userId.slice(0, 8) + "...", messageId },
-            });
-          }
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          insertedMessages.push({ id: messageId, success: false, error: errorMsg });
-
+        if (result.success) {
+          await logger.info("Successfully inserted message", {
+            operation: "gmail_ingestion_service.test",
+            additionalData: { userId: userId.slice(0, 8) + "...", messageId },
+          });
+        } else {
           await logger.warn(
             "Failed to insert message",
             {
               operation: "gmail_ingestion_service.test",
-              additionalData: { userId: userId.slice(0, 8) + "...", messageId, error: errorMsg },
+              additionalData: { userId: userId.slice(0, 8) + "...", messageId, error: result.error },
             },
-            error instanceof Error ? error : undefined,
           );
         }
       }
@@ -92,12 +89,12 @@ export class GmailIngestionService {
         },
       });
 
-      return {
+      return ok({
         totalMessages: messageIds.length,
         successCount,
         failureCount,
         results: insertedMessages,
-      };
+      });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       await logger.error(
@@ -108,7 +105,7 @@ export class GmailIngestionService {
         },
         error instanceof Error ? error : undefined,
       );
-      throw error;
+      return err(errorMsg);
     }
   }
 
@@ -174,7 +171,7 @@ export class GmailIngestionService {
       query?: string;
       batchId?: string;
     } = {},
-  ): Promise<GmailIngestionResultDTO> {
+  ): Promise<Result<GmailIngestionResultDTO, string>> {
     const { maxResults = 100, query, batchId } = options;
 
     await logger.info("Starting bulk Gmail ingestion", {
@@ -275,12 +272,12 @@ export class GmailIngestionService {
         },
       });
 
-      return {
+      return ok({
         totalMessages: messageIds.length,
         successCount,
         failureCount,
         results: insertedMessages,
-      };
+      });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       await logger.error(
@@ -291,7 +288,7 @@ export class GmailIngestionService {
         },
         error instanceof Error ? error : undefined,
       );
-      throw error;
+      return err(errorMsg);
     }
   }
 
@@ -301,36 +298,49 @@ export class GmailIngestionService {
   static async getIngestionStats(
     userId: string,
     provider: string = "gmail",
-  ): Promise<{
+  ): Promise<Result<{
     totalEvents: number;
     recentEvents: number;
     lastIngestionAt: Date | null;
-  }> {
-    const totalEvents = await RawEventsRepository.countRawEvents(userId, {
-      provider: [provider],
-    });
+  }, string>> {
+    try {
+      const totalEvents = await RawEventsRepository.countRawEvents(userId, {
+        provider: [provider],
+      });
 
-    // Count events from last 24 hours
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentEvents = await RawEventsRepository.countRawEvents(userId, {
-      provider: [provider],
-      occurredAfter: yesterday,
-    });
+      // Count events from last 24 hours
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentEvents = await RawEventsRepository.countRawEvents(userId, {
+        provider: [provider],
+        occurredAfter: yesterday,
+      });
 
-    // Get most recent event to determine last ingestion
-    const recentEventsList = await RawEventsRepository.listRawEvents(
-      userId,
-      { provider: [provider] },
-      1,
-    );
+      // Get most recent event to determine last ingestion
+      const recentEventsList = await RawEventsRepository.listRawEvents(
+        userId,
+        { provider: [provider] },
+        1,
+      );
 
-    const lastIngestionAt =
-      recentEventsList.length > 0 ? (recentEventsList[0]?.createdAt ?? null) : null;
+      const lastIngestionAt =
+        recentEventsList.length > 0 ? (recentEventsList[0]?.createdAt ?? null) : null;
 
-    return {
-      totalEvents,
-      recentEvents,
-      lastIngestionAt,
-    };
+      return ok({
+        totalEvents,
+        recentEvents,
+        lastIngestionAt,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await logger.error(
+        "Failed to get ingestion stats",
+        {
+          operation: "gmail_ingestion_service.stats",
+          additionalData: { userId: userId.slice(0, 8) + "...", provider, error: errorMsg },
+        },
+        error instanceof Error ? error : undefined,
+      );
+      return err(errorMsg);
+    }
   }
 }

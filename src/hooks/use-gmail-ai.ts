@@ -60,7 +60,7 @@ export function useGmailAI(): {
   });
 
   // Define API response type for insights
-  interface InsightsApiResponse {
+  interface InsightsResponse {
     insights: Insights;
   }
 
@@ -68,7 +68,7 @@ export function useGmailAI(): {
   const loadInsights = async (): Promise<void> => {
     setIsLoadingInsights(true);
     try {
-      const data = await apiClient.get<InsightsApiResponse>("/api/gmail/insights");
+      const data = await apiClient.get<InsightsResponse>("/api/gmail/insights");
       setInsights(data.insights);
     } catch {
       toast.error("Failed to load insights");

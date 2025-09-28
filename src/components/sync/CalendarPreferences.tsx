@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Calendar, Clock, AlertTriangle, Info, CalendarDays } from "lucide-react";
 import type { CalendarPreferences, SyncPreviewResponse } from "@/lib/validation/schemas/sync";
-import type { CalendarItem } from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
+import type { CalendarItem } from "@/server/db/business-schemas";
 import { get } from "@/lib/api";
 
 interface CalendarPreferencesProps {

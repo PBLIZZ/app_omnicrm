@@ -4,9 +4,8 @@
  * Provides AI-powered semantic search through Gmail data using vector embeddings
  */
 
-import { getDb } from "@/server/db/client";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { rawEvents, contacts } from "@/server/db/schema";
+import { RawEventsRepository, ContactsRepository } from "@repo";
+import { Result, ok, err } from "@/lib/utils/result";
 
 export interface SearchResult {
   subject: string;
@@ -35,37 +34,29 @@ export class GmailSearchService {
   /**
    * Perform semantic search through Gmail messages
    */
-  static async searchEmails(userId: string, params: SearchParams): Promise<SearchResult[]> {
-    const { query, limit } = params;
-    const db = await getDb();
+  static async searchEmails(userId: string, params: SearchParams): Promise<Result<SearchResult[], string>> {
+    try {
+      const { query, limit } = params;
 
-    // For now, do a simple text-based search through Gmail raw events
-    // In the future, this could be enhanced with vector similarity search
-    const searchResults = await db
-      .select({
-        id: rawEvents.id,
-        sourceId: rawEvents.sourceId,
-        payload: rawEvents.payload,
-        occurredAt: rawEvents.occurredAt,
-        contactId: rawEvents.contactId,
-      })
-      .from(rawEvents)
-      .where(
-        and(
-          eq(rawEvents.userId, userId),
-          eq(rawEvents.provider, "gmail"),
-          // Simple text search in JSON payload
-          sql`${rawEvents.payload}::text ILIKE ${`%${query}%`}`
-        )
-      )
-      .orderBy(desc(rawEvents.occurredAt))
-      .limit(limit);
+      // For now, do a simple text-based search through Gmail raw events
+      // In the future, this could be enhanced with vector similarity search
+      const searchResults = await RawEventsRepository.searchRawEvents(userId, {
+        provider: ["gmail"],
+        textSearch: query,
+        limit,
+        orderBy: "occurredAt",
+        orderDirection: "desc",
+      });
 
-    // Get contact information for results with contactId
-    const contactsMap = await this.getContactsMap(userId, searchResults);
+      // Get contact information for results with contactId
+      const contactsMap = await this.getContactsMap(userId, searchResults);
 
-    // Transform results to expected format
-    return this.transformSearchResults(searchResults, contactsMap);
+      // Transform results to expected format
+      return ok(this.transformSearchResults(searchResults, contactsMap));
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return err(`Failed to search emails: ${errorMsg}`);
+    }
   }
 
   /**
@@ -82,20 +73,7 @@ export class GmailSearchService {
     const contactsMap = new Map<string, { id: string; displayName: string }>();
 
     if (contactIds.length > 0) {
-      const db = await getDb();
-      const contactsData = await db
-        .select({
-          id: contacts.id,
-          displayName: contacts.displayName,
-        })
-        .from(contacts)
-        .where(
-          and(
-            eq(contacts.userId, userId),
-            sql`${contacts.id} = ANY(${contactIds})`
-          )
-        );
-
+      const contactsData = await ContactsRepository.getContactsByIds(userId, contactIds);
       contactsData.forEach(c => contactsMap.set(c.id, c));
     }
 
@@ -141,7 +119,7 @@ export class GmailSearchService {
    * Future enhancement: Perform vector similarity search
    * This would use embeddings table for semantic search
    */
-  static async searchEmailsSemantics(userId: string, params: SearchParams): Promise<SearchResult[]> {
+  static async searchEmailsSemantics(userId: string, params: SearchParams): Promise<Result<SearchResult[], string>> {
     // TODO: Implement vector similarity search when embeddings are ready
     // This would query the embeddings table and use cosine similarity
     // For now, fallback to text search

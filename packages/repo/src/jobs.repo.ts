@@ -1,10 +1,10 @@
 import { eq, and, desc, inArray, count, sql } from "drizzle-orm";
-import { jobs } from "./schema";
+import { jobs } from "@/server/db/schema";
 import { getDb } from "./db";
 import type {
   Job,
   CreateJob
-} from "./schema";
+} from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type JobDTO = Job;

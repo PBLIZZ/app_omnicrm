@@ -1,5 +1,5 @@
 import { eq, and, ilike, desc, asc, inArray, sql, count } from "drizzle-orm";
-import { contacts, notes, type Contact, type CreateContact, type Note } from "./schema";
+import { contacts, notes, type Contact, type CreateContact, type Note } from "@/server/db/schema";
 import { getDb } from "./db";
 
 export type ContactDTO = Contact;

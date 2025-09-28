@@ -1,16 +1,12 @@
 import { eq, and, desc, ilike } from "drizzle-orm";
-import { notes } from "./schema";
+import { notes } from "@/server/db/schema";
 import { getDb } from "./db";
-import type {
-  Note,
-  CreateNote
-} from "./schema";
+import type { Note, CreateNote } from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type NoteDTO = Note;
 type CreateNoteDTO = CreateNote;
 type UpdateNoteDTO = Partial<CreateNote>;
-
 
 export class NotesRepository {
   /**
@@ -42,7 +38,7 @@ export class NotesRepository {
 
     const rows = await query;
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
@@ -92,7 +88,7 @@ export class NotesRepository {
       .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)))
       .orderBy(desc(notes.createdAt));
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
@@ -112,15 +108,10 @@ export class NotesRepository {
         updatedAt: notes.updatedAt,
       })
       .from(notes)
-      .where(
-        and(
-          eq(notes.userId, userId),
-          ilike(notes.content, `%${searchTerm}%`)
-        )
-      )
+      .where(and(eq(notes.userId, userId), ilike(notes.content, `%${searchTerm}%`)))
       .orderBy(desc(notes.createdAt));
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
@@ -156,7 +147,7 @@ export class NotesRepository {
   static async updateNote(
     userId: string,
     noteId: string,
-    data: UpdateNoteDTO
+    data: UpdateNoteDTO,
   ): Promise<NoteDTO | null> {
     const db = await getDb();
 
@@ -209,12 +200,14 @@ export class NotesRepository {
 
     const newNotes = await db
       .insert(notes)
-      .values(data.map(item => ({
-        userId,
-        contactId: item.contactId || null,
-        title: item.title || null,
-        content: item.content,
-      })))
+      .values(
+        data.map((item) => ({
+          userId,
+          contactId: item.contactId || null,
+          title: item.title || null,
+          content: item.content,
+        })),
+      )
       .returning({
         id: notes.id,
         userId: notes.userId,
@@ -225,6 +218,6 @@ export class NotesRepository {
         updatedAt: notes.updatedAt,
       });
 
-    return newNotes.map(row => row);
+    return newNotes.map((row) => row);
   }
 }

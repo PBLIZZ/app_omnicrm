@@ -1,9 +1,10 @@
 import { handleAuth } from "@/lib/api";
+import { ApiError } from "@/lib/api/errors";
 import { OmniClientService } from "@/server/services/omni-client.service";
 import {
   ContactResponseSchema,
   UpdateContactBodySchema,
-  DeleteContactResponseSchema
+  DeleteContactResponseSchema,
 } from "@/server/db/business-schemas";
 import { z } from "zod";
 import { NextRequest } from "next/server";
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const omniClient = await OmniClientService.getOmniClient(userId, params.clientId);
 
     if (!omniClient) {
-      throw new Error("Client not found");
+      throw ApiError.notFound("Client not found");
     }
 
     return { item: omniClient };
@@ -57,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
 
       if (!omniClient) {
-        throw new Error("Client not found");
+        throw ApiError.notFound("Client not found");
       }
 
       return { item: omniClient };

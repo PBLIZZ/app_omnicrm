@@ -24,10 +24,7 @@ interface RouteParams {
 // Simple query schema for AI insights (no query params needed currently)
 const AIInsightsQuerySchema = z.object({});
 
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   const handler = handleGetWithQueryAuth(
     AIInsightsQuerySchema,
     ClientAIInsightsResponseSchema,
@@ -35,7 +32,7 @@ export async function GET(
       // Use existing service but present as OmniClient insights
       const insights = await ContactAIActionsService.askAIAboutContact(userId, params.clientId);
       return insights;
-    }
+    },
   );
 
   return handler(request);

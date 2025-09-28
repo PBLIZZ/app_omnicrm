@@ -1,10 +1,10 @@
 import { eq, and, desc } from "drizzle-orm";
-import { syncSessions } from "./schema";
+import { syncSessions } from "@/server/db/schema";
 import { getDb } from "./db";
 import type {
   SyncSession,
   CreateSyncSession
-} from "./schema";
+} from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type SyncSessionDTO = SyncSession;

@@ -8,13 +8,13 @@ import { GmailInsightsService } from "@/server/services/gmail-insights.service";
 import {
   GmailInsightsQuerySchema,
   GmailInsightsResponseSchema,
-  type GmailInsightsResponse
+  type GmailInsightsResponse,
 } from "@/server/db/business-schemas";
 
 export const GET = handleGetWithQueryAuth(
   GmailInsightsQuerySchema,
   GmailInsightsResponseSchema,
-  async (query, userId): Promise<GmailInsightsResponse> => {
+  async (_query, userId): Promise<GmailInsightsResponse> => {
     const insights = await GmailInsightsService.generateInsights(userId);
     return { insights };
   },

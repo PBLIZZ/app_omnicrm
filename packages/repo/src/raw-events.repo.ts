@@ -1,7 +1,7 @@
 import { eq, and, desc, asc, gte, lte, inArray, count, sql, type SQL } from "drizzle-orm";
-import { rawEvents, rawEventErrors } from "./schema";
+import { rawEvents, rawEventErrors } from "@/server/db/schema";
 import { getDb } from "./db";
-import type { RawEvent, CreateRawEvent, RawEventError, CreateRawEventError } from "./schema";
+import type { RawEvent, CreateRawEvent, RawEventError, CreateRawEventError } from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type RawEventDTO = RawEvent;

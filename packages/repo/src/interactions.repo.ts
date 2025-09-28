@@ -1,7 +1,7 @@
 import { eq, and, desc, gte, lte, inArray, count, sql } from "drizzle-orm";
-import { interactions } from "./schema";
+import { interactions } from "@/server/db/schema";
 import { getDb } from "./db";
-import type { Interaction, CreateInteraction } from "./schema";
+import type { Interaction, CreateInteraction } from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type InteractionDTO = Interaction;

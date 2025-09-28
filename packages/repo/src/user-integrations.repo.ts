@@ -1,10 +1,10 @@
 import { eq, and } from "drizzle-orm";
-import { userIntegrations } from "./schema";
+import { userIntegrations } from "@/server/db/schema";
 import { getDb } from "./db";
 import type {
   UserIntegration,
   CreateUserIntegration
-} from "./schema";
+} from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type UserIntegrationDTO = UserIntegration & { hasValidToken?: boolean };

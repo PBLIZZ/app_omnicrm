@@ -9,8 +9,8 @@ import {
   inboxItems,
   taskContactTags,
   contacts
-} from "./schema";
-import type { InboxItem } from "./schema";
+} from "@/server/db/schema";
+import type { InboxItem } from "@/server/db/schema";
 import { eq, desc, and, asc, isNull, inArray } from "drizzle-orm";
 import type {
   Project,
@@ -21,7 +21,7 @@ import type {
   CreateGoal,
   DailyPulseLog,
   CreateDailyPulseLog
-} from "./schema";
+} from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type ProjectDTO = Project;

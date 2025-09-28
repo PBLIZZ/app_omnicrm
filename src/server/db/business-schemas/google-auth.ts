@@ -33,6 +33,13 @@ export const GmailOAuthCallbackQuerySchema = z
 export type GmailOAuthCallbackQuery = z.infer<typeof GmailOAuthCallbackQuerySchema>;
 
 /**
+ * Gmail Status Query Schema - Empty for status check endpoints
+ */
+export const GmailStatusQuerySchema = z.object({});
+
+export type GmailStatusQuery = z.infer<typeof GmailStatusQuerySchema>;
+
+/**
  * Calendar OAuth Callback Query Schema
  */
 export const CalendarOAuthCallbackQuerySchema = z

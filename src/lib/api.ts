@@ -95,15 +95,12 @@ export function handleAuth<TIn, TOut>(
       // Check if there's a JSON body to parse
       let body = {};
       const contentType = req.headers.get("content-type");
-      const contentLength = req.headers.get("content-length");
 
-      if (
-        contentType?.includes("application/json") &&
-        contentLength &&
-        parseInt(contentLength) > 0
-      ) {
+      if (contentType?.includes("application/json")) {
         try {
-          body = await req.json();
+          const rawBody = await req.text();
+          // Treat empty string as empty object
+          body = rawBody === "" ? {} : JSON.parse(rawBody);
         } catch (error) {
           if (
             error instanceof SyntaxError ||

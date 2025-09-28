@@ -1,10 +1,10 @@
 import { eq, asc } from "drizzle-orm";
-import { zones } from "./schema";
+import { zones } from "@/server/db/schema";
 import { getDb } from "./db";
 import type {
   Zone,
   CreateZone
-} from "./schema";
+} from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type ZoneDTO = Zone;

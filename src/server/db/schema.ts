@@ -12,6 +12,7 @@ import {
   date,
   inet,
   pgEnum,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // Enums
@@ -335,28 +336,38 @@ export const identities = pgTable("identities", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const calendarEvents = pgTable("calendar_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  title: text("title").notNull(),
-  description: text("description"),
-  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
-  endTime: timestamp("end_time", { withTimezone: true }).notNull(),
-  isAllDay: boolean("is_all_day"),
-  timeZone: text("time_zone"),
-  location: text("location"),
-  status: text("status"),
-  visibility: text("visibility"),
-  eventType: text("event_type"),
-  businessCategory: text("business_category"),
-  googleEventId: text("google_event_id").notNull(),
-  googleUpdated: timestamp("google_updated", { withTimezone: true }),
-  lastSynced: timestamp("last_synced", { withTimezone: true }),
-  attendees: jsonb("attendees"),
-  keywords: jsonb("keywords"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const calendarEvents = pgTable(
+  "calendar_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+    isAllDay: boolean("is_all_day"),
+    timeZone: text("time_zone"),
+    location: text("location"),
+    status: text("status"),
+    visibility: text("visibility"),
+    eventType: text("event_type"),
+    businessCategory: text("business_category"),
+    googleEventId: text("google_event_id").notNull(),
+    googleUpdated: timestamp("google_updated", { withTimezone: true }),
+    lastSynced: timestamp("last_synced", { withTimezone: true }),
+    attendees: jsonb("attendees"),
+    keywords: jsonb("keywords"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    // Composite unique index to prevent duplicate calendar events per user
+    userGoogleEventUidx: uniqueIndex("calendar_events_user_google_event_uidx").on(
+      table.userId,
+      table.googleEventId,
+    ),
+  }),
+);
 
 export const inboxItems = pgTable("inbox_items", {
   id: uuid("id").primaryKey().defaultRandom(),

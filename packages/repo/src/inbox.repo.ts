@@ -1,10 +1,10 @@
 import { eq, and, desc, ilike, inArray, sql } from "drizzle-orm";
-import { inboxItems } from "./schema";
+import { inboxItems } from "@/server/db/schema";
 import { getDb } from "./db";
 import type {
   InboxItem,
   CreateInboxItem
-} from "./schema";
+} from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type InboxItemDTO = InboxItem;

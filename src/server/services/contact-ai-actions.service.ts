@@ -59,22 +59,4 @@ export class ContactAIActionsService {
       };
     }
   }
-
-  /**
-   * Generate note suggestions for a specific contact
-   *
-   * @param userId - User ID making the request
-   * @param contactId - Contact ID to generate suggestions for
-   * @returns AI-generated note suggestions
-   */
-  static async generateNoteSuggestions(userId: string, contactId: string): Promise<string[]> {
-    // TODO: Implement generateNoteSuggestions - ETA Q3-2025
-    // This feature is not yet implemented and will be added in a future release
-    logger.warn("generateNoteSuggestions not implemented", {
-      operation: "generate_note_suggestions",
-      additionalData: { userId, contactId },
-    });
-
-    throw new Error("generateNoteSuggestions not implemented - coming in Q3-2025");
-  }
 }

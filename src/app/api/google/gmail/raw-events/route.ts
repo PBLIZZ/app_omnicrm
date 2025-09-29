@@ -1,4 +1,5 @@
 // src/app/api/google/gmail/raw-events/route.ts
+import { z } from "zod";
 import { handleGetWithQueryAuth } from "@/lib/api";
 import {
   GmailRawEventsQuerySchema,
@@ -6,11 +7,12 @@ import {
 } from "@/server/db/business-schemas";
 import { toDateRange, type CreatedAtFilter } from "@/server/db/business-schemas/contacts";
 import { listRawEventsService } from "@/server/services/raw-events.service";
+import { isErr } from "@/lib/utils/result";
 
 export const GET = handleGetWithQueryAuth(
   GmailRawEventsQuerySchema,
   GmailRawEventsResponseSchema,
-  async (query, userId) => {
+  async (query: z.infer<typeof GmailRawEventsQuerySchema>, userId: string) => {
     const page: number = typeof query.page === "number" ? query.page : 1;
     const pageSize: number = typeof query.pageSize === "number" ? query.pageSize : 25;
     const sortKey =
@@ -27,7 +29,13 @@ export const GET = handleGetWithQueryAuth(
     };
     if (dateRange) params.dateRange = dateRange;
 
-    const { items, total } = await listRawEventsService(userId, params);
+    const result = await listRawEventsService(userId, params);
+
+    if (isErr(result)) {
+      throw new Error(result.error);
+    }
+
+    const { items, total } = result.data;
 
     return {
       items: items.map((r) => ({

@@ -3,7 +3,6 @@ import { and, eq, isNotNull, inArray } from "drizzle-orm";
 import { interactions, contactTimeline } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
-import { ensureError } from "@/lib/utils/error-handler";
 
 // Type definitions for interactions used in timeline processing
 interface InteractionData {
@@ -104,7 +103,7 @@ export async function runTimeline(job: JobRecord): Promise<void> {
           jobId: job.id,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }
@@ -187,7 +186,7 @@ async function processBatchInteractions(
             interactionId: interaction.id,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }

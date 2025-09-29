@@ -273,7 +273,8 @@ export class NotesRepository {
 
       const result = await db
         .delete(notes)
-        .where(and(eq(notes.userId, userId), eq(notes.id, noteId)));
+        .where(and(eq(notes.userId, userId), eq(notes.id, noteId)))
+        .returning({ id: notes.id });
 
       return ok(result.length > 0);
     } catch (error) {

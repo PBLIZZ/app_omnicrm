@@ -126,9 +126,7 @@ export const DateTransformSchema = DateStringSchema.transform((val) => {
 /**
  * Zod schema for optional date strings
  */
-export const OptionalDateStringSchema = z
-  .union([DateStringSchema, z.null(), z.undefined()])
-  .optional();
+export const OptionalDateStringSchema = z.union([DateStringSchema, z.null()]).optional();
 
 /**
  * Current timestamp as timestamptz string

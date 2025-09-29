@@ -23,7 +23,7 @@ import { CalendarConnectionCard } from "@/app/(authorisedRoute)/omni-rhythm/_com
 import { CalendarSyncSetup } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarSyncSetup";
 import { CalendarConnectionPrompt } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarConnectionPrompt";
 import { RhythmHeader } from "@/app/(authorisedRoute)/omni-rhythm/_components/RhythmHeader";
-import { ensureError } from "@/lib/utils/error-handler";
+import { ErrorHandler } from "@/lib/errors/app-error";
 import { post, get } from "@/lib/api/client";
 
 export function OmniRhythmPage(): JSX.Element {
@@ -57,7 +57,7 @@ export function OmniRhythmPage(): JSX.Element {
           operation: "load_insights",
           additionalData: { component: "OmniRhythmPage" },
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
       toast({
         title: "Error",
@@ -96,7 +96,7 @@ export function OmniRhythmPage(): JSX.Element {
           operation: "process_jobs",
           additionalData: { component: "OmniRhythmPage" },
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
       toast({
         title: "Error",

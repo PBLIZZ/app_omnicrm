@@ -376,7 +376,7 @@ export function CalendarPreferences({
               <div className="space-y-2">
                 <p className="text-sm font-medium">Events by Calendar</p>
                 <div className="space-y-2">
-                  {previewData.details.calendars.map((cal) => (
+                  {previewData.details.calendars.map((cal: CalendarItem) => (
                     <div
                       key={cal.id}
                       className="flex items-center justify-between p-2 bg-muted rounded"
@@ -401,7 +401,7 @@ export function CalendarPreferences({
             {/* Warnings */}
             {previewData.warnings.length > 0 && (
               <div className="space-y-2">
-                {previewData.warnings.map((warning, index) => (
+                {previewData.warnings.map((warning: string, index: number) => (
                   <Alert key={index} variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription className="text-sm">{warning}</AlertDescription>

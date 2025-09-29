@@ -1,4 +1,4 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, notInArray } from "drizzle-orm";
 import { syncSessions } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
 import type { SyncSession, CreateSyncSession } from "@/server/db/schema";
@@ -163,9 +163,8 @@ export class SyncSessionsRepository {
       .where(
         and(
           eq(syncSessions.userId, userId),
-          // Status is not a terminal state
-          // Using `not in` equivalent with multiple conditions
-          eq(syncSessions.status, "started"), // This would need to be expanded for multiple statuses
+          // Status is not a terminal state - exclude completed, failed, cancelled
+          notInArray(syncSessions.status, ["completed", "failed", "cancelled"]),
         ),
       )
       .orderBy(desc(syncSessions.startedAt));

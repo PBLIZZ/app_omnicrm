@@ -130,15 +130,18 @@ describe("Background Job Processing Integration Tests", () => {
       trackForCleanup("contacts", contact[0]!.id);
 
       // Enqueue an insight generation job
-      const job = await db.insert(jobs).values({
-        userId: testUserId,
-        kind: "insight",
-        payload: {
-          contactId: contact[0]!.id,
-          type: "summary",
-        },
-        status: "queued",
-      }).returning();
+      const job = await db
+        .insert(jobs)
+        .values({
+          userId: testUserId,
+          kind: "insight",
+          payload: {
+            contactId: contact[0]!.id,
+            type: "summary",
+          },
+          status: "queued",
+        })
+        .returning();
       expect(job[0]).toBeDefined();
       trackForCleanup("jobs", job[0]!.id);
 
@@ -416,7 +419,7 @@ describe("Background Job Processing Integration Tests", () => {
         await db
           .update(contacts)
           .set({
-            stage: "Prospect",
+            lifecycleStage: "Prospect",
             tags: ["normalized", "batch-import"],
             updatedAt: new Date(),
           })
@@ -469,7 +472,7 @@ describe("Background Job Processing Integration Tests", () => {
           .returning();
 
         expect(aiInsight[0]).toBeDefined();
-      trackForCleanup("aiInsights", aiInsight[0]!.id);
+        trackForCleanup("aiInsights", aiInsight[0]!.id);
 
         await db
           .update(jobs)
@@ -497,12 +500,14 @@ describe("Background Job Processing Integration Tests", () => {
           ),
         );
 
-      expect(processedContacts.every((c) => c.stage === "Prospect")).toBe(true);
-      expect(processedContacts.every((c) => {
-        if (!c.tags) return false;
-        const tags = Array.isArray(c.tags) ? c.tags : JSON.parse(c.tags as string);
-        return tags.includes("normalized");
-      })).toBe(true);
+      expect(processedContacts.every((c) => c.lifecycleStage === "Prospect")).toBe(true);
+      expect(
+        processedContacts.every((c) => {
+          if (!c.tags) return false;
+          const tags = Array.isArray(c.tags) ? c.tags : JSON.parse(c.tags as string);
+          return tags.includes("normalized");
+        }),
+      ).toBe(true);
 
       // Verify insights were generated for all contacts
       const generatedInsights = await db
@@ -1150,4 +1155,6 @@ describe("Background Job Processing Integration Tests", () => {
 import { sql } from "drizzle-orm";
 
 // Ensure sql import is used for linting purposes
-if (false) { console.log(sql); }
+if (false) {
+  console.log(sql);
+}

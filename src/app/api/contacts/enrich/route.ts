@@ -1,11 +1,14 @@
 import { handleStream } from "@/lib/api-edge-cases";
-import { enrichAllClients, enrichAllClientsStreaming } from "@/server/services/contacts-ai.service";
+import {
+  enrichAllContacts,
+  enrichAllContactsStreaming,
+} from "@/server/services/contacts-ai.service";
 import { z } from "zod";
 
 /**
- * OmniClients AI Enrichment API
+ * Contacts AI Enrichment API
  *
- * POST: Enrich all clients with AI-generated insights, wellness stages, and tags
+ * POST: Enrich all contacts with AI-generated insights, wellness stages, and tags
  * Supports both standard and streaming responses
  */
 
@@ -22,20 +25,48 @@ export const POST = handleStream(
 
       const stream = new ReadableStream({
         async start(controller): Promise<void> {
+          let iterator: AsyncIterator<object> | null = null;
           try {
-            for await (const progress of enrichAllClientsStreaming(userId)) {
+            iterator = enrichAllContactsStreaming(userId);
+            for await (const progress of iterator) {
               const progressData = JSON.stringify(progress);
               controller.enqueue(encoder.encode(`data: ${progressData}\n\n`));
             }
             controller.close();
           } catch (error) {
-            // Send error and close stream
-            const errorData = JSON.stringify({
-              type: "error",
-              error: error instanceof Error ? error.message : "Unknown error occurred",
-            });
-            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-            controller.close();
+            // Check if this is a cancellation/closed controller error
+            const isCancellation =
+              error instanceof TypeError &&
+              (error.message.includes("already closed") || error.message.includes("controller"));
+            const isAbortError =
+              error instanceof Error &&
+              (error.name === "AbortError" || error.message.includes("cancelled"));
+
+            if (isCancellation || isAbortError) {
+              // Contact disconnected or stream was cancelled, just return
+              return;
+            }
+
+            // Only enqueue error if controller is still open
+            try {
+              const errorData = JSON.stringify({
+                type: "error",
+                error: error instanceof Error ? error.message : "Unknown error occurred",
+              });
+              controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+              controller.close();
+            } catch {
+              // Controller already closed, ignore
+            }
+          } finally {
+            // Clean up iterator to stop upstream
+            if (iterator && typeof iterator.return === "function") {
+              try {
+                await iterator.return();
+              } catch {
+                // Ignore cleanup errors
+              }
+            }
           }
         },
       });
@@ -49,7 +80,7 @@ export const POST = handleStream(
       });
     } else {
       // Return standard response for non-streaming
-      const result = await enrichAllClients(userId);
+      const result = await enrichAllContacts(userId);
       return new Response(JSON.stringify(result), {
         headers: { "Content-Type": "application/json" },
       });

@@ -21,10 +21,9 @@ import type {
   CreateNote,
   UpdateNote,
   Note,
-  ClientAIInsightsResponse,
-  OmniClientWithNotesDTO,
-  ClientWithNotes,
-  ClientSearchFilters as BusinessClientSearchFilters,
+  ContactAIInsightsResponse,
+  ContactWithNotesDTO,
+  ContactSearchFilters as BusinessContactSearchFilters,
 } from "@/server/db/business-schemas/contacts";
 
 // Import additional types needed
@@ -46,9 +45,8 @@ export type {
   CreateNote,
   UpdateNote,
   Note,
-  ClientAIInsightsResponse,
-  OmniClientWithNotesDTO,
-  ClientWithNotes,
+  ContactAIInsightsResponse,
+  ContactWithNotesDTO,
 };
 
 // ============================================================================
@@ -121,21 +119,29 @@ export interface ContactEnrichmentStatus {
 }
 
 /**
- * Client AI Insights Dialog Props
+ * Contact AI Insights Dialog Props
  */
-export interface ClientAIInsightsDialogProps {
+export interface ContactAIInsightsDialogProps {
   contact: ContactWithNotes;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  insights: ClientAIInsightsResponse | null;
+  insights: ContactAIInsightsResponse | null;
   isLoading: boolean;
-  clientName: string;
+  contactName: string;
 }
 
 /**
- * Client Search Filters (Enhanced version with UI-specific properties)
+ * Contact Search Filters (Enhanced version with UI-specific properties)
  */
-export interface ClientSearchFilters extends BusinessClientSearchFilters {
+export interface ContactSearchFilters {
+  search?: string;
+  stage?: string[];
+  tags?: string[];
+  source?: string[];
+  hasEmail?: boolean;
+  hasPhone?: boolean;
+  createdAfter?: Date;
+  createdBefore?: Date;
   query?: string; // Alias for search
   hasNotes?: boolean;
   hasInteractions?: boolean;
@@ -144,9 +150,9 @@ export interface ClientSearchFilters extends BusinessClientSearchFilters {
 }
 
 /**
- * Client Suggestion Data from Calendar Analysis
+ * Contact Suggestion Data from Calendar Analysis
  */
-export interface ClientSuggestion {
+export interface ContactSuggestion {
   id: string;
   displayName: string;
   primaryEmail: string;
@@ -165,9 +171,9 @@ export interface ClientSuggestion {
 }
 
 /**
- * Quick Add Client Data
+ * Quick Add Contact Data
  */
-export interface ClientQuickAddData {
+export interface ContactQuickAddData {
   displayName: string;
   primaryEmail?: string;
   primaryPhone?: string;

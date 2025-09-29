@@ -12,12 +12,7 @@
  */
 import { useMemo } from "react";
 import { CalendarBusinessIntelligence } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarBusinessIntelligence";
-import type {
-  CalendarEvent,
-  Client,
-  Appointment,
-  WeeklyStats
-} from "@/server/db/business-schemas";
+import type { CalendarEvent, Client, Appointment, WeeklyStats } from "@/server/db/business-schemas";
 
 export interface SessionMetrics {
   sessionsNext7Days: number;
@@ -41,9 +36,8 @@ export interface UseCalendarIntelligenceResult {
 
 export function useCalendarIntelligence(
   events: CalendarEvent[],
-  clients: Client[]
+  clients: Client[],
 ): UseCalendarIntelligenceResult {
-
   // Create stable BI service instance
   const biService = useMemo(() => {
     const service = new CalendarBusinessIntelligence();
@@ -87,14 +81,16 @@ export function useCalendarIntelligence(
 
       return {
         ...event,
-        clientContext: matchingClient ? {
-          clientId: matchingClient.id,
-          clientName: matchingClient.name,
-          sessionNumber: matchingClient.totalSessions,
-          lastSessionDate: matchingClient.lastSessionDate,
-          totalSessions: matchingClient.totalSessions,
-          estimatedRevenue: calculateEventRevenue(event, matchingClient),
-        } : undefined,
+        clientContext: matchingClient
+          ? {
+              clientId: matchingClient.id,
+              clientName: matchingClient.name,
+              sessionNumber: matchingClient.totalSessions,
+              lastSessionDate: matchingClient.lastSessionDate,
+              totalSessions: matchingClient.totalSessions,
+              estimatedRevenue: calculateEventRevenue(event, matchingClient),
+            }
+          : undefined,
         businessInsights: {
           isHighValue: matchingClient ? matchingClient.totalSpent > 1000 : false,
           isRepeatClient: matchingClient ? matchingClient.totalSessions > 1 : false,
@@ -129,26 +125,28 @@ export function useCalendarIntelligence(
       return sum + duration;
     }, 0);
 
-    const dayCount = weekEvents.reduce((acc, event) => {
-      const day = new Date(event.startTime).toLocaleDateString('en-US', { weekday: 'long' });
-      acc[day] = (acc[day] ?? 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const dayCount = weekEvents.reduce(
+      (acc, event) => {
+        const day = new Date(event.startTime).toLocaleDateString("en-US", { weekday: "long" });
+        acc[day] = (acc[day] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
-    const busiestDay = Object.keys(dayCount).length > 0
-      ? Object.keys(dayCount).reduce((a, b) =>
-          (dayCount[a] ?? 0) > (dayCount[b] ?? 0) ? a : b
-        )
-      : 'Monday';
+    const busiestDay =
+      Object.keys(dayCount).length > 0
+        ? Object.keys(dayCount).reduce((a, b) => ((dayCount[a] ?? 0) > (dayCount[b] ?? 0) ? a : b))
+        : "Monday";
 
     const uniqueClients = new Set(
       weekEvents
-        .map(event => findMatchingClient(event, clients))
+        .map((event) => findMatchingClient(event, clients))
         .filter(Boolean)
-        .map(client => client!.id)
+        .map((client) => client!.id),
     ).size;
 
-    const newClientsThisWeek = clients.filter(client => {
+    const newClientsThisWeek = clients.filter((client) => {
       const joinDate = new Date(client.lastSessionDate);
       return joinDate >= weekStart && joinDate <= weekEnd && client.totalSessions === 1;
     }).length;
@@ -158,7 +156,8 @@ export function useCalendarIntelligence(
       totalRevenue,
       totalHours,
       busiestDay,
-      clientRetention: uniqueClients > 0 ? ((uniqueClients - newClientsThisWeek) / uniqueClients) * 100 : 0,
+      clientRetention:
+        uniqueClients > 0 ? ((uniqueClients - newClientsThisWeek) / uniqueClients) * 100 : 0,
       newClients: newClientsThisWeek,
       averageSessionValue: totalAppointments > 0 ? totalRevenue / totalAppointments : 0,
       avgSessionLength: totalAppointments > 0 ? totalHours / totalAppointments : 0,
@@ -198,8 +197,8 @@ function findMatchingClient(event: CalendarEvent, clients: Client[]): Client | n
   // First, try to match by attendee emails
   if (event.attendees && event.attendees.length > 0) {
     for (const attendee of event.attendees) {
-      const matchingClient = clients.find(client =>
-        client.email.toLowerCase() === attendee.email.toLowerCase()
+      const matchingClient = clients.find(
+        (client) => client.email.toLowerCase() === attendee.email.toLowerCase(),
       );
       if (matchingClient) return matchingClient;
     }
@@ -222,17 +221,19 @@ function findMatchingClient(event: CalendarEvent, clients: Client[]): Client | n
         const extractedName = match[1].trim();
 
         // Try to find a client with a similar name
-        const matchingClient = clients.find(client => {
+        const matchingClient = clients.find((client) => {
           const clientNameLower = client.name.toLowerCase();
           const extractedNameLower = extractedName.toLowerCase();
 
           // Check for exact match or partial match (first name, last name, or full name)
-          return clientNameLower === extractedNameLower ||
-                 clientNameLower.includes(extractedNameLower) ||
-                 extractedNameLower.includes(clientNameLower) ||
-                 // Check for first name + last name combinations
-                 clientNameLower.split(' ').some(part => part === extractedNameLower) ||
-                 extractedNameLower.split(' ').some(part => clientNameLower.includes(part));
+          return (
+            clientNameLower === extractedNameLower ||
+            clientNameLower.includes(extractedNameLower) ||
+            extractedNameLower.includes(clientNameLower) ||
+            // Check for first name + last name combinations
+            clientNameLower.split(" ").some((part: string) => part === extractedNameLower) ||
+            extractedNameLower.split(" ").some((part: string) => clientNameLower.includes(part))
+          );
         });
 
         if (matchingClient) return matchingClient;
@@ -250,7 +251,8 @@ function calculateEventRevenue(event: CalendarEvent, client: Client | null): num
   // Basic revenue calculation based on session type and client history
   const baseRate = 100; // Default session rate
   const duration = calculateEventDuration(event);
-  const hourlyRate = baseRate + (client.totalSpent / Math.max(client.totalSessions, 1) - baseRate) * 0.1;
+  const hourlyRate =
+    baseRate + (client.totalSpent / Math.max(client.totalSessions, 1) - baseRate) * 0.1;
 
   return duration * hourlyRate;
 }
@@ -265,16 +267,22 @@ function calculateEventDuration(event: CalendarEvent): number {
 // Helper function to determine if preparation is required
 function isPreparationRequired(event: CalendarEvent): boolean {
   const title = event.title.toLowerCase();
-  const description = event.description?.toLowerCase() ?? '';
+  const description = event.description?.toLowerCase() ?? "";
 
   // Check for keywords that typically require preparation
   const preparationKeywords = [
-    'massage', 'therapy', 'consultation', 'assessment',
-    'treatment', 'private', 'personal', 'coaching'
+    "massage",
+    "therapy",
+    "consultation",
+    "assessment",
+    "treatment",
+    "private",
+    "personal",
+    "coaching",
   ];
 
-  return preparationKeywords.some(keyword =>
-    title.includes(keyword) || description.includes(keyword)
+  return preparationKeywords.some(
+    (keyword) => title.includes(keyword) || description.includes(keyword),
   );
 }
 
@@ -284,20 +292,20 @@ function generateSuggestedActions(event: CalendarEvent, client: Client | null): 
 
   if (client) {
     if (client.totalSessions === 1) {
-      actions.push('Prepare welcome materials for new client');
+      actions.push("Prepare welcome materials for new client");
     }
 
     if (client.satisfaction < 3) {
-      actions.push('Review client feedback and address concerns');
+      actions.push("Review client feedback and address concerns");
     }
 
     if (client.preferences?.goals && client.preferences.goals.length > 0) {
-      actions.push(`Focus on client goals: ${client.preferences.goals.join(', ')}`);
+      actions.push(`Focus on client goals: ${client.preferences.goals.join(", ")}`);
     }
   }
 
   if (isPreparationRequired(event)) {
-    actions.push('Review client history and prepare treatment plan');
+    actions.push("Review client history and prepare treatment plan");
   }
 
   const eventTime = new Date(event.startTime);
@@ -305,7 +313,7 @@ function generateSuggestedActions(event: CalendarEvent, client: Client | null): 
   const hoursUntil = (eventTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
   if (hoursUntil < 2 && hoursUntil > 0) {
-    actions.push('Send reminder to client');
+    actions.push("Send reminder to client");
   }
 
   return actions;

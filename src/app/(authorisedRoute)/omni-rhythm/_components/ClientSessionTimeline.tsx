@@ -15,15 +15,15 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { format, isAfter, differenceInDays } from "date-fns";
-import { Client, SessionMilestone, ClientSessionTimelineProps } from "./types";
+import { Contact, SessionMilestone, ContactSessionTimelineProps } from "./types";
 
-export function ClientSessionTimeline({
-  clients,
+export function ContactSessionTimeline({
+  contacts,
   milestones,
   isLoading = false,
-}: ClientSessionTimelineProps): JSX.Element {
-  // Sort clients by last session date (most recent first)
-  const sortedClients = [...clients].sort(
+}: ContactSessionTimelineProps): JSX.Element {
+  // Sort contacts by last session date (most recent first)
+  const sortedContacts = [...contacts].sort(
     (a, b) => new Date(b.lastSessionDate).getTime() - new Date(a.lastSessionDate).getTime(),
   );
 
@@ -33,9 +33,9 @@ export function ClientSessionTimeline({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Client Session Timeline
+            Contact Session Timeline
           </CardTitle>
-          <CardDescription>Loading client journeys...</CardDescription>
+          <CardDescription>Loading contact journeys...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -62,26 +62,26 @@ export function ClientSessionTimeline({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Users className="h-5 w-5" />
-          Client Session Timeline
+          Contact Session Timeline
         </CardTitle>
         <CardDescription>
-          Track client journeys and milestone progress ({clients.length} active clients)
+          Track contact journeys and milestone progress ({contacts.length} active contacts)
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {clients.length === 0 ? (
+        {contacts.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="text-lg font-medium">No client data yet</p>
-            <p className="text-sm mt-1">Client timelines will appear as you schedule sessions</p>
+            <p className="text-lg font-medium">No contact data yet</p>
+            <p className="text-sm mt-1">Contact timelines will appear as you schedule sessions</p>
           </div>
         ) : (
           <div className="space-y-6">
-            {sortedClients.slice(0, 5).map((client) => (
-              <ClientTimelineCard
-                key={client.id}
-                client={client}
-                milestones={milestones.filter((m) => m.clientId === client.id)}
+            {sortedContacts.slice(0, 5).map((contact) => (
+              <ContactTimelineCard
+                key={contact.id}
+                contact={contact}
+                milestones={milestones.filter((m: SessionMilestone) => m.contactId === contact.id)}
               />
             ))}
 
@@ -90,26 +90,28 @@ export function ClientSessionTimeline({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div className="space-y-1">
                   <div className="text-2xl font-bold text-blue-600">
-                    {clients.filter((c) => c.status === "active").length}
+                    {contacts.filter((c: Contact) => c.status === "active").length}
                   </div>
-                  <div className="text-xs text-muted-foreground">Active Clients</div>
+                  <div className="text-xs text-muted-foreground">Active Contacts</div>
                 </div>
                 <div className="space-y-1">
                   <div className="text-2xl font-bold text-green-600">
-                    {clients.reduce((sum, c) => sum + c.totalSessions, 0)}
+                    {contacts.reduce((sum: number, c: Contact) => sum + c.totalSessions, 0)}
                   </div>
                   <div className="text-xs text-muted-foreground">Total Sessions</div>
                 </div>
                 <div className="space-y-1">
                   <div className="text-2xl font-bold text-purple-600">
-                    ${clients.reduce((sum, c) => sum + c.totalSpent, 0)}
+                    ${contacts.reduce((sum: number, c: Contact) => sum + c.totalSpent, 0)}
                   </div>
                   <div className="text-xs text-muted-foreground">Total Revenue</div>
                 </div>
                 <div className="space-y-1">
                   <div className="text-2xl font-bold text-orange-600">
                     {Math.round(
-                      (clients.reduce((sum, c) => sum + c.satisfaction, 0) / clients.length) * 10,
+                      (contacts.reduce((sum: number, c: Contact) => sum + c.satisfaction, 0) /
+                        contacts.length) *
+                        10,
                     ) / 10}
                   </div>
                   <div className="text-xs text-muted-foreground">Avg Satisfaction</div>
@@ -123,42 +125,42 @@ export function ClientSessionTimeline({
   );
 }
 
-function ClientTimelineCard({
-  client,
+function ContactTimelineCard({
+  contact,
   milestones,
 }: {
-  client: Client;
+  contact: Contact;
   milestones: SessionMilestone[];
 }): JSX.Element {
   const sortedMilestones = [...milestones].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
 
-  const nextSession = client.nextSessionDate ? new Date(client.nextSessionDate) : null;
+  const nextSession = contact.nextSessionDate ? new Date(contact.nextSessionDate) : null;
   const daysUntilNext = nextSession ? differenceInDays(nextSession, new Date()) : null;
-  const lastSession = new Date(client.lastSessionDate);
+  const lastSession = new Date(contact.lastSessionDate);
   // const daysSinceLast = differenceInDays(new Date(), lastSession);
 
   return (
     <div className="border rounded-lg p-4 space-y-3">
-      {/* Client Header */}
+      {/* Contact Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
             <AvatarFallback>
-              {client.name
+              {contact.name
                 .split(" ")
-                .map((n) => n[0])
+                .map((n: string) => n[0])
                 .join("")
                 .toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h4 className="font-medium">{client.name}</h4>
+            <h4 className="font-medium">{contact.name}</h4>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{client.totalSessions} sessions</span>
+              <span>{contact.totalSessions} sessions</span>
               <span>•</span>
-              <span>${client.totalSpent}</span>
+              <span>${contact.totalSpent}</span>
             </div>
           </div>
         </div>
@@ -168,12 +170,12 @@ function ClientTimelineCard({
             {[...Array(2).keys()].map((i) => (
               <Star
                 key={i}
-                className={`h-3 w-3 ${i < client.satisfaction ? "text-yellow-400 fill-current" : "text-gray-300"}`}
+                className={`h-3 w-3 ${i < contact.satisfaction ? "text-yellow-400 fill-current" : "text-gray-300"}`}
               />
             ))}
           </div>
-          <Badge variant={client.status === "active" ? "default" : "secondary"}>
-            {client.status}
+          <Badge variant={contact.status === "active" ? "default" : "secondary"}>
+            {contact.status}
           </Badge>
         </div>
       </div>
@@ -199,7 +201,7 @@ function ClientTimelineCard({
           <div
             className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full"
             style={{
-              width: `${Math.min(100, (client.totalSessions / 10) * 100)}%`,
+              width: `${Math.min(100, (contact.totalSessions / 10) * 100)}%`,
             }}
           />
           {nextSession && isAfter(nextSession, new Date()) && (

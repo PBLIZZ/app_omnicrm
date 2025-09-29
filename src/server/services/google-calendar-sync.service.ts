@@ -3,8 +3,8 @@
  */
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
 import { randomUUID } from "node:crypto";
+import { type Result, ok, err } from "@/lib/utils/result";
 
 export interface SyncCalendarRequest {
   daysPast: number;
@@ -12,9 +12,8 @@ export interface SyncCalendarRequest {
   maxResults: number;
 }
 
-export type SyncCalendarResult = {
-  ok: true;
-  data: {
+export type SyncCalendarResult = Result<
+  {
     message: string;
     stats: {
       syncedEvents: number;
@@ -23,12 +22,12 @@ export type SyncCalendarResult = {
       maxResults: number;
       batchId: string;
     };
-  };
-} | {
-  ok: false;
-  error: string;
-  status: number;
-};
+  },
+  {
+    message: string;
+    status: number;
+  }
+>;
 
 export class GoogleCalendarSyncService {
   /**
@@ -42,11 +41,10 @@ export class GoogleCalendarSyncService {
       // Check if user has calendar integration
       const hasIntegration = await GoogleCalendarService.hasCalendarIntegration(userId);
       if (!hasIntegration) {
-        return {
-          ok: false,
-          error: "Google Calendar not connected. Please connect your calendar first.",
+        return err({
+          message: "Google Calendar not connected. Please connect your calendar first.",
           status: 400,
-        };
+        });
       }
 
       const batchId = randomUUID();
@@ -81,11 +79,10 @@ export class GoogleCalendarSyncService {
           },
         });
 
-        return {
-          ok: false,
-          error: typeof syncResult.error === "string" ? syncResult.error : "Failed to sync calendar events",
+        return err({
+          message: typeof syncResult.error === "string" ? syncResult.error : "Failed to sync calendar events",
           status: 502,
-        };
+        });
       }
 
       await logger.info("Calendar sync completed", {
@@ -99,19 +96,16 @@ export class GoogleCalendarSyncService {
         },
       });
 
-      return {
-        ok: true,
-        data: {
-          message: `Successfully synced ${syncResult.syncedEvents} calendar events`,
-          stats: {
-            syncedEvents: syncResult.syncedEvents,
-            daysPast,
-            daysFuture,
-            maxResults,
-            batchId,
-          },
+      return ok({
+        message: `Successfully synced ${syncResult.syncedEvents} calendar events`,
+        stats: {
+          syncedEvents: syncResult.syncedEvents,
+          daysPast,
+          daysFuture,
+          maxResults,
+          batchId,
         },
-      };
+      });
     } catch (syncError) {
       await logger.error(
         "Calendar sync failed",
@@ -119,14 +113,13 @@ export class GoogleCalendarSyncService {
           operation: "calendar_sync",
           additionalData: { userId },
         },
-        ensureError(syncError),
+        syncError instanceof Error ? syncError : new Error(String(syncError)),
       );
 
-      return {
-        ok: false,
-        error: "Failed to sync calendar events",
+      return err({
+        message: "Failed to sync calendar events",
         status: 500,
-      };
+      });
     }
   }
 }

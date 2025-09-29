@@ -65,7 +65,7 @@ export function useStreamingEnrichment(): EnrichmentState & {
     try {
       // Note: Using raw fetch here is appropriate for streaming SSE responses
       // The centralized API utilities don't support direct access to response.body.getReader()
-      const response = await fetch("/api/omni-clients/enrich?stream=true", {
+      const response = await fetch("/api/contacts/enrich?stream=true", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -77,7 +77,7 @@ export function useStreamingEnrichment(): EnrichmentState & {
       if (!response.ok) {
         // Try to get error details from response body
         try {
-          const errorData = await response.json() as { error: string; code?: string };
+          const errorData = (await response.json()) as { error: string; code?: string };
           throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         } catch {
           throw new Error(`HTTP error! status: ${response.status}`);

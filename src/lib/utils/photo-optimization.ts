@@ -1,3 +1,5 @@
+import { logger } from "@/lib/observability/unified-logger";
+
 // Dynamic import for sharp to avoid client-side bundling issues
 async function getSharp() {
   if (typeof window !== "undefined") {
@@ -8,7 +10,8 @@ async function getSharp() {
     const sharpModule = await import("sharp");
     return sharpModule.default;
   } catch (error) {
-    console.warn("Sharp not available:", error);
+    const errorInstance = error instanceof Error ? error : new Error(String(error));
+    logger.warn("Sharp not available", { operation: "sharp_import" }, errorInstance);
     throw new Error("Photo optimization library not available");
   }
 }
@@ -95,13 +98,19 @@ export async function optimizePhoto(
         .toBuffer();
     }
 
-    console.log(
-      `Photo optimized: ${(fileBuffer.byteLength / 1024).toFixed(1)}KB → ${(optimized.length / 1024).toFixed(1)}KB (quality: ${quality})`,
-    );
+    logger.info("Photo optimized successfully", {
+      operation: "photo_optimization",
+      additionalData: {
+        originalSizeKB: (fileBuffer.byteLength / 1024).toFixed(1),
+        optimizedSizeKB: (optimized.length / 1024).toFixed(1),
+        quality
+      }
+    });
 
     return optimized;
   } catch (error) {
-    console.error("Photo optimization error:", error);
+    const errorInstance = error instanceof Error ? error : new Error(String(error));
+    logger.error("Photo optimization failed", { operation: "photo_optimization" }, errorInstance);
     throw new Error("Failed to optimize photo");
   }
 }

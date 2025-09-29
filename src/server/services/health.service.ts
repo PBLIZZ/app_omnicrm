@@ -23,9 +23,18 @@ export class HealthService {
     try {
       const dbStatus = await this.checkDatabaseHealth();
 
+      // Propagate database health failure instead of masking it
+      if (!dbStatus.success) {
+        return err({
+          code: "DB_HEALTH_FAILED",
+          message: `Database health check failed: ${dbStatus.error.message}`,
+          details: dbStatus.error,
+        });
+      }
+
       const healthResponse: HealthResponse = {
         ts: new Date().toISOString(),
-        db: dbStatus.success ? dbStatus.data : undefined,
+        db: dbStatus.data,
       };
 
       return ok(healthResponse);
@@ -50,14 +59,17 @@ export class HealthService {
     try {
       const db = await getDb();
       const pingPromise = db.execute(sql`select 1`);
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Database ping timeout")), 250),
-      );
+      let timer: NodeJS.Timeout | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Database ping timeout")), 250);
+      });
 
       try {
         await Promise.race([pingPromise, timeoutPromise]);
+        if (timer) clearTimeout(timer);
         return ok(true);
       } catch (error) {
+        if (timer) clearTimeout(timer);
         if (error instanceof Error && error.message === "Database ping timeout") {
           return err({
             code: "DB_TIMEOUT",

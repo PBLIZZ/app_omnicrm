@@ -9,7 +9,7 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { calendarEvents } from "@/server/db/schema";
 
 // ============================================================================
-// CALENDAR EVENT ENTITY SCHEMAS  
+// CALENDAR EVENT ENTITY SCHEMAS
 // ============================================================================
 
 // Create base schemas from drizzle table
@@ -18,7 +18,7 @@ const selectCalendarEventSchema = createSelectSchema(calendarEvents);
 
 const BaseCalendarEventSchema = selectCalendarEventSchema;
 
-export const CalendarEventSchema = BaseCalendarEventSchema.transform((data) => ({
+export const CalendarEventSchema = BaseCalendarEventSchema.transform((data: any) => ({
   ...data,
   // UI computed fields
   duration: data.endTime.getTime() - data.startTime.getTime(),
@@ -80,17 +80,14 @@ export type CalendarSyncRequest = z.infer<typeof CalendarSyncRequestSchema>;
  * Calendar Sync Response Schema
  */
 export const CalendarSyncResponseSchema = z.object({
-  ok: z.boolean(),
-  data: z.object({
-    message: z.string(),
-    stats: z.object({
-      syncedEvents: z.number(),
-      processedJobs: z.number().optional(),
-      daysPast: z.number(),
-      daysFuture: z.number(),
-      maxResults: z.number(),
-      batchId: z.string().optional(),
-    }),
+  message: z.string(),
+  stats: z.object({
+    syncedEvents: z.number(),
+    processedJobs: z.number().optional(),
+    daysPast: z.number(),
+    daysFuture: z.number(),
+    maxResults: z.number(),
+    batchId: z.string().optional(),
   }),
 });
 
@@ -171,7 +168,7 @@ export const CalendarStatusResponseSchema = z.object({
   lastSyncTime: z.string().nullable(),
   totalEvents: z.number(),
   recentErrorCount: z.number(),
-  reason: z.enum(['connected', 'no_integration', 'token_expired']).optional(),
+  reason: z.enum(["connected", "no_integration", "token_expired"]).optional(),
   expiryDate: z.string().nullable().optional(),
   hasRefreshToken: z.boolean().optional(),
   autoRefreshed: z.boolean().optional(),
@@ -201,19 +198,21 @@ export type CalendarEventsQuery = z.infer<typeof CalendarEventsQuerySchema>;
  * Calendar Events Response Schema
  */
 export const CalendarEventsResponseSchema = z.object({
-  events: z.array(z.object({
-    id: z.string().uuid(),
-    googleEventId: z.string(),
-    title: z.string(),
-    description: z.string().nullable(),
-    startTime: z.string(),
-    endTime: z.string(),
-    attendees: z.record(z.unknown()).nullable(),
-    location: z.string().nullable(),
-    status: z.string().nullable(),
-    eventType: z.string().nullable(),
-    businessCategory: z.string().nullable(),
-  })),
+  events: z.array(
+    z.object({
+      id: z.string().uuid(),
+      googleEventId: z.string(),
+      title: z.string(),
+      description: z.string().nullable(),
+      startTime: z.string(),
+      endTime: z.string(),
+      attendees: z.record(z.unknown()).nullable(),
+      location: z.string().nullable(),
+      status: z.string().nullable(),
+      eventType: z.string().nullable(),
+      businessCategory: z.string().nullable(),
+    }),
+  ),
   total: z.number(),
 });
 
@@ -238,16 +237,18 @@ export type CalendarListQuery = z.infer<typeof CalendarListQuerySchema>;
  * Calendar List Response Schema
  */
 export const CalendarListResponseSchema = z.object({
-  calendars: z.array(z.object({
-    id: z.string(),
-    summary: z.string(),
-    description: z.string().optional(),
-    timeZone: z.string(),
-    primary: z.boolean().optional(),
-    accessRole: z.string().optional(),
-    backgroundColor: z.string().optional(),
-    foregroundColor: z.string().optional(),
-  })),
+  calendars: z.array(
+    z.object({
+      id: z.string(),
+      summary: z.string(),
+      description: z.string().optional(),
+      timeZone: z.string(),
+      primary: z.boolean().optional(),
+      accessRole: z.string().optional(),
+      backgroundColor: z.string().optional(),
+      foregroundColor: z.string().optional(),
+    }),
+  ),
   total: z.number(),
 });
 
@@ -283,11 +284,13 @@ export const ClientSchema = z.object({
   nextSessionDate: z.string().optional(),
   status: z.enum(["active", "inactive", "prospect"]),
   satisfaction: z.number().min(1).max(5), // 1-5 stars
-  preferences: z.object({
-    preferredTimes: z.array(z.string()).optional(),
-    preferredServices: z.array(z.string()).optional(),
-    goals: z.array(z.string()).optional(),
-  }).optional(),
+  preferences: z
+    .object({
+      preferredTimes: z.array(z.string()).optional(),
+      preferredServices: z.array(z.string()).optional(),
+      goals: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export type Client = z.infer<typeof ClientSchema>;
@@ -301,29 +304,37 @@ export const AppointmentSchema = z.object({
   startTime: z.string(),
   endTime: z.string(),
   location: z.string().optional(),
-  attendees: z.array(z.object({
-    email: z.string(),
-    name: z.string().optional(),
-  })).optional(),
+  attendees: z
+    .array(
+      z.object({
+        email: z.string(),
+        name: z.string().optional(),
+      }),
+    )
+    .optional(),
   eventType: z.string().optional(),
   businessCategory: z.string().optional(),
   description: z.string().optional(),
-  clientContext: z.object({
-    clientId: z.string().optional(),
-    clientName: z.string().optional(),
-    sessionNumber: z.number().optional(),
-    lastSessionDate: z.string().optional(),
-    totalSessions: z.number().optional(),
-    notes: z.string().optional(),
-    preparationNeeded: z.array(z.string()).optional(),
-    estimatedRevenue: z.number().optional(),
-  }).optional(),
-  businessInsights: z.object({
-    isHighValue: z.boolean().optional(),
-    isRepeatClient: z.boolean().optional(),
-    requiresPreparation: z.boolean().optional(),
-    suggestedActions: z.array(z.string()).optional(),
-  }).optional(),
+  clientContext: z
+    .object({
+      clientId: z.string().optional(),
+      clientName: z.string().optional(),
+      sessionNumber: z.number().optional(),
+      lastSessionDate: z.string().optional(),
+      totalSessions: z.number().optional(),
+      notes: z.string().optional(),
+      preparationNeeded: z.array(z.string()).optional(),
+      estimatedRevenue: z.number().optional(),
+    })
+    .optional(),
+  businessInsights: z
+    .object({
+      isHighValue: z.boolean().optional(),
+      isRepeatClient: z.boolean().optional(),
+      requiresPreparation: z.boolean().optional(),
+      suggestedActions: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export type Appointment = z.infer<typeof AppointmentSchema>;

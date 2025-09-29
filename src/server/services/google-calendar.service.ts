@@ -272,7 +272,7 @@ export class GoogleCalendarService {
 
     return oauth2Client;
   }
-  catch(error) {
+  catch(error: any) {
     await logger.error("Failed to get Google Calendar auth", {
       operation: "google_calendar_auth",
       error: error instanceof Error ? error.message : String(error),

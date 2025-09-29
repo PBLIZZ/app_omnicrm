@@ -23,30 +23,30 @@ export const routeConfig: Record<string, RouteConfig> = {
     label: "Dashboard",
     icon: Home,
   },
-  "/omni-clients": {
-    label: "OmniClients",
+  "/contacts": {
+    label: "Contacts",
     parent: "/",
   },
-  "/omni-clients/new": {
-    label: "New Client",
-    parent: "/omni-clients",
+  "/contacts/new": {
+    label: "New Contact",
+    parent: "/contacts",
   },
-  "/omni-clients/import": {
+  "/contacts/import": {
     label: "Import",
-    parent: "/omni-clients",
+    parent: "/contacts",
   },
-  "/omni-clients/details": {
+  "/contacts/details": {
     label: "Details",
-    parent: "/omni-clients",
+    parent: "/contacts",
   },
-  "/omni-clients/details/[clientId]": {
-    label: "Client Details",
-    parent: "/omni-clients/details",
+  "/contacts/details/[contactId]": {
+    label: "Contact Details",
+    parent: "/contacts/details",
     isDynamic: true,
   },
-  "/omni-clients/details/[clientId]/edit": {
+  "/contacts/details/[contactId]/edit": {
     label: "Edit",
-    parent: "/omni-clients/details/[clientId]",
+    parent: "/contacts/details/[contactId]",
   },
   "/omni-momentum": {
     label: "Momentum",

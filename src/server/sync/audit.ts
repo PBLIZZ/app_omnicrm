@@ -1,7 +1,6 @@
 import { getDb } from "@/server/db/client";
 import { syncAudit } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
 
 export async function logSync(
   userId: string,
@@ -33,7 +32,7 @@ export async function logSync(
         userId,
         additionalData: { provider, action },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
   }
 }

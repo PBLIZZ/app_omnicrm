@@ -6,7 +6,7 @@
  */
 
 import { getDb } from "@/server/db/client";
-import { syncSessions, type SyncSession } from "@/server/db/schema";
+import { syncSessions, type SyncSession, type CreateSyncSession } from "@/server/db/schema";
 import { eq, lt } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
@@ -67,21 +67,21 @@ export class SyncProgressService {
     const db = await getDb();
     const sessionId = randomUUID();
 
-    const sessionData: NewSyncSession = {
+    const sessionData: CreateSyncSession = {
       id: sessionId,
-      user_id: userId,
+      userId: userId,
       service,
       status: "started",
-      progress_percentage: 0,
-      current_step: "Initializing sync...",
-      total_items: 0,
-      imported_items: 0,
-      processed_items: 0,
-      failed_items: 0,
-      error_details: {},
+      progressPercentage: 0,
+      currentStep: "Initializing sync...",
+      totalItems: 0,
+      importedItems: 0,
+      processedItems: 0,
+      failedItems: 0,
+      errorDetails: {},
       preferences: {},
-      started_at: new Date(),
-      completed_at: null,
+      startedAt: new Date(),
+      completedAt: null,
     };
 
     await db.insert(syncSessions).values(sessionData);
@@ -103,7 +103,7 @@ export class SyncProgressService {
         updates.status === "failed" ||
         updates.status === "cancelled"
       ) {
-        updateData.completed_at = new Date();
+        updateData.completedAt = new Date();
       }
     }
 
@@ -114,11 +114,11 @@ export class SyncProgressService {
       ) {
         throw new Error("progressPercentage must be a finite number");
       }
-      updateData.progress_percentage = Math.max(0, Math.min(100, updates.progressPercentage));
+      updateData.progressPercentage = Math.max(0, Math.min(100, updates.progressPercentage));
     }
 
     if (updates.currentStep !== undefined) {
-      updateData.current_step = updates.currentStep;
+      updateData.currentStep = updates.currentStep;
     }
 
     if (updates.totalItems !== undefined) {
@@ -129,7 +129,7 @@ export class SyncProgressService {
       ) {
         throw new Error("totalItems must be a non-negative integer");
       }
-      updateData.total_items = updates.totalItems;
+      updateData.totalItems = updates.totalItems;
     }
 
     if (updates.importedItems !== undefined) {
@@ -140,7 +140,7 @@ export class SyncProgressService {
       ) {
         throw new Error("importedItems must be a non-negative integer");
       }
-      updateData.imported_items = updates.importedItems;
+      updateData.importedItems = updates.importedItems;
     }
 
     if (updates.processedItems !== undefined) {
@@ -151,7 +151,7 @@ export class SyncProgressService {
       ) {
         throw new Error("processedItems must be a non-negative integer");
       }
-      updateData.processed_items = updates.processedItems;
+      updateData.processedItems = updates.processedItems;
     }
 
     if (updates.failedItems !== undefined) {
@@ -162,11 +162,11 @@ export class SyncProgressService {
       ) {
         throw new Error("failedItems must be a non-negative integer");
       }
-      updateData.failed_items = updates.failedItems;
+      updateData.failedItems = updates.failedItems;
     }
 
     if (updates.errorDetails !== undefined) {
-      updateData.error_details = updates.errorDetails;
+      updateData.errorDetails = updates.errorDetails;
     }
 
     await db.update(syncSessions).set(updateData).where(eq(syncSessions.id, sessionId));
@@ -229,9 +229,9 @@ export class SyncProgressService {
         errors.push(
           ...errorObj.errors.filter(isErrorObject).map(
             (err): ErrorDetail => ({
-              stage: typeof err.stage === "string" ? err.stage : "unknown",
-              message: typeof err.message === "string" ? err.message : "Unknown error",
-              recoverable: typeof err.recoverable === "boolean" ? err.recoverable : true, // Default to recoverable
+              stage: typeof err["stage"] === "string" ? err["stage"] : "unknown",
+              message: typeof err["message"] === "string" ? err["message"] : "Unknown error",
+              recoverable: typeof err["recoverable"] === "boolean" ? err["recoverable"] : true, // Default to recoverable
             }),
           ),
         );
@@ -271,7 +271,7 @@ export class SyncProgressService {
       status: session.status,
       progress: {
         percentage: session.progressPercentage ?? 0,
-        currentStep: session.currentStep ?? undefined,
+        currentStep: session.currentStep || undefined,
         totalItems: session.totalItems ?? 0,
         importedItems: session.importedItems ?? 0,
         processedItems: session.processedItems ?? 0,
@@ -279,8 +279,8 @@ export class SyncProgressService {
       },
       timeEstimate,
       errors: errors.length > 0 ? errors : undefined,
-      startedAt: session.startedAt instanceof Date ? session.startedAt.toISOString() : session.startedAt ? new Date(session.startedAt).toISOString() : undefined,
-      completedAt: session.completedAt instanceof Date ? session.completedAt.toISOString() : session.completedAt ? new Date(session.completedAt).toISOString() : undefined,
+      startedAt: session.startedAt ? (session.startedAt instanceof Date ? session.startedAt.toISOString() : new Date(session.startedAt).toISOString()) : new Date().toISOString(),
+      completedAt: session.completedAt ? (session.completedAt instanceof Date ? session.completedAt.toISOString() : new Date(session.completedAt).toISOString()) : undefined,
     };
   }
 

@@ -23,7 +23,7 @@ export type ContactDTO = {
   updatedAt: string;
   avatar?: string;
   tags?: string[];
-  lifecycleStage?: (typeof LIFECYCLE_CLIENT_STAGES)[number];
+  lifecycleStage?: (typeof LIFECYCLE_CONTACT_STAGES)[number];
   lastContactDate?: string;
   notes?: string;
   company?: string;
@@ -36,7 +36,7 @@ export type CreateContactInput = {
   company?: string | null;
   notes?: string | null;
   tags?: string[];
-  lifecycleStage?: (typeof LIFECYCLE_CLIENT_STAGES)[number];
+  lifecycleStage?: (typeof LIFECYCLE_CONTACT_STAGES)[number];
 };
 
 export type UpdateContactInput = Partial<CreateContactInput>;
@@ -289,7 +289,7 @@ const WELLNESS_TAGS = [
   "Weekend Warrior",
   "Early Bird",
   "Evening Preferred",
-  "Seasonal Client",
+  "Seasonal Contact",
   "Frequent Visitor",
   "Occasional Visitor",
   "High Spender",
@@ -297,14 +297,14 @@ const WELLNESS_TAGS = [
   "Social Media Active",
 ];
 
-const LIFECYCLE_CLIENT_STAGES = [
+const LIFECYCLE_CONTACT_STAGES = [
   "Prospect",
-  "New Client",
-  "Core Client",
-  "Referring Client",
-  "VIP Client",
-  "Lost Client",
-  "At Risk Client",
+  "New Contact",
+  "Core Contact",
+  "Referring Contact",
+  "VIP Contact",
+  "Lost Contact",
+  "At Risk Contact",
 ];
 
 const CONTACT_SOURCES = [
@@ -331,7 +331,7 @@ export function makeContactDTO(overrides: Partial<ContactDTO> = {}): ContactDTO 
     updatedAt: faker.date.recent().toISOString(),
     avatar: faker.image.avatar(),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
-    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CLIENT_STAGES),
+    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CONTACT_STAGES),
     lastContactDate: faker.date.recent().toISOString(),
     notes: faker.lorem.paragraph(),
     company: faker.company.name(),
@@ -349,7 +349,7 @@ export function makeCreateContactInput(
     company: emptyToNull(faker.company.name()),
     notes: emptyToNull(faker.lorem.paragraph()),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
-    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CLIENT_STAGES),
+    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CONTACT_STAGES),
     ...overrides,
   };
 }
@@ -364,7 +364,7 @@ export function makeUpdateContactInput(
     company: emptyToNull(faker.company.name()),
     notes: emptyToNull(faker.lorem.paragraph()),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
-    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CLIENT_STAGES),
+    lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CONTACT_STAGES),
     ...overrides,
   };
 }
@@ -721,6 +721,35 @@ export function makeBatch<T>(
 /**
  * Creates realistic contact data with relationships (contact + notes + interactions)
  */
+export function makeContactWithRelations(
+  options: {
+    contact?: Partial<ContactDTO>;
+    noteCount?: number;
+    interactionCount?: number;
+  } = {},
+) {
+  const { contact: contactOverrides = {}, noteCount = 3, interactionCount = 5 } = options;
+
+  const contact = makeContactDTO(contactOverrides);
+  const notes = makeBatch(
+    () =>
+      makeNoteDTO({
+        contactId: contact.id,
+        userId: contact.userId,
+      }),
+    noteCount,
+  );
+  const interactions = makeBatch(
+    () =>
+      makeInteraction({
+        contactId: contact.id,
+        userId: contact.userId,
+      }),
+    interactionCount,
+  );
+
+  return { contact, notes, interactions };
+}
 
 /**
  * Creates realistic pagination response data

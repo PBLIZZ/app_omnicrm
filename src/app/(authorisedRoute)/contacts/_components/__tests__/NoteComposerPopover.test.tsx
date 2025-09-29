@@ -4,7 +4,13 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NoteComposerPopover } from "../NoteComposerPopover";
 import { renderWithProviders, mockToast } from "../../../../../__tests__/test-utils";
-import { setupRepoMocks, resetRepoMocks, makeNote, testUtils, type AllRepoFakes } from "@packages/testing";
+import {
+  setupRepoMocks,
+  resetRepoMocks,
+  makeNote,
+  testUtils,
+  type AllRepoFakes,
+} from "@packages/testing";
 
 // Mock the API client - still needed for component API calls
 vi.mock("@/lib/api/client", () => ({
@@ -174,7 +180,7 @@ describe("NoteComposerPopover", () => {
       const saveButton = screen.getByRole("button", { name: "Save" });
       await user.click(saveButton);
 
-      expect(mockPost).toHaveBeenCalledWith("/api/omni-clients/client-1/notes", {
+      expect(mockPost).toHaveBeenCalledWith("/api/contacts/client-1/notes", {
         content: "[User] Test note content",
       });
 
@@ -200,7 +206,7 @@ describe("NoteComposerPopover", () => {
       await user.type(textarea, "Test note content");
       await user.keyboard("{Enter}");
 
-      expect(mockPost).toHaveBeenCalledWith("/api/omni-clients/client-1/notes", {
+      expect(mockPost).toHaveBeenCalledWith("/api/contacts/client-1/notes", {
         content: "[User] Test note content",
       });
     });
@@ -340,7 +346,7 @@ describe("NoteComposerPopover", () => {
       const enhanceButton = screen.getByRole("button", { name: "Enhance" });
       await user.click(enhanceButton);
 
-      expect(mockPost).toHaveBeenCalledWith("/api/omni-clients/client-1/notes/enhance", {
+      expect(mockPost).toHaveBeenCalledWith("/api/contacts/client-1/notes/enhance", {
         content: "Test note content",
       });
 

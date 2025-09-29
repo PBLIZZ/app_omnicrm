@@ -32,14 +32,3 @@ export function isValidationError(error: unknown): error is import("zod").ZodErr
   return error instanceof Error && error.name === "ZodError";
 }
 
-/**
- * Extract error message safely
- * @param error - The error to extract message from
- * @returns The error message or "Unknown error"
- */
-export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return "Unknown error";
-}

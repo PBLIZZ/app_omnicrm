@@ -2,22 +2,27 @@ import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getServerUserId } from "@/server/auth/user";
 import { type Contact } from "@/server/db/business-schemas/contacts";
-import { ClientDetailPageWithNavigation } from "./_components/ClientDetailPageWithNavigation";
+import { ContactDetailPageWithNavigation } from "@/app/(authorisedRoute)/contacts/_components/ContactDetailPageWithNavigation";
 import { ContactsRepository } from "@repo";
-import { isOk } from "@/lib/utils/result";
+import { isOk, isErr } from "@/lib/utils/result";
 
-interface ClientDetailProps {
+interface ContactDetailProps {
   searchParams: Promise<{ id?: string }>;
 }
 
 /**
- * Fetch client data by ID
+ * Fetch contact data by ID
  */
-async function getClientById(userId: string, clientId: string): Promise<Contact> {
-  const result = await ContactsRepository.getContactById(userId, clientId);
+async function getContactById(userId: string, contactId: string): Promise<Contact> {
+  const result = await ContactsRepository.getContactById(userId, contactId);
+
+  if (isErr(result)) {
+    console.error("Failed to fetch contact:", result.error);
+    notFound();
+  }
 
   if (!isOk(result)) {
-    console.error("Failed to fetch contact:", result.error);
+    console.error("Invalid result state");
     notFound();
   }
 
@@ -29,59 +34,62 @@ async function getClientById(userId: string, clientId: string): Promise<Contact>
 }
 
 /**
- * Server Component for OmniClient Detail with ID-based URLs
- * Handles server-side authentication and fetches client data by ID
- * Renders the ClientDetailPageWithNavigation component with simplified routing
+ * Server Component for Contact Detail with ID-based URLs
+ * Handles server-side authentication and fetches contact data by ID
+ * Renders the ContactDetailPageWithNavigation component with simplified routing
  */
-export default async function Page({ searchParams }: ClientDetailProps): Promise<React.ReactNode> {
-  // Server-side authentication check
-  let userId: string;
-  try {
-    userId = await getServerUserId();
-  } catch {
-    redirect("/login?next=/omni-clients/details");
-  }
-
-  // Await params and validate ID
+export default async function Page({ searchParams }: ContactDetailProps): Promise<React.ReactNode> {
+  // Await params and validate ID first
   const { id } = await searchParams;
   if (!id || typeof id !== "string") {
     notFound();
   }
 
-  // Fetch client data by ID
-  const client = await getClientById(userId, id);
+  // Server-side authentication check
+  let userId: string;
+  try {
+    userId = await getServerUserId();
+  } catch {
+    // Build the full path with contact ID and URL-encode it
+    const fullPath = `/contacts/details/${id}`;
+    const encodedPath = encodeURIComponent(fullPath);
+    redirect(`/login?next=${encodedPath}`);
+  }
 
-  // Server component renders ClientDetailPageWithNavigation component
+  // Fetch contact data by ID
+  const contact = await getContactById(userId, id);
+
+  // Server component renders ContactDetailPageWithNavigation component
   // All interactive functionality is handled by the client component
-  return <ClientDetailPageWithNavigation clientId={client.id} />;
+  return <ContactDetailPageWithNavigation contactId={contact.id} />;
 }
 
 /**
  * Generate dynamic metadata for better SEO
  */
-export async function generateMetadata({ searchParams }: ClientDetailProps): Promise<Metadata> {
+export async function generateMetadata({ searchParams }: ContactDetailProps): Promise<Metadata> {
   try {
     const userId = await getServerUserId();
     const { id } = await searchParams;
 
     if (!id) {
-      return { title: "Client Not Found · OmniCRM" };
+      return { title: "Contact Not Found · OmniCRM" };
     }
 
-    const client = await getClientById(userId, id);
+    const contact = await getContactById(userId, id);
 
     return {
-      title: `${client.displayName} | OmniClients · OmniCRM`,
-      description: `Contact details and wellness insights for ${client.displayName}. Manage interactions, notes, and client relationship data.`,
+      title: `${contact.displayName} | Contacts · OmniCRM`,
+      description: `Contact details and wellness insights for ${contact.displayName}. Manage interactions, notes, and contact relationship data.`,
       openGraph: {
-        title: `${client.displayName} | OmniClients`,
-        description: `Contact details for ${client.displayName}`,
+        title: `${contact.displayName} | Contacts`,
+        description: `Contact details for ${contact.displayName}`,
       },
     };
   } catch {
     return {
-      title: "Client Detail · OmniCRM",
-      description: "Client details and wellness insights",
+      title: "Contact Detail · OmniCRM",
+      description: "Contact details and wellness insights",
     };
   }
 }

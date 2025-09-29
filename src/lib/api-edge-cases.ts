@@ -556,6 +556,11 @@ export function handleCORS(
     // Only include Access-Control-Allow-Origin if origin is permitted
     if (allowedOrigins.includes("*") || (origin && allowedOrigins.includes(origin))) {
       headers["Access-Control-Allow-Origin"] = origin || "*";
+
+      // Add Vary header when setting specific origin (not wildcard)
+      if (!allowedOrigins.includes("*") && origin) {
+        headers["Vary"] = "Origin";
+      }
     }
 
     return new Response(JSON.stringify({ error: "Method not implemented with CORS" }), {

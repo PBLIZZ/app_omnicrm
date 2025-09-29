@@ -7,6 +7,7 @@
 
 import { toast } from "sonner";
 import { isError } from "./type-guards";
+import { logger } from "@/lib/observability/unified-logger";
 
 export interface ErrorContext {
   operation: string;
@@ -54,20 +55,20 @@ export function handleError(
     timestamp: new Date().toISOString(),
   };
 
-  // Log error based on level
+  // Log error based on level using unified logger
   switch (logLevel) {
     case "debug":
-      console.error("Error handled (debug):", errorLog);
+      logger.debug("Error handled", context, normalizedError);
       break;
     case "info":
-      console.error("Error handled (info):", errorLog);
+      logger.info("Error handled", context);
       break;
     case "warn":
-      console.warn("Error handled:", errorLog);
+      logger.warn("Error handled", context, normalizedError);
       break;
     case "error":
     default:
-      console.error("Error handled:", errorLog);
+      logger.error("Error handled", context, normalizedError);
       break;
   }
 
@@ -148,75 +149,6 @@ export async function withErrorHandling<T>(
     return await operation();
   } catch (error) {
     return handleError(error, context, options);
-  }
-}
-
-/**
- * Safely extracts an error message from any unknown value
- * Enhanced version with better fallback handling
- */
-export function toErrorMessage(error: unknown): string {
-  // Already an Error - return message
-  if (isError(error)) {
-    return error.message;
-  }
-
-  // String - return as-is
-  if (typeof error === "string") {
-    return error;
-  }
-
-  // Object with message property - try to extract message
-  if (error && typeof error === "object" && "message" in error) {
-    const message = (error as { message: unknown }).message;
-    if (typeof message === "string") {
-      return message;
-    }
-  }
-
-  // Null/undefined
-  if (error == null) {
-    return "Unknown error occurred";
-  }
-
-  // Fallback - stringify the value
-  try {
-    return String(error);
-  } catch {
-    return "Unknown error occurred";
-  }
-}
-
-/**
- * Safely converts any unknown value to an Error object
- * @param error - Unknown error value
- * @returns Properly typed Error object
- */
-export function ensureError(error: unknown): Error {
-  // Already an Error - return as-is
-  if (isError(error)) {
-    return error;
-  }
-
-  // String - convert to Error with message
-  if (typeof error === "string") {
-    return new Error(error);
-  }
-
-  // Object with message property - try to extract message
-  if (error && typeof error === "object" && "message" in error) {
-    const message = (error as { message: unknown }).message;
-    if (typeof message === "string") {
-      return new Error(message);
-    }
-  }
-
-  // Fallback - stringify the value
-  try {
-    return new Error(String(error));
-  } catch {
-    // If String() fails, provide generic error
-    return new Error("Unknown error occurred");
   }
 }
 

@@ -43,7 +43,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
       userId: testUserId,
     });
 
-    fakes.omniClients.createContact.mockResolvedValueOnce(createdContact);
+    fakes.contacts.createContact.mockResolvedValueOnce(createdContact);
 
     const result = await vi.mocked(contactsService.createContactService)(testUserId, contactInput as any);
 
@@ -61,8 +61,8 @@ describe('Contacts End-to-End Workflow Integration', () => {
       userId: testUserId,
     });
 
-    fakes.omniClients.createContact.mockResolvedValueOnce(repoContact);
-    const repoResult = await fakes.omniClients.createContact(testUserId, {
+    fakes.contacts.createContact.mockResolvedValueOnce(repoContact);
+    const repoResult = await fakes.contacts.createContact(testUserId, {
       displayName: 'Direct Repo Contact',
       primaryEmail: 'repo@test.com',
       primaryPhone: null,
@@ -81,7 +81,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
     });
 
     // Configure repository to return both contacts
-    fakes.omniClients.listContacts.mockResolvedValueOnce({
+    fakes.contacts.listContacts.mockResolvedValueOnce({
       items: [createdContact, repoContact],
       total: 2,
     });
@@ -101,7 +101,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
     });
 
     // Configure repository to return filtered result
-    fakes.omniClients.listContacts.mockResolvedValueOnce({
+    fakes.contacts.listContacts.mockResolvedValueOnce({
       items: [createdContact],
       total: 1,
     });
@@ -112,12 +112,12 @@ describe('Contacts End-to-End Workflow Integration', () => {
     expect(searchResult.items[0].displayName).toBe('Integration Test Contact');
 
     // Step 5: Test repository layer directly for consistency
-    fakes.omniClients.listContacts.mockResolvedValueOnce({
+    fakes.contacts.listContacts.mockResolvedValueOnce({
       items: [createdContact, repoContact],
       total: 2,
     });
 
-    const repoListResult = await fakes.omniClients.listContacts(testUserId, listParams);
+    const repoListResult = await fakes.contacts.listContacts(testUserId, listParams);
 
     expect(repoListResult.items).toHaveLength(2);
     expect(repoListResult.total).toBe(2);
@@ -138,7 +138,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
       userId: testUserId,
     });
 
-    fakes.omniClients.createContact.mockResolvedValueOnce(edgeCaseContact);
+    fakes.contacts.createContact.mockResolvedValueOnce(edgeCaseContact);
     const edgeResult = await vi.mocked(contactsService.createContactService)(testUserId, {
       displayName: 'Edge Case Contact',
       primaryEmail: '',
@@ -150,7 +150,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
     expect(edgeResult?.primaryPhone).toBeNull();
 
     // Step 8: Final verification - total count should be 3
-    fakes.omniClients.listContacts.mockResolvedValueOnce({
+    fakes.contacts.listContacts.mockResolvedValueOnce({
       items: [createdContact, repoContact, edgeCaseContact],
       total: 3,
     });
@@ -162,7 +162,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
   it('should handle concurrent contact creation and maintain data consistency', async () => {
     // Create multiple contacts concurrently to test race conditions
     const contactPromises = Array.from({ length: 5 }, (_, i) => 
-      createContactService(testUserId, {
+      contactsService.createContactService(testUserId, {
         displayName: `Concurrent Contact ${i + 1}`,
         primaryEmail: `concurrent${i + 1}@test.com`,
         primaryPhone: null,
@@ -174,13 +174,14 @@ describe('Contacts End-to-End Workflow Integration', () => {
     
     // Verify all contacts were created successfully
     expect(createdContacts).toHaveLength(5);
+    createdContacts.forEach((contact, i) => {
       expect(contact).toBeTruthy();
       expect(contact?.displayName).toBe(`Concurrent Contact ${i + 1}`);
     });
 
 
     // Verify all contacts can be retrieved
-    const listResult = await listContactsService(testUserId, {
+    const listResult = await contactsService.listContactsService(testUserId, {
       page: 1,
       pageSize: 10,
       sort: 'displayName',
@@ -194,7 +195,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
   it('should handle pagination correctly across service and repository layers', async () => {
     // Create 15 test contacts
     const contactPromises = Array.from({ length: 15 }, (_, i) => 
-      createContactService(testUserId, {
+      contactsService.createContactService(testUserId, {
         displayName: `Pagination Contact ${String(i + 1).padStart(2, '0')}`,
         primaryEmail: `page${i + 1}@test.com`,
         primaryPhone: null,
@@ -205,7 +206,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
     await Promise.all(contactPromises);
 
     // Test first page
-    const page1 = await listContactsService(testUserId, {
+    const page1 = await contactsService.listContactsService(testUserId, {
       page: 1,
       pageSize: 5,
       sort: 'displayName',
@@ -217,7 +218,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
     expect(page1.items[0].displayName).toBe('Pagination Contact 01');
 
     // Test second page
-    const page2 = await listContactsService(testUserId, {
+    const page2 = await contactsService.listContactsService(testUserId, {
       page: 2,
       pageSize: 5,
       sort: 'displayName',
@@ -229,7 +230,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
     expect(page2.items[0].displayName).toBe('Pagination Contact 06');
 
     // Test last page
-    const page3 = await listContactsService(testUserId, {
+    const page3 = await contactsService.listContactsService(testUserId, {
       page: 3,
       pageSize: 5,
       sort: 'displayName',
@@ -241,7 +242,7 @@ describe('Contacts End-to-End Workflow Integration', () => {
     expect(page3.items[0].displayName).toBe('Pagination Contact 11');
 
     // Test beyond available pages
-    const page4 = await listContactsService(testUserId, {
+    const page4 = await contactsService.listContactsService(testUserId, {
       page: 4,
       pageSize: 5,
       sort: 'displayName',

@@ -271,6 +271,17 @@ export class SearchRepository {
       for (const row of embeddingRows) {
         if (!row.embedding) continue;
 
+        // Skip if types filter is provided and this row's ownerType is not included
+        if (
+          params.types &&
+          params.types.length > 0 &&
+          !params.types.includes(
+            row.ownerType as "contact" | "note" | "interaction" | "calendar_event" | "task",
+          )
+        ) {
+          continue;
+        }
+
         try {
           const rowEmbedding = JSON.parse(row.embedding) as number[];
           const similarity = calculateCosineSimilarity(embedding, rowEmbedding);

@@ -72,7 +72,7 @@ class ArchitectureLinter {
             file: routePath,
             line: index + 1,
             rule: "api-error-handling",
-            description: "Use OkEnvelope pattern for API errors",
+            description: "Use proper error handling with Result<T, E> pattern",
             severity: "warning",
           });
         }
@@ -252,7 +252,7 @@ class ArchitectureLinter {
   private hasErrorBoundary(content: string, lineIndex: number): boolean {
     const surroundingLines = content.split("\n").slice(Math.max(0, lineIndex - 5), lineIndex + 5);
     return surroundingLines.some(
-      (line) => line.includes("try {") || line.includes("catch") || line.includes("OkEnvelope"),
+      (line) => line.includes("try {") || line.includes("catch") || line.includes("Result<"),
     );
   }
 

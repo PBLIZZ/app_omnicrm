@@ -56,14 +56,14 @@ declare global {
 
 interface NoteComposerPopoverProps {
   children: React.ReactNode;
-  clientId: string;
-  clientName: string;
+  contactId: string;
+  contactName: string;
 }
 
 export function NoteComposerPopover({
   children,
-  clientId,
-  clientName,
+  contactId,
+  contactName,
 }: NoteComposerPopoverProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const [content, setContent] = useState("");
@@ -72,7 +72,7 @@ export function NoteComposerPopover({
   const [isRecording, setIsRecording] = useState(false);
 
   // Draft persistence
-  const draftKey = `note-draft-${clientId}`;
+  const draftKey = `note-draft-${contactId}`;
 
   useEffect(() => {
     if (isOpen && typeof window !== "undefined") {
@@ -85,8 +85,13 @@ export function NoteComposerPopover({
   }, [isOpen, draftKey]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && content) {
-      localStorage.setItem(draftKey, content);
+    if (typeof window !== "undefined") {
+      const trimmedContent = content?.trim() || "";
+      if (trimmedContent) {
+        localStorage.setItem(draftKey, trimmedContent);
+      } else {
+        localStorage.removeItem(draftKey);
+      }
     }
   }, [content, draftKey]);
 
@@ -106,7 +111,7 @@ export function NoteComposerPopover({
         content: string;
         createdAt: string;
         updatedAt: string;
-      }>(`/api/omni-clients/${clientId}/notes`, {
+      }>(`/api/contacts/${contactId}/notes`, {
         content: `[User] ${plainTextContent}`,
       });
 
@@ -116,7 +121,7 @@ export function NoteComposerPopover({
       setIsOpen(false);
 
       // Refresh the notes data - you may want to use React Query invalidation here
-      window.dispatchEvent(new CustomEvent("notesUpdated", { detail: { clientId } }));
+      window.dispatchEvent(new CustomEvent("notesUpdated", { detail: { contactId } }));
     } catch (error) {
       console.error("Failed to save note:", error);
       toast.error("Failed to save note");
@@ -137,7 +142,7 @@ export function NoteComposerPopover({
     try {
       // TODO: Implement LLM enhancement API call
       const result = await post<{ enhancedContent: string }>(
-        `/api/omni-clients/${clientId}/notes/enhance`,
+        `/api/contacts/${contactId}/notes/enhance`,
         {
           content: plainTextContent,
         },
@@ -209,7 +214,7 @@ export function NoteComposerPopover({
         <div className="p-4 space-y-3">
           <div className="space-y-1">
             <h4 className="font-semibold text-sm">Add Note</h4>
-            <p className="text-xs text-muted-foreground">for {clientName}</p>
+            <p className="text-xs text-muted-foreground">for {contactName}</p>
           </div>
 
           <div className="space-y-2">

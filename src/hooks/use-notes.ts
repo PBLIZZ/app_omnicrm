@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isOk, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -9,7 +10,10 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   if (error instanceof Error && error.message.includes("403")) return false;
 
   // Retry network errors up to 3 times
-  if (error instanceof Error && (error.message.includes("fetch") || error.message.includes("network"))) {
+  if (
+    error instanceof Error &&
+    (error.message.includes("fetch") || error.message.includes("network"))
+  ) {
     return retryCount < 3;
   }
 
@@ -61,8 +65,13 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   const notesQuery = useQuery({
     queryKey: queryKeys.contacts.notes(contactId),
     queryFn: async (): Promise<Note[]> => {
-      const data = await apiClient.get<NotesApiResponse>(`/api/contacts-new/${contactId}/notes`);
-      return data.notes ?? [];
+      const result = await apiClient.get<
+        Result<NotesApiResponse, { message: string; code: string }>
+      >(`/api/contacts-new/${contactId}/notes`);
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.notes ?? [];
     },
     enabled: !!contactId,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -71,11 +80,13 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   // Create new note
   const createNoteMutation = useMutation({
     mutationFn: async (data: CreateNoteData): Promise<Note> => {
-      const result = await apiClient.post<{ note: Note }>(
-        `/api/contacts-new/${contactId}/notes`,
-        data,
-      );
-      return result.note;
+      const result = await apiClient.post<
+        Result<{ note: Note }, { message: string; code: string }>
+      >(`/api/contacts-new/${contactId}/notes`, data);
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.note;
     },
     onMutate: async (newNote) => {
       // Cancel any outgoing refetches
@@ -133,9 +144,15 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   // Update existing note
   const updateNoteMutation = useMutation({
     mutationFn: async (data: UpdateNoteData): Promise<void> => {
-      await apiClient.put(`/api/contacts-new/${contactId}/notes/${data.noteId}`, {
-        content: data.content,
-      });
+      const result = await apiClient.put<Result<void, { message: string; code: string }>>(
+        `/api/contacts-new/${contactId}/notes/${data.noteId}`,
+        {
+          content: data.content,
+        },
+      );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
     },
     onMutate: async (updatedNote) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.contacts.notes(contactId) });
@@ -178,7 +195,12 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   // Delete note
   const deleteNoteMutation = useMutation({
     mutationFn: async (data: DeleteNoteData): Promise<void> => {
-      await apiClient.delete(`/api/contacts-new/${contactId}/notes/${data.noteId}`);
+      const result = await apiClient.delete<Result<void, { message: string; code: string }>>(
+        `/api/contacts-new/${contactId}/notes/${data.noteId}`,
+      );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
     },
     onMutate: async (deletedNote) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.contacts.notes(contactId) });

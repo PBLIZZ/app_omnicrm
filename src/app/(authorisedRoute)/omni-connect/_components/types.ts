@@ -39,6 +39,32 @@ export interface RecommendedAction {
 }
 
 /**
+ * Marketing Wiki Item
+ */
+export interface MarketingWikiItem {
+  id: string;
+  title: string;
+  summary: string;
+  category: "strategy" | "content" | "automation" | "analytics";
+  tags: string[];
+  dateAdded: string;
+}
+
+/**
+ * Weekly Digest
+ */
+export interface WeeklyDigest {
+  id: string;
+  summary: string;
+  keyInsights: string[];
+  actionItems: string[];
+  topContacts: string[];
+  emailVolume: number;
+  periodStart: string;
+  periodEnd: string;
+}
+
+/**
  * Connect Intelligence Dashboard Props
  */
 export interface ConnectIntelligenceDashboardProps {

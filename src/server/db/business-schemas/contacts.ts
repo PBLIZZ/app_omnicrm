@@ -48,7 +48,7 @@ export type Contact = z.infer<typeof ContactSchema>;
 export const CreateContactSchema = z.object({
   userId: z.string().uuid(),
   displayName: z.string().min(1),
-  primaryEmail: z.string().optional(),
+  primaryEmail: z.string().email().optional(),
   primaryPhone: z.string().optional(),
   source: z.string().optional(),
   lifecycleStage: z.string().optional(),
@@ -137,14 +137,12 @@ export type BulkDeleteBody = z.infer<typeof BulkDeleteBodySchema>;
  */
 export const BulkDeleteResponseSchema = z.object({
   deleted: z.number(),
-  errors: z
-    .array(
-      z.object({
-        id: z.string(),
-        error: z.string(),
-      }),
-    )
-    .default([]),
+  errors: z.array(
+    z.object({
+      id: z.string(),
+      error: z.string(),
+    }),
+  ),
 });
 
 export type BulkDeleteResponse = z.infer<typeof BulkDeleteResponseSchema>;
@@ -185,9 +183,9 @@ export type ContactCountResponse = z.infer<typeof ContactCountResponseSchema>;
 // ============================================================================
 
 /**
- * Client AI Insights Response Schema (for GET requests)
+ * Contact AI Insights Response Schema (for GET requests)
  */
-export const ClientAIInsightsResponseSchema = z.object({
+export const ContactAIInsightsResponseSchema = z.object({
   insights: z.array(
     z.object({
       type: z.string(),
@@ -200,7 +198,7 @@ export const ClientAIInsightsResponseSchema = z.object({
   recommendations: z.array(z.string()).optional(),
 });
 
-export type ClientAIInsightsResponse = z.infer<typeof ClientAIInsightsResponseSchema>;
+export type ContactAIInsightsResponse = z.infer<typeof ContactAIInsightsResponseSchema>;
 
 // ============================================================================
 // AVATAR SCHEMAS
@@ -284,7 +282,7 @@ export const ContactFiltersSchema = z.object({
 export type ContactFilters = z.infer<typeof ContactFiltersSchema>;
 
 // Legacy alias for backward compatibility
-export type ClientSearchFilters = ContactFilters;
+export type ContactSearchFilters = ContactFilters;
 
 // ============================================================================
 // CONTACT WITH NOTES SCHEMA
@@ -312,8 +310,7 @@ export const ContactWithNotesSchema = ContactSchema.extend({
 export type ContactWithNotes = z.infer<typeof ContactWithNotesSchema>;
 
 // Legacy alias for backward compatibility
-export type OmniClientWithNotesDTO = ContactWithNotes;
-export type ClientWithNotes = ContactWithNotes;
+export type ContactWithNotesDTO = ContactWithNotes;
 
 /**
  * Contact Input Schemas for Forms

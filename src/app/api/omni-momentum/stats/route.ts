@@ -1,6 +1,7 @@
 import { handleGet } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
+import { productivityService } from "@/server/services/productivity.service";
 import { z } from "zod";
+import { isErr } from "@/lib/utils/result";
 
 /**
  * Momentum Statistics API Route
@@ -23,7 +24,13 @@ export const GET = handleGet(
   async (): Promise<z.infer<typeof MomentumStatsResponseSchema>> => {
     // Note: This should be handleAuth but keeping as handleGet to match original pattern
     // The service will handle auth internally for now
-    const stats = await momentumService.getStats("user-id-placeholder");
+    const result = await productivityService.getStats("user-id-placeholder");
+
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+
+    const stats = result.data;
 
     // Format for frontend consumption
     return {
@@ -34,5 +41,5 @@ export const GET = handleGet(
       pendingApproval: 0, // TODO: Add pending approval logic
       projects: stats.projects,
     };
-  }
+  },
 );

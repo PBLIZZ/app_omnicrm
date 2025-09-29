@@ -1,6 +1,6 @@
 /**
  * Interaction Business Schema - derived from database schema
- * 
+ *
  * Handles email, call, meeting, and other interaction data
  */
 
@@ -15,16 +15,15 @@ const selectInteractionSchema = createSelectSchema(interactions);
 // Transform schema with UI computed fields
 const BaseInteractionSchema = selectInteractionSchema;
 
-export const InteractionSchema = BaseInteractionSchema.transform((data) => ({
+export const InteractionSchema = BaseInteractionSchema.transform((data: any) => ({
   ...data,
   // UI computed fields
   hasContent: !!(data.bodyText || data.subject),
-  contentPreview:
-    data.bodyText?.slice(0, 150) + (data.bodyText && data.bodyText.length > 150 ? "..." : "") ||
-    data.subject ||
-    "No content",
+  contentPreview: data.bodyText
+    ? data.bodyText.slice(0, 150) + (data.bodyText.length > 150 ? "..." : "")
+    : data.subject || "No content",
   isEmail: data.type === "email",
-  isCall: data.type === "call", 
+  isCall: data.type === "call",
   isMeeting: data.type === "meeting",
 }));
 

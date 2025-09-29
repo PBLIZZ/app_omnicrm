@@ -7,7 +7,6 @@ import { runNormalizeGoogleEmail, runNormalizeGoogleEvent } from "./processors/n
 import { runEmbed } from "./processors/embed";
 import { runInsight } from "./processors/insight";
 import { runExtractContacts } from "./processors/extract-contacts";
-import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * JobDispatcher handles routing jobs to their appropriate processors.
@@ -88,7 +87,7 @@ export class JobDispatcher {
             userId: job.userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       throw error;
     }

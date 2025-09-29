@@ -4,7 +4,7 @@ import { enrichClientsByIds } from "@/server/services/contacts-ai.service";
 import { z } from "zod";
 
 /**
- * OmniClients Bulk Enrich API
+ * Contacts Bulk Enrich API
  *
  * POST: Enrich multiple clients with AI-generated insights, wellness stages, and tags
  * Uses existing contacts table with UI terminology transformation

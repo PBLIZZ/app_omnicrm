@@ -10,11 +10,8 @@ export const POST = handleAuth(SimpleJobProcessSchema, CalendarEventsJobResultSc
   const result = await JobCreationService.createCalendarEventJobs(userId);
 
   return {
-    ok: true,
-    data: {
-      message: result.message,
-      processed: result.processed,
-      totalCalendarEvents: result.totalItems,
-    },
+    message: result.message,
+    processed: result.processed,
+    totalCalendarEvents: result.totalItems,
   };
 });

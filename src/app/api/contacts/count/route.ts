@@ -1,11 +1,11 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { GetOmniClientsQuerySchema, ContactCountResponseSchema } from "@/server/db/business-schemas";
+import { GetContactsQuerySchema, ContactCountResponseSchema } from "@/server/db/business-schemas";
 import { ContactsRepository } from "@repo";
 
 /**
- * OmniClients Count API
+ * Contacts Count API
  *
- * GET: Get total count of clients with optional filtering
+ * GET: Get total count of contacts with optional filtering
  * Uses existing contacts table with UI terminology transformation
  *
  * Migrated to new auth pattern:
@@ -14,7 +14,7 @@ import { ContactsRepository } from "@repo";
  */
 
 export const GET = handleGetWithQueryAuth(
-  GetOmniClientsQuerySchema,
+  GetContactsQuerySchema,
   ContactCountResponseSchema,
   async (query, userId) => {
     // Get count using repository

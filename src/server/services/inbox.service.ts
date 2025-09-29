@@ -9,7 +9,7 @@
 import { InboxRepository, ZonesRepository } from "@repo";
 import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
 import { logger } from "@/lib/observability";
-import { DbResult, isErr } from "@/lib/utils/result";
+import { DbResult, isErr, Result, ok, err } from "@/lib/utils/result";
 import type {
   InboxItem,
   CreateInboxItem,
@@ -97,7 +97,10 @@ export class InboxService {
     return {
       ...baseData,
       isProcessed: baseData.status === "processed",
-      wordCount: baseData.rawText.split(/\s+/).length,
+      wordCount: (() => {
+        const trimmed = baseData.rawText.trim();
+        return trimmed === "" ? 0 : trimmed.split(/\s+/).length;
+      })(),
       preview: baseData.rawText.slice(0, 100) + (baseData.rawText.length > 100 ? "..." : ""),
     };
   }
@@ -160,7 +163,7 @@ export class InboxService {
   /**
    * Quick capture - Create a new inbox item
    */
-  static async quickCapture(userId: string, data: CreateInboxItem): Promise<InboxItem> {
+  static async quickCapture(userId: string, data: CreateInboxItem): Promise<DbResult<InboxItem>> {
     try {
       // createInboxItem returns direct type, not DbResult
       const rawItem = await InboxRepository.createInboxItem({
@@ -179,20 +182,24 @@ export class InboxService {
         },
       });
 
-      return item;
+      return ok(item);
     } catch (error) {
       await logger.error("Failed to create inbox item", {
         operation: "inbox_quick_capture",
         additionalData: { userId, error },
       });
-      throw error;
+      return err({
+        code: "INBOX_QUICK_CAPTURE_ERROR",
+        message: "Error creating inbox item via quick capture",
+        details: error,
+      });
     }
   }
 
   /**
    * Voice capture with transcription
    */
-  static async voiceCapture(userId: string, data: VoiceInboxCaptureDTO): Promise<InboxItem> {
+  static async voiceCapture(userId: string, data: VoiceInboxCaptureDTO): Promise<DbResult<InboxItem>> {
     try {
       // createInboxItem returns direct type, not DbResult
       const rawItem = await InboxRepository.createInboxItem({
@@ -212,25 +219,44 @@ export class InboxService {
         },
       });
 
-      return item;
+      return ok(item);
     } catch (error) {
       await logger.error("Failed to create voice inbox item", {
         operation: "inbox_voice_capture",
         additionalData: { userId, error },
       });
-      throw error;
+      return err({
+        code: "INBOX_VOICE_CAPTURE_ERROR",
+        message: "Error creating inbox item via voice capture",
+        details: error,
+      });
     }
   }
 
   /**
    * List inbox items with filtering
    */
-  static async listInboxItems(userId: string, filters?: InboxFilters): Promise<InboxItem[]> {
-    // listInboxItems returns DbResult, need to unwrap
-    const result = await InboxRepository.listInboxItems(userId, filters);
-    const rawItems = this.unwrapDbResult(result);
+  static async listInboxItems(userId: string, filters?: InboxFilters): Promise<DbResult<InboxItem[]>> {
+    try {
+      // listInboxItems returns DbResult, need to unwrap
+      const result = await InboxRepository.listInboxItems(userId, filters);
+      if (isErr(result)) {
+        return err({
+          code: "INBOX_LIST_FAILED",
+          message: "Failed to list inbox items",
+          details: result.error,
+        });
+      }
+      const rawItems = result.data;
 
-    return rawItems.map((item) => this.transformInboxItem(item));
+      return ok(rawItems.map((item) => this.transformInboxItem(item)));
+    } catch (error) {
+      return err({
+        code: "INBOX_LIST_ERROR",
+        message: "Error listing inbox items",
+        details: error,
+      });
+    }
   }
 
   /**
@@ -249,13 +275,22 @@ export class InboxService {
   /**
    * Get inbox statistics
    */
-  static async getInboxStats(userId: string): Promise<{
+  static async getInboxStats(userId: string): Promise<DbResult<{
     unprocessed: number;
     processed: number;
     archived: number;
     total: number;
-  }> {
-    return await InboxRepository.getInboxStats(userId);
+  }>> {
+    try {
+      const stats = await InboxRepository.getInboxStats(userId);
+      return ok(stats);
+    } catch (error) {
+      return err({
+        code: "INBOX_STATS_ERROR",
+        message: "Error getting inbox stats",
+        details: error,
+      });
+    }
   }
 
   /**
@@ -264,20 +299,30 @@ export class InboxService {
   static async processInboxItem(
     userId: string,
     data: ProcessInboxItem,
-  ): Promise<InboxProcessingResultDTO> {
-    assertOpenRouterConfigured();
-
+  ): Promise<DbResult<InboxProcessingResultDTO>> {
     try {
+      assertOpenRouterConfigured();
+
       // Get the inbox item (returns direct type, not DbResult)
       const rawItem = await InboxRepository.getInboxItemById(userId, data.itemId);
       if (!rawItem) {
-        throw new Error("Inbox item not found");
+        return err({
+          code: "INBOX_ITEM_NOT_FOUND",
+          message: "Inbox item not found",
+        });
       }
       const item = this.transformInboxItem(rawItem);
 
       // Get available zones for categorization (returns DbResult)
       const zonesResult = await ZonesRepository.listZones();
-      const rawZones = this.unwrapDbResult(zonesResult);
+      if (isErr(zonesResult)) {
+        return err({
+          code: "INBOX_PROCESS_ZONES_FAILED",
+          message: "Failed to get zones for inbox processing",
+          details: zonesResult.error,
+        });
+      }
+      const rawZones = zonesResult.data;
       const zones = this.transformZoneData(rawZones);
 
       // Process with AI
@@ -296,7 +341,7 @@ export class InboxService {
         },
       });
 
-      return {
+      const result = {
         ...categorization,
         extractedTasks: categorization.extractedTasks.map((t) => ({
           ...t,
@@ -312,12 +357,18 @@ export class InboxService {
           })(),
         })),
       } as InboxProcessingResultDTO;
+
+      return ok(result);
     } catch (error) {
       await logger.error("Failed to process inbox item with AI", {
         operation: "inbox_ai_processing",
         additionalData: { userId, itemId: data.itemId, error },
       });
-      throw error;
+      return err({
+        code: "INBOX_PROCESS_ERROR",
+        message: "Error processing inbox item with AI",
+        details: error,
+      });
     }
   }
 
@@ -327,26 +378,33 @@ export class InboxService {
   static async bulkProcessInbox(
     userId: string,
     data: BulkProcessInboxDTO,
-  ): Promise<{
+  ): Promise<DbResult<{
     processed: InboxItem[];
     results?: InboxProcessingResultDTO[];
-  }> {
+  }>> {
     try {
       if (data.action === "archive") {
         // bulkUpdateStatus returns direct type, not DbResult
         const processed = await InboxRepository.bulkUpdateStatus(userId, data.itemIds, "archived");
-        return { processed: processed.map((item) => this.transformInboxItem(item)) };
+        return ok({ processed: processed.map((item) => this.transformInboxItem(item)) });
       }
 
       if (data.action === "delete") {
         await InboxRepository.bulkDeleteInboxItems(userId, data.itemIds);
-        return { processed: [] };
+        return ok({ processed: [] });
       }
 
       if (data.action === "process") {
         // AI process each item
         const zonesResult = await ZonesRepository.listZones();
-        const rawZones = this.unwrapDbResult(zonesResult);
+        if (isErr(zonesResult)) {
+          return err({
+            code: "BULK_PROCESS_ZONES_FAILED",
+            message: "Failed to get zones for bulk processing",
+            details: zonesResult.error,
+          });
+        }
+        const rawZones = zonesResult.data;
         const zones = this.transformZoneData(rawZones);
         const items: InboxItem[] = [];
         const results: InboxProcessingResultDTO[] = [];
@@ -399,16 +457,23 @@ export class InboxService {
           },
         });
 
-        return { processed: items, results };
+        return ok({ processed: items, results });
       }
 
-      throw new Error(`Invalid bulk action: ${data.action}`);
+      return err({
+        code: "INVALID_BULK_ACTION",
+        message: `Invalid bulk action: ${data.action}`,
+      });
     } catch (error) {
       await logger.error("Failed to bulk process inbox items", {
         operation: "inbox_bulk_process",
         additionalData: { userId, action: data.action, error },
       });
-      throw error;
+      return err({
+        code: "BULK_PROCESS_ERROR",
+        message: "Error in bulk inbox processing",
+        details: error,
+      });
     }
   }
 
@@ -419,26 +484,51 @@ export class InboxService {
     userId: string,
     itemId: string,
     createdTaskId?: string,
-  ): Promise<InboxItem | null> {
-    // markAsProcessed returns direct type, not DbResult
-    const rawItem = await InboxRepository.markAsProcessed(userId, itemId, createdTaskId);
-    return rawItem ? this.transformInboxItem(rawItem) : null;
+  ): Promise<DbResult<InboxItem | null>> {
+    try {
+      // markAsProcessed returns direct type, not DbResult
+      const rawItem = await InboxRepository.markAsProcessed(userId, itemId, createdTaskId);
+      return ok(rawItem ? this.transformInboxItem(rawItem) : null);
+    } catch (error) {
+      return err({
+        code: "INBOX_MARK_PROCESSED_ERROR",
+        message: "Error marking inbox item as processed",
+        details: error,
+      });
+    }
   }
 
   /**
    * Delete an inbox item
    */
-  static async deleteInboxItem(userId: string, itemId: string): Promise<boolean> {
-    return await InboxRepository.deleteInboxItem(userId, itemId);
+  static async deleteInboxItem(userId: string, itemId: string): Promise<DbResult<boolean>> {
+    try {
+      const result = await InboxRepository.deleteInboxItem(userId, itemId);
+      return ok(result);
+    } catch (error) {
+      return err({
+        code: "INBOX_DELETE_ERROR",
+        message: "Error deleting inbox item",
+        details: error,
+      });
+    }
   }
 
   /**
    * Get single inbox item
    */
-  static async getInboxItem(userId: string, itemId: string): Promise<InboxItem | null> {
-    // getInboxItemById returns direct type, not DbResult
-    const rawItem = await InboxRepository.getInboxItemById(userId, itemId);
-    return rawItem ? this.transformInboxItem(rawItem) : null;
+  static async getInboxItem(userId: string, itemId: string): Promise<DbResult<InboxItem | null>> {
+    try {
+      // getInboxItemById returns direct type, not DbResult
+      const rawItem = await InboxRepository.getInboxItemById(userId, itemId);
+      return ok(rawItem ? this.transformInboxItem(rawItem) : null);
+    } catch (error) {
+      return err({
+        code: "INBOX_GET_ERROR",
+        message: "Error getting inbox item",
+        details: error,
+      });
+    }
   }
 
   /**
@@ -448,25 +538,33 @@ export class InboxService {
     userId: string,
     itemId: string,
     data: UpdateInboxItem,
-  ): Promise<InboxItem | null> {
-    // updateInboxItem returns direct type, not DbResult
-    // Extract id from data as it's passed separately to repository
-    const { id: _, ...rest } = data;
+  ): Promise<DbResult<InboxItem | null>> {
+    try {
+      // updateInboxItem returns direct type, not DbResult
+      // Extract id from data as it's passed separately to repository
+      const { id: _, ...rest } = data;
 
-    // Filter out undefined values to match repository type expectations
-    const updateData = Object.fromEntries(
-      Object.entries(rest).filter(([, value]) => value !== undefined),
-    ) as Partial<{
-      userId: string;
-      rawText: string;
-      status: "unprocessed" | "processed" | "archived" | null;
-      createdTaskId: string | null;
-      processedAt: Date | null;
-      createdAt: Date;
-      updatedAt: Date;
-    }>;
+      // Filter out undefined values to match repository type expectations
+      const updateData = Object.fromEntries(
+        Object.entries(rest).filter(([, value]) => value !== undefined),
+      ) as Partial<{
+        userId: string;
+        rawText: string;
+        status: "unprocessed" | "processed" | "archived" | null;
+        createdTaskId: string | null;
+        processedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>;
 
-    const rawItem = await InboxRepository.updateInboxItem(userId, itemId, updateData);
-    return rawItem ? this.transformInboxItem(rawItem) : null;
+      const rawItem = await InboxRepository.updateInboxItem(userId, itemId, updateData);
+      return ok(rawItem ? this.transformInboxItem(rawItem) : null);
+    } catch (error) {
+      return err({
+        code: "INBOX_UPDATE_ERROR",
+        message: "Error updating inbox item",
+        details: error,
+      });
+    }
   }
 }

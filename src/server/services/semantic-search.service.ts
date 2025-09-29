@@ -26,23 +26,24 @@ interface SemanticSearchOptions {
   types?: SearchResultType[];
 }
 
-const _SEARCH_RESULT_TYPES: ReadonlySet<SearchResultType> = new Set([
-  "contact",
-  "note",
-  "interaction",
-  "calendar_event",
-  "task",
-]);
+// Search result types - kept for potential future use in validation
+// const _SEARCH_RESULT_TYPES: ReadonlySet<SearchResultType> = new Set([
+//   "contact",
+//   "note",
+//   "interaction",
+//   "calendar_event",
+//   "task",
+// ]);
 
 const RESULT_ROUTE_MAP: Record<SearchResultType, (id: string) => string> = {
-  contact: (id) => `/omni-clients/details?contactId=${id}`,
-  note: (id) => `/omni-clients/details?contactId=${id}&tab=notes`,
-  interaction: (id) => `/omni-clients/details?contactId=${id}&tab=interactions`,
+  contact: (id) => `/contacts/details?contactId=${id}`,
+  note: (id) => `/contacts/details?contactId=${id}&tab=notes`,
+  interaction: (id) => `/contacts/details?contactId=${id}&tab=interactions`,
   calendar_event: (id) => `/calendar/${id}`,
   task: (id) => `/tasks/${id}`,
 };
 
-const DEFAULT_SIMILARITY_THRESHOLD = 0.7;
+// const DEFAULT_SIMILARITY_THRESHOLD = 0.7; // Unused - kept for potential future use
 
 export function resolveResultUrl(type: SearchResultType, id: string): string {
   const resolver = RESULT_ROUTE_MAP[type];
@@ -86,11 +87,19 @@ export async function processSearchRequest(
     }
 
     const query = request.query.trim();
-    const searchType: SearchKind = SEARCH_TYPES.includes(request.type || "hybrid") ? (request.type || "hybrid") : "hybrid";
+    const searchType: SearchKind = SEARCH_TYPES.includes(request.type || "hybrid")
+      ? request.type || "hybrid"
+      : "hybrid";
     const limit = clamp(request.limit || DEFAULT_LIMIT, MIN_LIMIT, MAX_LIMIT);
 
     // Perform search
-    const searchResult = await performSearch(request.userId, query, searchType, limit, request.types);
+    const searchResult = await performSearch(
+      request.userId,
+      query,
+      searchType,
+      limit,
+      request.types,
+    );
 
     if (!searchResult.success) {
       return err(searchResult.error);
@@ -152,7 +161,7 @@ export async function searchTraditional(
       userId,
       query,
       limit,
-      types,
+      ...(types && { types }),
     });
 
     if (!searchResult.success) {
@@ -179,11 +188,19 @@ export async function searchSemantic(
 ): Promise<Result<SearchResult[], { code: string; message: string; details?: unknown }>> {
   try {
     const embedding = await getOrGenerateEmbedding(query);
-    return await searchSemanticByEmbedding(userId, embedding, {
+    const searchOptions: SemanticSearchOptions = {
       matchCount: limit,
-      similarityThreshold: options?.similarityThreshold,
-      types: types || options?.types,
-    });
+    };
+
+    if (options?.similarityThreshold !== undefined) {
+      searchOptions.similarityThreshold = options.similarityThreshold;
+    }
+
+    const finalTypes = types || options?.types;
+    if (finalTypes) {
+      searchOptions.types = finalTypes;
+    }
+    return await searchSemanticByEmbedding(userId, embedding, searchOptions);
   } catch (error) {
     return err({
       code: "SEMANTIC_SEARCH_FAILED",
@@ -199,13 +216,14 @@ export async function searchSemanticByEmbedding(
   options?: SemanticSearchOptions,
 ): Promise<Result<SearchResult[], { code: string; message: string; details?: unknown }>> {
   try {
-    const searchResult = await SearchRepository.searchSemantic({
+    const searchParams = {
       userId,
       embedding,
       limit: options?.matchCount ?? 10,
-      similarityThreshold: options?.similarityThreshold ?? DEFAULT_SIMILARITY_THRESHOLD,
-      types: options?.types,
-    });
+      ...(options?.similarityThreshold !== undefined && { similarityThreshold: options.similarityThreshold }),
+      ...(options?.types && { types: options.types }),
+    };
+    const searchResult = await SearchRepository.searchSemantic(searchParams);
 
     if (!searchResult.success) {
       return err(searchResult.error);
@@ -267,12 +285,20 @@ export async function searchHybrid(
       const semanticScore = result.similarity ?? 0.5;
 
       if (existing) {
-        merged.set(key, {
+        const hybridResult: SearchResult = {
           ...existing,
-          similarity: result.similarity ?? existing.similarity,
           score: Math.min((existing.score ?? 1) + semanticScore, 2),
           source: "hybrid",
-        });
+        };
+
+        // Only set similarity if we have a value to avoid undefined
+        if (result.similarity !== undefined) {
+          hybridResult.similarity = result.similarity;
+        } else if (existing.similarity !== undefined) {
+          hybridResult.similarity = existing.similarity;
+        }
+
+        merged.set(key, hybridResult);
       } else {
         addResult({ ...result, score: semanticScore, source: "semantic" });
       }
@@ -293,18 +319,31 @@ export async function searchHybrid(
 }
 
 function mapSearchResultDTOToSearchResult(dto: SearchResultDTO): SearchResult {
-  return {
+  const result: SearchResult = {
     id: dto.id,
     type: dto.type,
     title: dto.title,
     content: dto.content,
     metadata: dto.metadata,
     url: resolveResultUrl(dto.type, dto.id),
-    similarity: dto.similarity,
-    score: dto.score,
-    source: dto.source,
-    createdAt: dto.createdAt,
-    updatedAt: dto.updatedAt,
   };
-}
 
+  // Only include optional properties when they are defined
+  if (dto.similarity !== undefined) {
+    result.similarity = dto.similarity;
+  }
+  if (dto.score !== undefined) {
+    result.score = dto.score;
+  }
+  if (dto.source !== undefined) {
+    result.source = dto.source;
+  }
+  if (dto.createdAt !== undefined) {
+    result.createdAt = dto.createdAt;
+  }
+  if (dto.updatedAt !== undefined) {
+    result.updatedAt = dto.updatedAt;
+  }
+
+  return result;
+}

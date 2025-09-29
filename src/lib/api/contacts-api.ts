@@ -57,7 +57,7 @@ function debugLog(message: string, data?: unknown): void {
 
   logger.debug(`[CONTACTS-API] ${message}`, context).catch((error) => {
     if (process.env.NODE_ENV !== "production") {
-      console.error("Logging failure in contacts-api:", error, { message, context });
+      logger.error("Logging failure in contacts-api", { operation: "debug_logging" }, error);
     }
   }); // Fire-and-forget logging
 }

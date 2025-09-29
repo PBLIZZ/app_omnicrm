@@ -248,17 +248,7 @@ export {
   type FileUrlResponse,
 } from "./storage";
 
-// Error Handling & Utils
-export {
-  ErrorRetryRequestSchema,
-  ErrorRetryResponseSchema,
-  ErrorSummaryQuerySchema,
-  ErrorSummaryResponseSchema,
-  type ErrorRetryRequest,
-  type ErrorRetryResponse,
-  type ErrorSummaryQuery,
-  type ErrorSummaryResponse,
-} from "./errors";
+// Error Handling schemas have been removed as part of error tracking service simplification
 
 // Admin Operations
 export {

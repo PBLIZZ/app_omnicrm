@@ -19,6 +19,8 @@ const BaseZoneSchema = z.object({
   name: z.string().min(1),
   color: z.string().nullable(),
   iconName: z.string().nullable(), // Maps to icon_name in database
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 /**

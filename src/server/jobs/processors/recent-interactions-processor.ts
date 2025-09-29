@@ -160,13 +160,15 @@ export class RecentInteractionsProcessor {
     for (const contactId of activeContacts) {
       try {
         // Generate thread summary if contact has multiple recent interactions
-        const contactInteractions = recentInteractions.filter((i) => i.contact_id === contactId);
+        const contactInteractions = recentInteractions.filter(
+          (i: any) => i.contact_id === contactId,
+        );
 
         if (contactInteractions.length >= 2) {
           const insightId = await this.insightWriter.generateThreadSummary(
             userId,
             contactId,
-            contactInteractions.map((i) => i.id),
+            contactInteractions.map((i: any) => i.id),
           );
 
           if (insightId) {

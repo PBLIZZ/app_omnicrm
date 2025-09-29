@@ -25,9 +25,9 @@ function allowRequest(key: string): boolean {
 }
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
-  // Handle /contacts -> /omni-clients redirect
+  // Handle /contacts -> /contacts redirect
   if (req.nextUrl.pathname.startsWith("/contacts")) {
-    const newPathname = req.nextUrl.pathname.replace("/contacts", "/omni-clients");
+    const newPathname = req.nextUrl.pathname.replace("/contacts", "/contacts");
     const redirectUrl = new URL(newPathname + req.nextUrl.search, req.url);
     return NextResponse.redirect(redirectUrl);
   }

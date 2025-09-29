@@ -10,6 +10,7 @@
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowser } from "@/lib/supabase/browser-client";
 import { PASSWORD_MIN_LENGTH } from "@/lib/constants/auth";
+import { logger } from "@/lib/observability/unified-logger";
 
 interface SupabaseAuthError {
   code: string;
@@ -47,14 +48,15 @@ export async function fetchCurrentUser(): Promise<{ user: User | null; error?: E
     } = await supabase.auth.getUser();
 
     if (error) {
-      console.error("Error fetching current user:", error);
+      logger.error("Error fetching current user", { operation: "fetchCurrentUser" }, new Error(error.message));
       return { user: null, error: new Error(error.message) };
     }
 
     return { user };
   } catch (error) {
-    console.error("Failed to fetch current user:", error);
-    return { user: null, error: error instanceof Error ? error : new Error(String(error)) };
+    const errorInstance = error instanceof Error ? error : new Error(String(error));
+    logger.error("Failed to fetch current user", { operation: "fetchCurrentUser" }, errorInstance);
+    return { user: null, error: errorInstance };
   }
 }
 

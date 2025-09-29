@@ -280,7 +280,8 @@ export class ContactsRepository {
 
       const result = await db
         .delete(contacts)
-        .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)));
+        .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
+        .returning({ id: contacts.id });
 
       return ok(result.length > 0);
     } catch (error) {

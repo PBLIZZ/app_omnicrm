@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { Result, ok, err, isOk } from "@/lib/utils/result";
+import { Result, ok, err, isOk, isErr } from "@/lib/utils/result";
 import { OnboardingRepository, type ClientData, type ConsentData } from "@repo";
 
 // Validation schemas
@@ -144,7 +144,7 @@ export class OnboardingService {
       return ok(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const messages = error.errors.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`).join(', ');
+        const messages = error.issues.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`).join(', ');
         return err(`Validation failed: ${messages}`);
       }
       return err(error instanceof Error ? error.message : "Validation failed");
@@ -283,7 +283,15 @@ export class OnboardingService {
         photoPath
       );
 
-      return result;
+      // Convert DbResult to Result<string, string>
+      if (isErr(result)) {
+        return err(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid repository result state");
+      }
+
+      return ok(result.data);
     } catch (error) {
       console.error("Onboarding submission error:", error);
       return err(error instanceof Error ? error.message : "Failed to complete onboarding");
@@ -296,9 +304,12 @@ export class OnboardingService {
   static async trackSubmission(token: string): Promise<Result<void, string>> {
     try {
       const result = await OnboardingRepository.incrementTokenUsage(token);
-      if (!isOk(result)) {
+      if (isErr(result)) {
         console.warn("Failed to track submission:", result.error);
         // Don't fail the request if tracking fails, just log
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
       }
       return ok(undefined);
     } catch (trackingError) {
@@ -319,13 +330,19 @@ export class OnboardingService {
 
     // Validate all client data
     const clientValidation = this.validateClientData(client);
-    if (!isOk(clientValidation)) {
+    if (isErr(clientValidation)) {
       return err(clientValidation.error);
+    }
+    if (!isOk(clientValidation)) {
+      throw new Error("Invalid client validation result state");
     }
 
     const consentValidation = this.validateConsentData(consent);
-    if (!isOk(consentValidation)) {
+    if (isErr(consentValidation)) {
       return err(consentValidation.error);
+    }
+    if (!isOk(consentValidation)) {
+      throw new Error("Invalid consent validation result state");
     }
 
     // Prepare data for database
@@ -334,8 +351,11 @@ export class OnboardingService {
 
     // Submit to database
     const submissionResult = await this.submitOnboarding(userId, token, clientData, consentData, photo_path);
-    if (!isOk(submissionResult)) {
+    if (isErr(submissionResult)) {
       return err(submissionResult.error);
+    }
+    if (!isOk(submissionResult)) {
+      throw new Error("Invalid submission result state");
     }
 
     // Track successful submission (don't fail if tracking fails)

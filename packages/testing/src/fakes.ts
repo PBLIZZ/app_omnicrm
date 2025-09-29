@@ -16,6 +16,7 @@ import {
   makePaginatedResponse,
   makeBatch,
   type NewInteraction,
+  type Interaction,
   type OmniClientWithNotesDTO,
 } from "./factories";
 
@@ -67,10 +68,10 @@ export interface UserContext {
 }
 
 // =============================================================================
-// OMNI-CLIENTS REPOSITORY FAKES
+// CONTACTS REPOSITORY FAKES
 // =============================================================================
 
-export interface OmniClientsRepoFakes {
+export interface ContactsRepoFakes {
   listContacts: MockedFunction<
     (
       userId: string,
@@ -105,7 +106,7 @@ export interface OmniClientsRepoFakes {
   >;
 }
 
-export function createOmniClientsRepoFakes(): OmniClientsRepoFakes {
+export function createContactsRepoFakes(): ContactsRepoFakes {
   return {
     listContacts: vi.fn().mockImplementation(async (userId: string, params: ContactListParams) => {
       const items = makeBatch(() => makeOmniClientWithNotes({ userId }), params.pageSize || 10);
@@ -460,7 +461,7 @@ export function createRawEventsRepoFakes(): RawEventsRepoFakes {
  * All repository fakes in one object for easy setup
  */
 export interface AllRepoFakes {
-  omniClients: OmniClientsRepoFakes;
+  contacts: ContactsRepoFakes;
   interactions: InteractionsRepoFakes;
   authUser: AuthUserRepoFakes;
   identities: IdentitiesRepoFakes;
@@ -472,7 +473,7 @@ export interface AllRepoFakes {
  */
 export function createAllRepoFakes(): AllRepoFakes {
   return {
-    omniClients: createOmniClientsRepoFakes(),
+    contacts: createContactsRepoFakes(),
     interactions: createInteractionsRepoFakes(),
     authUser: createAuthUserRepoFakes(),
     identities: createIdentitiesRepoFakes(),
@@ -491,7 +492,7 @@ export function setupRepoMocks() {
   const fakes = createAllRepoFakes();
 
   // Mock all repository modules
-  vi.doMock("@repo/contacts", () => fakes.omniClients);
+  vi.doMock("@repo/contacts", () => fakes.contacts);
   vi.doMock("@repo", () => ({
     InteractionsRepository: class {
       static upsert = fakes.interactions.upsert;
@@ -514,7 +515,7 @@ export function setupRepoMocks() {
  * Helper to reset all repository mocks
  */
 export function resetRepoMocks(fakes: AllRepoFakes) {
-  Object.values(fakes.omniClients).forEach((mock) => mock.mockClear());
+  Object.values(fakes.contacts).forEach((mock) => mock.mockClear());
   Object.values(fakes.interactions).forEach((mock) => mock.mockClear());
   Object.values(fakes.authUser).forEach((mock) => mock.mockClear());
   Object.values(fakes.identities).forEach((mock) => mock.mockClear());
@@ -530,8 +531,8 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
      * Configure empty database scenario
      */
     emptyDatabase: () => {
-      fakes.omniClients.listContacts.mockResolvedValue({ items: [], total: 0 });
-      fakes.omniClients.searchContactsOptimized.mockResolvedValue([]);
+      fakes.contacts.listContacts.mockResolvedValue({ items: [], total: 0 });
+      fakes.contacts.searchContactsOptimized.mockResolvedValue([]);
       fakes.interactions.getByContact.mockResolvedValue([]);
       fakes.interactions.getUnlinked.mockResolvedValue([]);
     },
@@ -541,7 +542,7 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
      */
     databaseError: () => {
       const error = new Error("Database connection error");
-      Object.values(fakes.omniClients).forEach((mock) => {
+      Object.values(fakes.contacts).forEach((mock) => {
         if (typeof mock.mockRejectedValue === "function") {
           mock.mockRejectedValue(error);
         }
@@ -572,13 +573,13 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
         interactionCount: 10,
       });
 
-      fakes.omniClients.listContacts.mockResolvedValue({
+      fakes.contacts.listContacts.mockResolvedValue({
         items: [convertToContactListItem(contact)],
         total: 1,
       });
 
       fakes.interactions.getByContact.mockResolvedValue(
-        interactions.map((interaction) => ({
+        interactions.map((interaction: Interaction) => ({
           id: interaction.id,
           user_id: interaction.userId,
           contact_id: interaction.contactId,
@@ -602,12 +603,12 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
     contactWithWellnessData: (userId: string) => {
       const contact = makeOmniClientWithNotes({
         userId,
-        lifecycleStage: "Core Client",
+        lifecycleStage: "Core Contact",
         tags: ["Yoga", "Regular Attendee"],
         confidenceScore: "0.85",
       });
 
-      fakes.omniClients.listContacts.mockResolvedValue({
+      fakes.contacts.listContacts.mockResolvedValue({
         items: [convertToContactListItem(contact)],
         total: 1,
       });
@@ -618,13 +619,13 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
      */
     dataCorruption: () => {
       const corruptContact = makeOmniClientWithNotes({
-        lifecycleStage: "Core Client",
+        lifecycleStage: "Core Contact",
         // Simulate corrupted tags field
         tags: null,
         confidenceScore: "0.85",
       });
 
-      fakes.omniClients.listContacts.mockResolvedValue({
+      fakes.contacts.listContacts.mockResolvedValue({
         items: [convertToContactListItem(corruptContact)],
         total: 1,
       });

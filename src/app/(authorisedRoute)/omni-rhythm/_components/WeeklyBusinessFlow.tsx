@@ -19,7 +19,7 @@ export function WeeklyBusinessFlow({
 
   // Group appointments by day
   const appointmentsByDay = appointments.reduce(
-    (acc, appointment) => {
+    (acc: Record<string, Appointment[]>, appointment: Appointment) => {
       const dayKey = format(new Date(appointment.startTime), "yyyy-MM-dd");
       acc[dayKey] ??= [];
       acc[dayKey].push(appointment);
@@ -96,7 +96,7 @@ export function WeeklyBusinessFlow({
 
                 {dayAppointments.length > 0 ? (
                   <div className="space-y-1">
-                    {dayAppointments.slice(0, 2).map((appointment) => (
+                    {dayAppointments.slice(0, 2).map((appointment: Appointment) => (
                       <div
                         key={appointment.id}
                         className={`text-xs p-1 rounded truncate ${
@@ -212,7 +212,7 @@ export function WeeklyBusinessFlow({
           </Button>
           <Button size="sm" variant="outline" className="flex-1">
             <Users className="h-4 w-4 mr-2" />
-            Client Outreach
+            Contact Outreach
           </Button>
           <Button size="sm" variant="outline" className="flex-1">
             <TrendingUp className="h-4 w-4 mr-2" />

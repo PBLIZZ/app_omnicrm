@@ -15,15 +15,15 @@ interface Note {
 }
 
 interface NotesHoverCardProps {
-  clientId: string;
-  clientName: string;
+  contactId: string;
+  contactName: string;
   children: React.ReactNode;
   "data-testid"?: string;
 }
 
 export function NotesHoverCard({
-  clientId,
-  clientName,
+  contactId,
+  contactName,
   children,
   "data-testid": testId,
 }: NotesHoverCardProps): JSX.Element {
@@ -32,13 +32,13 @@ export function NotesHoverCard({
   const [error, setError] = useState<string | null>(null);
 
   const fetchNotes = async (): Promise<void> => {
-    if (!clientId) return;
+    if (!contactId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const data = await get<{ notes: Note[] }>(`/api/omni-clients/${clientId}/notes`);
+      const data = await get<{ notes: Note[] }>(`/api/contacts/${contactId}/notes`);
       setNotes(data.notes || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load notes");
@@ -54,13 +54,14 @@ export function NotesHoverCard({
           className="cursor-pointer hover:bg-muted/20 p-1 rounded-sm transition-colors"
           data-testid={testId}
           onMouseEnter={fetchNotes}
+          onFocus={fetchNotes}
         >
           {children}
         </div>
       </HoverCardTrigger>
       <HoverCardContent className="w-96 p-4" side="top" align="start">
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-foreground">Notes for {clientName}</h4>
+          <h4 className="text-sm font-semibold text-foreground">Notes for {contactName}</h4>
 
           {loading && (
             <div className="space-y-2">

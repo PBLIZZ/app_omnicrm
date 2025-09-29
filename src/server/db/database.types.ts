@@ -343,7 +343,7 @@ export type Database = {
       contacts: {
         Row: {
           address: Json | null;
-          client_status: string | null;
+          contact_status: string | null;
           confidence_score: string | null;
           created_at: string;
           date_of_birth: string | null;
@@ -365,7 +365,7 @@ export type Database = {
         };
         Insert: {
           address?: Json | null;
-          client_status?: string | null;
+          contact_status?: string | null;
           confidence_score?: string | null;
           created_at?: string;
           date_of_birth?: string | null;

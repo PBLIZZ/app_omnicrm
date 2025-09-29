@@ -3,24 +3,24 @@
  *
  * Consolidates all AI-powered contact operations including:
  * - AI insights and analysis (contact-ai-actions.service.ts)
- * - Client enrichment with AI (client-enrichment.service.ts)
+ * - Contact enrichment with AI (contact-enrichment.service.ts)
  *
  * This replaces 2 separate AI service files with a single, focused service.
  */
 
-import { generateContactInsights } from "@/server/ai/clients/generate-contact-insights";
+import { generateContactInsights } from "@/server/ai/contacts/generate-contact-insights";
 import {
   askAIAboutContact,
   type ContactAIInsightResponse,
-} from "@/server/ai/clients/ask-ai-about-contact";
+} from "@/server/ai/contacts/ask-ai-about-contact";
 import { ContactsRepository } from "@repo";
 import { listContactsService } from "@/server/services/contacts.service";
 import { getDb } from "@/server/db/client";
 import { contacts } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
 import { isErr } from "@/lib/utils/result";
+import { ErrorHandler } from "@/lib/errors/app-error";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -119,27 +119,42 @@ export async function askAIAboutContactService(
 }
 
 // ============================================================================
-// CLIENT ENRICHMENT OPERATIONS
+// CONTACT ENRICHMENT OPERATIONS
 // ============================================================================
 
 /**
- * Enrich all clients for a user with AI insights
+ * Enrich all contacts for a user with AI insights
  */
-export async function enrichAllClients(
+export async function enrichAllContacts(
   userId: string,
   options: EnrichmentOptions = {},
 ): Promise<EnrichmentResult> {
   const { batchSize = 1000, delayMs = 200 } = options;
 
-  // Get all contacts for the user
-  const { items: contactsList } = await listContactsService(userId, {
-    page: 1,
-    pageSize: batchSize,
-    sort: "displayName",
-    order: "asc",
-  });
+  // Get all contacts for the user by iterating through all pages
+  let allContacts: any[] = [];
+  let page = 1;
+  let hasMore = true;
 
-  const totalContacts = contactsList.length;
+  while (hasMore) {
+    const result = await listContactsService(userId, {
+      page,
+      pageSize: batchSize,
+      sort: "displayName",
+      order: "asc",
+    });
+
+    if (result.success) {
+      allContacts = allContacts.concat(result.data.items);
+      // Calculate hasMore based on items length vs pageSize
+      hasMore = result.data.items.length === batchSize;
+    } else {
+      hasMore = false;
+    }
+    page++;
+  }
+
+  const totalContacts = allContacts.length;
   let enrichedCount = 0;
   const errors: string[] = [];
 
@@ -147,14 +162,14 @@ export async function enrichAllClients(
     return {
       enrichedCount: 0,
       totalRequested: 0,
-      message: "No clients found to enrich",
+      message: "No contacts found to enrich",
     };
   }
 
   const db = await getDb();
 
   // Process each contact
-  for (const contact of contactsList) {
+  for (const contact of allContacts) {
     try {
       // Skip if contact has no email (can't analyze calendar events without email)
       if (!contact.primaryEmail) {
@@ -172,8 +187,8 @@ export async function enrichAllClients(
         .update(contacts)
         .set({
           lifecycleStage: validateLifecycleStage(insights.lifecycleStage),
-          tags: JSON.stringify(insights.tags),
-          confidenceScore: insights.confidenceScore.toString(),
+          tags: insights.tags || [],
+          confidenceScore: insights.confidenceScore?.toString() || null,
           updatedAt: new Date(),
         })
         .where(eq(contacts.id, contact.id));
@@ -189,9 +204,9 @@ export async function enrichAllClients(
       errors.push(errorMessage);
 
       await logger.error(
-        "Failed to enrich individual client",
+        "Failed to enrich individual contact",
         {
-          operation: "client_enrichment",
+          operation: "contact_enrichment",
           additionalData: {
             userId: userId.slice(0, 8) + "...",
             contactId: contact.id,
@@ -199,13 +214,13 @@ export async function enrichAllClients(
             error: error instanceof Error ? error.message : String(error),
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }
 
-  await logger.info("Client enrichment completed", {
-    operation: "client_enrichment_all",
+  await logger.info("Contact enrichment completed", {
+    operation: "contact_enrichment_all",
     additionalData: {
       userId: userId.slice(0, 8) + "...",
       totalContacts,
@@ -223,24 +238,39 @@ export async function enrichAllClients(
 }
 
 /**
- * Enrich all clients with streaming progress updates
+ * Enrich all contacts with streaming progress updates
  */
-export async function* enrichAllClientsStreaming(
+export async function* enrichAllContactsStreaming(
   userId: string,
   options: EnrichmentOptions = {},
 ): AsyncGenerator<EnrichmentProgress, void, unknown> {
   try {
     const { batchSize = 1000, delayMs = 200 } = options;
 
-    // Get all contacts for the user
-    const { items: contactsList } = await listContactsService(userId, {
-      page: 1,
-      pageSize: batchSize,
-      sort: "displayName",
-      order: "asc",
-    });
+    // Get all contacts for the user by iterating through all pages
+    let allContacts: any[] = [];
+    let page = 1;
+    let hasMore = true;
 
-    const totalContacts = contactsList.length;
+    while (hasMore) {
+      const result = await listContactsService(userId, {
+        page,
+        pageSize: batchSize,
+        sort: "displayName",
+        order: "asc",
+      });
+
+      if (result.success) {
+        allContacts = allContacts.concat(result.data.items);
+        // Calculate hasMore based on items length vs pageSize
+        hasMore = result.data.items.length === batchSize;
+      } else {
+        hasMore = false;
+      }
+      page++;
+    }
+
+    const totalContacts = allContacts.length;
     let enrichedCount = 0;
     const errors: string[] = [];
 
@@ -256,7 +286,7 @@ export async function* enrichAllClientsStreaming(
         type: "complete",
         enrichedCount: 0,
         total: 0,
-        message: "No clients found to enrich",
+        message: "No contacts found to enrich",
       };
       return;
     }
@@ -264,7 +294,7 @@ export async function* enrichAllClientsStreaming(
     const db = await getDb();
 
     // Process each contact
-    for (const contact of contactsList) {
+    for (const contact of allContacts) {
       try {
         // Send progress event
         yield {
@@ -298,8 +328,8 @@ export async function* enrichAllClientsStreaming(
           .update(contacts)
           .set({
             lifecycleStage: validateLifecycleStage(insights.lifecycleStage),
-            tags: JSON.stringify(insights.tags),
-            confidenceScore: insights.confidenceScore.toString(),
+            tags: insights.tags || [],
+            confidenceScore: insights.confidenceScore?.toString() || null,
             updatedAt: new Date(),
           })
           .where(eq(contacts.id, contact.id));
@@ -335,9 +365,9 @@ export async function* enrichAllClientsStreaming(
         };
 
         await logger.error(
-          "Failed to enrich individual client",
+          "Failed to enrich individual contact",
           {
-            operation: "client_enrichment_streaming",
+            operation: "contact_enrichment_streaming",
             additionalData: {
               userId: userId.slice(0, 8) + "...",
               contactId: contact.id,
@@ -345,7 +375,7 @@ export async function* enrichAllClientsStreaming(
               error: error instanceof Error ? error.message : String(error),
             },
           },
-          ensureError(error),
+          error instanceof Error ? error : new Error(String(error)),
         );
       }
     }
@@ -358,8 +388,8 @@ export async function* enrichAllClientsStreaming(
       message: `Successfully enriched ${enrichedCount} of ${totalContacts} contacts with AI insights`,
     };
 
-    await logger.info("Streaming client enrichment completed", {
-      operation: "client_enrichment_streaming",
+    await logger.info("Streaming contact enrichment completed", {
+      operation: "contact_enrichment_streaming",
       additionalData: {
         userId: userId.slice(0, 8) + "...",
         totalContacts,
@@ -375,65 +405,65 @@ export async function* enrichAllClientsStreaming(
     };
 
     await logger.error(
-      "Streaming client enrichment failed",
+      "Streaming contact enrichment failed",
       {
-        operation: "client_enrichment_streaming",
+        operation: "contact_enrichment_streaming",
         additionalData: {
           userId: userId.slice(0, 8) + "...",
           error: error instanceof Error ? error.message : String(error),
         },
       },
-      ensureError(error),
+      ErrorHandler.fromError(error),
     );
   }
 }
 
 /**
- * Enrich specific clients by IDs
+ * Enrich specific contacts by IDs
  */
-export async function enrichClientsByIds(
+export async function enrichContactsByIds(
   userId: string,
-  clientIds: string[],
+  contactIds: string[],
   options: EnrichmentOptions = {},
 ): Promise<EnrichmentResult> {
   const { delayMs = 200 } = options;
 
   // Get contacts to enrich with their emails using repository
-  const clientsToEnrichResult = await ContactsRepository.getContactsByIds(userId, clientIds);
+  const contactsToEnrichResult = await ContactsRepository.getContactsByIds(userId, contactIds);
 
-  if (isErr(clientsToEnrichResult)) {
-    throw new Error(`Failed to get clients: ${clientsToEnrichResult.error.message}`);
+  if (isErr(contactsToEnrichResult)) {
+    throw new Error(`Failed to get contacts: ${contactsToEnrichResult.error.message}`);
   }
 
-  const clientsToEnrich = (clientsToEnrichResult as { success: true; data: any[] }).data;
+  const contactsToEnrich = (contactsToEnrichResult as { success: true; data: any[] }).data;
 
-  if (clientsToEnrich.length === 0) {
+  if (contactsToEnrich.length === 0) {
     return {
       enrichedCount: 0,
-      totalRequested: clientIds.length,
-      message: "No clients found to enrich",
+      totalRequested: contactIds.length,
+      message: "No contacts found to enrich",
     };
   }
 
   let enrichedCount = 0;
   const errors: string[] = [];
 
-  // Process each client
-  for (const client of clientsToEnrich) {
+  // Process each contact
+  for (const contact of contactsToEnrich) {
     try {
       // Skip clients without email addresses (can't analyze without email for calendar events)
-      if (!client.primaryEmail) {
-        errors.push(`${client.displayName}: No email address to analyze`);
+      if (!contact.primaryEmail) {
+        errors.push(`${contact.displayName}: No email address to analyze`);
         continue;
       }
 
-      // Generate AI insights for this client
-      const insights = await generateContactInsights(userId, client.primaryEmail, {
+      // Generate AI insights for this contact
+      const insights = await generateContactInsights(userId, contact.primaryEmail, {
         forceRefresh: true,
       });
 
-      // Update the client with AI insights using repository
-      await ContactsRepository.updateContact(userId, client.id, {
+      // Update the contact with AI insights using repository
+      await ContactsRepository.updateContact(userId, contact.id, {
         lifecycleStage: validateLifecycleStage(insights.lifecycleStage),
         tags: insights.tags,
         confidenceScore: insights.confidenceScore?.toString(),
@@ -446,30 +476,30 @@ export async function enrichClientsByIds(
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     } catch (error) {
-      const errorMsg = `${client.displayName}: ${error instanceof Error ? error.message : "Unknown error"}`;
+      const errorMsg = `${contact.displayName}: ${error instanceof Error ? error.message : "Unknown error"}`;
       errors.push(errorMsg);
 
       await logger.error(
-        "Failed to enrich individual client",
+        "Failed to enrich individual contact",
         {
-          operation: "client_enrichment_bulk",
+          operation: "contact_enrichment_bulk",
           additionalData: {
             userId: userId.slice(0, 8) + "...",
-            clientId: client.id,
-            clientName: client.displayName,
+            contactId: contact.id,
+            contactName: contact.displayName,
             error: error instanceof Error ? error.message : String(error),
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }
 
-  await logger.info("Bulk client enrichment completed", {
-    operation: "client_enrichment_bulk",
+  await logger.info("Bulk contact enrichment completed", {
+    operation: "contact_enrichment_bulk",
     additionalData: {
       userId: userId.slice(0, 8) + "...",
-      requestedCount: clientIds.length,
+      requestedCount: contactIds.length,
       enrichedCount,
       errorCount: errors.length,
     },
@@ -477,34 +507,34 @@ export async function enrichClientsByIds(
 
   return {
     enrichedCount,
-    totalRequested: clientIds.length,
+    totalRequested: contactIds.length,
     errors: errors.length > 0 ? errors : [],
-    message: `Successfully enriched ${enrichedCount} of ${clientIds.length} client${clientIds.length === 1 ? "" : "s"} with AI insights`,
+    message: `Successfully enriched ${enrichedCount} of ${contactIds.length} contact${contactIds.length === 1 ? "" : "s"} with AI insights`,
   };
 }
 
 /**
- * Check if a client needs enrichment (missing stage, tags, or confidence score)
+ * Check if a contact needs enrichment (missing stage, tags, or confidence score)
  */
-export async function clientNeedsEnrichment(userId: string, clientId: string): Promise<boolean> {
+export async function contactNeedsEnrichment(userId: string, contactId: string): Promise<boolean> {
   try {
-    const clientResult = await ContactsRepository.getContactById(userId, clientId);
+    const contactResult = await ContactsRepository.getContactById(userId, contactId);
 
-    if (isErr(clientResult)) {
+    if (isErr(contactResult)) {
       return false;
     }
 
-    const client = (clientResult as { success: true; data: any }).data;
-    if (!client) return false;
+    const contact = (contactResult as { success: true; data: any }).data;
+    if (!contact) return false;
 
-    // Client needs enrichment if it's missing key AI-generated fields
-    return !client.lifecycleStage || !client.tags || !client.confidenceScore;
+    // Contact needs enrichment if it's missing key AI-generated fields
+    return !contact.lifecycleStage || !contact.tags || !contact.confidenceScore;
   } catch (error) {
-    await logger.warn("Failed to check if client needs enrichment", {
-      operation: "client_enrichment_check",
+    await logger.warn("Failed to check if contact needs enrichment", {
+      operation: "contact_enrichment_check",
       additionalData: {
         userId: userId.slice(0, 8) + "...",
-        clientId,
+        contactId: contactId,
         error: error instanceof Error ? error.message : String(error),
       },
     });
@@ -516,35 +546,46 @@ export async function clientNeedsEnrichment(userId: string, clientId: string): P
  * Get enrichment statistics for a user
  */
 export async function getEnrichmentStats(userId: string): Promise<{
-  totalClients: number;
-  enrichedClients: number;
+  totalContacts: number;
+  enrichedContacts: number;
   needsEnrichment: number;
   enrichmentPercentage: number;
 }> {
   try {
-    const { items: allClients } = await listContactsService(userId, {
+    const result = await listContactsService(userId, {
       page: 1,
-      pageSize: 10000, // Get all clients for stats
+      pageSize: 10000, // Get all contacts for stats
       sort: "displayName",
       order: "asc",
     });
 
-    const totalClients = allClients.length;
-    const enrichedClients = allClients.filter(
-      (client) =>
-        client &&
-        client.lifecycleStage != null &&
-        client.tags != null &&
-        Array.isArray(client.tags) &&
-        client.confidenceScore != null,
+    if (!result.success) {
+      return {
+        totalContacts: 0,
+        enrichedContacts: 0,
+        needsEnrichment: 0,
+        enrichmentPercentage: 0,
+      };
+    }
+
+    const allContacts = result.data.items;
+
+    const totalContacts = allContacts.length;
+    const enrichedContacts = allContacts.filter(
+      (contact: any) =>
+        contact &&
+        contact.lifecycleStage != null &&
+        contact.tags != null &&
+        Array.isArray(contact.tags) &&
+        contact.confidenceScore != null,
     ).length;
-    const needsEnrichment = totalClients - enrichedClients;
+    const needsEnrichment = totalContacts - enrichedContacts;
     const enrichmentPercentage =
-      totalClients > 0 ? Math.round((enrichedClients / totalClients) * 100) : 0;
+      totalContacts > 0 ? Math.round((enrichedContacts / totalContacts) * 100) : 0;
 
     return {
-      totalClients,
-      enrichedClients,
+      totalContacts,
+      enrichedContacts,
       needsEnrichment,
       enrichmentPercentage,
     };
@@ -552,18 +593,18 @@ export async function getEnrichmentStats(userId: string): Promise<{
     await logger.error(
       "Failed to get enrichment stats",
       {
-        operation: "client_enrichment_stats",
+        operation: "contact_enrichment_stats",
         additionalData: {
           userId: userId.slice(0, 8) + "...",
           error: error instanceof Error ? error.message : String(error),
         },
       },
-      ensureError(error),
+      ErrorHandler.fromError(error),
     );
 
     return {
-      totalClients: 0,
-      enrichedClients: 0,
+      totalContacts: 0,
+      enrichedContacts: 0,
       needsEnrichment: 0,
       enrichmentPercentage: 0,
     };

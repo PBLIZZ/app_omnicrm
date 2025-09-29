@@ -1,8 +1,9 @@
 import { handleAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
+import { productivityService } from "@/server/services/productivity.service";
 import { UpdateProjectSchema, ProjectSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 import { NextRequest } from "next/server";
+import { isErr } from "@/lib/utils/result";
 
 /**
  * Individual Project Management API Routes
@@ -26,24 +27,21 @@ const SuccessResponseSchema = z.object({
 /**
  * GET /api/omni-momentum/projects/[projectId] - Get project by ID
  */
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   // Use an empty schema for GET since we only need the URL parameter
-  const handler = handleAuth(
-    z.object({}),
-    ProjectSchema,
-    async (_, userId) => {
-      const project = await momentumService.getProject(params.projectId, userId);
+  const handler = handleAuth(z.object({}), ProjectSchema, async (_, userId) => {
+    const result = await productivityService.getProject(params.projectId, userId);
 
-      if (!project) {
-        throw new Error("Project not found");
-      }
-
-      return project;
+    if (isErr(result)) {
+      throw new Error(result.error.message);
     }
-  );
+
+    if (!result.data) {
+      throw new Error("Project not found");
+    }
+
+    return result.data;
+  });
 
   return handler(request);
 }
@@ -51,23 +49,20 @@ export async function GET(
 /**
  * PUT /api/omni-momentum/projects/[projectId] - Update project
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: RouteParams
-) {
-  const handler = handleAuth(
-    UpdateProjectSchema,
-    ProjectSchema,
-    async (data, userId) => {
-      const project = await momentumService.updateProject(params.projectId, userId, data);
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(UpdateProjectSchema, ProjectSchema, async (data, userId) => {
+    const result = await productivityService.updateProject(params.projectId, userId, data);
 
-      if (!project) {
-        throw new Error("Project not found");
-      }
-
-      return project;
+    if (isErr(result)) {
+      throw new Error(result.error.message);
     }
-  );
+
+    if (!result.data) {
+      throw new Error("Project not found");
+    }
+
+    return result.data;
+  });
 
   return handler(request);
 }
@@ -75,18 +70,16 @@ export async function PUT(
 /**
  * DELETE /api/omni-momentum/projects/[projectId] - Delete project
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: RouteParams
-) {
-  const handler = handleAuth(
-    z.object({}),
-    SuccessResponseSchema,
-    async (_, userId) => {
-      await momentumService.deleteProject(params.projectId, userId);
-      return { success: true };
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(z.object({}), SuccessResponseSchema, async (_, userId) => {
+    const result = await productivityService.deleteProject(params.projectId, userId);
+
+    if (isErr(result)) {
+      throw new Error(result.error.message);
     }
-  );
+
+    return { success: true };
+  });
 
   return handler(request);
 }

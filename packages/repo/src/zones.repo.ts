@@ -165,7 +165,7 @@ export class ZonesRepository {
   static async deleteZone(zoneId: number): Promise<boolean> {
     const db = await getDb();
 
-    const result = await db.delete(zones).where(eq(zones.id, zoneId));
+    const result = await db.delete(zones).where(eq(zones.id, zoneId)).returning({ id: zones.id });
 
     return result.length > 0;
   }

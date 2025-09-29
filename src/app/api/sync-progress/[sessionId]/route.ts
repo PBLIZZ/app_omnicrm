@@ -18,7 +18,7 @@ import { getDb } from "@/server/db/client";
 import { syncSessions } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
+import { ErrorHandler } from "@/lib/errors/app-error";
 import { SyncProgressQuerySchema, SyncProgressResponseSchema, SyncCancelResponseSchema } from "@/server/db/business-schemas";
 
 export const GET = handleGetWithQueryAuth(SyncProgressQuerySchema, SyncProgressResponseSchema, async (query, userId) => {
@@ -109,7 +109,7 @@ export const GET = handleGetWithQueryAuth(SyncProgressQuerySchema, SyncProgressR
         operation: "sync_progress",
         additionalData: { userId, sessionId },
       },
-      ensureError(error),
+      ErrorHandler.fromError(error),
     );
 
     throw error;
@@ -190,7 +190,7 @@ export const DELETE = handleAuth(SyncProgressQuerySchema, SyncCancelResponseSche
         operation: "sync_cancel",
         additionalData: { userId, sessionId },
       },
-      ensureError(error),
+      ErrorHandler.fromError(error),
     );
 
     throw error;

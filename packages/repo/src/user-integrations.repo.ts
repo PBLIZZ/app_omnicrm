@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, gt, lte } from "drizzle-orm";
 import { userIntegrations, UserIntegration, CreateUserIntegration } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
 import { ok, err, DbResult } from "@/lib/utils/result";
@@ -301,6 +301,7 @@ export class UserIntegrationsRepository {
    */
   static async getExpiringIntegrations(userId: string): Promise<UserIntegrationDTO[]> {
     const db = await getDb();
+    const now = new Date();
     const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
 
     const rows = await db
@@ -318,8 +319,9 @@ export class UserIntegrationsRepository {
       .where(
         and(
           eq(userIntegrations.userId, userId),
-          // Token expires within the next hour
-          eq(userIntegrations.expiryDate, oneHourFromNow),
+          // Token expires within the next hour - use range instead of exact match
+          gt(userIntegrations.expiryDate, now),
+          lte(userIntegrations.expiryDate, oneHourFromNow),
         ),
       );
 

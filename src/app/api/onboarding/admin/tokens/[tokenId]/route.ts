@@ -96,7 +96,6 @@ export const DELETE = handleAuthWithParams(
     const result = await OnboardingTokenService.deleteUserToken(userId, tokenId);
 
     return {
-      ok: result.success,
       message: result.message,
     };
   },

@@ -1,7 +1,12 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
-import { CreateProjectSchema, ProjectFiltersSchema, ProjectSchema } from "@/server/db/business-schemas";
+import { productivityService } from "@/server/services/productivity.service";
+import {
+  CreateProjectSchema,
+  ProjectFiltersSchema,
+  ProjectSchema,
+} from "@/server/db/business-schemas";
 import { z } from "zod";
+import { isErr } from "@/lib/utils/result";
 
 /**
  * API Routes for Momentum Projects (Pathways)
@@ -19,17 +24,21 @@ export const GET = handleGetWithQueryAuth(
   ProjectFiltersSchema,
   z.array(ProjectSchema),
   async (filters, userId) => {
-    return await momentumService.getProjects(userId, filters);
-  }
+    const result = await productivityService.getProjects(userId, filters);
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+    return result.data;
+  },
 );
 
 /**
  * POST /api/omni-momentum/projects - Create new project
  */
-export const POST = handleAuth(
-  CreateProjectSchema,
-  ProjectSchema,
-  async (data, userId) => {
-    return await momentumService.createProject(userId, data);
+export const POST = handleAuth(CreateProjectSchema, ProjectSchema, async (data, userId) => {
+  const result = await productivityService.createProject(userId, data);
+  if (isErr(result)) {
+    throw new Error(result.error.message);
   }
-);
+  return result.data;
+});

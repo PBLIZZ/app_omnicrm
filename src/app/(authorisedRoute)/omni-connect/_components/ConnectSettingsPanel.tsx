@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Settings, Save, X, Plus, Info } from "lucide-react";
-import { ensureError } from "@/lib/utils/error-handler";
+import { ErrorHandler } from "@/lib/errors/app-error";
 import { get, post, put } from "@/lib/api/client";
 
 interface GmailSettings {
@@ -82,7 +82,7 @@ export function GmailSettingsPanel({
           operation: "load_gmail_settings",
           additionalData: { component: "GmailSettingsPanel" },
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
     }
   }, [settings, setSettings]);
@@ -97,7 +97,7 @@ export function GmailSettingsPanel({
               operation: "load_gmail_settings_on_open",
               additionalData: { component: "GmailSettingsPanel" },
             },
-            ensureError(error),
+            ErrorHandler.fromError(error),
           )
           .catch(() => {
             // Failed to log error - ignore silently to avoid cascading errors
@@ -139,7 +139,7 @@ export function GmailSettingsPanel({
           operation: isInitialSetup ? "save_initial_gmail_settings" : "save_gmail_settings",
           additionalData: { component: "GmailSettingsPanel", isInitialSetup },
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
       toast({
         title: "Error",

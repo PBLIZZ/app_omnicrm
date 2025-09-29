@@ -8,6 +8,7 @@ import {
   InboxItemResponseSchema,
   InboxProcessResultResponseSchema,
 } from "@/server/db/business-schemas";
+import { isErr } from "@/lib/utils/result";
 
 /**
  * Inbox API - Quick capture and list inbox items
@@ -29,13 +30,19 @@ export const GET = handleGetWithQueryAuth(
     } else {
       // Return inbox items with filtering
       const filterParams = InboxService.extractFilterParams(query);
-      const items = await InboxService.listInboxItems(userId, filterParams);
+      const result = await InboxService.listInboxItems(userId, filterParams);
+
+      if (isErr(result)) {
+        throw new Error(result.error.message || "Failed to list inbox items");
+      }
+
+      const items = result.data;
       return {
         items,
         total: items.length,
       };
     }
-  }
+  },
 );
 
 export const POST = handleAuth(
@@ -64,5 +71,5 @@ export const POST = handleAuth(
         throw new Error("Invalid request type");
       }
     }
-  }
+  },
 );

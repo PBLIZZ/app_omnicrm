@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { createRouteHandler } from "@/server/lib/middleware-handler";
+import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
 import {
   getContactSuggestions,
   createContactsFromSuggestions,
 } from "@/server/services/contacts.service";
+import { isErr, isOk } from "@/lib/utils/result";
 
 /**
- * OmniClients Suggestions API
+ * Contacts Suggestions API
  *
  * GET: Returns calendar-based contact suggestions
  * POST: Creates contacts from approved suggestions
@@ -16,37 +17,54 @@ const CreateFromSuggestionsSchema = z.object({
   suggestionIds: z.array(z.string().min(1)).min(1).max(50), // Limit to 50 suggestions at once
 });
 
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_get_suggestions" },
-})(async ({ userId }) => {
-  const result = await getContactSuggestions(userId);
+const GetSuggestionsQuerySchema = z.object({});
 
-  if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
-  }
-
-  return Response.json({
-    ok: true,
-    data: {
-      suggestions: result.data,
-    },
-  });
+const GetSuggestionsResponseSchema = z.object({
+  suggestions: z.array(z.unknown()),
 });
 
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "omni_clients_create_from_suggestions" },
-  validation: { body: CreateFromSuggestionsSchema },
-})(async ({ userId, validated }) => {
-  const result = await createContactsFromSuggestions(userId, validated.body.suggestionIds);
-
-  if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
-  }
-
-  return Response.json({
-    ok: true,
-    data: result.data,
-  });
+const CreateFromSuggestionsResponseSchema = z.object({
+  message: z.string(),
+  created: z.array(z.unknown()),
 });
+
+export const GET = handleGetWithQueryAuth(
+  GetSuggestionsQuerySchema,
+  GetSuggestionsResponseSchema,
+  async (_query: z.infer<typeof GetSuggestionsQuerySchema>, userId: string) => {
+    const result = await getContactSuggestions(userId);
+
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+
+    if (!isOk(result)) {
+      throw new Error("Invalid result state");
+    }
+
+    return {
+      suggestions: result.data.suggestions,
+    };
+  },
+);
+
+export const POST = handleAuth(
+  CreateFromSuggestionsSchema,
+  CreateFromSuggestionsResponseSchema,
+  async (data: z.infer<typeof CreateFromSuggestionsSchema>, userId: string) => {
+    const result = await createContactsFromSuggestions(userId, data.suggestionIds);
+
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+
+    if (!isOk(result)) {
+      throw new Error("Invalid result state");
+    }
+
+    return {
+      message: `Successfully created ${result.data.createdCount} contacts`,
+      created: result.data,
+    };
+  },
+);

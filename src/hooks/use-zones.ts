@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -79,11 +80,21 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
     queryKey: queryKeys.zones.list(withStats),
     queryFn: async (): Promise<Zone[] | ZoneWithStats[]> => {
       if (withStats) {
-        const data = await apiClient.get<ZonesWithStatsResponse>(apiUrl);
-        return data.items ?? [];
+        const result =
+          await apiClient.get<Result<ZonesWithStatsResponse, { message: string; code: string }>>(
+            apiUrl,
+          );
+        if (isErr(result)) {
+          throw new Error(result.error.message);
+        }
+        return result.data.items ?? [];
       } else {
-        const data = await apiClient.get<ZonesResponse>(apiUrl);
-        return data.items ?? [];
+        const result =
+          await apiClient.get<Result<ZonesResponse, { message: string; code: string }>>(apiUrl);
+        if (isErr(result)) {
+          throw new Error(result.error.message);
+        }
+        return result.data.items ?? [];
       }
     },
     refetchInterval: autoRefetch ? 300000 : false, // Auto-refresh every 5 minutes (zones change rarely)

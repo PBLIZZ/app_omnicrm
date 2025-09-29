@@ -1,5 +1,5 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { performSearch } from "@/server/services/semantic-search.service";
+import { performSearch, type SearchResult } from "@/server/services/semantic-search.service";
 import {
   SearchQuerySchema,
   SearchResponseSchema,
@@ -39,7 +39,7 @@ export const GET = handleGetWithQueryAuth(
     const searchResults = await performSearch(query, searchType, limit);
 
     // Transform SearchResult[] to SearchResultItem[] to match schema
-    const results = searchResults.map(result => {
+    const results = searchResults.map((result: SearchResult) => {
       const score = Math.min(Math.max(result.similarity || result.score || 0, 0), 1);
       const excerpt = result.content?.substring(0, 200);
       return {
@@ -72,5 +72,5 @@ export const GET = handleGetWithQueryAuth(
       isHybridSearch: searchType === "hybrid",
       hasSuggestions: false, // No suggestions implemented yet
     };
-  }
+  },
 );

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { contacts } from "@/server/db/schema";
 import type { Contact as DbContact } from "@/server/db/schema";
 import type { Contact as BusinessContact } from "@/server/db/business-schemas/contacts";
-import { toContact } from "@/server/adapters/omniClients";
+import { toContact } from "@/server/adapters/contacts";
 
 /**
  * Schema Canary Tests
@@ -97,7 +97,7 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
           dateOfBirth: client.dateOfBirth,
           emergencyContactName: client.emergencyContactName,
           emergencyContactPhone: client.emergencyContactPhone,
-          clientStatus: client.clientStatus,
+          clientStatus: client.contactStatus,
           referralSource: client.referralSource,
           address: client.address,
           healthContext: client.healthContext,

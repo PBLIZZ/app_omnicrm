@@ -148,59 +148,45 @@ export class ZonesService {
    * Get a single zone by ID
    */
   static async getZoneById(zoneId: number): Promise<DbResult<Zone | null>> {
-    const safeFetch = safeAsync(async () => {
-      const zone = await ZonesRepository.getZoneById(zoneId);
+    try {
+      const result = await ZonesRepository.getZoneById(zoneId);
 
-      if (!zone) {
-        return null;
+      if (!result) {
+        return ok(null);
       }
 
       // Transform repository type to business schema type using ZoneSchema
-      const transformedZone: Zone = ZoneSchema.parse(zone);
-
-      return transformedZone;
-    });
-
-    const result = await safeFetch();
-
-    if (result.success) {
-      return ok(result.data);
+      const transformedZone: Zone = ZoneSchema.parse(result);
+      return ok(transformedZone);
+    } catch (error) {
+      return err({
+        code: "ZONE_GET_BY_ID_ERROR",
+        message: "Error getting zone by ID",
+        details: error,
+      });
     }
-
-    return err({
-      code: "ZONE_GET_ERROR",
-      message: "Failed to fetch zone",
-      details: result.error,
-    });
   }
 
   /**
    * Get a single zone by name
    */
   static async getZoneByName(name: string): Promise<DbResult<Zone | null>> {
-    const safeFetch = safeAsync(async () => {
-      const zone = await ZonesRepository.getZoneByName(name);
+    try {
+      const result = await ZonesRepository.getZoneByName(name);
 
-      if (!zone) {
-        return null;
+      if (!result) {
+        return ok(null);
       }
 
       // Transform repository type to business schema type using ZoneSchema
-      const transformedZone: Zone = ZoneSchema.parse(zone);
-
-      return transformedZone;
-    });
-
-    const result = await safeFetch();
-
-    if (result.success) {
-      return ok(result.data);
+      const transformedZone: Zone = ZoneSchema.parse(result);
+      return ok(transformedZone);
+    } catch (error) {
+      return err({
+        code: "ZONE_GET_BY_NAME_ERROR",
+        message: "Error getting zone by name",
+        details: error,
+      });
     }
-
-    return err({
-      code: "ZONE_GET_BY_NAME_ERROR",
-      message: "Failed to fetch zone by name",
-      details: result.error,
-    });
   }
 }

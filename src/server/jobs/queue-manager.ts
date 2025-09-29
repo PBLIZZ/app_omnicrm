@@ -4,7 +4,6 @@ import { eq, and, inArray } from "drizzle-orm";
 import { enqueue } from "./enqueue";
 import type { JobKind, JobPayloadByKind } from "./types";
 import { v4 as uuidv4 } from "uuid";
-import { ensureError } from "@/lib/utils/error-handler";
 import { logger } from "@/lib/observability";
 
 export interface BatchJobOptions {
@@ -86,7 +85,7 @@ export class QueueManager {
             userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       throw error;
     }
@@ -150,7 +149,7 @@ export class QueueManager {
             batchId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       return null;
     }
@@ -194,7 +193,7 @@ export class QueueManager {
             userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       throw error;
     }
@@ -231,7 +230,7 @@ export class QueueManager {
             userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       return {};
     }

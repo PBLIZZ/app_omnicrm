@@ -1,7 +1,7 @@
 /**
  * Simplified Contacts Service
  *
- * Eliminates duplication between "contacts" and "omniclients" concepts.
+ * Eliminates duplication between "contacts" and "contacts" concepts.
  * Both refer to the same database table - the difference is just in presentation.
  *
  * This replaces 6 separate service files with a single, clean service.
@@ -13,7 +13,7 @@ import { CreateNoteSchema } from "@/server/db/business-schemas";
 import { getDb } from "@/server/db/client";
 import { contacts } from "@/server/db/schema";
 import { sql, and, eq } from "drizzle-orm";
-import { isErr, DbResult, Result, ok, err, isOk } from "@/lib/utils/result";
+import { isErr, DbResult, ok, err, isOk } from "@/lib/utils/result";
 import { z } from "zod";
 import { logger } from "@/lib/observability";
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
@@ -175,7 +175,7 @@ export type QueryResult<T> = DbResult<T>;
 // ============================================================================
 
 const ParamsSchema = z.object({
-  clientId: z.string().uuid(),
+  contactId: z.string().uuid(),
 });
 
 // Avatar constants
@@ -437,7 +437,13 @@ export async function listContactsService(
       });
     }
 
-    const data = (repoResult as { success: true; data: { items: Contact[]; total: number } }).data;
+    if (!isOk(repoResult)) {
+      return err({
+        code: "CONTACTS_LIST_FAILED",
+        message: "Invalid result state",
+      });
+    }
+    const data = repoResult.data;
 
     const contactItems: Contact[] = Array.isArray(data.items)
       ? data.items.map((contact) => ({
@@ -618,7 +624,9 @@ export async function findContactByEmailService(
 export async function createContactsBatchService(
   userId: string,
   contactsData: Array<CreateContactInput>,
-): Promise<ContactsServiceResult<{ created: ContactListItem[]; duplicates: number; errors: number }>> {
+): Promise<
+  ContactsServiceResult<{ created: ContactListItem[]; duplicates: number; errors: number }>
+> {
   try {
     const created: ContactListItem[] = [];
     let duplicates = 0;
@@ -627,13 +635,17 @@ export async function createContactsBatchService(
     for (const contactData of contactsData) {
       try {
         if (contactData.primaryEmail) {
-          const existing = await ContactsRepository.findContactByEmail(
+          const existingResult = await ContactsRepository.findContactByEmail(
             userId,
             contactData.primaryEmail,
           );
-          if (existing) {
+          if (existingResult.success && existingResult.data) {
             duplicates++;
             continue;
+          }
+          // If lookup failed, log error but continue with creation
+          if (!existingResult.success) {
+            console.error("Failed to check for existing contact:", existingResult.error);
           }
         }
 
@@ -658,14 +670,14 @@ export async function createContactsBatchService(
 }
 
 // ============================================================================
-// PUBLIC API - OMNICLIENT OPERATIONS (Same data, different presentation)
+// PUBLIC API - CONTACT OPERATIONS (Same data, different presentation)
 // ============================================================================
 
 /**
  * Get contact suggestions from calendar attendees
  */
 export async function getContactSuggestions(
-  userId: string,
+  _userId: string,
 ): Promise<ContactsServiceResult<ContactSuggestionsData>> {
   try {
     // TODO: Implement contact suggestions service
@@ -685,8 +697,8 @@ export async function getContactSuggestions(
  * Create contacts from approved suggestions
  */
 export async function createContactsFromSuggestions(
-  userId: string,
-  suggestionIds: string[],
+  _userId: string,
+  _suggestionIds: string[],
 ): Promise<ContactsServiceResult<ContactsCreationData>> {
   try {
     // TODO: Implement contact suggestions service
@@ -712,30 +724,30 @@ export async function createContactsFromSuggestions(
 // ============================================================================
 
 /**
- * Get all notes for a specific OmniClient
+ * Get all notes for a specific Contact
  */
-export async function getClientNotes(
+export async function getContactNotes(
   userId: string,
-  clientId: string,
+  contactId: string,
 ): Promise<ContactsServiceResult<NotesListResponse>> {
   try {
-    const validatedParams = ParamsSchema.parse({ clientId });
+    const validatedParams = ParamsSchema.parse({ contactId });
 
-    const clientNotesResult = await NotesRepository.getNotesByContactId(
+    const contactNotesResult = await NotesRepository.getNotesByContactId(
       userId,
-      validatedParams.clientId,
+      validatedParams.contactId,
     );
 
-    if (isErr(clientNotesResult)) {
+    if (isErr(contactNotesResult)) {
       return err({
         code: "NOTES_GET_FAILED",
         message: "Failed to get notes",
-        details: clientNotesResult.error,
+        details: contactNotesResult.error,
       });
     }
 
-    const clientNotes = (clientNotesResult as { success: true; data: any[] }).data;
-    const formattedNotes = clientNotes.map((note) => formatNoteResponse(note));
+    const contactNotes = (contactNotesResult as { success: true; data: any[] }).data;
+    const formattedNotes = contactNotes.map((note) => formatNoteResponse(note));
 
     return ok({ notes: formattedNotes });
   } catch (error) {
@@ -748,19 +760,19 @@ export async function getClientNotes(
 }
 
 /**
- * Create a new note for a specific OmniClient
+ * Create a new note for a specific Contact
  */
-export async function createClientNote(
+export async function createContactNote(
   userId: string,
-  clientId: string,
+  contactId: string,
   noteData: unknown,
 ): Promise<ContactsServiceResult<NoteResponse>> {
   try {
-    const validatedParams = ParamsSchema.parse({ clientId });
+    const validatedParams = ParamsSchema.parse({ contactId });
     const validatedBody = CreateNoteSchema.parse(noteData);
 
     const newNoteResult = await NotesRepository.createNote(userId, {
-      contactId: validatedParams.clientId,
+      contactId: validatedParams.contactId,
       title: validatedBody.title,
       content: validatedBody.content,
     });
@@ -793,13 +805,13 @@ export async function createClientNote(
  */
 export function validateLifecycleStage(stageValue: string): LifecycleStageValidationResult {
   const allowedStages = [
-    "New Client",
-    "VIP Client",
-    "Core Client",
+    "New Contact",
+    "VIP Contact",
+    "Core Contact",
     "Prospect",
-    "At Risk Client",
-    "Lost Client",
-    "Referring Client",
+    "At Risk Contact",
+    "Lost Contact",
+    "Referring Contact",
   ] as const;
 
   if (isValidLifecycleStage(stageValue, allowedStages)) {
@@ -823,7 +835,7 @@ export function validateLifecycleStage(stageValue: string): LifecycleStageValida
  * Get contact data for avatar generation
  */
 export async function getContactAvatarData(
-  clientId: string,
+  contactId: string,
   userId: string,
 ): Promise<AvatarData | null> {
   const db = await getDb();
@@ -834,7 +846,7 @@ export async function getContactAvatarData(
       displayName: contacts.displayName,
     })
     .from(contacts)
-    .where(and(eq(contacts.id, clientId), eq(contacts.userId, userId)))
+    .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)))
     .limit(1);
 
   return result[0] || null;
@@ -845,7 +857,7 @@ export async function getContactAvatarData(
  */
 export async function generateAvatar(
   avatarData: AvatarData,
-  clientId: string,
+  contactId: string,
 ): Promise<AvatarResult> {
   const trimmedPhotoUrl = avatarData.photoUrl?.trim();
 
@@ -861,7 +873,7 @@ export async function generateAvatar(
   }
 
   // Generate fallback SVG
-  const svg = buildFallbackSvg(avatarData.displayName, clientId);
+  const svg = buildFallbackSvg(avatarData.displayName, contactId);
   return {
     type: "svg",
     content: svg,
@@ -926,9 +938,9 @@ function parseStoragePath(photoUrl: string): { bucket: string; path: string } | 
   const normalized = photoUrl.replace(/^\/+/, "");
 
   // Handle case where the stored URL already includes the bucket name
-  if (normalized.startsWith("client-photos/")) {
-    const path = normalized.replace("client-photos/", "");
-    return { bucket: "client-photos", path };
+  if (normalized.startsWith("contact-photos/")) {
+    const path = normalized.replace("contact-photos/", "");
+    return { bucket: "contact-photos", path };
   }
 
   // Handle case where it's just the path within the bucket
@@ -951,7 +963,7 @@ function buildFallbackSvg(displayName: string, seed: string): string {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="${escapeXml(
-    displayName || "Client",
+    displayName || "Contact",
   )}">
   <rect width="120" height="120" fill="${background}" rx="60"/>
   <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="52" fill="#FFFFFF" font-weight="600">${initials}</text>
@@ -1024,7 +1036,7 @@ function escapeXml(value: string): string {
 // ============================================================================
 
 /**
- * Execute bulk deletion of contacts/clients
+ * Execute bulk deletion of contacts
  */
 export async function deleteContactsBulk(
   userId: string,
@@ -1070,11 +1082,11 @@ export async function deleteContactsBulk(
  */
 function generateBulkDeleteResponseMessage(deletedCount: number): string {
   if (deletedCount === 0) {
-    return "No clients found to delete";
+    return "No contacts found to delete";
   }
 
-  const clientWord = deletedCount === 1 ? "client" : "clients";
-  return `Successfully deleted ${deletedCount} ${clientWord}`;
+  const contactWord = deletedCount === 1 ? "contact" : "contacts";
+  return `Successfully deleted ${deletedCount} ${contactWord}`;
 }
 
 /**
@@ -1085,8 +1097,8 @@ async function logBulkDeletion(
   deletedCount: number,
   requestedCount: number,
 ): Promise<void> {
-  await logger.info("Bulk deleted OmniClients", {
-    operation: "omni_clients_bulk_delete",
+  await logger.info("Bulk deleted Contacts", {
+    operation: "contacts_bulk_delete",
     additionalData: {
       userId: userId.slice(0, 8) + "...",
       deletedCount,
@@ -1106,7 +1118,11 @@ export async function getContactsCount(userId: string): Promise<QueryResult<Cont
   try {
     const contactsResult = await ContactsRepository.listContacts(userId);
     if (isErr(contactsResult)) {
-      return err("Failed to fetch contacts: " + contactsResult.error.message);
+      return err({
+        code: "CONTACTS_COUNT_FAILED",
+        message: "Failed to fetch contacts for count",
+        details: contactsResult.error,
+      });
     }
 
     const totalContacts = (contactsResult as { success: true; data: { total: number } }).data.total;
@@ -1115,7 +1131,11 @@ export async function getContactsCount(userId: string): Promise<QueryResult<Cont
       message: `Total contacts: ${totalContacts}`,
     });
   } catch (error) {
-    return err("Database error: " + (error instanceof Error ? error.message : String(error)));
+    return err({
+      code: "CONTACTS_COUNT_ERROR",
+      message: "Error getting contacts count",
+      details: error,
+    });
   }
 }
 
@@ -1128,7 +1148,11 @@ export async function getContactsSummary(
   try {
     const contactsResult = await ContactsRepository.listContacts(userId);
     if (isErr(contactsResult)) {
-      return err("Failed to fetch contacts: " + contactsResult.error.message);
+      return err({
+        code: "CONTACTS_SUMMARY_FAILED",
+        message: "Failed to fetch contacts for summary",
+        details: contactsResult.error,
+      });
     }
 
     const allContacts = (contactsResult as { success: true; data: { items: any[] } }).data.items;
@@ -1157,7 +1181,11 @@ export async function getContactsSummary(
       recentContacts,
     });
   } catch (error) {
-    return err("Database error: " + (error instanceof Error ? error.message : String(error)));
+    return err({
+      code: "CONTACTS_SUMMARY_ERROR",
+      message: "Error getting contacts summary",
+      details: error,
+    });
   }
 }
 
@@ -1171,7 +1199,11 @@ export async function searchContacts(
   try {
     const contactsResult = await ContactsRepository.listContacts(userId, { search: query });
     if (isErr(contactsResult)) {
-      return err("Failed to search contacts: " + contactsResult.error.message);
+      return err({
+        code: "CONTACTS_SEARCH_FAILED",
+        message: "Failed to search contacts",
+        details: contactsResult.error,
+      });
     }
 
     const matchingContacts = (
@@ -1187,7 +1219,11 @@ export async function searchContacts(
       contacts: matchingContacts,
     });
   } catch (error) {
-    return err("Database error: " + (error instanceof Error ? error.message : String(error)));
+    return err({
+      code: "CONTACTS_SEARCH_ERROR",
+      message: "Error searching contacts",
+      details: error,
+    });
   }
 }
 
@@ -1203,7 +1239,11 @@ export async function getNotesInfo(
       // Get notes for specific contact
       const notesResult = await NotesRepository.getNotesByContactId(userId, contactId);
       if (isErr(notesResult)) {
-        return err("Failed to fetch notes: " + notesResult.error.message);
+        return err({
+          code: "NOTES_INFO_FAILED",
+          message: "Failed to fetch notes",
+          details: notesResult.error,
+        });
       }
 
       const notes = (notesResult as { success: true; data: any[] }).data.map((note: any) => ({
@@ -1235,7 +1275,11 @@ export async function getNotesInfo(
       });
     }
   } catch (error) {
-    return err("Database error: " + (error instanceof Error ? error.message : String(error)));
+    return err({
+      code: "NOTES_INFO_ERROR",
+      message: "Error getting notes info",
+      details: error,
+    });
   }
 }
 
@@ -1249,7 +1293,11 @@ export async function filterContacts(
   try {
     const contactsResult = await ContactsRepository.listContacts(userId, { search: query });
     if (isErr(contactsResult)) {
-      return err("Failed to filter contacts: " + contactsResult.error.message);
+      return err({
+        code: "CONTACTS_FILTER_FAILED",
+        message: "Failed to filter contacts",
+        details: contactsResult.error,
+      });
     }
 
     const filteredContacts = (
@@ -1267,7 +1315,11 @@ export async function filterContacts(
       contacts: filteredContacts,
     });
   } catch (error) {
-    return err("Database error: " + (error instanceof Error ? error.message : String(error)));
+    return err({
+      code: "CONTACTS_FILTER_ERROR",
+      message: "Error filtering contacts",
+      details: error,
+    });
   }
 }
 
@@ -1278,7 +1330,11 @@ export async function getAllContactNames(userId: string): Promise<QueryResult<Co
   try {
     const contactsResult = await ContactsRepository.listContacts(userId);
     if (isErr(contactsResult)) {
-      return err("Failed to fetch contacts: " + contactsResult.error.message);
+      return err({
+        code: "CONTACT_NAMES_FAILED",
+        message: "Failed to fetch contact names",
+        details: contactsResult.error,
+      });
     }
 
     const contactNames = (
@@ -1294,7 +1350,11 @@ export async function getAllContactNames(userId: string): Promise<QueryResult<Co
       message: `Retrieved ${contactNames.length} contact names`,
     });
   } catch (error) {
-    return err("Database error: " + (error instanceof Error ? error.message : String(error)));
+    return err({
+      code: "CONTACT_NAMES_ERROR",
+      message: "Error getting contact names",
+      details: error,
+    });
   }
 }
 
@@ -1308,7 +1368,11 @@ export async function getContactDetails(
   try {
     const contactsResult = await ContactsRepository.listContacts(userId, { search: contactName });
     if (isErr(contactsResult)) {
-      return err("Failed to search contacts: " + contactsResult.error.message);
+      return err({
+        code: "CONTACT_DETAILS_FAILED",
+        message: "Failed to search for contact details",
+        details: contactsResult.error,
+      });
     }
 
     const matchingContacts = (
@@ -1339,14 +1403,21 @@ export async function getContactDetails(
       message: `Found ${matchingContacts.length} contacts with name containing "${contactName}". Please be more specific.`,
     });
   } catch (error) {
-    return err("Database error: " + (error instanceof Error ? error.message : String(error)));
+    return err({
+      code: "CONTACT_DETAILS_ERROR",
+      message: "Error getting contact details",
+      details: error,
+    });
   }
 }
 
 /**
  * Process database query for AI assistant (legacy compatibility)
  */
-export async function processQuery(userId: string, query: string): Promise<QueryResult<DatabaseQueryData>> {
+export async function processQuery(
+  userId: string,
+  query: string,
+): Promise<QueryResult<DatabaseQueryData>> {
   try {
     const queryLower = query.toLowerCase();
 

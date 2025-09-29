@@ -124,22 +124,6 @@ export function isError(value: unknown): value is Error {
   return value instanceof Error;
 }
 
-/**
- * Safely extract error message from unknown error
- */
-export function getErrorMessage(error: unknown): string {
-  if (isError(error)) {
-    return error.message;
-  }
-  if (isString(error)) {
-    return error;
-  }
-  if (isObject(error)) {
-    const message = getString(error, "message");
-    if (message) return message;
-  }
-  return "Unknown error occurred";
-}
 
 // ============================================================================
 // VALIDATION RESULT TYPES

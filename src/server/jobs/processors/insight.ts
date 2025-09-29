@@ -10,8 +10,7 @@ import {
   generatePersonaInsight,
 } from "@/server/ai/core/llm.service"; // Added /core
 import type { NewAiInsight } from "@/server/db/types";
-import { ensureError } from "@/lib/utils/error-handler";
-import { generateContactInsights } from "@/server/ai/clients/generate-contact-insights";
+import { generateContactInsights } from "@/server/ai/contacts/generate-contact-insights";
 
 // Extended insight types from insight-writer
 type InsightKind =
@@ -756,7 +755,7 @@ export async function runInsight(job: JobRecord<"insight">): Promise<void> {
           jobId: job.id,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }

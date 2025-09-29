@@ -1,7 +1,7 @@
 import { handleCron } from "@/lib/api-edge-cases";
 import { JobRunner } from "@/server/jobs/runner";
 import { logger } from "@/lib/observability/unified-logger";
-import { ensureError } from "@/lib/utils/error-handler";
+import { ErrorHandler } from "@/lib/errors/app-error";
 import { CronJobInputSchema, CronJobResultSchema } from "@/server/db/business-schemas";
 
 /**
@@ -48,7 +48,7 @@ export const POST = handleCron(CronJobInputSchema, CronJobResultSchema, async ()
         operation: "cron.process_jobs.error",
         additionalData: {},
       },
-      ensureError(error),
+      ErrorHandler.fromError(error),
     );
 
     return {

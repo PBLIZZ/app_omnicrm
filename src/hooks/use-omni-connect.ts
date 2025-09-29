@@ -12,6 +12,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr, isOk } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -19,7 +20,10 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   if (error instanceof Error && error.message.includes("403")) return false;
 
   // Retry network errors up to 3 times
-  if (error instanceof Error && (error.message.includes("fetch") || error.message.includes("network"))) {
+  if (
+    error instanceof Error &&
+    (error.message.includes("fetch") || error.message.includes("network"))
+  ) {
     return retryCount < 3;
   }
 
@@ -66,7 +70,16 @@ export function useOmniConnect(): UseOmniConnectResult {
   const { data, error, isLoading, refetch } = useQuery({
     queryKey: queryKeys.omniConnect.dashboard(),
     queryFn: async (): Promise<ConnectDashboardState> => {
-      return apiClient.get("/api/omni-connect/dashboard");
+      const result = await apiClient.get<
+        Result<ConnectDashboardState, { message: string; code: string }>
+      >("/api/omni-connect/dashboard");
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
+      }
+      return result.data;
     },
     staleTime: 30000, // 30 seconds - refetch in background after this
     retry: (failureCount, error) => shouldRetry(error, failureCount),

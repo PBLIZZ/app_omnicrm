@@ -30,6 +30,8 @@ const GLOBAL_IGNORES = [
   // e2e and run directories
   "e2e/**",
   "run/**",
+  // documentation directories
+  "docs/**",
 ];
 
 export default [

@@ -157,7 +157,7 @@ export class OnboardingRepository {
       await db
         .update(onboardingTokens)
         .set({
-          usedCount: sql`${onboardingTokens.usedCount} + 1`,
+          usedCount: sql`coalesce(${onboardingTokens.usedCount}, 0) + 1`,
         })
         .where(eq(onboardingTokens.token, tokenValue));
 
@@ -243,50 +243,55 @@ export class OnboardingRepository {
         });
       }
 
-      // Start transaction by inserting contact
-      const contactData: CreateContact = {
-        userId,
-        displayName: clientData.display_name,
-        primaryEmail: clientData.primary_email,
-        primaryPhone: clientData.primary_phone,
-        dateOfBirth: clientData.date_of_birth,
-        emergencyContactName: clientData.emergency_contact_name,
-        emergencyContactPhone: clientData.emergency_contact_phone,
-        referralSource: clientData.referral_source,
-        address: clientData.address,
-        healthContext: clientData.health_context,
-        preferences: clientData.preferences,
-        source: "onboarding",
-        photoUrl: photoPath || null,
-      };
+      // Wrap all operations in a transaction
+      const result = await db.transaction(async (trx) => {
+        const contactData: CreateContact = {
+          userId,
+          displayName: clientData.display_name,
+          primaryEmail: clientData.primary_email,
+          primaryPhone: clientData.primary_phone,
+          dateOfBirth: clientData.date_of_birth,
+          emergencyContactName: clientData.emergency_contact_name,
+          emergencyContactPhone: clientData.emergency_contact_phone,
+          referralSource: clientData.referral_source,
+          address: clientData.address,
+          healthContext: clientData.health_context,
+          preferences: clientData.preferences,
+          source: "onboarding",
+          photoUrl: photoPath || null,
+        };
 
-      const [contact] = await db.insert(contacts).values(contactData).returning();
+        const [contact] = await trx.insert(contacts).values(contactData).returning();
 
-      if (!contact) {
-        return err({
-          code: "CONTACT_CREATION_FAILED",
-          message: "Failed to create contact",
-          details: null,
+        if (!contact) {
+          throw new Error("CONTACT_CREATION_FAILED");
+        }
+
+        // Create consent record
+        await trx.insert(clientConsents).values({
+          contactId: contact.id,
+          userId,
+          consentType: consentData.consent_type,
+          consentTextVersion: consentData.consent_text_version,
+          granted: consentData.granted,
+          signatureSvg: consentData.signature_svg || null,
+          signatureImageUrl: consentData.signature_image_url || null,
+          ipAddress: consentData.ip_address,
+          userAgent: consentData.user_agent,
         });
-      }
 
-      // Create consent record
-      await db.insert(clientConsents).values({
-        contactId: contact.id,
-        userId,
-        consentType: consentData.consent_type,
-        consentTextVersion: consentData.consent_text_version,
-        granted: consentData.granted,
-        signatureSvg: consentData.signature_svg || null,
-        signatureImageUrl: consentData.signature_image_url || null,
-        ipAddress: consentData.ip_address,
-        userAgent: consentData.user_agent,
+        // Increment token usage within the same transaction
+        await trx
+          .update(onboardingTokens)
+          .set({
+            usedCount: sql`coalesce(${onboardingTokens.usedCount}, 0) + 1`,
+          })
+          .where(eq(onboardingTokens.token, tokenValue));
+
+        return contact.id;
       });
 
-      // Increment token usage
-      await this.incrementTokenUsage(tokenValue);
-
-      return ok(contact.id);
+      return ok(result);
     } catch (error) {
       console.error("Error creating contact with consent:", error);
       return err({

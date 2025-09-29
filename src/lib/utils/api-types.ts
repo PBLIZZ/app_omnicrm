@@ -40,14 +40,24 @@ export function createPaginationMeta(
   pageSize: number,
   total: number,
 ): PaginationMeta {
-  const totalPages = Math.ceil(total / pageSize);
+  // Sanitize and clamp inputs to avoid Infinity/NaN and fix zero-result edge cases
+  const sanitizedPageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || 1));
+  const sanitizedTotal = Math.max(0, Math.floor(total) || 0);
+  const sanitizedPage = Math.max(1, Math.floor(page) || 1);
+
+  // Compute totalPages as 0 when total === 0, otherwise Math.ceil(total / pageSize)
+  const totalPages = sanitizedTotal === 0 ? 0 : Math.ceil(sanitizedTotal / sanitizedPageSize);
+
+  // Clamp page to at most totalPages (or to 1 when totalPages === 0)
+  const clampedPage = totalPages === 0 ? 1 : Math.min(sanitizedPage, totalPages);
+
   return {
-    page,
-    pageSize,
-    total,
+    page: clampedPage,
+    pageSize: sanitizedPageSize,
+    total: sanitizedTotal,
     totalPages,
-    hasNext: page < totalPages,
-    hasPrev: page > 1,
+    hasNext: clampedPage < totalPages,
+    hasPrev: clampedPage > 1,
   };
 }
 
@@ -157,7 +167,7 @@ export const PaginationMetaSchema = z.object({
 
 export const SearchRequestSchema = z.object({
   query: z.string().optional(),
-  filters: z.record(z.unknown()).optional(),
+  filters: z.record(z.string(), z.unknown()).optional(),
   sort: z
     .object({
       field: z.string(),
@@ -181,7 +191,15 @@ export const SearchRequestSchema = z.object({
 export function isPaginatedResponse<T>(value: unknown): value is PaginatedResponse<T> {
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return Array.isArray(obj.items) && typeof obj.meta === "object" && obj.meta !== null;
+
+  // Check that items is an array
+  if (!Array.isArray(obj["items"])) return false;
+
+  // Validate meta object using schema
+  const metaValidation = PaginationMetaSchema.safeParse(obj["meta"]);
+  if (!metaValidation.success) return false;
+
+  return true;
 }
 
 // ============================================================================
@@ -189,7 +207,17 @@ export function isPaginatedResponse<T>(value: unknown): value is PaginatedRespon
 // ============================================================================
 
 /**
- * Create paginated response with Result pattern
+ * Create paginated response with pagination metadata
+ *
+ * @param items - Array of items to paginate
+ * @param total - Total number of items available
+ * @param page - Current page number (1-based)
+ * @param pageSize - Number of items per page
+ * @returns PaginatedResponse with items array and pagination meta
+ *
+ * @example
+ * const response = toPaginatedResponse(contacts, 100, 1, 20);
+ * // Returns: { items: contacts, meta: { page: 1, pageSize: 20, total: 100, ... } }
  */
 export function toPaginatedResponse<T>(
   items: T[],

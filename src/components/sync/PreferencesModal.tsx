@@ -25,6 +25,7 @@ import type {
   SyncPreviewResponse,
   SyncPreferencesSetup,
 } from "@/lib/validation/schemas/sync";
+import type { CalendarItem } from "@/server/db/business-schemas";
 import { post } from "@/lib/api";
 
 type ServiceType = "gmail" | "calendar" | "drive";
@@ -312,7 +313,7 @@ export function PreferencesModal({
         {previewData.details.calendars && (
           <div className="space-y-2">
             <h4 className="font-medium">Selected Calendars</h4>
-            {previewData.details.calendars.map((cal) => (
+            {previewData.details.calendars.map((cal: CalendarItem) => (
               <div key={cal.id} className="flex justify-between items-center p-2 bg-muted rounded">
                 <span className="text-sm">{cal.name}</span>
                 <Badge variant="outline">{cal.eventCount.toLocaleString()} events</Badge>
@@ -324,7 +325,7 @@ export function PreferencesModal({
         {/* Warnings */}
         {previewData.warnings.length > 0 && (
           <div className="space-y-2">
-            {previewData.warnings.map((warning, index) => (
+            {previewData.warnings.map((warning: string, index: number) => (
               <Alert key={index} variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-sm">{warning}</AlertDescription>

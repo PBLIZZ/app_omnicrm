@@ -3,11 +3,14 @@ import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NotesHoverCard } from "../NotesHoverCard";
+import { renderWithProviders, mockApiResponses } from "../../../../../__tests__/test-utils";
 import {
-  renderWithProviders,
-  mockApiResponses,
-} from "../../../../../__tests__/test-utils";
-import { setupRepoMocks, resetRepoMocks, makeNote, testUtils, type AllRepoFakes } from "@packages/testing";
+  setupRepoMocks,
+  resetRepoMocks,
+  makeNoteDTO,
+  testUtils,
+  type AllRepoFakes,
+} from "@packages/testing";
 
 // Mock the API client
 vi.mock("@/lib/api/client", () => ({
@@ -81,7 +84,7 @@ describe("NotesHoverCard", () => {
       const trigger = getTriggerElement();
       await user.hover(trigger);
 
-      expect(mockGet).toHaveBeenCalledWith("/api/omni-clients/client-1/notes");
+      expect(mockGet).toHaveBeenCalledWith("/api/contacts/client-1/notes");
     });
 
     it("displays loading state while fetching", async () => {
@@ -115,14 +118,14 @@ describe("NotesHoverCard", () => {
   describe("Notes Display", () => {
     it("displays notes when loaded successfully", async () => {
       const mockNotes = [
-        makeNote({
+        makeNoteDTO({
           id: "note-1",
           content: "First note content",
           contactId: "client-1",
           userId: testUtils.defaultUserId,
           createdAt: "2024-01-01T00:00:00Z",
         }),
-        makeNote({
+        makeNoteDTO({
           id: "note-2",
           content: "Second note content",
           contactId: "client-1",
@@ -147,14 +150,14 @@ describe("NotesHoverCard", () => {
 
     it("marks the first note as latest", async () => {
       const mockNotes = [
-        makeNote({
+        makeNoteDTO({
           id: "note-1",
           content: "Latest note",
           contactId: "client-1",
           userId: testUtils.defaultUserId,
           createdAt: "2024-01-02T00:00:00Z",
         }),
-        makeNote({
+        makeNoteDTO({
           id: "note-2",
           content: "Older note",
           contactId: "client-1",
@@ -176,7 +179,7 @@ describe("NotesHoverCard", () => {
     });
 
     it("displays relative timestamps", async () => {
-      const mockNotes = [makeNote({ contactId: "client-1", userId: testUtils.defaultUserId })];
+      const mockNotes = [makeNoteDTO({ contactId: "client-1", userId: testUtils.defaultUserId })];
       mockGet.mockResolvedValueOnce({ notes: mockNotes });
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
@@ -204,7 +207,7 @@ describe("NotesHoverCard", () => {
 
     it("limits display to 20 notes", async () => {
       const mockNotes = Array.from({ length: 25 }, (_, i) =>
-        makeNote({
+        makeNoteDTO({
           id: `note-${i}`,
           content: `Note ${i} content`,
           contactId: "client-1",
@@ -255,9 +258,9 @@ describe("NotesHoverCard", () => {
     });
 
     it("clears previous error on new fetch", async () => {
-      mockGet
-        .mockRejectedValueOnce(new Error("First error"))
-        .mockResolvedValueOnce({ notes: [makeNote({ contactId: "client-1", userId: testUtils.defaultUserId })] });
+      mockGet.mockRejectedValueOnce(new Error("First error")).mockResolvedValueOnce({
+        notes: [makeNoteDTO({ contactId: "client-1", userId: testUtils.defaultUserId })],
+      });
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
@@ -281,7 +284,9 @@ describe("NotesHoverCard", () => {
 
   describe("Accessibility", () => {
     it("provides proper ARIA labels", async () => {
-      mockGet.mockResolvedValueOnce({ notes: [makeNote({ contactId: "client-1", userId: testUtils.defaultUserId })] });
+      mockGet.mockResolvedValueOnce({
+        notes: [makeNoteDTO({ contactId: "client-1", userId: testUtils.defaultUserId })],
+      });
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
@@ -295,9 +300,29 @@ describe("NotesHoverCard", () => {
       });
     });
 
+    it("triggers data fetch on keyboard focus", async () => {
+      mockGet.mockResolvedValueOnce({
+        notes: [makeNoteDTO({ contactId: "client-1", userId: testUtils.defaultUserId })],
+      });
+
+      renderWithProviders(<NotesHoverCard {...defaultProps} />);
+
+      const trigger = getTriggerElement();
+
+      // Focus the trigger using keyboard navigation
+      await user.tab();
+      expect(trigger).toHaveFocus();
+
+      // Wait for the API call to be made
+      await waitFor(() => {
+        expect(mockGet).toHaveBeenCalledTimes(1);
+        expect(mockGet).toHaveBeenCalledWith("/api/contacts/client-1/notes");
+      });
+    });
+
     it("provides proper datetime attributes", async () => {
       const mockNotes = [
-        makeNote({
+        makeNoteDTO({
           contactId: "client-1",
           userId: testUtils.defaultUserId,
           createdAt: "2024-01-01T00:00:00Z",
@@ -332,7 +357,7 @@ describe("NotesHoverCard", () => {
   describe("Content Formatting", () => {
     it("preserves whitespace in note content", async () => {
       const mockNotes = [
-        makeNote({
+        makeNoteDTO({
           content: "Line one\nLine two\n\nLine four",
           contactId: "client-1",
           userId: testUtils.defaultUserId,
@@ -355,7 +380,9 @@ describe("NotesHoverCard", () => {
     });
 
     it("applies proper styling classes", async () => {
-      mockGet.mockResolvedValueOnce({ notes: [makeNote({ contactId: "client-1", userId: testUtils.defaultUserId })] });
+      mockGet.mockResolvedValueOnce({
+        notes: [makeNoteDTO({ contactId: "client-1", userId: testUtils.defaultUserId })],
+      });
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
@@ -374,8 +401,24 @@ describe("NotesHoverCard", () => {
   describe("State Management", () => {
     it("resets state properly between hovers", async () => {
       mockGet
-        .mockResolvedValueOnce({ notes: [makeNote({ content: "First fetch", contactId: "client-1", userId: testUtils.defaultUserId })] })
-        .mockResolvedValueOnce({ notes: [makeNote({ content: "Second fetch", contactId: "client-1", userId: testUtils.defaultUserId })] });
+        .mockResolvedValueOnce({
+          notes: [
+            makeNoteDTO({
+              content: "First fetch",
+              contactId: "client-1",
+              userId: testUtils.defaultUserId,
+            }),
+          ],
+        })
+        .mockResolvedValueOnce({
+          notes: [
+            makeNoteDTO({
+              content: "Second fetch",
+              contactId: "client-1",
+              userId: testUtils.defaultUserId,
+            }),
+          ],
+        });
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 
@@ -397,7 +440,9 @@ describe("NotesHoverCard", () => {
     });
 
     it("handles multiple rapid hovers gracefully", async () => {
-      mockGet.mockResolvedValue({ notes: [makeNote({ contactId: "client-1", userId: testUtils.defaultUserId })] });
+      mockGet.mockResolvedValue({
+        notes: [makeNoteDTO({ contactId: "client-1", userId: testUtils.defaultUserId })],
+      });
 
       renderWithProviders(<NotesHoverCard {...defaultProps} />);
 

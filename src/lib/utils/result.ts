@@ -113,7 +113,13 @@ export function safeAsync<T, Args extends readonly unknown[]>(
       const data = await fn(...args);
       return ok(data);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      if (error instanceof Error) {
+        return err(error);
+      }
+      // Preserve original error details by attaching as cause
+      const errorObj = new Error(String(error));
+      (errorObj as any).original = error;
+      return err(errorObj);
     }
   };
 }
@@ -129,7 +135,13 @@ export function safe<T, Args extends readonly unknown[]>(
       const data = fn(...args);
       return ok(data);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      if (error instanceof Error) {
+        return err(error);
+      }
+      // Preserve original error details by attaching as cause
+      const errorObj = new Error(String(error));
+      (errorObj as any).original = error;
+      return err(errorObj);
     }
   };
 }

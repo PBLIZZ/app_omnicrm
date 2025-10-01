@@ -2,9 +2,8 @@ import { eq, and, ilike, desc, asc, inArray, count } from "drizzle-orm";
 import { contacts, notes, type Contact, type Note } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
 import { ok, err, DbResult, dbError } from "@/lib/utils/result";
-import { CreateContactSchema } from "@/server/db/business-schemas";
+import { CreateContactSchema, UpdateContactBodySchema } from "@/server/db/business-schemas";
 import { safeParse } from "@/lib/utils/zod-helpers";
-import { z } from "zod";
 
 // Only export types that actually transform/extend base types
 export type ContactWithNotes = Contact & { notes: Note[] };
@@ -225,7 +224,8 @@ export class ContactsRepository {
       const db = await getDb();
 
       // Validate and narrow the input type using Zod
-      const dataValidation = safeParse(CreateContactSchema.partial(), input);
+      // Use UpdateContactBodySchema which excludes userId (comes from auth) and id (comes from URL)
+      const dataValidation = safeParse(UpdateContactBodySchema, input);
 
       if (!dataValidation.success) {
         return err({

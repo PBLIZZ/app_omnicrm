@@ -95,15 +95,25 @@ export const ContactResponseSchema = z.object({
 
 /**
  * Update Contact Body Schema
+ * Note: id and userId are NOT included as they come from URL parameter and auth
  */
 export const UpdateContactBodySchema = z.object({
-  id: z.string().uuid(),
   displayName: z.string().min(1).optional(),
   primaryEmail: z.string().email().nullable().optional(),
   primaryPhone: z.string().nullable().optional(),
-  stage: z.string().nullable().optional(),
-  tags: z.array(z.string()).optional(),
+  photoUrl: z.string().nullable().optional(),
   source: z.string().nullable().optional(),
+  lifecycleStage: z.string().nullable().optional(),
+  tags: z.array(z.string()).nullable().optional(),
+  confidenceScore: z.string().nullable().optional(),
+  dateOfBirth: z.string().nullable().optional(),
+  emergencyContactName: z.string().nullable().optional(),
+  emergencyContactPhone: z.string().nullable().optional(),
+  clientStatus: z.string().nullable().optional(),
+  referralSource: z.string().nullable().optional(),
+  address: z.unknown().nullable().optional(),
+  healthContext: z.unknown().nullable().optional(),
+  preferences: z.unknown().nullable().optional(),
 });
 
 /**

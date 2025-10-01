@@ -228,10 +228,14 @@ export {
   UploadUrlResponseSchema,
   FileUrlQuerySchema,
   FileUrlResponseSchema,
+  BatchFileUrlRequestSchema,
+  BatchFileUrlResponseSchema,
   type UploadUrlRequest,
   type UploadUrlResponse,
   type FileUrlQuery,
   type FileUrlResponse,
+  type BatchFileUrlRequest,
+  type BatchFileUrlResponse,
 } from "./storage";
 
 // Error Handling schemas have been removed as part of error tracking service simplification

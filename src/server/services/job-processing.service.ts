@@ -18,7 +18,6 @@ import { eq, and, inArray, desc, count } from "drizzle-orm";
 import { JobRunner } from "@/server/jobs/runner";
 import { rawEventErrors } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
-import { err } from "@/lib/utils/result";
 
 export class JobProcessingService {
   private static readonly DEFAULT_MAX_JOBS = 25;

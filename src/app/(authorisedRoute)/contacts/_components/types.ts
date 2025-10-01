@@ -128,10 +128,10 @@ export interface ContactSearchFilters {
   source?: string[];
   hasEmail?: boolean;
   hasPhone?: boolean;
+  hasNotes?: boolean;
   createdAfter?: Date;
   createdBefore?: Date;
   query?: string; // Alias for search
-  hasNotes?: boolean;
   confidenceScore?: { min?: number; max?: number };
   dateRange?: { from?: Date; to?: Date };
 }

@@ -82,7 +82,7 @@ export function sanitizeContactInput<
 /**
  * Contact source types
  */
-export const CONTACT_SOURCES = ["manual", "gmail_import", "upload", "calendar_import"] as const;
+export const CONTACT_SOURCES = ["manual", "onboarding", "gmail_import", "calendar_import"] as const;
 
 /**
  * Validates if a string is a valid contact source

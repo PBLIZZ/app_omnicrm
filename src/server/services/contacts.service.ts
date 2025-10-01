@@ -15,6 +15,7 @@ import {
   isSuccessResult,
   validateNotesCountRows,
 } from "@/lib/utils/type-guards/contacts";
+import { StorageService } from "@/server/services/storage.service";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -88,7 +89,7 @@ export interface BulkDeleteRequest {
 
 export interface BulkDeleteResponse {
   deleted: number;
-  message: string;
+  errors: { id: string; error: string }[];
 }
 
 // Database query types for AI assistant
@@ -337,7 +338,9 @@ async function updateContactInDB(
   const result = await ContactsRepository.updateContact(userId, contactId, updateData);
 
   if (isErr(result)) {
-    return null;
+    // Log the actual error for debugging
+    logger.error("Repository updateContact error:", result.error);
+    throw new Error(result.error.message || "Database update failed");
   }
 
   if (!isSuccessResult(result)) {
@@ -418,6 +421,24 @@ export async function listContactsService(
   const contactIds = contactItems.map((c) => c.id);
   const notesData = await getNotesDataForContacts(userId, contactIds);
 
+  // Batch generate signed URLs for all photos in this page
+  const photoPaths = contactItems
+    .filter((c) => c.photoUrl)
+    .map((c) => c.photoUrl as string);
+
+  let photoUrls: Record<string, string | null> = {};
+  if (photoPaths.length > 0) {
+    const batchResult = await StorageService.getBatchSignedUrls(photoPaths, 14400); // 4 hours
+    photoUrls = batchResult.urls;
+
+    // Log photo access for HIPAA/GDPR compliance (best-effort, doesn't block request)
+    const contactPhotos = contactItems
+      .filter((c) => c.photoUrl)
+      .map((c) => ({ contactId: c.id, photoPath: c.photoUrl as string }));
+
+    await StorageService.logBatchPhotoAccess(userId, contactPhotos);
+  }
+
   const transformedItems: ContactListItem[] = contactItems.map((contact) => {
     const notesInfo = notesData.get(contact.id) ?? { count: 0, lastNote: null };
 
@@ -426,13 +447,15 @@ export async function listContactsService(
       createdAt: contact.createdAt ?? new Date(),
       updatedAt: contact.updatedAt ?? new Date(),
       tags: Array.isArray(contact.tags) ? contact.tags : null,
+      // Replace photoUrl with signed URL if available
+      photoUrl: contact.photoUrl ? (photoUrls[contact.photoUrl] ?? contact.photoUrl) : null,
       notesCount: notesInfo.count,
       lastNote: notesInfo.lastNote,
     };
   });
 
   const totalPages = Math.ceil(total / params.pageSize);
-  
+
   return {
     items: transformedItems,
     pagination: {
@@ -774,15 +797,12 @@ export async function deleteContactsBulk(
 
     const deletedCount = deletedCountResult.data;
 
-    // Generate appropriate response message
-    const message = generateBulkDeleteResponseMessage(deletedCount);
-
     // Log successful bulk deletion operation
     await logBulkDeletion(userId, deletedCount, ids.length);
 
     return ok({
       deleted: deletedCount,
-      message,
+      errors: [], // No errors for successful deletions
     });
   } catch (error) {
     return err({
@@ -791,18 +811,6 @@ export async function deleteContactsBulk(
       details: error,
     });
   }
-}
-
-/**
- * Generate user-friendly response message based on deletion results
- */
-function generateBulkDeleteResponseMessage(deletedCount: number): string {
-  if (deletedCount === 0) {
-    return "No contacts found to delete";
-  }
-
-  const contactWord = deletedCount === 1 ? "contact" : "contacts";
-  return `Successfully deleted ${deletedCount} ${contactWord}`;
 }
 
 /**

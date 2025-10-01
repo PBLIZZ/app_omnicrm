@@ -158,14 +158,16 @@ export function parseVisibilityState(jsonString: string): VisibilityState | null
  * Valid lifecycle stages for contacts
  */
 export const VALID_LIFECYCLE_STAGES = [
-  "New Contact",
-  "VIP Contact",
-  "Core Contact",
   "Prospect",
-  "At Risk Contact",
-  "Lost Contact",
-  "Referring Contact",
+  "New Client",
+  "Core Client",
+  "VIP Client",
+  "Referring Client",
+  "At Risk Client",
+  "Lost Client",
 ] as const;
+
+export type ValidLifecycleStage = (typeof VALID_LIFECYCLE_STAGES)[number];
 
 /**
  * Type guard to check if a string is a valid lifecycle stage

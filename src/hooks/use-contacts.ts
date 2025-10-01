@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import type {
   Contact,
   ContactWithNotes,
@@ -35,13 +36,15 @@ interface ContactSuggestionsResponse {
 // GET /api/contacts
 export function useContacts(
   searchQuery: string,
+  page = 1,
+  pageSize = 25, // Default to 25 for better performance
 ): ReturnType<typeof useQuery<{ items: Contact[]; total: number }>> {
   return useQuery({
-    queryKey: ["/api/contacts", searchQuery],
+    queryKey: queryKeys.contacts.list({ search: searchQuery, page, pageSize }),
     queryFn: async (): Promise<{ items: Contact[]; total: number }> => {
       const params = new URLSearchParams({
-        page: "1",
-        pageSize: "100", // Max allowed by schema
+        page: String(page),
+        pageSize: String(pageSize),
       });
       if (searchQuery.trim()) {
         params.set("search", searchQuery.trim());
@@ -54,6 +57,9 @@ export function useContacts(
         total: data.pagination.total,
       };
     },
+    // Cache signed URLs for 4 hours (matching backend expiry)
+    staleTime: 1000 * 60 * 60 * 4, // 4 hours
+    gcTime: 1000 * 60 * 60 * 24, // 24 hours (renamed from cacheTime in React Query v5)
   });
 }
 

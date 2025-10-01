@@ -492,7 +492,7 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
     contactWithWellnessData: (userId: string) => {
       const contact = makeOmniClientWithNotes({
         userId,
-        lifecycleStage: "Core Contact",
+        lifecycleStage: "Core Client",
         tags: ["Yoga", "Regular Attendee"],
         confidenceScore: "0.85",
       });
@@ -508,7 +508,7 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
      */
     dataCorruption: () => {
       const corruptContact = makeOmniClientWithNotes({
-        lifecycleStage: "Core Contact",
+        lifecycleStage: "Core Client",
         // Simulate corrupted tags field
         tags: null,
         confidenceScore: "0.85",

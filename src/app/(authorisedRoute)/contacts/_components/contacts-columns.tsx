@@ -1,17 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, FilterFn } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import {
-  MoreHorizontal,
-  Edit,
+  Pencil,
   Trash2,
-  MessageSquare,
-  Plus,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -19,12 +16,6 @@ import {
   NotebookPen,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +42,16 @@ import type {
   ContactAIInsightsResponse,
 } from "@/server/db/business-schemas/contacts";
 import { toast } from "sonner";
+
+// Custom Filter Functions for TanStack Table
+const arrayIncludesFilter: FilterFn<ContactWithNotes> = (row, columnId, filterValue) => {
+  if (!filterValue || !Array.isArray(filterValue) || filterValue.length === 0) {
+    return true;
+  }
+  const cellValue = row.getValue(columnId) as string | null | undefined;
+  if (!cellValue) return false;
+  return filterValue.includes(cellValue);
+};
 
 // AI Action Icons Component
 function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Element {
@@ -467,8 +468,31 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     },
   },
   {
+    accessorKey: "source",
+    header: "Source",
+    filterFn: arrayIncludesFilter,
+    cell: ({ row }) => {
+      const source = row.getValue("source") as string | null;
+      const formatSource = (source: string | null): string => {
+        if (!source) return "Unknown";
+        return source
+          .split("_")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+      };
+
+      return source ? (
+        <span className="text-sm text-muted-foreground">{formatSource(source)}</span>
+      ) : (
+        <span className="text-muted-foreground italic text-sm">Unknown</span>
+      );
+    },
+    enableHiding: true,
+  },
+  {
     accessorKey: "lifecycleStage",
     header: "Lifecycle Stage",
+    filterFn: arrayIncludesFilter,
     cell: ({ row }) => {
       const stage = row.getValue("lifecycleStage") as string | null;
       const getStageColor = (stage: string | null): string => {
@@ -555,52 +579,43 @@ function ContactActionsCell({ contact }: { contact: ContactWithNotes }): JSX.Ele
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            className="h-8 w-8 p-0"
-            data-testid={`contact-actions-${contact.id}`}
-          >
-            <MoreHorizontal className="h-4 w-4" />
-            <span className="sr-only">Open menu</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            data-testid={`edit-contact-${contact.id}`}
-            onClick={() => handleEditContact()}
-          >
-            <Edit className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
-            Edit Contact
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            data-testid={`add-note-${contact.id}`}
-            onClick={() => {
-              // This should open the add note dialog for this specific contact
-              // Since this is outside the ContactAIActions component, we'll need to implement this differently
-              toast.info(
-                `Add note for ${contact.displayName ?? "Unknown"} - Use the note icon in the Actions column`,
-              );
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Note
-          </DropdownMenuItem>
-          <DropdownMenuItem data-testid={`view-notes-${contact.id}`}>
-            <MessageSquare className="h-4 w-4 mr-2" />
-            View Notes
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            data-testid={`delete-contact-${contact.id}`}
-            onClick={handleDeleteContact}
-          >
-            <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-2 justify-end">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleEditContact}
+                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-950"
+                data-testid={`edit-contact-${contact.id}`}
+              >
+                <Pencil className="h-4 w-4" />
+                <span className="sr-only">Edit contact</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit contact</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleDeleteContact}
+                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950"
+                data-testid={`delete-contact-${contact.id}`}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Delete contact</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete contact</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
 
       {/* Edit Contact Dialog */}
       <EditContactDialog contact={contact} open={editDialogOpen} onOpenChange={setEditDialogOpen} />

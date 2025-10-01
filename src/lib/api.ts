@@ -95,14 +95,14 @@ export function handleAuth<TIn, TOut>(
       const userId = await getServerUserId(cookieStore);
 
       // Check if there's a JSON body to parse
-      let body = {};
+      let body: unknown = undefined;
       const contentType = req.headers.get("content-type");
 
       if (contentType?.includes("application/json")) {
         try {
           const rawBody = await req.text();
-          // Treat empty string as empty object
-          body = rawBody === "" ? {} : JSON.parse(rawBody);
+          // Treat empty string as undefined for void schemas, otherwise parse
+          body = rawBody === "" ? undefined : JSON.parse(rawBody);
         } catch (error) {
           if (
             error instanceof SyntaxError ||

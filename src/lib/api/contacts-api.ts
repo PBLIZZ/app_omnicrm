@@ -10,7 +10,6 @@ import type {
   Contact,
   CreateContact,
   UpdateContact,
-  PaginatedResponse,
   PaginationParams,
   ContactFilters,
 } from "@/server/db/business-schemas";

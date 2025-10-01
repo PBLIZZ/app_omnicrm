@@ -58,7 +58,8 @@ export async function PUT(request: NextRequest, context: RouteParams) {
       const result = await updateContactService(userId, params.contactId, data);
 
       if (!result.ok) {
-        throw ApiError.notFound(result.error.message ?? "Contact not found");
+        const errorMessage = result.error?.message || "Contact not found";
+        throw ApiError.notFound(errorMessage);
       }
 
       return { item: result.data };

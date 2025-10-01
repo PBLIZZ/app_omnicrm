@@ -238,12 +238,12 @@ const WELLNESS_TAGS = [
 
 const LIFECYCLE_CONTACT_STAGES = [
   "Prospect",
-  "New Contact",
-  "Core Contact",
-  "Referring Contact",
-  "VIP Contact",
-  "Lost Contact",
-  "At Risk Contact",
+  "New Client",
+  "Core Client",
+  "Referring Client",
+  "VIP Client",
+  "Lost Client",
+  "At Risk Client",
 ];
 
 const CONTACT_SOURCES = [

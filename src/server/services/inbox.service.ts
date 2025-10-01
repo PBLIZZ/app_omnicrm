@@ -9,7 +9,7 @@
 import { InboxRepository, ZonesRepository } from "@repo";
 import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
 import { logger } from "@/lib/observability";
-import { DbResult, isErr, Result, ok, err } from "@/lib/utils/result";
+import { DbResult, isErr, ok, err } from "@/lib/utils/result";
 import type {
   InboxItem,
   CreateInboxItem,

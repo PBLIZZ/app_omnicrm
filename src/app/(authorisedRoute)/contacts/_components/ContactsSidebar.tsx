@@ -12,10 +12,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui";
+import { useContacts } from "@/hooks/use-contacts";
 
 export function ContactsSidebar(): JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: contactsData } = useContacts("");
 
   return (
     <SidebarContent>
@@ -36,10 +38,14 @@ export function ContactsSidebar(): JSX.Element {
                   <Users className="w-4 h-4" />
                   <span>All Contacts</span>
                 </div>
-                <Badge
-                  variant="default"
-                  className="ml-auto bg-purple-50 border-purple-200 text-purple-700 text-xs"
-                ></Badge>
+                {contactsData?.total !== undefined && (
+                  <Badge
+                    variant="default"
+                    className="ml-auto bg-purple-50 border-purple-200 text-purple-700 text-xs"
+                  >
+                    {contactsData.total}
+                  </Badge>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

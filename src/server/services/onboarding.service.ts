@@ -64,6 +64,7 @@ const OnboardingSubmissionSchema = z.object({
   client: ClientDataSchema,
   consent: ConsentDataSchema,
   photo_path: z.string().optional(),
+  photo_size: z.number().int().positive().optional(),
 });
 
 // Type definitions
@@ -283,6 +284,7 @@ export class OnboardingService {
     clientData: ClientData,
     consentData: ConsentData,
     photoPath?: string,
+    photoSize?: number,
   ): Promise<Result<string, string>> {
     try {
       const result = await OnboardingRepository.createContactWithConsent(
@@ -291,6 +293,7 @@ export class OnboardingService {
         clientData,
         consentData,
         photoPath,
+        photoSize,
       );
 
       // Convert DbResult to Result<string, string>
@@ -335,7 +338,7 @@ export class OnboardingService {
     submissionData: OnboardingSubmissionData,
     clientIpData: ClientIpData,
   ): Promise<Result<OnboardingResult, string>> {
-    const { token, client, consent, photo_path } = submissionData;
+    const { token, client, consent, photo_path, photo_size } = submissionData;
 
     // Get userId from token
     const tokenValidation = await OnboardingRepository.validateToken(token);
@@ -375,6 +378,7 @@ export class OnboardingService {
       clientData,
       consentData,
       photo_path,
+      photo_size,
     );
     if (isErr(submissionResult)) {
       return err(submissionResult.error);

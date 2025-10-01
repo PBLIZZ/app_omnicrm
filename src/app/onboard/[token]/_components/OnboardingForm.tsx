@@ -89,6 +89,7 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
+  const [uploadedPhotoSize, setUploadedPhotoSize] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<OnboardingFormData>({
@@ -198,6 +199,7 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
           signature_image_url: "",
         },
         photo_path: uploadedPhotoUrl || null,
+        photo_size: uploadedPhotoSize || undefined,
       };
 
       // Debug: Log the submission data
@@ -261,7 +263,13 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
           <CardDescription>Upload a clear photo for your profile (optional)</CardDescription>
         </CardHeader>
         <CardContent>
-          <PhotoUploadSection token={token} onPhotoUploaded={setUploadedPhotoUrl} />
+          <PhotoUploadSection
+            token={token}
+            onPhotoUploaded={(url, size) => {
+              setUploadedPhotoUrl(url);
+              setUploadedPhotoSize(size ?? null);
+            }}
+          />
         </CardContent>
       </Card>
 

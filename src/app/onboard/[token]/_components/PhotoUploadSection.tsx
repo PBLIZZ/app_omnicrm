@@ -10,7 +10,7 @@ import { PHOTO_CONFIG, validatePhotoFile } from "@/lib/utils/photo-validation";
 
 interface PhotoUploadSectionProps {
   token: string;
-  onPhotoUploaded: (photoUrl: string | null) => void;
+  onPhotoUploaded: (photoUrl: string | null, photoSize?: number) => void;
 }
 
 interface FileError {
@@ -50,6 +50,7 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
         const uploadResult = await uploadResponse.json() as {
           success?: boolean;
           filePath?: string;
+          fileSize?: number;
           error?: string;
         };
 
@@ -65,7 +66,7 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
 
         // Store the uploaded file path
         setUploadedUrl(uploadResult.filePath);
-        onPhotoUploaded(uploadResult.filePath);
+        onPhotoUploaded(uploadResult.filePath, uploadResult.fileSize);
         toast.success("Photo uploaded and optimized successfully!");
       } catch (error) {
         console.error("Upload error:", error);

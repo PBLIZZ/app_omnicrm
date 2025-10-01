@@ -159,10 +159,8 @@ export class ContactsRepository {
       const db = await getDb();
 
       // Validate and narrow the input type using Zod
-      const dataValidation = safeParse(
-        CreateContactSchema.extend({ userId: z.string().uuid() }),
-        input,
-      );
+      // CreateContactSchema already includes userId, so just use it directly
+      const dataValidation = safeParse(CreateContactSchema, input);
 
       if (!dataValidation.success) {
         return err({

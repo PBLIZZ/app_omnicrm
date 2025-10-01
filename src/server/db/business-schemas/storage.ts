@@ -55,7 +55,3 @@ export const FileUrlResponseSchema = z.object({
 // TYPE EXPORTS
 // ============================================================================
 
-export type UploadUrlRequest = z.infer<typeof UploadUrlRequestSchema>;
-export type UploadUrlResponse = z.infer<typeof UploadUrlResponseSchema>;
-export type FileUrlQuery = z.infer<typeof FileUrlQuerySchema>;
-export type FileUrlResponse = z.infer<typeof FileUrlResponseSchema>;

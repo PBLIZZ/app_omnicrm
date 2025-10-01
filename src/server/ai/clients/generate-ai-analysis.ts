@@ -136,20 +136,24 @@ export async function generateAIAnalysis(
     gmailAnalysis,
   });
 
-  const response = await generateText<AIContactIntelligenceResponse>(userId, {
+  const ResponseSchema = z.object({
+    notes: z.string().optional(),
+    lifecycleStage: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    confidenceScore: z.number().optional(),
+  });
+
+  type ResponseType = z.infer<typeof ResponseSchema>;
+
+  const response = await generateText<ResponseType>(userId, {
     model: "gpt-4o",
     messages,
     temperature: 0.7,
     maxTokens: 2000,
-    responseSchema: z.object({
-      notes: z.string().optional(),
-      lifecycleStage: z.string().optional(),
-      tags: z.array(z.string()).optional(),
-      confidenceScore: z.number().optional(),
-    }),
+    responseSchema: ResponseSchema,
   });
 
-  const result = response.data;
+  const result: ResponseType = response.data;
 
   const noteContent =
     result.notes ??

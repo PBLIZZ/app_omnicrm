@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/server/db/client", () => {
   const db = {
     execute: async (query: { queryChunks?: Array<{ value?: string[] }> }) => {
-      const chunks = query?.queryChunks || [];
+      const chunks = query?.queryChunks ?? [];
       const sqlParts = chunks
         .filter((chunk): chunk is { value: string[] } => Array.isArray(chunk?.value))
         .map((chunk: { value: string[] }) => chunk.value.join(""))

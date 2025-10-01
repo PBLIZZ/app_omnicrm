@@ -62,16 +62,16 @@ function buildAskAIAboutContactPrompt(data: ContactWithContext): ChatMessage[] {
   }
 
   const contact = data.contact;
-  const name = sanitizeText(contact.displayName) || "Unknown";
-  const email = sanitizeText(contact.primaryEmail) || "Unknown";
-  const phone = sanitizeText(contact.primaryPhone) || "Unknown";
+  const name = sanitizeText(contact.displayName) ?? "Unknown";
+  const email = sanitizeText(contact.primaryEmail) ?? "Unknown";
+  const phone = sanitizeText(contact.primaryPhone) ?? "Unknown";
   const lastInteraction = data.interactions[0]
     ? sanitizeDate(data.interactions[0].occurredAt.toISOString())
     : "Unknown";
   const notesText = data.notes.map((note) => note.content).join("; ") || "None";
-  const messages = data.interactions.filter((i) => i.type === "email") || [];
+  const messages = data.interactions.filter((i) => i.type === "email") ?? [];
   const tags = Array.isArray(contact.tags) ? (contact.tags as string[]) : [];
-  const timeline = data.timeline || [];
+  const timeline = data.timeline ?? [];
 
   const systemMessage = {
     role: "system" as const,

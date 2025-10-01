@@ -43,8 +43,8 @@ export function handle<TIn, TOut>(
   input: z.ZodType<TIn>,
   output: z.ZodType<TOut>,
   fn: (parsed: TIn) => Promise<TOut>,
-) {
-  return async (req: Request) => {
+): (req: Request) => Promise<Response> {
+  return async (req: Request): Promise<Response> => {
     try {
       const body = await req.json();
       const parsed = input.parse(body);
@@ -84,13 +84,15 @@ export function handleAuth<TIn, TOut>(
   input: z.ZodType<TIn>,
   output: z.ZodType<TOut>,
   fn: (parsed: TIn, userId: string) => Promise<TOut>,
-) {
-  return async (req: Request) => {
+): (req: Request) => Promise<Response> {
+  return async (req: Request): Promise<Response> => {
     try {
       // Lazy import to avoid circular dependencies
       const { getServerUserId } = await import("../server/auth/user");
+      const { cookies } = await import("next/headers");
 
-      const userId = await getServerUserId();
+      const cookieStore = await cookies();
+      const userId = await getServerUserId(cookieStore);
 
       // Check if there's a JSON body to parse
       let body = {};
@@ -230,8 +232,10 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
     try {
       // Lazy import to avoid circular dependencies
       const { getServerUserId } = await import("../server/auth/user");
+      const { cookies } = await import("next/headers");
 
-      const userId = await getServerUserId();
+      const cookieStore = await cookies();
+      const userId = await getServerUserId(cookieStore);
       const url = new URL(req.url);
       const queryParams = Object.fromEntries(url.searchParams.entries());
       const parsed = querySchema.parse(queryParams);

@@ -114,7 +114,3 @@ export const UserDeletionResponseSchema = z.object({
 // TYPE EXPORTS
 // ============================================================================
 
-export type UserExportRequest = z.infer<typeof UserExportRequestSchema>;
-export type UserExportResponse = z.infer<typeof UserExportResponseSchema>;
-export type UserDeletionRequest = z.infer<typeof UserDeletionRequestSchema>;
-export type UserDeletionResponse = z.infer<typeof UserDeletionResponseSchema>;

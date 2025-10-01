@@ -11,9 +11,9 @@ export function BusinessMetrics({
   utilizationRate,
   clientRetention,
 }: BusinessMetricsProps): JSX.Element {
-  const isHighPerforming = totalSessions > 20;
-  const hasGoodUtilization = utilizationRate > 60;
-  const hasStrongRetention = clientRetention > 80;
+  const isHighPerforming = (totalSessions ?? 0) > 20;
+  const hasGoodUtilization = (utilizationRate ?? 0) > 60;
+  const hasStrongRetention = (clientRetention ?? 0) > 80;
 
   return (
     <Card>
@@ -44,9 +44,9 @@ export function BusinessMetrics({
               <DollarSign className="h-4 w-4 text-green-600" />
               <span className="text-sm text-muted-foreground">Revenue</span>
             </div>
-            <div className="text-2xl font-bold">${totalRevenue}</div>
+            <div className="text-2xl font-bold">${totalRevenue ?? 0}</div>
             <Badge variant="secondary" className="text-xs">
-              {totalRevenue > 1000 ? "Strong" : "Growing"}
+              {(totalRevenue ?? 0) > 1000 ? "Strong" : "Growing"}
             </Badge>
           </div>
         </div>

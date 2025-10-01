@@ -6,19 +6,13 @@ import {
   TokenInfoSchema,
 } from "@/server/db/business-schemas";
 
-interface RouteParams {
-  params: {
-    tokenId: string;
-  };
-}
-
 // Custom handler that supports URL params
 function handleAuthWithParams<TIn, TOut>(
   input: import("zod").ZodType<TIn>,
   output: import("zod").ZodType<TOut>,
-  fn: (parsed: TIn, userId: string, params: any) => Promise<TOut>,
+  fn: (parsed: TIn, userId: string, params: { tokenId: string }) => Promise<TOut>,
 ) {
-  return async (req: Request, context: { params: any }) => {
+  return async (req: Request, context: { params: Record<string, string> }) => {
     try {
       const { getServerUserId } = await import("@/server/auth/user");
       const userId = await getServerUserId();
@@ -76,7 +70,7 @@ function handleAuthWithParams<TIn, TOut>(
 export const GET = handleAuthWithParams(
   TokenIdParamsSchema,
   TokenInfoSchema,
-  async (data, userId, params) => {
+  async (_data, userId, params) => {
     const { tokenId } = params;
 
     // Get single token using service
@@ -89,7 +83,7 @@ export const GET = handleAuthWithParams(
 export const DELETE = handleAuthWithParams(
   DeleteTokenRequestSchema,
   DeleteTokenResponseSchema,
-  async (data, userId, params) => {
+  async (_data, userId, params) => {
     const { tokenId } = params;
 
     // Delete token using service

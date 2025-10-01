@@ -5,37 +5,24 @@
  */
 
 /**
- * Intelligence Tag
+ * Email Preview
  */
-export interface IntelligenceTag {
+export interface EmailPreview {
   id: string;
-  name: string;
-  count: number;
-  category: string;
+  subject: string;
+  from: string;
+  date: string;
+  snippet: string;
+  hasAttachments: boolean;
+  labels: string[];
 }
 
 /**
- * Intelligence Insight
+ * Preview Range
  */
-export interface IntelligenceInsight {
-  id: string;
-  type: string;
-  content: string;
-  confidence: number;
-  timestamp: Date;
-  source?: string;
-}
-
-/**
- * Recommended Action
- */
-export interface RecommendedAction {
-  id: string;
-  type: string;
-  title: string;
-  description: string;
-  priority: "low" | "medium" | "high";
-  estimatedTime?: string;
+export interface PreviewRange {
+  from: string;
+  to: string;
 }
 
 /**
@@ -55,6 +42,8 @@ export interface MarketingWikiItem {
  */
 export interface WeeklyDigest {
   id: string;
+  title: string;
+  date: string;
   summary: string;
   keyInsights: string[];
   actionItems: string[];
@@ -67,10 +56,3 @@ export interface WeeklyDigest {
 /**
  * Connect Intelligence Dashboard Props
  */
-export interface ConnectIntelligenceDashboardProps {
-  userId: string;
-  timeRange?: {
-    from: Date;
-    to: Date;
-  };
-}

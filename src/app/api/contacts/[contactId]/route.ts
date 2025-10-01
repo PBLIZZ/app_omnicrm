@@ -1,9 +1,9 @@
 import { handleAuth } from "@/lib/api";
 import { ApiError } from "@/lib/api/errors";
 import {
-  getOmniClient,
-  updateOmniClient,
-  deleteOmniClient,
+  getContactByIdService,
+  updateContactService,
+  deleteContactService,
 } from "@/server/services/contacts.service";
 import {
   ContactResponseSchema,
@@ -23,23 +23,24 @@ import { NextRequest } from "next/server";
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     contactId: string;
-  };
+  }>;
 }
 
 /**
  * GET /api/contacts/[contactId] - Get contact by ID
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, context: RouteParams) {
   const handler = handleAuth(z.void(), ContactResponseSchema, async (_, userId) => {
-    const omniClient = await getOmniClient(userId, params.contactId);
+    const params = await context.params;
+    const result = await getContactByIdService(userId, params.contactId);
 
-    if (!omniClient) {
-      throw ApiError.notFound("Contact not found");
+    if (!result.ok) {
+      throw ApiError.notFound(result.error.message ?? "Contact not found");
     }
 
-    return { item: omniClient };
+    return { item: result.data };
   });
 
   return handler(request);
@@ -48,20 +49,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 /**
  * PUT /api/contacts/[contactId] - Update contact
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(request: NextRequest, context: RouteParams) {
   const handler = handleAuth(
     UpdateContactBodySchema,
     ContactResponseSchema,
     async (data, userId) => {
-      // Add the contactId to the data for the service call
-      const dataWithId = { ...data, id: params.contactId };
-      const omniClient = await updateOmniClient(userId, params.contactId, dataWithId);
+      const params = await context.params;
+      const result = await updateContactService(userId, params.contactId, data);
 
-      if (!omniClient) {
-        throw ApiError.notFound("Contact not found");
+      if (!result.ok) {
+        throw ApiError.notFound(result.error.message ?? "Contact not found");
       }
 
-      return { item: omniClient };
+      return { item: result.data };
     },
   );
 
@@ -71,12 +71,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 /**
  * DELETE /api/contacts/[contactId] - Delete contact
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, context: RouteParams) {
   const handler = handleAuth(z.void(), DeleteContactResponseSchema, async (_, userId) => {
-    const deleted = await deleteOmniClient(userId, params.contactId);
+    const params = await context.params;
+    const result = await deleteContactService(userId, params.contactId);
 
     // idempotent delete - return success even if contact didn't exist
-    return { deleted: deleted ? 1 : 0 };
+    return { deleted: result.ok ? 1 : 0 };
   });
 
   return handler(request);

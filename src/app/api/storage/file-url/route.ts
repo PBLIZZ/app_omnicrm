@@ -8,7 +8,7 @@ import {
 export const GET = handleGetWithQueryAuth(
   FileUrlQuerySchema,
   FileUrlResponseSchema,
-  async (query, userId) => {
+  async (query, _userId) => {
     const { filePath } = query;
 
     const result = await StorageService.getFileSignedUrl(filePath);

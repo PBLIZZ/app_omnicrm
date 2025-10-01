@@ -17,8 +17,6 @@ export const SyncProgressQuerySchema = z.object({
   sessionId: z.string().uuid("Invalid session ID format"),
 });
 
-export type SyncProgressQuery = z.infer<typeof SyncProgressQuerySchema>;
-
 /**
  * Sync Progress Response Schema - detailed progress information
  */
@@ -47,8 +45,6 @@ export const SyncProgressResponseSchema = z.object({
   preferences: z.record(z.unknown()),
 });
 
-export type SyncProgressResponse = z.infer<typeof SyncProgressResponseSchema>;
-
 /**
  * Sync Cancel Response Schema - for DELETE /api/sync-progress/[sessionId]
  */
@@ -58,8 +54,6 @@ export const SyncCancelResponseSchema = z.object({
   status: z.string(),
 });
 
-export type SyncCancelResponse = z.infer<typeof SyncCancelResponseSchema>;
-
 /**
  * Sync Session Error Response Schema - for error cases
  */
@@ -68,8 +62,6 @@ export const SyncSessionErrorSchema = z.object({
   sessionId: z.string().uuid().optional(),
   details: z.string().optional(),
 });
-
-export type SyncSessionError = z.infer<typeof SyncSessionErrorSchema>;
 
 // ============================================================================
 // USER SYNC PREFERENCES SCHEMAS
@@ -94,8 +86,6 @@ export const UserSyncPrefsUpdateSchema = z.object({
   initialSyncCompleted: z.boolean().optional(),
   initialSyncDate: z.string().optional(),
 });
-
-export type UserSyncPrefsUpdate = z.infer<typeof UserSyncPrefsUpdateSchema>;
 
 // ============================================================================
 // SYNC SESSION ENTITY SCHEMAS
@@ -127,4 +117,3 @@ export const NewSyncSessionSchema = SyncSessionSchema.omit({
   updatedAt: true,
 });
 
-export type NewSyncSession = z.infer<typeof NewSyncSessionSchema>;

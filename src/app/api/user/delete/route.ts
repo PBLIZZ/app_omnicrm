@@ -79,7 +79,11 @@ function handleAuthWithRequest<TIn, TOut>(
 export const DELETE = handleAuthWithRequest(
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,
-  async (data, userId, request) => {
+  async (
+    data,
+    userId,
+    request,
+  ): Promise<import("zod").infer<typeof UserDeletionResponseSchema>> => {
     const { confirmation, acknowledgeIrreversible } = data;
 
     // Extract IP address
@@ -95,8 +99,19 @@ export const DELETE = handleAuthWithRequest(
 
     if (!validation.valid) {
       const error = new Error("Invalid deletion request");
-      (error as any).status = 400;
-      (error as any).details = validation.errors;
+      // Type-safe extension of Error object
+      Object.defineProperty(error, "status", {
+        value: 400,
+        writable: false,
+        enumerable: true,
+        configurable: false,
+      });
+      Object.defineProperty(error, "details", {
+        value: validation.errors,
+        writable: false,
+        enumerable: true,
+        configurable: false,
+      });
       throw error;
     }
 

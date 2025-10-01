@@ -6,7 +6,7 @@ import { UserExportRequestSchema, UserExportResponseSchema } from "@/server/db/b
 export const GET = handleAuth(
   UserExportRequestSchema,
   UserExportResponseSchema,
-  async (data, userId) => {
+  async (_data, userId) => {
     // Export user data using service
     const exportData = await UserExportService.exportUserData(userId);
 

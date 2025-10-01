@@ -1,9 +1,9 @@
 // Reads the authenticated user id (Supabase) for API routes.
 
-import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import type { ReadonlyRequestCookies } from "next/dist/server/web/spec-extension/adapters/request-cookies";
 
-export async function getServerUserId(): Promise<string> {
+export async function getServerUserId(cookieStore: ReadonlyRequestCookies): Promise<string> {
   // E2E/dev: allow fixed user via env without requiring prior cookie roundtrip
   if (process.env["NODE_ENV"] !== "production" && process.env["ENABLE_E2E_AUTH"] === "true") {
     const eid = process.env["E2E_USER_ID"];
@@ -15,7 +15,6 @@ export async function getServerUserId(): Promise<string> {
   }
   // E2E/browser flows: allow a fixed user via cookie when not in production
   try {
-    const cookieStore = await cookies();
     const e2eUid = cookieStore.get("e2e_uid")?.value;
     if (e2eUid && process.env["NODE_ENV"] !== "production") {
       return e2eUid;
@@ -23,7 +22,7 @@ export async function getServerUserId(): Promise<string> {
   } catch {
     // ignore cookie read failures and proceed with normal auth
   }
-  const cookieStore = await cookies();
+  
   // Lazily read minimal env vars here to avoid importing full env validation at module load.
   // Use the publishable key for RLS-aware server client, never the secret key.
   const supabaseUrl = process.env["NEXT_PUBLIC_SUPABASE_URL"];

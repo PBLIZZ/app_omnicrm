@@ -267,7 +267,7 @@ describe("TokenGeneratorSection", () => {
 
   it("should disable button while generating", async () => {
     const user = userEvent.setup();
-    let resolvePost: (value: any) => void;
+    let resolvePost: (value: unknown) => void;
     const postPromise = new Promise((resolve) => {
       resolvePost = resolve;
     });

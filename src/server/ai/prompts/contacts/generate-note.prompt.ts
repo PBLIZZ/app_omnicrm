@@ -7,12 +7,13 @@ export function buildGenerateNotePrompt(data: ContactWithContext): ChatMessage[]
   const { contact, calendarEvents, interactions } = data;
 
   // Safely get recent events with fallback
-  const recentEvents =
-    calendarEvents
-      ?.slice(0, 3)
-      .filter((event: any) => event && event.title)
-      .map((event: any) => event.title)
-      .join(", ") || "None";
+  const recentEvents = calendarEvents
+    ? calendarEvents
+        .slice(0, 3)
+        .filter((event: { title?: string }): event is { title: string } => Boolean(event?.title))
+        .map((event) => event.title)
+        .join(", ") || "None"
+    : "None";
 
   // Safely get last interaction with fallback
   const lastInteraction = interactions && interactions.length > 0 ? interactions[0].type : "None";

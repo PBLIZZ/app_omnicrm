@@ -10,18 +10,6 @@ import { generateText } from "@/server/ai/core/llm.service";
 const MATCH_CONFIDENCE_THRESHOLD = 0.6;
 const MAX_CONFIDENCE_CAP = 0.85;
 
-export interface ContactMatch {
-  contactId: string | null;
-  confidence: number;
-  matchingFactors: string[];
-  suggestedNewContact?: {
-    displayName: string;
-    primaryEmail: string;
-    estimatedStage: string;
-    suggestedTags: string[];
-  };
-}
-
 export async function matchToContacts(
   userId: string,
   emailData: {

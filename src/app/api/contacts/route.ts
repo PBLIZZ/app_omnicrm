@@ -20,5 +20,13 @@ export const GET = handleGetWithQueryAuth(
 );
 
 export const POST = handleAuth(CreateContactBodySchema, ContactSchema, async (data, userId) => {
-  return await createContactService(userId, data);
+  // Merge userId with the request data
+  const contactData = { ...data, userId };
+  const result = await createContactService(userId, contactData);
+
+  if (!result.success) {
+    throw new Error(result.error.message);
+  }
+
+  return result.data;
 });

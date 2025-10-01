@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const handler = handleGetWithQueryAuth(
     TaskFiltersSchema,
     z.array(TaskSchema),
-    async (filters, userId) => {
+    async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
       const result = await productivityService.getProjectTasks(params.projectId, userId, filters);
       if (isErr(result)) {
         throw new Error(result.error.message);

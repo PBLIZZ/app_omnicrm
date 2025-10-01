@@ -49,13 +49,14 @@ export class JobDispatcher {
    * Dispatch a job to its appropriate processor
    */
   static async dispatch(job: JobRecord): Promise<void> {
-    const handler = this.handlers[job.kind];
+    const kind = job.kind as JobKind;
+    const handler = this.handlers[kind];
 
     if (!handler) {
-      throw new Error(`No handler registered for job kind: ${job.kind}`);
+      throw new Error(`No handler registered for job kind: ${kind}`);
     }
 
-    await logger.info(`Dispatching job ${job.kind}`, {
+    await logger.info(`Dispatching job ${kind}`, {
       operation: "job_dispatch",
       additionalData: {
         jobId: job.id,

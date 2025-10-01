@@ -1,14 +1,18 @@
 // New file for extract wisdom prompt
 
-import { ChatMessage } from "@/server/ai/core/llm.service";
-import { EmailClassification } from "@/server/ai/types/connect-types";
+import type { ChatMessage } from "@/server/ai/core/llm.service";
+import type { EmailClassification } from "@/server/db/business-schemas";
 
-export function buildExtractWisdomPrompt(data: {
+interface ExtractWisdomData {
   subject: string;
   bodyText: string;
   senderName: string;
   classification: EmailClassification;
-}): ChatMessage[] {
+}
+
+export function buildExtractWisdomPrompt(data: ExtractWisdomData): ChatMessage[] {
+  const { subject, bodyText, senderName, classification } = data;
+
   return [
     {
       role: "system",
@@ -43,14 +47,14 @@ Respond with valid JSON matching this schema:
       role: "user",
       content: `Extract business wisdom from this email:
 
-Classification: ${data.classification.primaryCategory} / ${data.classification.subCategory}
-Business Relevance: ${data.classification.businessRelevance}
+Classification: ${classification.primaryCategory} / ${classification.subCategory}
+Business Relevance: ${classification.businessRelevance}
 
-From: ${data.senderName}
-Subject: ${data.subject}
+From: ${senderName}
+Subject: ${subject}
 
 Content:
-${data.bodyText.substring(0, 1200)}${data.bodyText.length > 1200 ? "..." : ""}
+${bodyText.substring(0, 1200)}${bodyText.length > 1200 ? "..." : ""}
 
 Provide actionable insights and business intelligence for a wellness practitioner.`,
     },

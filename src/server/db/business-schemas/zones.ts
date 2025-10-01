@@ -94,8 +94,6 @@ export const ZonesQuerySchema = z.object({
     .transform((val) => val === "true"),
 });
 
-export type ZonesQuery = z.infer<typeof ZonesQuerySchema>;
-
 /**
  * Zone Filters Schema
  */
@@ -105,8 +103,6 @@ export const ZoneFiltersSchema = z.object({
   lastActivityAfter: z.coerce.date().optional(),
   lastActivityBefore: z.coerce.date().optional(),
 });
-
-export type ZoneFilters = z.infer<typeof ZoneFiltersSchema>;
 
 // ============================================================================
 // RESPONSE SCHEMAS
@@ -160,8 +156,6 @@ export const ZoneDetailsResponseSchema = z.object({
     .optional(),
 });
 
-export type ZoneDetailsResponse = z.infer<typeof ZoneDetailsResponseSchema>;
-
 // ============================================================================
 // ADMIN SCHEMAS (for zone management)
 // ============================================================================
@@ -181,7 +175,6 @@ export type CreateZone = z.infer<typeof CreateZoneSchema>;
  * Update Zone Schema (admin only)
  */
 export const UpdateZoneSchema = CreateZoneSchema.partial();
-export type UpdateZone = z.infer<typeof UpdateZoneSchema>;
 
 // Zone categories removed as they don't exist in the database
 

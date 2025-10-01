@@ -14,7 +14,7 @@ const selectAiInsightSchema = createSelectSchema(aiInsights);
 
 const BaseAiInsightSchema = selectAiInsightSchema;
 
-export const AiInsightSchema = BaseAiInsightSchema.transform((data: any) => ({
+export const AiInsightSchema = BaseAiInsightSchema.transform((data) => ({
   ...data,
   // UI computed fields
   isRecent: new Date(data.createdAt).getTime() > Date.now() - 24 * 60 * 60 * 1000, // Within 24h
@@ -34,7 +34,4 @@ export const CreateAiInsightSchema = insertAiInsightSchema.omit({
   updatedAt: true,
 });
 
-export type CreateAiInsight = z.infer<typeof CreateAiInsightSchema>;
-
 export const UpdateAiInsightSchema = BaseAiInsightSchema.partial().required({ id: true });
-export type UpdateAiInsight = z.infer<typeof UpdateAiInsightSchema>;

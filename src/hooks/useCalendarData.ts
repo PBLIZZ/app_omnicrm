@@ -33,45 +33,6 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
 };
 import type { CalendarEvent, Client } from "@/server/db/business-schemas";
 
-export interface CalendarStats {
-  upcomingEventsCount: number;
-  upcomingEvents: CalendarEvent[];
-  lastSync: string | null;
-  importedCount?: number;
-}
-
-export interface CalendarConnectionStatus {
-  isConnected: boolean;
-  upcomingEventsCount: number;
-  reason?: string;
-  hasRefreshToken?: boolean;
-  autoRefreshed?: boolean;
-  lastSync?: string;
-}
-
-export interface UseCalendarDataResult {
-  // Main data
-  events: CalendarEvent[];
-  clients: Client[];
-  connectionStatus: CalendarConnectionStatus | undefined;
-
-  // Loading states
-  isEventsLoading: boolean;
-  isClientsLoading: boolean;
-  isStatusLoading: boolean;
-
-  // Error states
-  eventsError: Error | null;
-  clientsError: Error | null;
-  statusError: Error | null;
-
-  // Actions
-  refetchEvents: () => void;
-  refetchClients: () => void;
-  refetchStatus: () => void;
-  refreshAll: () => void;
-}
-
 export function useCalendarData(): UseCalendarDataResult {
   // Calendar events query
   const {
@@ -194,9 +155,9 @@ export function useCalendarData(): UseCalendarDataResult {
     },
     staleTime: 15_000,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
-    // Optimistic loading: assume connected state initially for better UX
+    // Initial data - assume disconnected until we know otherwise
     initialData: {
-      isConnected: true,
+      isConnected: false,
       upcomingEventsCount: 0,
       reason: "loading",
     },

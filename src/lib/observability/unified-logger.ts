@@ -23,32 +23,6 @@ interface ErrorContext {
 // import { log as pinoLogger, type LogBindings } from "@/server/lib/pino-logger";
 // import { buildLogContext } from "@/server/lib/log-context";
 
-export interface LogEntry {
-  timestamp: string;
-  level: ErrorSeverity;
-  category: ErrorCategory;
-  message: string;
-  context?: ErrorContext | undefined;
-  error?: Error | undefined;
-  stack?: string | undefined;
-  requestId?: string | undefined;
-}
-
-export interface SuccessToastOptions {
-  title?: string;
-  description?: string;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
-}
-
-export interface InfoToastOptions {
-  title?: string;
-  description?: string;
-  duration?: number;
-}
-
 class UnifiedLogger {
   private isDevelopment = process.env.NODE_ENV === "development";
   private isClient = typeof window !== "undefined";

@@ -21,16 +21,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Clock, Zap, AlertTriangle, TrendingUp, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export interface DataFreshnessInfo {
-  needsProcessing: boolean;
-  processingRate: number;
-  pendingJobs: number;
-  lastProcessedAt: string | null;
-  dataType: "contacts" | "interactions" | "insights" | "dashboard" | "calendar" | "general";
-  affectedMetrics?: string[];
-  estimatedUpdateTime?: number; // in minutes
-}
-
 interface DataFreshnessHoverProps {
   children: React.ReactNode;
   dataInfo: DataFreshnessInfo;
@@ -74,7 +64,6 @@ export function DataFreshnessHover({
     if (processingRate < 80 && pendingJobs > 10) return "medium";
     return "low";
   };
-
 
   const urgency = getUrgencyLevel(dataInfo.processingRate, dataInfo.pendingJobs);
   const dataTypeDesc = getDataTypeDescription(dataInfo.dataType);

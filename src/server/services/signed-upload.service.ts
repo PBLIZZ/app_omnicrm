@@ -11,11 +11,12 @@ import {
 // Validation schema for upload request
 const UploadRequestSchema = z.object({
   token: z.string().min(1, "Token is required"),
-  mimeType: z.string().min(1, "MIME type is required"),
+  fileName: z.string().min(1, "File name is required"),
   fileSize: z.number().int().min(1, "File size must be greater than 0 bytes"),
+  contentType: z.string().min(1, "Content type is required"),
 });
 
-export type UploadRequestData = z.infer<typeof UploadRequestSchema>;
+type UploadRequestData = z.infer<typeof UploadRequestSchema>;
 
 interface TokenValidationResult {
   isValid: boolean;
@@ -156,10 +157,10 @@ export class SignedUploadService {
    * Process signed upload request - main service method
    */
   static async processSignedUpload(uploadData: UploadRequestData): Promise<SignedUploadResult> {
-    const { token, mimeType, fileSize } = uploadData;
+    const { token, contentType, fileSize } = uploadData;
 
     // Validate file type and size
-    this.validateFileUpload(mimeType, fileSize);
+    this.validateFileUpload(contentType, fileSize);
 
     // Validate token and get user information
     const tokenValidation = await this.validateOnboardingToken(token);

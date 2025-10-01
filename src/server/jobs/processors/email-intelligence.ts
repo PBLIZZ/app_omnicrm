@@ -6,13 +6,8 @@ import { rawEvents, aiInsights } from "@/server/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
-import { processEmailIntelligence, storeEmailIntelligence } from "@/lib/clients/connect-api.client";
-
-export interface EmailIntelligenceJobPayload {
-  rawEventId: string;
-  batchId?: string;
-  maxRetries?: number;
-}
+import { processEmailIntelligence } from "@/server/ai/connect/process-email";
+import { storeEmailIntelligence } from "@/server/ai/connect/store-intelligence";
 
 /**
  * Process email intelligence for a single raw Gmail event

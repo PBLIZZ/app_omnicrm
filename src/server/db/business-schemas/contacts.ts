@@ -93,8 +93,6 @@ export const ContactResponseSchema = z.object({
   }),
 });
 
-export type ContactResponse = z.infer<typeof ContactResponseSchema>;
-
 /**
  * Update Contact Body Schema
  */
@@ -108,16 +106,12 @@ export const UpdateContactBodySchema = z.object({
   source: z.string().nullable().optional(),
 });
 
-export type UpdateContactBody = z.infer<typeof UpdateContactBodySchema>;
-
 /**
  * Delete Contact Response Schema
  */
 export const DeleteContactResponseSchema = z.object({
   deleted: z.number(),
 });
-
-export type DeleteContactResponse = z.infer<typeof DeleteContactResponseSchema>;
 
 // ============================================================================
 // BULK OPERATIONS SCHEMAS
@@ -145,8 +139,6 @@ export const BulkDeleteResponseSchema = z.object({
   ),
 });
 
-export type BulkDeleteResponse = z.infer<typeof BulkDeleteResponseSchema>;
-
 /**
  * Bulk Enrich Response Schema
  */
@@ -163,8 +155,6 @@ export const BulkEnrichResponseSchema = z.object({
     .default([]),
 });
 
-export type BulkEnrichResponse = z.infer<typeof BulkEnrichResponseSchema>;
-
 // ============================================================================
 // COUNT & QUERY SCHEMAS
 // ============================================================================
@@ -175,8 +165,6 @@ export type BulkEnrichResponse = z.infer<typeof BulkEnrichResponseSchema>;
 export const ContactCountResponseSchema = z.object({
   count: z.number(),
 });
-
-export type ContactCountResponse = z.infer<typeof ContactCountResponseSchema>;
 
 // ============================================================================
 // AI INSIGHTS SCHEMAS
@@ -200,6 +188,27 @@ export const ContactAIInsightsResponseSchema = z.object({
 
 export type ContactAIInsightsResponse = z.infer<typeof ContactAIInsightsResponseSchema>;
 
+/**
+ * Contact Email Suggestion Schema
+ */
+export const ContactEmailSuggestionSchema = z.object({
+  subject: z.string(),
+  body: z.string(),
+});
+
+export type ContactEmailSuggestion = z.infer<typeof ContactEmailSuggestionSchema>;
+
+/**
+ * Contact Note Suggestion Schema
+ */
+export const ContactNoteSuggestionSchema = z.object({
+  content: z.string(),
+  category: z.enum(["summary", "interaction", "observation", "follow-up"]),
+  priority: z.enum(["high", "medium", "low"]),
+});
+
+export type ContactNoteSuggestion = z.infer<typeof ContactNoteSuggestionSchema>;
+
 // ============================================================================
 // AVATAR SCHEMAS
 // ============================================================================
@@ -212,8 +221,6 @@ export const AvatarUploadResponseSchema = z.object({
   url: z.string().url().optional(),
   message: z.string().optional(),
 });
-
-export type AvatarUploadResponse = z.infer<typeof AvatarUploadResponseSchema>;
 
 // ============================================================================
 // CONTACT QUERY AND RESPONSE SCHEMAS
@@ -309,9 +316,6 @@ export const ContactWithNotesSchema = ContactSchema.extend({
 
 export type ContactWithNotes = z.infer<typeof ContactWithNotesSchema>;
 
-// Legacy alias for backward compatibility
-export type ContactWithNotesDTO = ContactWithNotes;
-
 /**
  * Contact Input Schemas for Forms
  */
@@ -352,9 +356,10 @@ export type UpdateContactInput = z.infer<typeof UpdateContactInputSchema>;
 /**
  * Contact API Types
  */
-export const CreateContactBodySchema = CreateContactSchema;
+// Request body schema - omits userId since it's injected by auth handler
+export const CreateContactBodySchema = CreateContactSchema.omit({ userId: true });
 
-export type CreateContactBody = CreateContact;
+export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
 
 /**
  * Created At Filter Schema
@@ -381,20 +386,6 @@ export type CreatedAtFilter = z.infer<typeof CreatedAtFilterSchema>;
 /**
  * Fetch Contacts Params (for API functions)
  */
-export interface FetchContactsParams {
-  page?: number;
-  pageSize?: number;
-  sort?: "displayName" | "createdAt" | "updatedAt";
-  order?: "asc" | "desc";
-  search?: string;
-  stage?: string[];
-  tags?: string[];
-  source?: string[];
-  hasEmail?: boolean;
-  hasPhone?: boolean;
-  createdAfter?: Date;
-  createdBefore?: Date;
-}
 
 /**
  * Utility function to convert date strings to Date range

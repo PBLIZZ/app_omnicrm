@@ -119,13 +119,52 @@ export const SignedUploadResponseSchema = z.object({
 });
 
 /**
- * Onboarding Form Submit Request Schema (for FormData)
- * Note: The actual validation is done in the service layer since
- * this handles FormData which can't be pre-validated with Zod
+ * Onboarding Form Submit Request Schema
+ * Uses .nullish() to accept both null and undefined for optional fields
+ * Uses .passthrough() on nested objects to allow extra fields and prevent strict validation errors
  */
 export const OnboardingSubmitRequestSchema = z.object({
-  // This will be validated in the service layer from FormData
-});
+  token: z.string().min(1, "Token is required"),
+  client: z.object({
+    display_name: z.string().min(1, "Full name is required"),
+    primary_email: z.string().email("Valid email is required"),
+    primary_phone: z.string().nullish(),
+    date_of_birth: z.string().nullish(),
+    emergency_contact_name: z.string().nullish(),
+    emergency_contact_phone: z.string().nullish(),
+    referral_source: z.string().nullish(),
+    address: z.object({
+      line1: z.string().nullish(),
+      line2: z.string().nullish(),
+      city: z.string().nullish(),
+      state: z.string().nullish(),
+      postalCode: z.string().nullish(),
+      country: z.string().nullish(),
+    }).passthrough().nullish(),
+    health_context: z.object({
+      conditions: z.array(z.string()).nullish(),
+      allergies: z.array(z.string()).nullish(),
+      fitnessLevel: z.string().nullish(),
+      stressLevel: z.string().nullish(),
+      medications: z.array(z.string()).nullish(),
+      notes: z.string().nullish(),
+    }).passthrough().nullish(),
+    preferences: z.object({
+      sessionTimes: z.array(z.string()).nullish(),
+      communicationPreference: z.enum(["email", "phone", "text"]).nullish(),
+      reminderFrequency: z.enum(["none", "daily", "weekly", "monthly"]).nullish(),
+      notes: z.string().nullish(),
+    }).passthrough().nullish(),
+  }).passthrough(),
+  consent: z.object({
+    consent_type: z.enum(["data_processing", "marketing", "hipaa", "photography"]).default("data_processing"),
+    consent_text_version: z.string().default("v1.0"),
+    granted: z.boolean().default(true),
+    signature_svg: z.string().nullish(),
+    signature_image_url: z.string().nullish(),
+  }).passthrough(),
+  photo_path: z.string().nullish(),
+}).passthrough();
 
 /**
  * Onboarding Form Submit Response Schema
@@ -148,16 +187,3 @@ export const OnboardingSubmitResponseSchema = z.object({
 // TYPE EXPORTS
 // ============================================================================
 
-export type GenerateTokenRequest = z.infer<typeof GenerateTokenRequestSchema>;
-export type GenerateTokenResponse = z.infer<typeof GenerateTokenResponseSchema>;
-export type ListTokensQuery = z.infer<typeof ListTokensQuerySchema>;
-export type ListTokensResponse = z.infer<typeof ListTokensResponseSchema>;
-export type TokenIdParams = z.infer<typeof TokenIdParamsSchema>;
-export type DeleteTokenRequest = z.infer<typeof DeleteTokenRequestSchema>;
-export type DeleteTokenResponse = z.infer<typeof DeleteTokenResponseSchema>;
-export type TrackAccessRequest = z.infer<typeof TrackAccessRequestSchema>;
-export type TrackAccessResponse = z.infer<typeof TrackAccessResponseSchema>;
-export type SignedUploadRequest = z.infer<typeof SignedUploadRequestSchema>;
-export type SignedUploadResponse = z.infer<typeof SignedUploadResponseSchema>;
-export type OnboardingSubmitRequest = z.infer<typeof OnboardingSubmitRequestSchema>;
-export type OnboardingSubmitResponse = z.infer<typeof OnboardingSubmitResponseSchema>;

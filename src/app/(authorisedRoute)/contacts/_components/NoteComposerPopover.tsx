@@ -86,7 +86,7 @@ export function NoteComposerPopover({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const trimmedContent = content?.trim() || "";
+      const trimmedContent = content?.trim() ?? "";
       if (trimmedContent) {
         localStorage.setItem(draftKey, trimmedContent);
       } else {
@@ -164,7 +164,7 @@ export function NoteComposerPopover({
       return;
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
 
     recognition.continuous = false;

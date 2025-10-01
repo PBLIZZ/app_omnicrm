@@ -4,11 +4,6 @@ import { getDb } from "@/server/db/client";
 import type { Interaction, CreateInteraction } from "@/server/db/schema";
 import { ok, err, DbResult } from "@/lib/utils/result";
 
-// Local type aliases for repository layer
-type InteractionDTO = Interaction;
-type CreateInteractionDTO = CreateInteraction;
-type UpdateInteractionDTO = Partial<CreateInteraction>;
-
 interface InteractionFilters {
   contactId?: string;
   type?: string[];
@@ -49,7 +44,7 @@ export class InteractionsRepository {
   static async listInteractions(
     userId: string,
     filters?: InteractionFilters,
-  ): Promise<DbResult<InteractionDTO[]>> {
+  ): Promise<DbResult<Interaction[]>> {
     try {
       const db = await getDb();
 
@@ -114,7 +109,7 @@ export class InteractionsRepository {
   static async getInteractionById(
     userId: string,
     interactionId: string,
-  ): Promise<DbResult<InteractionDTO | null>> {
+  ): Promise<DbResult<Interaction | null>> {
     try {
       const db = await getDb();
 
@@ -158,7 +153,7 @@ export class InteractionsRepository {
   static async getInteractionsByContactId(
     userId: string,
     contactId: string,
-  ): Promise<InteractionDTO[]> {
+  ): Promise<Interaction[]> {
     const db = await getDb();
 
     const rows = await db
@@ -189,8 +184,8 @@ export class InteractionsRepository {
    */
   static async createInteraction(
     userId: string,
-    data: CreateInteractionDTO,
-  ): Promise<DbResult<InteractionDTO>> {
+    data: CreateInteraction,
+  ): Promise<DbResult<Interaction>> {
     try {
       const db = await getDb();
 
@@ -248,8 +243,8 @@ export class InteractionsRepository {
   static async updateInteraction(
     userId: string,
     interactionId: string,
-    data: UpdateInteractionDTO,
-  ): Promise<InteractionDTO | null> {
+    data: Partial<CreateInteraction>,
+  ): Promise<Interaction | null> {
     const db = await getDb();
 
     // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
@@ -311,8 +306,8 @@ export class InteractionsRepository {
    */
   static async bulkCreateInteractions(
     userId: string,
-    data: CreateInteractionDTO[],
-  ): Promise<InteractionDTO[]> {
+    data: CreateInteraction[],
+  ): Promise<Interaction[]> {
     const db = await getDb();
 
     const newInteractions = await db
@@ -392,7 +387,7 @@ export class InteractionsRepository {
    * Upsert interaction with idempotency on (user_id, source, source_id)
    */
   static async upsert(
-    interaction: CreateInteractionDTO & { userId: string },
+    interaction: CreateInteraction & { userId: string },
   ): Promise<string | null> {
     const db = await getDb();
 
@@ -427,7 +422,7 @@ export class InteractionsRepository {
    * Bulk upsert interactions
    */
   static async bulkUpsert(
-    interactions: Array<CreateInteractionDTO & { userId: string }>,
+    interactions: Array<CreateInteraction & { userId: string }>,
   ): Promise<string[]> {
     const insertedIds: string[] = [];
 
@@ -449,7 +444,7 @@ export class InteractionsRepository {
       sources?: string[];
       daysSince?: number;
     } = {},
-  ): Promise<InteractionDTO[]> {
+  ): Promise<Interaction[]> {
     const db = await getDb();
 
     const daysSince = options.daysSince ?? 7;
@@ -478,7 +473,7 @@ export class InteractionsRepository {
       LIMIT ${options.limit ?? 100}
     `);
 
-    return result as unknown as InteractionDTO[];
+    return result as unknown as Interaction[];
   }
 
   /**
@@ -504,7 +499,7 @@ export class InteractionsRepository {
       hoursBack?: number;
       hasContact?: boolean;
     } = {},
-  ): Promise<InteractionDTO[]> {
+  ): Promise<Interaction[]> {
     const db = await getDb();
 
     const hoursBack = options.hoursBack ?? 24;
@@ -538,7 +533,7 @@ export class InteractionsRepository {
       LIMIT ${options.limit ?? 100}
     `);
 
-    return result as unknown as InteractionDTO[];
+    return result as unknown as Interaction[];
   }
 
   /**

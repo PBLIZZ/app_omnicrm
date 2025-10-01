@@ -32,20 +32,6 @@ export interface InboxFilters {
   hasAiSuggestions?: boolean;
 }
 
-export interface InboxAICategorization {
-  suggestedZone: string;
-  suggestedPriority: "low" | "medium" | "high" | "urgent";
-  suggestedProject?: string;
-  extractedTasks: Array<{
-    name: string;
-    description?: string;
-    estimatedMinutes?: number;
-    dueDate?: Date;
-  }>;
-  confidence: number;
-  reasoning: string;
-}
-
 export interface InboxProcessingContext {
   userContext?: {
     currentEnergy: number;
@@ -89,8 +75,8 @@ export class InboxService {
       status: (rawItem.status || "unprocessed") as "unprocessed" | "processed" | "archived",
       createdTaskId: rawItem.createdTaskId,
       processedAt: rawItem.processedAt,
-      createdAt: rawItem.createdAt || new Date(),
-      updatedAt: rawItem.updatedAt || new Date(),
+      createdAt: rawItem.createdAt ?? new Date(),
+      updatedAt: rawItem.updatedAt ?? new Date(),
     };
 
     // Apply business schema transform for computed fields

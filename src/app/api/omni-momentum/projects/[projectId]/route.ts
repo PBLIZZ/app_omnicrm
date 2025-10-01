@@ -14,9 +14,9 @@ import { isErr } from "@/lib/utils/result";
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     projectId: string;
-  };
+  }>;
 }
 
 // Success response schema
@@ -27,9 +27,10 @@ const SuccessResponseSchema = z.object({
 /**
  * GET /api/omni-momentum/projects/[projectId] - Get project by ID
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, context: RouteParams) {
   // Use an empty schema for GET since we only need the URL parameter
   const handler = handleAuth(z.object({}), ProjectSchema, async (_, userId) => {
+    const params = await context.params;
     const result = await productivityService.getProject(params.projectId, userId);
 
     if (isErr(result)) {
@@ -49,8 +50,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 /**
  * PUT /api/omni-momentum/projects/[projectId] - Update project
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(request: NextRequest, context: RouteParams) {
   const handler = handleAuth(UpdateProjectSchema, ProjectSchema, async (data, userId) => {
+    const params = await context.params;
     const result = await productivityService.updateProject(params.projectId, userId, data);
 
     if (isErr(result)) {
@@ -70,8 +72,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 /**
  * DELETE /api/omni-momentum/projects/[projectId] - Delete project
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, context: RouteParams) {
   const handler = handleAuth(z.object({}), SuccessResponseSchema, async (_, userId) => {
+    const params = await context.params;
     const result = await productivityService.deleteProject(params.projectId, userId);
 
     if (isErr(result)) {

@@ -4,15 +4,11 @@ import { getDb } from "@/server/db/client";
 import { ok, err, DbResult } from "@/lib/utils/result";
 import { z } from "zod";
 
-// Local type aliases for repository layer
-type NoteDTO = Note;
-type CreateNoteDTO = CreateNote;
-
 export class NotesRepository {
   /**
    * List notes for a user with optional contact filtering
    */
-  static async listNotes(userId: string, contactId?: string): Promise<DbResult<NoteDTO[]>> {
+  static async listNotes(userId: string, contactId?: string): Promise<DbResult<Note[]>> {
     try {
       const db = await getDb();
 
@@ -52,7 +48,7 @@ export class NotesRepository {
   /**
    * Get a single note by ID
    */
-  static async getNoteById(userId: string, noteId: string): Promise<DbResult<NoteDTO | null>> {
+  static async getNoteById(userId: string, noteId: string): Promise<DbResult<Note | null>> {
     try {
       const db = await getDb();
 
@@ -86,7 +82,7 @@ export class NotesRepository {
   static async getNotesByContactId(
     userId: string,
     contactId: string,
-  ): Promise<DbResult<NoteDTO[]>> {
+  ): Promise<DbResult<Note[]>> {
     try {
       const db = await getDb();
 
@@ -117,7 +113,7 @@ export class NotesRepository {
   /**
    * Search notes by content
    */
-  static async searchNotes(userId: string, searchTerm: string): Promise<DbResult<NoteDTO[]>> {
+  static async searchNotes(userId: string, searchTerm: string): Promise<DbResult<Note[]>> {
     try {
       const db = await getDb();
 
@@ -148,7 +144,7 @@ export class NotesRepository {
   /**
    * Create a new note
    */
-  static async createNote(userId: string, input: unknown): Promise<DbResult<NoteDTO>> {
+  static async createNote(userId: string, input: unknown): Promise<DbResult<Note>> {
     try {
       const db = await getDb();
 
@@ -212,7 +208,7 @@ export class NotesRepository {
     userId: string,
     noteId: string,
     input: unknown,
-  ): Promise<DbResult<NoteDTO | null>> {
+  ): Promise<DbResult<Note | null>> {
     try {
       const db = await getDb();
 
@@ -291,8 +287,8 @@ export class NotesRepository {
    */
   static async bulkCreateNotes(
     userId: string,
-    data: CreateNoteDTO[],
-  ): Promise<DbResult<NoteDTO[]>> {
+    data: CreateNote[],
+  ): Promise<DbResult<Note[]>> {
     try {
       const db = await getDb();
 

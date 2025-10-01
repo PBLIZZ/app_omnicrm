@@ -7,7 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -41,8 +41,11 @@ import {
   useAskAIAboutContact,
   useCreateContactNote,
 } from "@/hooks/use-contacts-bridge";
+import { useDeleteContact } from "@/hooks/use-contact-delete";
 import {
   type Note,
+  type ContactWithNotes,
+  type ContactAIInsightsResponse,
 } from "@/server/db/business-schemas/contacts";
 
 interface ContactDetailPageProps {
@@ -94,8 +97,8 @@ export function ContactDetailPage({ contactId }: ContactDetailPageProps): JSX.El
     error: clientError,
   } = useQuery({
     queryKey: [`/api/contacts/${contactId}`],
-    queryFn: async (): Promise<ContactWithNotesDTO> => {
-      const response = await apiClient.get<{ item: ContactWithNotesDTO }>(
+    queryFn: async (): Promise<ContactWithNotes> => {
+      const response = await apiClient.get<{ item: ContactWithNotes }>(
         `/api/contacts/${contactId}`,
       );
       return response.item;
@@ -116,6 +119,7 @@ export function ContactDetailPage({ contactId }: ContactDetailPageProps): JSX.El
   // Mutations - moved before conditional returns to comply with Rules of Hooks
   const askAIMutation = useAskAIAboutContact();
   const createNoteMutation = useCreateContactNote();
+  const deleteContactMutation = useDeleteContact();
 
   // Loading state
   if (clientLoading) {
@@ -148,8 +152,7 @@ export function ContactDetailPage({ contactId }: ContactDetailPageProps): JSX.El
   }
 
   // Type assertion after null check - we know client exists here
-  const safeClient = client as ContactWithNotesDTO;
-  const initials = getInitials(safeClient.displayName);
+  const safeClient = client as ContactWithNotes;
 
   // Handlers
   const handleAskAI = async (): Promise<void> => {
@@ -204,17 +207,12 @@ export function ContactDetailPage({ contactId }: ContactDetailPageProps): JSX.El
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex items-center space-x-4">
-            <Avatar className="h-16 w-16">
-              {safeClient.photoUrl && safeClient.photoUrl.trim() && (
-                <AvatarImage
-                  src={`/api/contacts/${safeClient.id}/avatar`}
-                  alt={`${safeClient.displayName} avatar`}
-                />
-              )}
-              <AvatarFallback className="text-lg font-medium bg-gradient-to-br from-blue-100 to-purple-100 text-blue-700 dark:from-blue-900 dark:to-purple-900 dark:text-blue-300">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarImage
+              src={safeClient.photoUrl}
+              alt={safeClient.displayName}
+              size="lg"
+              className="h-16 w-16"
+            />
             <div>
               <h1 className="text-3xl font-bold tracking-tight">{safeClient.displayName}</h1>
               <p className="text-muted-foreground">

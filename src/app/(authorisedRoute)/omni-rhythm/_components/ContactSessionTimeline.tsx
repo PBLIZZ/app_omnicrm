@@ -219,21 +219,27 @@ function ContactTimelineCard({
 
         {/* Session Dots */}
         <div className="flex justify-between mt-1">
-          {sortedMilestones.slice(0, 5).map((milestone) => (
-            <div
-              key={milestone.id}
-              className={`w-2 h-2 rounded-full ${
-                milestone.type === "completed"
-                  ? "bg-green-500"
-                  : milestone.type === "scheduled"
-                    ? "bg-blue-500"
-                    : milestone.type === "cancelled"
-                      ? "bg-red-500"
-                      : "bg-gray-500"
-              }`}
-              title={`${format(new Date(milestone.date), "MMM d")} - ${milestone.type}`}
-            />
-          ))}
+          {sortedMilestones.slice(0, 5).map((milestone) => {
+            const isCompleted = milestone.type === "completed" || milestone.type === "session";
+            const isScheduled = milestone.type === "scheduled";
+            const isCancelled = milestone.type === "cancelled";
+
+            return (
+              <div
+                key={milestone.id}
+                className={`w-2 h-2 rounded-full ${
+                  isCompleted
+                    ? "bg-green-500"
+                    : isScheduled
+                      ? "bg-blue-500"
+                      : isCancelled
+                        ? "bg-red-500"
+                        : "bg-gray-500"
+                }`}
+                title={`${format(new Date(milestone.date), "MMM d")} - ${milestone.type}`}
+              />
+            );
+          })}
           {milestones.length > 5 && (
             <div className="text-xs text-muted-foreground ml-1">+{milestones.length - 5}</div>
           )}
@@ -245,26 +251,32 @@ function ContactTimelineCard({
         <div className="space-y-2">
           <h5 className="text-sm font-medium text-muted-foreground">Recent Activity</h5>
           <div className="space-y-1">
-            {sortedMilestones.slice(0, 2).map((milestone) => (
-              <div key={milestone.id} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  {milestone.type === "completed" ? (
-                    <CheckCircle className="h-3 w-3 text-green-500" />
-                  ) : milestone.type === "scheduled" ? (
-                    <Calendar className="h-3 w-3 text-blue-500" />
-                  ) : milestone.type === "cancelled" ? (
-                    <AlertCircle className="h-3 w-3 text-red-500" />
-                  ) : (
-                    <Clock className="h-3 w-3 text-gray-500" />
-                  )}
-                  <span>Session #{milestone.sessionNumber}</span>
+            {sortedMilestones.slice(0, 2).map((milestone) => {
+              const isCompleted = milestone.type === "completed" || milestone.type === "session";
+              const isScheduled = milestone.type === "scheduled";
+              const isCancelled = milestone.type === "cancelled";
+
+              return (
+                <div key={milestone.id} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    {isCompleted ? (
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                    ) : isScheduled ? (
+                      <Calendar className="h-3 w-3 text-blue-500" />
+                    ) : isCancelled ? (
+                      <AlertCircle className="h-3 w-3 text-red-500" />
+                    ) : (
+                      <Clock className="h-3 w-3 text-gray-500" />
+                    )}
+                    <span>Session #{milestone.sessionNumber ?? "N/A"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span>{format(new Date(milestone.date), "MMM d")}</span>
+                    <span>${milestone.revenue ?? 0}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>{format(new Date(milestone.date), "MMM d")}</span>
-                  <span>${milestone.revenue}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

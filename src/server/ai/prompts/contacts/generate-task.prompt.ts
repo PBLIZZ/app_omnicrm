@@ -1,10 +1,20 @@
 // Extracted prompt
 
-import { ChatMessage } from "@/server/ai/core/llm.service";
+import type { ChatMessage } from "@/server/ai/core/llm.service";
 import type { ContactWithContext } from "@/server/ai/types/connect-types";
 import { MS_PER_DAY, DEFAULT_DAYS_SINCE_LAST_EVENT } from "@/constants/time";
 
-export function buildGenerateTaskPrompt(data: ContactWithContext): ChatMessage[] {
+interface CalendarEvent {
+  title?: string;
+  start_time?: string;
+}
+
+interface TaskGenerationData {
+  contact: ContactWithContext;
+  calendarEvents: CalendarEvent[];
+}
+
+export function buildGenerateTaskPrompt(data: TaskGenerationData): ChatMessage[] {
   const { contact, calendarEvents } = data;
 
   const lastEvent = calendarEvents?.[0];
@@ -18,7 +28,7 @@ export function buildGenerateTaskPrompt(data: ContactWithContext): ChatMessage[]
   const recentServices =
     calendarEvents
       ?.slice(0, 3)
-      .map((e: any) => e?.title ?? "Unknown Event")
+      .map((e: { title?: string }) => e?.title ?? "Unknown Event")
       .join(", ") || "None";
 
   const prompt = `

@@ -62,7 +62,7 @@ const EVENT_TYPE_PATTERNS = {
 } as const;
 
 function extractEventType(title: string, description?: string): string {
-  const text = `${title} ${description || ""}`;
+  const text = `${title} ${description ?? ""}`;
 
   // Check patterns in order of precedence
   for (const [eventType, pattern] of Object.entries(EVENT_TYPE_PATTERNS)) {

@@ -1,15 +1,13 @@
 import { eq, and, ilike, desc, asc, inArray, count } from "drizzle-orm";
-import { contacts, notes, type Contact, type CreateContact, type Note } from "@/server/db/schema";
+import { contacts, notes, type Contact, type Note } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
 import { ok, err, DbResult, dbError } from "@/lib/utils/result";
 import { CreateContactSchema } from "@/server/db/business-schemas";
 import { safeParse } from "@/lib/utils/zod-helpers";
 import { z } from "zod";
 
-export type ContactDTO = Contact;
-export type CreateContactDTO = CreateContact;
-export type UpdateContactDTO = Partial<CreateContact> & { id: string };
-export type ContactWithNotesDTO = Contact & { notes: Note[] };
+// Only export types that actually transform/extend base types
+export type ContactWithNotes = Contact & { notes: Note[] };
 
 export class ContactsRepository {
   /**
@@ -24,7 +22,7 @@ export class ContactsRepository {
       page?: number;
       pageSize?: number;
     } = {},
-  ): Promise<DbResult<{ items: ContactDTO[]; total: number }>> {
+  ): Promise<DbResult<{ items: Contact[]; total: number }>> {
     try {
       const db = await getDb();
       const page = params.page ?? 1;
@@ -86,7 +84,7 @@ export class ContactsRepository {
   static async getContactById(
     userId: string,
     contactId: string,
-  ): Promise<DbResult<ContactDTO | null>> {
+  ): Promise<DbResult<Contact | null>> {
     try {
       const db = await getDb();
 
@@ -116,7 +114,7 @@ export class ContactsRepository {
   static async getContactWithNotes(
     userId: string,
     contactId: string,
-  ): Promise<DbResult<ContactWithNotesDTO | null>> {
+  ): Promise<DbResult<ContactWithNotes | null>> {
     try {
       const db = await getDb();
 
@@ -141,7 +139,7 @@ export class ContactsRepository {
       const contactWithNotes = {
         ...contactRows[0],
         notes: noteRows,
-      } as ContactWithNotesDTO;
+      } as ContactWithNotes;
 
       return ok(contactWithNotes);
     } catch (error) {
@@ -156,7 +154,7 @@ export class ContactsRepository {
   /**
    * Create a new contact
    */
-  static async createContact(input: unknown): Promise<DbResult<ContactDTO>> {
+  static async createContact(input: unknown): Promise<DbResult<Contact>> {
     try {
       const db = await getDb();
 
@@ -224,7 +222,7 @@ export class ContactsRepository {
     userId: string,
     contactId: string,
     input: unknown,
-  ): Promise<DbResult<ContactDTO | null>> {
+  ): Promise<DbResult<Contact | null>> {
     try {
       const db = await getDb();
 
@@ -299,7 +297,7 @@ export class ContactsRepository {
   static async findContactByEmail(
     userId: string,
     email: string,
-  ): Promise<DbResult<ContactDTO | null>> {
+  ): Promise<DbResult<Contact | null>> {
     try {
       const db = await getDb();
 
@@ -325,7 +323,7 @@ export class ContactsRepository {
   static async getContactsByIds(
     userId: string,
     contactIds: string[],
-  ): Promise<DbResult<ContactDTO[]>> {
+  ): Promise<DbResult<Contact[]>> {
     try {
       if (contactIds.length === 0) {
         return ok([]);

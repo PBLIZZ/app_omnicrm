@@ -481,15 +481,12 @@ export type UpdateAiInsight = Partial<CreateAiInsight>;
 
 export type Job = typeof jobs.$inferSelect;
 export type CreateJob = typeof jobs.$inferInsert;
-export type UpdateJob = Partial<CreateJob>;
 
 export type SyncSession = typeof syncSessions.$inferSelect;
 export type CreateSyncSession = typeof syncSessions.$inferInsert;
-export type UpdateSyncSession = Partial<CreateSyncSession>;
 
 export type UserIntegration = typeof userIntegrations.$inferSelect;
 export type CreateUserIntegration = typeof userIntegrations.$inferInsert;
-export type UpdateUserIntegration = Partial<CreateUserIntegration>;
 
 export type InboxItem = typeof inboxItems.$inferSelect;
 export type CreateInboxItem = typeof inboxItems.$inferInsert;
@@ -497,19 +494,15 @@ export type UpdateInboxItem = Partial<CreateInboxItem>;
 
 export type Goal = typeof goals.$inferSelect;
 export type CreateGoal = typeof goals.$inferInsert;
-export type UpdateGoal = Partial<CreateGoal>;
 
 export type DailyPulseLog = typeof dailyPulseLogs.$inferSelect;
 export type CreateDailyPulseLog = typeof dailyPulseLogs.$inferInsert;
-export type UpdateDailyPulseLog = Partial<CreateDailyPulseLog>;
 
 export type RawEvent = typeof rawEvents.$inferSelect;
 export type CreateRawEvent = typeof rawEvents.$inferInsert;
-export type UpdateRawEvent = Partial<CreateRawEvent>;
 
 export type RawEventError = typeof rawEventErrors.$inferSelect;
 export type CreateRawEventError = typeof rawEventErrors.$inferInsert;
-export type UpdateRawEventError = Partial<CreateRawEventError>;
 
 // Extended types for common patterns
 export type ContactWithNotes = Contact & { notes: Note[] };

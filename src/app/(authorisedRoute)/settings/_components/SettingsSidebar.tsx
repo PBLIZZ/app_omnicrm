@@ -64,9 +64,16 @@ export function SettingsSidebar(): JSX.Element {
                 {syncStatus?.serviceTokens?.gmail ? (
                   <span className="text-green-600">Connected</span>
                 ) : (
-                  <a href="/api/google/gmail/oauth" className="text-blue-600 hover:underline">
+                  <button
+                    onClick={async () => {
+                      const response = await fetch("/api/google/gmail/connect", { method: "POST" });
+                      const data = await response.json();
+                      if (data.url) window.location.href = data.url;
+                    }}
+                    className="text-blue-600 hover:underline"
+                  >
                     Connect
-                  </a>
+                  </button>
                 )}
               </div>
             </div>

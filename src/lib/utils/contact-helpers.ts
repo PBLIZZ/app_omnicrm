@@ -84,8 +84,6 @@ export function sanitizeContactInput<
  */
 export const CONTACT_SOURCES = ["manual", "gmail_import", "upload", "calendar_import"] as const;
 
-export type ContactSource = (typeof CONTACT_SOURCES)[number];
-
 /**
  * Validates if a string is a valid contact source
  */

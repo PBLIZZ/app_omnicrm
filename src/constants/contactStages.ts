@@ -12,4 +12,3 @@ export const CONTACT_STAGES = [
   "At Risk Contact",
 ] as const;
 
-export type ContactStage = (typeof CONTACT_STAGES)[number];

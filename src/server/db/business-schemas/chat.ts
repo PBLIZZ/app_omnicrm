@@ -92,10 +92,9 @@ export const GmailIngestTestInputSchema = z.object({});
 // Type Exports
 // =============================================================================
 
-export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export type ChatResponse = z.infer<typeof ChatResponseSchema>;
-export type GmailSearchRequest = z.infer<typeof GmailSearchRequestSchema>;
+
 export type GmailSearchResponse = z.infer<typeof GmailSearchResponseSchema>;
-export type GmailInsightsQuery = z.infer<typeof GmailInsightsQuerySchema>;
+
 export type GmailInsightsResponse = z.infer<typeof GmailInsightsResponseSchema>;
 export type GmailIngestTestInput = z.infer<typeof GmailIngestTestInputSchema>;

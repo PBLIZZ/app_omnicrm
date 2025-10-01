@@ -5,17 +5,16 @@
  */
 
 import { z } from "zod";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { createSelectSchema } from "drizzle-zod";
 import { interactions } from "@/server/db/schema";
 
 // Create base schemas from drizzle table
-const insertInteractionSchema = createInsertSchema(interactions);
 const selectInteractionSchema = createSelectSchema(interactions);
 
 // Transform schema with UI computed fields
 const BaseInteractionSchema = selectInteractionSchema;
 
-export const InteractionSchema = BaseInteractionSchema.transform((data: any) => ({
+export const InteractionSchema = BaseInteractionSchema.transform((data) => ({
   ...data,
   // UI computed fields
   hasContent: !!(data.bodyText || data.subject),
@@ -37,4 +36,3 @@ export const CreateInteractionSchema = BaseInteractionSchema.omit({
 export type CreateInteraction = z.infer<typeof CreateInteractionSchema>;
 
 export const UpdateInteractionSchema = BaseInteractionSchema.partial().required({ id: true });
-export type UpdateInteraction = z.infer<typeof UpdateInteractionSchema>;

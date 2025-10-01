@@ -138,24 +138,10 @@ export type {
 
 // Job Processing & Background Tasks
 export {
-  JobStatusQuerySchema,
-  ComprehensiveJobStatusDTOSchema,
-  ProcessManualSchema,
-  JobProcessingResultSchema,
-  SimpleJobProcessSchema,
-  CalendarEventsJobResultSchema,
-  RawEventsJobResultSchema,
-  NormalizeJobResultSchema,
   CronJobInputSchema,
   CronJobResultSchema,
-  type JobStatusQuery,
-  type ComprehensiveJobStatusDTO,
-  type ProcessManualRequest,
-  type JobProcessingResult,
-  type SimpleJobProcess,
-  type CalendarEventsJobResult,
-  type RawEventsJobResult,
-  type NormalizeJobResult,
+  SimpleJobProcessSchema,
+  JobProcessingResultSchema,
   type CronJobInput,
   type CronJobResult,
 } from "./jobs";
@@ -188,8 +174,8 @@ export type {
   ProcessInboxItemDTO,
 } from "./inbox";
 
-// Search Functionality
-export * from "./search";
+// Search Functionality - DEPRECATED - Moved to deprecated-search-files/
+// Will be reimplemented as Spotlight-style global search
 
 // Zones Management
 export * from "./zones";

@@ -9,7 +9,27 @@ import {
   embeddings,
 } from "@/server/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
+// Removed unused imports
+
 // Job processing integration tests
+
+/**
+ * Type guard helper for job payload fields
+ */
+function extractJobPayloadField(payload: unknown, field: string): string {
+  if (!payload || typeof payload !== "object" || payload === null) {
+    throw new Error(`Invalid job payload: expected object, got ${typeof payload}`);
+  }
+
+  const payloadObj = payload as Record<string, unknown>;
+  const value = payloadObj[field];
+
+  if (typeof value !== "string") {
+    throw new Error(`Invalid job payload field '${field}': expected string, got ${typeof value}`);
+  }
+
+  return value;
+}
 
 /**
  * Background Job Processing Integration Tests
@@ -423,7 +443,7 @@ describe("Background Job Processing Integration Tests", () => {
             tags: ["normalized", "batch-import"],
             updatedAt: new Date(),
           })
-          .where(eq(contacts.id, (job[0]!.payload as any).contactId));
+          .where(eq(contacts.id, extractJobPayloadField(job[0]!.payload, "contactId")));
 
         await db
           .update(jobs)
@@ -457,14 +477,16 @@ describe("Background Job Processing Integration Tests", () => {
           .where(eq(jobs.id, job[0]!.id));
 
         const { generateContactInsights } = await import("@/server/ai/insights");
-        const insights = await generateContactInsights((job[0]!.payload as any).contactId);
+        const insights = await generateContactInsights(
+          extractJobPayloadField(job[0]!.payload, "contactId"),
+        );
 
         const aiInsight = await db
           .insert(aiInsights)
           .values({
             userId: testUserId,
             subjectType: "contact",
-            subjectId: (job[0]!.payload as any).contactId,
+            subjectId: extractJobPayloadField(job[0]!.payload, "contactId"),
             kind: "summary",
             content: insights,
             model: "gpt-4",
@@ -583,17 +605,19 @@ describe("Background Job Processing Integration Tests", () => {
           .where(eq(jobs.id, job[0]!.id));
 
         const { generateEmbedding } = await import("@/server/ai/embeddings");
-        const embedding = await generateEmbedding((job[0]!.payload as any).content);
+        const embedding = await generateEmbedding(
+          extractJobPayloadField(job[0]!.payload, "content"),
+        );
 
         // Store embedding
         const embeddingRecord = await db
           .insert(embeddings)
           .values({
             userId: testUserId,
-            ownerType: (job[0]!.payload as any).ownerType,
-            ownerId: (job[0]!.payload as any).ownerId,
+            ownerType: extractJobPayloadField(job[0]!.payload, "ownerType"),
+            ownerId: extractJobPayloadField(job[0]!.payload, "ownerId"),
             embedding: embedding,
-            contentHash: `hash-${(job[0]!.payload as any).ownerId}`,
+            contentHash: `hash-${extractJobPayloadField(job[0]!.payload, "ownerId")}`,
             chunkIndex: 0,
           })
           .returning();
@@ -760,7 +784,7 @@ describe("Background Job Processing Integration Tests", () => {
         const rawEvent = await db
           .select()
           .from(rawEvents)
-          .where(eq(rawEvents.id, (job[0]!.payload as any).rawEventId))
+          .where(eq(rawEvents.id, extractJobPayloadField(job[0]!.payload, "rawEventId")))
           .limit(1);
 
         // Create structured data from raw events
@@ -1118,7 +1142,15 @@ describe("Background Job Processing Integration Tests", () => {
           .set({ status: "processing", attempts: 1, updatedAt: new Date() })
           .where(eq(jobs.id, job[0]!.id));
 
-        if ((job[0]!.payload as any).type === "failure") {
+        // Type guard for job payload type field
+        const payload = job[0]!.payload;
+        const isPayloadObject = payload && typeof payload === "object" && payload !== null;
+        const payloadType =
+          isPayloadObject && "type" in payload
+            ? (payload as Record<string, unknown>).type
+            : undefined;
+
+        if (payloadType === "failure") {
           // Simulate failure
           await db
             .update(jobs)

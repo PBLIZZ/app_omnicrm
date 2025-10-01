@@ -31,6 +31,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pnpm e2e:full` - Run setup + E2E tests
 - `pnpm lint:strict` - Run strict ESLint with zero warnings
 
+### Additional Utility Commands
+
+- `pnpm types:db` - Generate TypeScript types from Supabase database
+- `pnpm types:verify` - Verify database types are up to date
+- `pnpm lint:architecture` - Validate architectural patterns and conventions
+- `pnpm verify:db-imports` - Check for correct database import patterns
+- `pnpm verify:dto-usage` - Validate DTO usage across codebase
+- `pnpm ci:full` - Run complete CI pipeline (typecheck, lint, test, architecture)
+
 ### Recommended Development Flow
 
 Always run these commands before committing:
@@ -134,6 +143,28 @@ src/
 3. **User-scoped data**: Every table includes `user_id` for multi-tenancy
 4. **Background jobs**: Async processing for AI insights, sync, and embeddings
 5. **Type safety**: Strict TypeScript with comprehensive error handling
+6. **Result<T, E> pattern**: Use `Result` type for error handling (see `src/lib/utils/result.ts`)
+
+### Result Pattern for Error Handling
+
+The codebase uses a `Result<T, E>` pattern for explicit error handling:
+
+```typescript
+import { Result, ok, err } from "@/lib/utils/result";
+
+// Return success
+return ok(data);
+
+// Return error
+return err("Error message");
+
+// Handle Result
+const result = await someOperation();
+if (!result.ok) {
+  return { ok: false, error: result.error };
+}
+const data = result.value;
+```
 
 ### Database Schema Key Tables
 
@@ -192,6 +223,18 @@ Production additionally requires:
 - The database schema is defined in the @src/server/db/schema.ts file. Reference it any time you need to understand the structure of data stored in the database.
 - Never make edits to the @src/server/db/schema.ts file. Instead ask the user to run a sql query in the supabase dashboard and once it has ran sucessfully the user will update the @src/server/db/schema.ts file and let you know. This is for if you need to edit the database. You should treat the @src/server/db/schema.ts as read only.
 - We use pnpm for package management.
+
+### Additional Documentation
+
+For deeper technical details, see:
+- **Documentation index**: `docs/README.md`
+- **API overview**: `docs/api/README.md`
+- **Error handling & observability**: `src/lib/observability/README.md`
+- **Database doctrine**: `docs/database/README.md`
+- **Operations & deployment**: `docs/ops/README.md`
+- **Testing & QA**: `docs/qa/README.md`
+- **Security overview**: `SECURITY.md`
+- **Roadmap**: `docs/roadmap/README.md`
 
 ### Layout & UI Architecture
 

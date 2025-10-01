@@ -7,24 +7,10 @@
 /**
  * Rhythm Pattern
  */
-export interface RhythmPattern {
-  id: string;
-  name: string;
-  type: "daily" | "weekly" | "monthly";
-  frequency: number;
-  data: Record<string, unknown>;
-}
 
 /**
  * Productivity Metric
  */
-export interface ProductivityMetric {
-  id: string;
-  name: string;
-  value: number;
-  trend: "up" | "down" | "stable";
-  period: string;
-}
 
 /**
  * Contact
@@ -49,7 +35,9 @@ export interface SessionMilestone {
   title: string;
   description: string;
   date: string;
-  type: "session" | "milestone" | "achievement";
+  type: "session" | "milestone" | "achievement" | "completed" | "scheduled" | "cancelled";
+  sessionNumber?: number;
+  revenue?: number;
 }
 
 /**
@@ -68,10 +56,13 @@ export interface PreparationTask {
   id: string;
   title: string;
   description: string;
-  category: "preparation" | "research" | "follow-up" | "documentation";
+  category: "preparation" | "research" | "follow-up" | "documentation" | "client" | "administrative" | "followup";
   priority: "low" | "medium" | "high";
-  estimatedMinutes: number;
+  estimatedMinutes?: number;
+  estimatedTime?: number;
   isRequired: boolean;
+  completed?: boolean;
+  dueDate?: Date | string;
 }
 
 /**
@@ -86,8 +77,14 @@ export interface Attendee {
  * Contact Context
  */
 export interface ContactContext {
-  preparationNeeded: string[];
+  contactName?: string;
+  lastSession?: string;
+  lastSessionDate?: string;
+  totalSessions?: number;
+  sessionNumber?: number;
+  preferences?: string[];
   notes?: string;
+  preparationNeeded?: string[];
 }
 
 /**
@@ -97,7 +94,8 @@ export interface Appointment {
   id: string;
   startTime: string;
   endTime: string;
-  contactName: string;
+  contactName?: string;
+  clientName?: string;
   type: string;
   eventType?: string;
   title?: string;
@@ -105,6 +103,11 @@ export interface Appointment {
   attendees?: Attendee[];
   description?: string;
   contactContext?: ContactContext;
+  location?: string;
+  serviceType?: string;
+  date?: string;
+  clientNotes?: string;
+  lastSessionNotes?: string;
 }
 
 /**
@@ -129,8 +132,14 @@ export interface TodayIntelligencePanelProps {
 export interface WeeklyStats {
   totalAppointments: number;
   totalRevenue: number;
+  totalHours: number;
+  busiestDay: string;
   averageSessionLength: number;
-  clientSatisfaction: number;
+  averageSessionValue?: number;
+  avgSessionLength?: number;
+  utilizationRate?: number;
+  clientRetention?: number;
+  clientSatisfaction?: number;
   newClients: number;
   returningClients: number;
 }
@@ -145,12 +154,148 @@ export interface WeeklyBusinessFlowProps {
 }
 
 /**
- * Rhythm Dashboard Props
+ * Business Metrics Props
  */
-export interface RhythmDashboardProps {
-  userId: string;
-  dateRange?: {
-    from: Date;
-    to: Date;
+export interface BusinessMetricsProps {
+  appointments?: Appointment[];
+  weeklyStats?: WeeklyStats;
+  isLoading?: boolean;
+  totalSessions?: number;
+  totalRevenue?: number;
+  newClients?: number;
+  busiestDay?: string;
+  utilizationRate?: number;
+  clientRetention?: number;
+}
+
+/**
+ * Client
+ */
+export interface Client {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  status: "active" | "inactive" | "prospect";
+  totalSessions?: number;
+  lastSession?: string;
+  nextSession?: string;
+  tags?: string[];
+  notes?: string;
+  totalSpent?: number;
+  satisfaction?: number;
+}
+
+/**
+ * Calendar Connection Card Props
+ */
+export interface CalendarConnectionCardProps {
+  isConnected: boolean;
+  isConnecting: boolean;
+  isSyncing: boolean;
+  importedEventsCount: number;
+  lastSync?: Date | string | null;
+  error?: string | null;
+  onConnect: () => void;
+  onSync: () => void;
+  sessionsNext7Days: number;
+  sessionsThisMonth: number;
+}
+
+/**
+ * Calendar Event Create Data
+ */
+export interface CalendarEventCreateData {
+  summary: string;
+  description?: string;
+  start: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  end: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  attendees?: Array<{ email: string }>;
+  location?: string;
+  reminders?: {
+    useDefault: boolean;
+    overrides?: Array<{
+      method: string;
+      minutes: number;
+    }>;
   };
 }
+
+/**
+ * Calendar Item
+ */
+export interface CalendarItem {
+  id: string;
+  summary: string;
+  description?: string;
+  primary?: boolean;
+  accessRole?: string;
+}
+
+/**
+ * Quick Actions Props
+ */
+export interface QuickActionsProps {
+  onNewSession?: () => void;
+  onNewSelfCare?: () => void;
+  onViewCalendar?: () => void;
+  onQuickNote?: () => void;
+  onScheduleFollowup?: () => void;
+  onGenerateInsights?: () => void;
+  onSendMessage?: () => void;
+  onViewHistory?: () => void;
+}
+
+/**
+ * Rhythm Header Props
+ */
+export interface RhythmHeaderProps {
+  onLoadInsights?: () => void;
+  onProcessJobs?: () => void;
+  onSearch?: (query: string) => void;
+}
+
+/**
+ * Session Modal Props
+ */
+export interface SessionModalProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onSubmit?: (data: CalendarEventCreateData) => void;
+  onCreateEvent?: (data: CalendarEventCreateData) => Promise<void>;
+  isSubmitting?: boolean;
+}
+
+/**
+ * Self Care Modal Props
+ */
+export interface SelfCareModalProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onSubmit?: (data: CalendarEventCreateData) => void;
+  onCreateEvent?: (data: CalendarEventCreateData) => Promise<void>;
+  isSubmitting?: boolean;
+}
+
+/**
+ * Utility Functions
+ */
+export function getHtmlLink(event: { htmlLink?: string }): string {
+  return event.htmlLink ?? "";
+}
+
+export function safeParseApiData<T>(data: unknown): T {
+  return data as T;
+}
+
+/**
+ * Rhythm Dashboard Props
+ */

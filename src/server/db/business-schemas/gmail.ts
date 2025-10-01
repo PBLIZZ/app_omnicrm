@@ -29,8 +29,6 @@ export const GmailOAuthStartResponseSchema = z.object({
   state: z.string(),
 });
 
-export type GmailOAuthStartResponse = z.infer<typeof GmailOAuthStartResponseSchema>;
-
 /**
  * Gmail Status Response Schema
  */
@@ -43,8 +41,6 @@ export const GmailStatusResponseSchema = z.object({
   service: z.string().optional(),
 });
 
-export type GmailStatusResponse = z.infer<typeof GmailStatusResponseSchema>;
-
 /**
  * Gmail Sync Request Schema
  */
@@ -53,8 +49,6 @@ export const GmailSyncRequestSchema = z.object({
   overlapHours: z.number().int().min(0).max(72).optional().default(0),
   daysBack: z.number().min(1).max(365).optional(),
 });
-
-export type GmailSyncRequest = z.infer<typeof GmailSyncRequestSchema>;
 
 /**
  * Gmail Sync Response Schema
@@ -67,8 +61,6 @@ export const GmailSyncResponseSchema = z.object({
   duration: z.number(),
   lastSyncTime: z.string().optional(),
 });
-
-export type GmailSyncResponse = z.infer<typeof GmailSyncResponseSchema>;
 
 /**
  * Gmail Sync Direct Response Schema
@@ -83,8 +75,6 @@ export const GmailSyncDirectResponseSchema = z.object({
   }),
 });
 
-export type GmailSyncDirectResponse = z.infer<typeof GmailSyncDirectResponseSchema>;
-
 /**
  * Gmail Sync Blocking Response Schema
  */
@@ -97,8 +87,6 @@ export const GmailSyncBlockingResponseSchema = z.object({
   errors: z.array(z.string()).optional(),
 });
 
-export type GmailSyncBlockingResponse = z.infer<typeof GmailSyncBlockingResponseSchema>;
-
 /**
  * Gmail Preview Request Schema
  */
@@ -106,8 +94,6 @@ export const GmailPreviewRequestSchema = z.object({
   count: z.number().int().min(1).max(50).optional().default(10),
   includeBody: z.boolean().optional().default(false),
 });
-
-export type GmailPreviewRequest = z.infer<typeof GmailPreviewRequestSchema>;
 
 /**
  * Gmail Preview Response Schema
@@ -127,8 +113,6 @@ export const GmailPreviewResponseSchema = z.object({
   hasMore: z.boolean(),
 });
 
-export type GmailPreviewResponse = z.infer<typeof GmailPreviewResponseSchema>;
-
 /**
  * Gmail Labels Response Schema
  */
@@ -144,8 +128,6 @@ export const GmailLabelsResponseSchema = z.object({
   })),
 });
 
-export type GmailLabelsResponse = z.infer<typeof GmailLabelsResponseSchema>;
-
 /**
  * Gmail Raw Events Query Schema
  */
@@ -157,8 +139,6 @@ export const GmailRawEventsQuerySchema = z.object({
   order: z.enum(['asc', 'desc']).optional().default('desc'),
   occurredAtFilter: z.string().optional(),
 });
-
-export type GmailRawEventsQuery = z.infer<typeof GmailRawEventsQuerySchema>;
 
 /**
  * Gmail Raw Events Response Schema
@@ -179,8 +159,6 @@ export const GmailRawEventsResponseSchema = z.object({
   total: z.number(),
 });
 
-export type GmailRawEventsResponse = z.infer<typeof GmailRawEventsResponseSchema>;
-
 /**
  * Gmail Test Response Schema
  */
@@ -191,8 +169,6 @@ export const GmailTestResponseSchema = z.object({
   timestamp: z.string(),
 });
 
-export type GmailTestResponse = z.infer<typeof GmailTestResponseSchema>;
-
 /**
  * Gmail Refresh Response Schema
  */
@@ -200,8 +176,6 @@ export const GmailRefreshResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 });
-
-export type GmailRefreshResponse = z.infer<typeof GmailRefreshResponseSchema>;
 
 // ============================================================================
 // GMAIL INGESTION RESULT SCHEMAS
@@ -412,8 +386,6 @@ export const ContactDataSchema = z.object({
   email: z.string(),
   emailCount: z.number(),
 });
-
-export type ContactData = z.infer<typeof ContactDataSchema>;
 
 /**
  * Email Insights Schema - AI-powered email analytics

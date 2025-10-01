@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getServerUserId } from "@/server/auth/user";
-import { type Contact } from "@/server/db/business-schemas/contacts";
+import { type Contact } from "@/server/db/schema";
 import { ContactDetailPageWithNavigation } from "@/app/(authorisedRoute)/contacts/_components/ContactDetailPageWithNavigation";
 import { ContactsRepository } from "@repo";
 import { isOk, isErr } from "@/lib/utils/result";

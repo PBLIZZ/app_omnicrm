@@ -368,7 +368,7 @@ function calculateReturningClients(appointments: Appointment[]): number {
     if (appointment.attendees) {
       appointment.attendees.forEach((attendee: Attendee) => {
         const email = attendee.email.toLowerCase();
-        attendeeMap.set(email, (attendeeMap.get(email) || 0) + 1);
+        attendeeMap.set(email, (attendeeMap.get(email) ?? 0) + 1);
       });
     }
   });
@@ -430,7 +430,7 @@ function calculateTotalHours(appointments: Appointment[]): number {
 function getEventCategory(appointment: Appointment): string | undefined {
   if (appointment.eventType) return appointment.eventType;
 
-  const text = `${appointment.title} ${appointment.description || ""}`.toLowerCase();
+  const text = `${appointment.title} ${appointment.description ?? ""}`.toLowerCase();
 
   // Q&A sessions and community events are classes, not appointments
   if (/\b(q&a|q\s*&\s*a|question.{0,5}answer|community|group|class|lesson)\b/.test(text))
@@ -453,7 +453,7 @@ function getEventCategory(appointment: Appointment): string | undefined {
 // Helper function to extract wellness tags from event content
 function getEventTags(appointment: Appointment): string[] {
   const tags: string[] = [];
-  const text = `${appointment.title} ${appointment.description || ""}`.toLowerCase();
+  const text = `${appointment.title} ${appointment.description ?? ""}`.toLowerCase();
 
   // Wellness service tags
   if (/\b(yoga|vinyasa|hatha|yin)\b/.test(text)) tags.push("yoga");

@@ -416,7 +416,7 @@ describe("SignInForm", () => {
     it("handles empty formData gracefully", () => {
       const propsWithUndefinedData = {
         ...defaultProps,
-        formData: { email: undefined as any, password: undefined as any },
+        formData: { email: undefined, password: undefined },
       };
 
       expect(() => {

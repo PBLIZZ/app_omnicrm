@@ -45,6 +45,7 @@ import { useBulkDeleteContacts } from "@/hooks/use-contact-delete";
 import { useBulkEnrichContacts } from "@/hooks/use-contacts-bridge";
 import type { DataTableProps, ContactSearchFilters, ContactWithNotes } from "./types";
 import { toast } from "sonner";
+import { isContactWithNotes, parseVisibilityState } from "@/lib/utils/type-guards/contacts";
 
 export function ContactsTable<TData, TValue>({
   columns,
@@ -59,10 +60,9 @@ export function ContactsTable<TData, TValue>({
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("contacts-column-visibility");
       if (saved) {
-        try {
-          return JSON.parse(saved) as VisibilityState;
-        } catch {
-          // Failed to parse saved column visibility, use default
+        const parsed = parseVisibilityState(saved);
+        if (parsed) {
+          return parsed;
         }
       }
     }
@@ -90,11 +90,10 @@ export function ContactsTable<TData, TValue>({
     let count = 0;
     if (filterState.query?.trim()) count++;
     if (filterState.tags?.length) count++;
-    if (filterState.stage?.length) count++;
+    if (filterState.lifecycleStage?.length) count++;
     if (filterState.source?.length) count++;
     if (filterState.dateRange) count++;
     if (filterState.hasNotes !== undefined) count++;
-    if (filterState.hasInteractions !== undefined) count++;
     if (filterState.confidenceScore) count++;
     return count;
   };
@@ -124,7 +123,11 @@ export function ContactsTable<TData, TValue>({
 
       const headers = ["Name", "Email", "Phone", "Stage", "Tags", "AI Insights", "Last Updated"];
       const rows = data.map((item) => {
-        const contact = item as ContactWithNotes;
+        // Validate that item is ContactWithNotes before using
+        if (!isContactWithNotes(item)) {
+          return ["Unknown", "", "", "", "", "", ""];
+        }
+        const contact = item;
         return [
           contact.displayName ?? "",
           contact.primaryEmail ?? "",
@@ -165,10 +168,17 @@ export function ContactsTable<TData, TValue>({
   // Apply client-side filtering with memoization
   const filteredData = useMemo(() => {
     return data.filter((item) => {
-      const contact = item as ContactWithNotes;
+      // Validate that item is ContactWithNotes before filtering
+      if (!isContactWithNotes(item)) {
+        return false;
+      }
+      const contact = item;
 
       // Stage filter
-      if (filters.stage?.length && !filters.stage.includes(contact.lifecycleStage || "")) {
+      if (
+        filters.lifecycleStage?.length &&
+        !filters.lifecycleStage.includes(contact.lifecycleStage || "")
+      ) {
         return false;
       }
 
@@ -183,16 +193,6 @@ export function ContactsTable<TData, TValue>({
       }
       if (filters.hasNotes === false && contact.notes && contact.notes.length > 0) {
         return false;
-      }
-
-      // Has interactions filter - disabled for now since interactions are stored separately
-      // TODO: Implement interactions count if needed
-      if (filters.hasInteractions === true) {
-        // For now, assume all contacts could have interactions
-        // This would need to be implemented with a separate query
-      }
-      if (filters.hasInteractions === false) {
-        // For now, skip this filter
       }
 
       return true;
@@ -211,8 +211,12 @@ export function ContactsTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     enableRowSelection: true,
     getRowId: (row) => {
-      const contact = row as ContactWithNotes;
-      return contact.id;
+      // Safely extract ID with validation
+      if (isContactWithNotes(row)) {
+        return row.id;
+      }
+      // Fallback for invalid rows
+      return String(Math.random());
     }, // Use contact ID instead of array index
     state: {
       sorting,
@@ -238,7 +242,12 @@ export function ContactsTable<TData, TValue>({
     const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
     const selectedRows = table.getSelectedRowModel().rows;
     const contactNames = selectedRows
-      .map((row) => (row.original as ContactWithNotes).displayName)
+      .map((row) => {
+        if (isContactWithNotes(row.original)) {
+          return row.original.displayName;
+        }
+        return "Unknown";
+      })
       .join(", ");
 
     if (
@@ -259,7 +268,12 @@ export function ContactsTable<TData, TValue>({
     const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
     const selectedRows = table.getSelectedRowModel().rows;
     const contactNames = selectedRows
-      .map((row) => (row.original as ContactWithNotes).displayName)
+      .map((row) => {
+        if (isContactWithNotes(row.original)) {
+          return row.original.displayName;
+        }
+        return "Unknown";
+      })
       .join(", ");
 
     if (
@@ -356,15 +370,13 @@ export function ContactsTable<TData, TValue>({
                                 ? "Last Updated"
                                 : column.id === "aiActions"
                                   ? "AI Actions"
-                                  : column.id === "stage"
-                                    ? "Stage"
+                                  : column.id === "lifecycleStage"
+                                    ? "Lifecycle Stage"
                                     : column.id === "tags"
                                       ? "Tags"
                                       : column.id === "notes"
                                         ? "AI Insights"
-                                        : column.id === "interactions"
-                                          ? "Interactions"
-                                          : column.id;
+                                        : column.id;
 
                     return (
                       <div
@@ -409,14 +421,17 @@ export function ContactsTable<TData, TValue>({
         </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-auto max-h-[calc(100vh-24rem)]">
+        <Table className="w-full relative">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      className="sticky top-0 bg-background z-10 border-b"
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}

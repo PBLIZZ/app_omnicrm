@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import { Result, isErr } from "@/lib/utils/result";
 import type {
   Contact,
   ContactWithNotes,
@@ -10,67 +9,61 @@ import type {
 // Re-export types for components
 export type { Contact, ContactWithNotes };
 
-// For backward compatibility, alias types
-export type ContactWithNotesDTO = ContactWithNotes;
-
 // Define suggestion types locally since they're not in the schema
 export interface ContactSuggestion {
   id: string;
   displayName: string;
-  primaryEmail: string | null;
-  reason: string;
+  primaryEmail: string;
+  source: string;
+  confidence: string;
+  aiInsights?: {
+    lifecycleStage: string;
+    tags: string[];
+    summary: string;
+  };
+  calendarEvents?: Array<{
+    title: string;
+    startTime: string;
+    eventType: string;
+  }>;
 }
 
-export interface ContactSuggestionsResponse {
+interface ContactSuggestionsResponse {
   suggestions: ContactSuggestion[];
 }
 
 // GET /api/contacts
-export function useEnhancedContacts(
+export function useContacts(
   searchQuery: string,
 ): ReturnType<typeof useQuery<{ items: Contact[]; total: number }>> {
   return useQuery({
     queryKey: ["/api/contacts", searchQuery],
     queryFn: async (): Promise<{ items: Contact[]; total: number }> => {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({
+        page: "1",
+        pageSize: "100", // Max allowed by schema
+      });
       if (searchQuery.trim()) {
         params.set("search", searchQuery.trim());
       }
 
-      const result = await apiClient.get<
-        Result<ContactListResponse, { message: string; code: string }>
-      >(`/api/contacts?${params.toString()}`);
+      const data = await apiClient.get<ContactListResponse>(`/api/contacts?${params.toString()}`);
 
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-
-      // TypeScript now knows result is successful
-      const successResult = result as { success: true; data: ContactListResponse };
       return {
-        items: successResult.data.items,
-        total: successResult.data.pagination.total,
+        items: data.items,
+        total: data.pagination.total,
       };
     },
   });
 }
 
 // GET /api/contacts/suggestions
-export function useContactsuggestions(
-  enabled: boolean,
-): ReturnType<typeof useQuery<{ suggestions: ContactSuggestion[] }>> {
+export function useContactSuggestions(enabled = true): ReturnType<typeof useQuery<ContactSuggestion[]>> {
   return useQuery({
     queryKey: ["/api/contacts/suggestions"],
-    queryFn: async (): Promise<{ suggestions: ContactSuggestion[] }> => {
-      const result = await apiClient.get<
-        Result<ContactSuggestionsResponse, { message: string; code: string }>
-      >("/api/contacts/suggestions");
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      // TypeScript now knows result is successful
-      const successResult = result as { success: true; data: ContactSuggestionsResponse };
-      return successResult.data;
+    queryFn: async (): Promise<ContactSuggestion[]> => {
+      const data = await apiClient.get<ContactSuggestionsResponse>("/api/contacts/suggestions");
+      return data.suggestions;
     },
     enabled,
   });

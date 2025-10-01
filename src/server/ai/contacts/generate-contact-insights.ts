@@ -49,8 +49,11 @@ export async function generateContactInsights(
       })
       .catch(() => {}); // Fire-and-forget logging
 
-    const userContext = await getUserContext(userId);
-    if (userContext && contactEmail.toLowerCase() === userContext.email.toLowerCase()) {
+    const userContextResult = await getUserContext(userId);
+    if (
+      userContextResult.ok &&
+      contactEmail.toLowerCase() === userContextResult.data.email.toLowerCase()
+    ) {
       logger.info("Skipping own email", { operation: "skip_own_email" }).catch(() => {}); // Fire-and-forget logging
       return fallback();
     }
@@ -95,7 +98,7 @@ export async function generateContactInsights(
     const gmailInteractions = contactData.interactions;
 
     // Check if we have new data since last enrichment
-    const lastEnrichmentTime = recentEnrichment[0]?.updatedAt || new Date(0);
+    const lastEnrichmentTime = recentEnrichment[0]?.updatedAt ?? new Date(0);
 
     // If no events or interactions, no new data
     if (events.length === 0 && gmailInteractions.length === 0) {

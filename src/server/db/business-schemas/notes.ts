@@ -36,8 +36,6 @@ export const CreateNoteBodySchema = z.object({
   contactId: z.string().uuid().optional(),
 });
 
-export type CreateNoteBody = z.infer<typeof CreateNoteBodySchema>;
-
 /**
  * Create Note Schema - matches database insert type
  */
@@ -64,14 +62,10 @@ export const NotesListResponseSchema = z.object({
   total: z.number(),
 });
 
-export type NotesListResponse = z.infer<typeof NotesListResponseSchema>;
-
 /**
  * Created Note Response Schema
  */
 export const CreatedNoteResponseSchema = NoteSchema;
-
-export type CreatedNoteResponse = z.infer<typeof CreatedNoteResponseSchema>;
 
 // ============================================================================
 // QUERY SCHEMAS
@@ -96,4 +90,3 @@ export const GetNotesQuerySchema = z.object({
     .default(true),
 });
 
-export type GetNotesQuery = z.infer<typeof GetNotesQuerySchema>;

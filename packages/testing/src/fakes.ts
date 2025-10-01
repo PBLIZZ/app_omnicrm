@@ -56,55 +56,14 @@ function convertToContactListItem(dto: OmniClientWithNotesDTO): ContactListItem 
   };
 }
 
-export type CreateContactValues = {
-  displayName: string;
   primaryEmail: string | null;
   primaryPhone: string | null;
   source: "manual" | "gmail_import" | "upload" | "calendar_import";
 };
 
-export interface UserContext {
-  email: string;
-}
-
 // =============================================================================
 // CONTACTS REPOSITORY FAKES
 // =============================================================================
-
-export interface ContactsRepoFakes {
-  listContacts: MockedFunction<
-    (
-      userId: string,
-      params: ContactListParams,
-    ) => Promise<{ items: ContactListItem[]; total: number }>
-  >;
-  createContact: MockedFunction<
-    (userId: string, values: CreateContactValues) => Promise<ContactListItem | null>
-  >;
-  createContactsBatch: MockedFunction<
-    (
-      userId: string,
-      contactsData: Array<{
-        displayName: string;
-        primaryEmail?: string | null;
-        primaryPhone?: string | null;
-        source: "gmail_import" | "manual" | "upload";
-      }>,
-    ) => Promise<{ created: ContactListItem[]; duplicates: number; errors: number }>
-  >;
-  searchContactsOptimized: MockedFunction<
-    (userId: string, query: string, limit?: number) => Promise<ContactListItem[]>
-  >;
-  getContactStatsOptimized: MockedFunction<
-    (userId: string) => Promise<{
-      total: number;
-      bySource: Record<string, number>;
-      recentlyAdded: number;
-      withEmail: number;
-      withPhone: number;
-    }>
-  >;
-}
 
 export function createContactsRepoFakes(): ContactsRepoFakes {
   return {
@@ -204,54 +163,6 @@ interface InteractionRow {
   source_meta: unknown;
   batch_id: string | null;
   created_at: string;
-}
-
-export interface InteractionsRepoFakes {
-  upsert: MockedFunction<(interaction: NewInteraction) => Promise<string | null>>;
-  bulkUpsert: MockedFunction<(interactions: NewInteraction[]) => Promise<string[]>>;
-  getById: MockedFunction<(interactionId: string) => Promise<InteractionRow | null>>;
-  getByContact: MockedFunction<
-    (
-      userId: string,
-      contactId: string,
-      options?: {
-        limit?: number;
-        offset?: number;
-        types?: string[];
-      },
-    ) => Promise<InteractionRow[]>
-  >;
-  getUnlinked: MockedFunction<
-    (
-      userId: string,
-      options?: {
-        limit?: number;
-        sources?: string[];
-        daysSince?: number;
-      },
-    ) => Promise<InteractionRow[]>
-  >;
-  linkToContact: MockedFunction<(interactionId: string, contactId: string) => Promise<void>>;
-  getRecentForTimeline: MockedFunction<
-    (
-      userId: string,
-      options?: {
-        limit?: number;
-        hoursBack?: number;
-        hasContact?: boolean;
-      },
-    ) => Promise<InteractionRow[]>
-  >;
-  getWithoutEmbeddings: MockedFunction<
-    (userId: string, limit?: number) => Promise<Array<{ id: string; bodyText: string | null }>>
-  >;
-  getStats: MockedFunction<
-    (userId: string) => Promise<{
-      byType: Record<string, number>;
-      linking: { linked: number; unlinked: number };
-      bySource: Record<string, number>;
-    }>
-  >;
 }
 
 export function createInteractionsRepoFakes(): InteractionsRepoFakes {
@@ -391,18 +302,6 @@ export function createInteractionsRepoFakes(): InteractionsRepoFakes {
 // AUTH USER REPOSITORY FAKES
 // =============================================================================
 
-export interface AuthUserRepoFakes {
-  getUserContext: MockedFunction<(userId: string) => Promise<UserContext | null>>;
-  userExists: MockedFunction<(userId: string) => Promise<boolean>>;
-  getUserInfo: MockedFunction<
-    (userId: string) => Promise<{
-      id: string;
-      email: string;
-      created_at: string;
-    } | null>
-  >;
-}
-
 export function createAuthUserRepoFakes(): AuthUserRepoFakes {
   return {
     getUserContext: vi.fn().mockImplementation(async (userId: string) => {
@@ -427,11 +326,6 @@ export function createAuthUserRepoFakes(): AuthUserRepoFakes {
 // IDENTITIES REPOSITORY FAKES (if exists)
 // =============================================================================
 
-export interface IdentitiesRepoFakes {
-  // Add identities repository methods when they exist
-  [key: string]: MockedFunction<any>;
-}
-
 export function createIdentitiesRepoFakes(): IdentitiesRepoFakes {
   return {
     // Placeholder for identities repo methods
@@ -441,11 +335,6 @@ export function createIdentitiesRepoFakes(): IdentitiesRepoFakes {
 // =============================================================================
 // RAW EVENTS REPOSITORY FAKES (if exists)
 // =============================================================================
-
-export interface RawEventsRepoFakes {
-  // Add raw events repository methods when they exist
-  [key: string]: MockedFunction<any>;
-}
 
 export function createRawEventsRepoFakes(): RawEventsRepoFakes {
   return {

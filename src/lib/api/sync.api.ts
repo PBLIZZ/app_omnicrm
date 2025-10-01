@@ -3,89 +3,10 @@
  */
 
 import { apiClient } from "@/lib/api/client";
+import { GoogleStatusResponseSchema } from "@/server/db/business-schemas/google-prefs";
+import type { z } from "zod";
 
-export interface SyncStatus {
-  googleConnected: boolean;
-  serviceTokens?: {
-    google?: boolean;
-    gmail: boolean;
-    calendar: boolean;
-    unified?: boolean;
-  };
-  flags?: {
-    gmail: boolean;
-    calendar: boolean;
-  };
-  lastSync?: {
-    gmail: string | null;
-    calendar: string | null;
-  };
-  jobs?: {
-    queued: number;
-    done: number;
-    error: number;
-  };
-  embedJobs?: {
-    queued: number;
-    done: number;
-    error: number;
-  };
-  lastBatchId?: string;
-  grantedScopes?: {
-    gmail: string[] | null;
-    calendar: string[] | null;
-  };
-}
-
-export interface SyncPreferences {
-  gmailQuery?: string;
-  gmailLabelIncludes?: string[];
-  gmailLabelExcludes?: string[];
-  calendarIncludeOrganizerSelf?: string;
-  calendarIncludePrivate?: string;
-  calendarTimeWindowDays?: number;
-}
-
-export interface PreviewGmailResponse {
-  countByLabel: Record<string, number>;
-  sampleSubjects: Array<{
-    id: string;
-    subject: string;
-    from: string;
-    date: string;
-  }>;
-  // Optional richer preview fields
-  sampleEmails?: Array<{
-    id: string;
-    subject: string;
-    from: string;
-    date: string;
-    snippet: string;
-    hasAttachments: boolean;
-    labels: string[];
-  }>;
-  dateRange?: {
-    from: string;
-    to: string;
-  };
-}
-
-export interface PreviewCalendarResponse {
-  count: number;
-  sampleTitles: string[];
-}
-
-export interface ApprovalResponse {
-  batchId: string;
-}
-
-export interface JobsRunResponse {
-  processed: number;
-}
-
-export interface UndoResponse {
-  success: boolean;
-}
+type GoogleStatusResponse = z.infer<typeof GoogleStatusResponseSchema>;
 
 export interface GmailLabel {
   id: string;
@@ -105,8 +26,8 @@ export interface GmailLabelsResponse {
 /**
  * Get sync status
  */
-export async function getSyncStatus(): Promise<SyncStatus> {
-  return apiClient.get<SyncStatus>("/api/google/status");
+export async function getSyncStatus(): Promise<GoogleStatusResponse> {
+  return apiClient.get<GoogleStatusResponse>("/api/google/status?includeJobDetails=false&includeFreshness=true");
 }
 
 /**

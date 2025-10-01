@@ -245,6 +245,7 @@ export class OnboardingRepository {
 
       // Wrap all operations in a transaction
       const result = await db.transaction(async (trx) => {
+        // Create contact without photoUrl initially
         const contactData: CreateContact = {
           userId,
           displayName: clientData.display_name,
@@ -258,13 +259,34 @@ export class OnboardingRepository {
           healthContext: clientData.health_context,
           preferences: clientData.preferences,
           source: "onboarding",
-          photoUrl: photoPath || null,
+          photoUrl: null, // Will be set after creating client_files record
         };
 
         const [contact] = await trx.insert(contacts).values(contactData).returning();
 
         if (!contact) {
           throw new Error("CONTACT_CREATION_FAILED");
+        }
+
+        // If there's a photo, create client_files record and update contact
+        if (photoPath) {
+          const { clientFiles } = await import("@/server/db/schema");
+          
+          // Create client_files record
+          await trx.insert(clientFiles).values({
+            contactId: contact.id,
+            userId,
+            filePath: photoPath,
+            mimeType: "image/webp", // Photos are optimized to webp
+            fileSize: null, // We don't have the size from the upload
+            fileType: "photo",
+          });
+
+          // Update contact with photo URL (using the file path as the URL)
+          await trx
+            .update(contacts)
+            .set({ photoUrl: photoPath })
+            .where(eq(contacts.id, contact.id));
         }
 
         // Create consent record

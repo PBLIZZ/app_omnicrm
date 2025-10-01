@@ -17,8 +17,7 @@ export const GET = handleAuthFlow(
 
     if (result.success) {
       return result.redirectResponse;
-    } else {
-      return result.errorResponse;
     }
-  }
+    return result.errorResponse;
+  },
 );

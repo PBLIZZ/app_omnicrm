@@ -1,6 +1,6 @@
 "use client";
 
-import { Folder, Forward, MoreHorizontal, Trash2, type LucideIcon } from "lucide-react";
+import { Folder, Forward, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Route } from "next";
 
@@ -23,12 +23,6 @@ import {
 } from "@/components/ui/sidebar";
 
 // Define the structure for project items
-export interface ProjectItem {
-  id: string;
-  name: string;
-  url: string;
-  icon: LucideIcon;
-}
 
 export function NavProjects({ projects }: { projects: ProjectItem[] }): JSX.Element {
   const { isMobile } = useSidebar();

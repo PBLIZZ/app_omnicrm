@@ -46,21 +46,25 @@ export async function syncDocumentEmbedding(data: EmbeddingData): Promise<void> 
 
     await logger.info("Successfully synced embedding", {
       operation: "embedding_sync.single",
-      content_type: data.content_type,
-      content_id: data.content_id,
-      duration,
-    } as any);
+      additionalData: {
+        content_type: data.content_type,
+        content_id: data.content_id,
+        duration,
+      },
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
 
     await logger.error("Failed to sync embedding", {
       operation: "embedding_sync.single",
-      content_type: data.content_type,
-      content_id: data.content_id,
-      duration,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    } as any);
+      additionalData: {
+        content_type: data.content_type,
+        content_id: data.content_id,
+        duration,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+    });
 
     // Rethrow so callers can handle failures upstream
     throw error;
@@ -87,21 +91,25 @@ export async function deleteDocumentEmbedding(
 
     await logger.info("Successfully deleted embedding", {
       operation: "embedding_sync.delete",
-      content_type: contentType,
-      content_id: contentId,
-      duration,
-    } as any);
+      additionalData: {
+        content_type: contentType,
+        content_id: contentId,
+        duration,
+      },
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
 
     await logger.error("Failed to delete embedding", {
       operation: "embedding_sync.delete",
-      content_type: contentType,
-      content_id: contentId,
-      duration,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    } as any);
+      additionalData: {
+        content_type: contentType,
+        content_id: contentId,
+        duration,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+    });
 
     // Rethrow so callers can handle failures upstream
     throw error;
@@ -134,10 +142,12 @@ export async function batchSyncEmbeddings(
 
   await logger.info("Starting batch embedding sync", {
     operation: "embedding_sync.batch",
-    total_documents: documents.length,
-    concurrency,
-    delay_ms: delayMs,
-  } as any);
+    additionalData: {
+      total_documents: documents.length,
+      concurrency,
+      delay_ms: delayMs,
+    },
+  });
 
   // Create tasks with rate limiting
   const tasks = documents.map((doc, index) => async () => {
@@ -160,12 +170,14 @@ export async function batchSyncEmbeddings(
 
   await logger.info("Batch embedding sync completed", {
     operation: "embedding_sync.batch",
-    total_documents: documents.length,
-    successful,
-    failed,
-    duration,
-    errors: errors.map((e) => e.message),
-  } as any);
+    additionalData: {
+      total_documents: documents.length,
+      successful,
+      failed,
+      duration,
+      errors: errors.map((e) => e.message),
+    },
+  });
 
   return { successful, failed, errors };
 }

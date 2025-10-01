@@ -3,24 +3,17 @@
 
 import { logger } from "@/lib/observability";
 
-export interface RateLimitConfig {
-  // Gmail API quotas per user per 100 seconds
-  gmailReadRequestsPerUser: number; // Default: 250
-  gmailSendRequestsPerUser: number; // Default: 250
-  gmailMetadataRequestsPerUser: number; // Default: 1000
-
-  // Calendar API quotas per user per 100 seconds
-  calendarRequestsPerUser: number; // Default: 600
-
-  // Backoff configuration
-  initialBackoffMs: number; // Initial backoff delay
-  maxBackoffMs: number; // Maximum backoff delay
-  backoffMultiplier: number; // Exponential backoff multiplier
-  jitterFactor: number; // Random jitter to prevent thundering herd
-
-  // Circuit breaker
-  maxConsecutiveFailures: number; // Trip circuit after N failures
-  circuitBreakerTimeoutMs: number; // How long circuit stays open
+interface RateLimitConfig {
+  gmailReadRequestsPerUser: number;
+  gmailSendRequestsPerUser: number;
+  gmailMetadataRequestsPerUser: number;
+  calendarRequestsPerUser: number;
+  initialBackoffMs: number;
+  maxBackoffMs: number;
+  backoffMultiplier: number;
+  jitterFactor: number;
+  maxConsecutiveFailures: number;
+  circuitBreakerTimeoutMs: number;
 }
 
 const DEFAULT_CONFIG: RateLimitConfig = {

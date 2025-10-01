@@ -1,52 +1,111 @@
-/** GET /api/google/gmail/callback — handle Gmail OAuth redirect (auth required). Errors: 400 invalid_state|missing_code_or_state, 401 Unauthorized */
-import { handleAuthFlow } from "@/lib/api-edge-cases";
-import { GmailOAuthCallbackQuerySchema } from "@/server/db/business-schemas";
-import { getServerUserId } from "@/server/auth/user";
-import { GoogleOAuthService } from "@/server/services/google-oauth.service";
+/**
+ * GET /api/google/gmail/callback
+ * Handles Gmail OAuth callback
+ */
+import { google } from "googleapis";
+import { cookies } from "next/headers";
+import { getDb } from "@/server/db/client";
+import { userIntegrations } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 
-export const GET = handleAuthFlow(GmailOAuthCallbackQuerySchema, async (query, request) => {
-  const userId = await getServerUserId();
-  const { code, state } = query;
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const code = url.searchParams.get("code");
+    const state = url.searchParams.get("state");
 
-  if (!code || !state) {
-    const errorUrl = new URL("/auth/error", request.url);
-    errorUrl.searchParams.set("error", "missing_code_or_state");
-    return Response.redirect(errorUrl.toString(), 302);
+    // 1. Validate required parameters
+    if (!code || !state) {
+      return Response.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/omni-connect?error=missing_params`
+      );
+    }
+
+    // 2. Verify state token (CSRF protection)
+    const cookieStore = await cookies();
+    const storedState = cookieStore.get("gmail_oauth_state")?.value;
+    const userId = cookieStore.get("gmail_oauth_user")?.value;
+
+    if (!storedState || storedState !== state || !userId) {
+      return Response.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/omni-connect?error=invalid_state`
+      );
+    }
+
+    // 3. Exchange code for tokens
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      `${process.env.NEXT_PUBLIC_APP_URL}/api/google/gmail/callback`
+    );
+
+    const { tokens } = await oauth2Client.getToken(code);
+    
+    if (!tokens.access_token) {
+      throw new Error("No access token received");
+    }
+
+    // 4. Get user email
+    oauth2Client.setCredentials(tokens);
+    const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+    const { data: userInfo } = await oauth2.userinfo.get();
+
+    // 5. Calculate expiry date
+    const expiryDate = tokens.expiry_date
+      ? new Date(tokens.expiry_date)
+      : new Date(Date.now() + 3600 * 1000); // 1 hour default
+
+    // 6. Store tokens in database
+    const db = await getDb();
+    
+    // Check if integration already exists
+    const existing = await db
+      .select()
+      .from(userIntegrations)
+      .where(
+        and(
+          eq(userIntegrations.userId, userId),
+          eq(userIntegrations.provider, "google"),
+          eq(userIntegrations.service, "gmail")
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing integration
+      await db
+        .update(userIntegrations)
+        .set({
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token || existing[0].refreshToken,
+          expiryDate,
+          updatedAt: new Date(),
+        })
+        .where(eq(userIntegrations.userId, userId));
+    } else {
+      // Create new integration
+      await db.insert(userIntegrations).values({
+        userId,
+        provider: "google",
+        service: "gmail",
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || null,
+        expiryDate,
+      });
+    }
+
+    // 7. Clear OAuth cookies
+    cookieStore.delete("gmail_oauth_state");
+    cookieStore.delete("gmail_oauth_user");
+
+    // 8. Redirect to success page
+    return Response.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL}/omni-connect?connected=gmail`
+    );
+  } catch (error) {
+    console.error("[Gmail OAuth Callback] Error:", error);
+    return Response.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL}/omni-connect?error=oauth_failed`
+    );
   }
-
-  const cookieHeader = request.headers.get("cookie");
-  const gmailAuthMatch = cookieHeader?.match(/(?:^|;\s*)gmail_auth=([^;]+)/);
-  const cookieValue = gmailAuthMatch?.[1] ?? "";
-  if (!cookieValue) {
-    const errorUrl = new URL("/auth/error", request.url);
-    errorUrl.searchParams.set("error", "invalid_state");
-    return Response.redirect(errorUrl.toString(), 302);
-  }
-
-  const result = await GoogleOAuthService.handleOAuthCallback(
-    userId,
-    "gmail",
-    { code, state, cookieValue },
-    request.url,
-  );
-
-  if (!result.success) {
-    const errorUrl = new URL("/auth/error", request.url);
-    errorUrl.searchParams.set("error", result.error);
-    return Response.redirect(errorUrl.toString(), 302);
-  }
-
-  // Clear nonce cookie and redirect to sync setup step
-  const response = Response.redirect(new URL(result.redirectUrl, request.url).toString(), 302);
-  const cookieConfig = GoogleOAuthService.clearOAuthCookie("gmail");
-
-  // Add cookie clearing to response headers
-  response.headers.set(
-    "Set-Cookie",
-    `${cookieConfig.name}=; ${Object.entries(cookieConfig.options)
-      .map(([k, v]) => `${k}=${v}`)
-      .join("; ")}`,
-  );
-
-  return response;
-});
+}

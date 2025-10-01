@@ -6,14 +6,6 @@ export interface BreadcrumbItem {
   icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 }
 
-export interface RouteConfig {
-  label: string;
-  icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  parent?: string;
-  isDynamic?: boolean;
-  resolver?: (id: string) => Promise<string> | string;
-}
-
 export const routeConfig: Record<string, RouteConfig> = {
   "/": {
     label: "Dashboard",

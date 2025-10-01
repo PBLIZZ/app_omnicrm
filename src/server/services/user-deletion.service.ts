@@ -37,15 +37,6 @@ interface DeletionRequest {
   ipAddress?: string;
 }
 
-export interface DeletionResult {
-  deleted: boolean;
-  deletedAt: string;
-  deletionResults: Record<string, number>;
-  message: string;
-  auditTrail: string;
-  nextSteps: string[];
-}
-
 export class UserDeletionService {
   /**
    * Permanently delete all user data for GDPR compliance

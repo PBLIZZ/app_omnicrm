@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { getContactAvatarData, generateAvatar } from "@/server/services/contacts.service";
-import { AvatarUploadResponseSchema } from "@/server/db/business-schemas/contacts";
-import { handleFileUpload } from "@/lib/api-edge-cases";
-
+import { getAuthUserId } from "@/lib/auth-simple";
+import { ContactsRepository } from "@repo";
 /**
  * Avatar API Routes
  *
@@ -13,43 +11,64 @@ import { handleFileUpload } from "@/lib/api-edge-cases";
 
 const ParamsSchema = z.object({ contactId: z.string().uuid() });
 
-interface RouteParams {
-  params: {
-    contactId: string;
-  };
-}
-
 /**
  * GET /api/contacts/[contactId]/avatar - Get contact avatar
+ *
+ * Returns the avatar image for a contact. If the contact has a photoUrl,
+ * generates a signed URL from Supabase Storage and redirects to it.
+ * Otherwise, returns 404 so the client shows initials fallback.
  */
 export async function GET(
   _request: Request,
-  context: { params: { contactId: string } },
+  context: { params: Promise<{ contactId: string }> },
 ): Promise<Response> {
   try {
-    // Manually handle auth and params for this special case (binary response)
-    const { getServerUserId } = await import("@/server/auth/user");
-    const userId = await getServerUserId();
-    const { contactId } = ParamsSchema.parse(context.params);
+    const userId = await getAuthUserId();
+    const params = await context.params;
+    const { contactId } = ParamsSchema.parse(params);
 
-    // Get contact avatar data
-    const avatarData = await getContactAvatarData(contactId, userId);
+    // Get contact from repository
+    const result = await ContactsRepository.getContactById(userId, contactId);
 
-    if (!avatarData) {
+    if (!result.success) {
+      console.error("Failed to fetch contact:", result.error);
       return new Response("Contact not found", { status: 404 });
     }
 
-    // Generate avatar result
-    const result = await generateAvatar(avatarData, contactId);
-
-    if (result.type === "redirect") {
-      return Response.redirect(result.content, 302);
+    if (!result.data) {
+      return new Response("Contact not found", { status: 404 });
     }
 
-    return new Response(result.content, {
-      status: 200,
-      headers: result.headers || {},
-    });
+    const contact = result.data;
+
+    // Check if contact has a photo URL
+    if (!contact.photoUrl) {
+      // This is normal for contacts without photos - return 404 so fallback shows
+      return new Response("No photo available", { status: 404 });
+    }
+
+    // If photoUrl is already a full URL, redirect to it
+    if (contact.photoUrl.startsWith("http://") || contact.photoUrl.startsWith("https://")) {
+      return Response.redirect(contact.photoUrl, 302);
+    }
+
+    // For storage paths (client-photos/userId/...), generate signed URL
+    // The photoUrl should be in format: client-photos/{userId}/{timestamp}-{uuid}.webp
+    console.log("Generating signed URL for photoUrl:", contact.photoUrl);
+    const { StorageService } = await import("@/server/services/storage.service");
+    const signedUrlResult = await StorageService.getFileSignedUrl(contact.photoUrl);
+
+    if (signedUrlResult.error || !signedUrlResult.signedUrl) {
+      console.error("Failed to generate signed URL for avatar:", {
+        photoUrl: contact.photoUrl,
+        error: signedUrlResult.error,
+      });
+      return new Response("Failed to generate signed URL", { status: 500 });
+    }
+
+    // Redirect to the signed URL (valid for 1 hour)
+    console.log("Redirecting to signed URL:", signedUrlResult.signedUrl);
+    return Response.redirect(signedUrlResult.signedUrl, 302);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return new Response("Invalid contact ID", { status: 400 });
@@ -62,38 +81,186 @@ export async function GET(
 
 /**
  * POST /api/contacts/[contactId]/avatar - Upload contact avatar
+ *
+ * Handles avatar upload with the following flow:
+ * 1. Validate file type and size
+ * 2. Get signed upload URL from Supabase Storage
+ * 3. Client uploads file directly to storage
+ * 4. Update contact record with photoUrl
+ *
+ * Note: This endpoint only generates the signed upload URL.
+ * The actual file upload happens client-side to Supabase Storage.
  */
-export async function POST(request: Request, { params }: RouteParams): Promise<Response> {
-  const handler = handleFileUpload(
-    AvatarUploadResponseSchema,
-    async (formData, _userId): Promise<{ success: boolean; url: string; message: string }> => {
-      const file = formData.get("avatar");
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ contactId: string }> },
+): Promise<Response> {
+  try {
+    const userId = await getAuthUserId();
+    const params = await context.params;
+    const { contactId } = ParamsSchema.parse(params);
 
-      if (!file || !(file instanceof File)) {
-        throw new Error("No avatar file provided");
-      }
+    // Verify contact exists and belongs to user
+    const contactResult = await ContactsRepository.getContactById(userId, contactId);
+    if (!contactResult.success || !contactResult.data) {
+      return new Response(JSON.stringify({ error: "Contact not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-      // Validate file type
-      const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-      if (!allowedTypes.includes(file.type)) {
-        throw new Error("Invalid file type. Allowed types: JPEG, PNG, GIF, WebP");
-      }
+    // Parse request body for file metadata
+    const body = await request.json() as { mimeType?: string; fileSize?: number };
+    const { mimeType, fileSize } = body;
 
-      // Validate file size (5MB max)
-      const maxFileSize = 5 * 1024 * 1024;
-      if (file.size > maxFileSize) {
-        throw new Error("File too large. Maximum size: 5MB");
-      }
+    // Validate required fields
+    if (!mimeType || !fileSize) {
+      return new Response(
+        JSON.stringify({ error: "Missing mimeType or fileSize" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
 
-      // TODO: Implement avatar upload logic in AvatarService
-      // For now, return a placeholder response
-      return {
+    // Validate using photo validation utilities
+    const { isValidImageType, isValidFileSize } = await import("@/lib/utils/photo-validation");
+
+    if (!isValidImageType(mimeType)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid file type. Allowed: JPEG, PNG, WebP, GIF" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (!isValidFileSize(fileSize)) {
+      return new Response(JSON.stringify({ error: "File size exceeds 512KB limit" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Generate file path in storage: client-photos/{userId}/{timestamp}-{uuid}.webp
+    const { randomUUID } = await import("crypto");
+    const { getOptimizedExtension } = await import("@/lib/utils/photo-validation");
+
+    const fileId = randomUUID();
+    const timestamp = Date.now();
+    const extension = getOptimizedExtension();
+    const filePath = `client-photos/${userId}/${timestamp}-${fileId}.${extension}`;
+
+    // Get signed upload URL from Supabase Storage
+    const { StorageService } = await import("@/server/services/storage.service");
+    const uploadResult = await StorageService.getUploadSignedUrl(
+      `${timestamp}-${fileId}.${extension}`,
+      mimeType,
+      `client-photos/${userId}`,
+      "client-photos", // bucket name
+    );
+
+    if (uploadResult.error || !uploadResult.signedUrl) {
+      console.error("Failed to generate upload URL:", uploadResult.error);
+      return new Response(JSON.stringify({ error: "Failed to generate upload URL" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Return signed URL for client-side upload
+    // The client will upload the file, then we'll update the contact record
+    return new Response(
+      JSON.stringify({
         success: true,
-        url: `https://placeholder.com/avatar/${params.contactId}`,
-        message: "Avatar upload functionality coming soon",
-      };
-    },
-  );
+        uploadUrl: uploadResult.signedUrl,
+        filePath: filePath,
+        message: "Upload URL generated. Upload file then call PATCH to update contact.",
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return new Response(JSON.stringify({ error: "Invalid request data" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-  return handler(request);
+    console.error("POST /api/contacts/[contactId]/avatar error:", error);
+    return new Response(JSON.stringify({ error: "Avatar upload failed" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+/**
+ * PATCH /api/contacts/[contactId]/avatar - Update contact with uploaded avatar path
+ *
+ * Called after the client successfully uploads the file to storage.
+ * Updates the contact's photoUrl field with the storage path.
+ */
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ contactId: string }> },
+): Promise<Response> {
+  try {
+    const userId = await getAuthUserId();
+    const params = await context.params;
+    const { contactId } = ParamsSchema.parse(params);
+
+    // Parse request body for file path
+    const body = await request.json() as { filePath?: string };
+    const { filePath } = body;
+
+    if (!filePath || typeof filePath !== "string") {
+      return new Response(JSON.stringify({ error: "filePath is required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Update contact with photo URL
+    const updateResult = await ContactsRepository.updateContact(userId, contactId, {
+      photoUrl: filePath,
+    });
+
+    if (!updateResult.success) {
+      return new Response(JSON.stringify({ error: "Failed to update contact" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        photoUrl: filePath,
+        message: "Avatar updated successfully",
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return new Response(JSON.stringify({ error: "Invalid contact ID" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    console.error("PATCH /api/contacts/[contactId]/avatar error:", error);
+    return new Response(JSON.stringify({ error: "Failed to update avatar" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 }

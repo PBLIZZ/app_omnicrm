@@ -32,38 +32,10 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
 };
 import type {
   EmailPreview,
-  PreviewRange,
   ConnectConnectionStatus,
   ConnectDashboardState,
   Job,
 } from "@/server/db/business-schemas";
-
-export interface UseOmniConnectResult {
-  // Main dashboard data
-  data: ConnectDashboardState | undefined;
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
-
-  // Backward compatibility methods for existing components
-  connection: {
-    status: ConnectConnectionStatus;
-    stats: ConnectConnectionStatus | undefined;
-    isLoading: boolean;
-    error: Error | null;
-    connect: () => void;
-    isConnecting: boolean;
-    refetch: () => void;
-  };
-
-  emails: {
-    emails: EmailPreview[];
-    previewRange: PreviewRange | null;
-    isLoading: boolean;
-    error: Error | null;
-    refetch: () => void;
-  };
-}
 
 export function useOmniConnect(): UseOmniConnectResult {
   // Main unified query
@@ -83,10 +55,10 @@ export function useOmniConnect(): UseOmniConnectResult {
     },
     staleTime: 30000, // 30 seconds - refetch in background after this
     retry: (failureCount, error) => shouldRetry(error, failureCount),
-    // Optimistic loading: assume connected state initially for better UX
+    // Initial data - assume disconnected until we know otherwise
     initialData: {
       connection: {
-        isConnected: true,
+        isConnected: false,
         emailCount: 0,
         contactCount: 0,
       },
@@ -143,8 +115,8 @@ export function useOmniConnect(): UseOmniConnectResult {
   // OAuth connection mutation
   const connectMutation = useMutation({
     mutationFn: async () => {
-      // Redirect to Gmail OAuth
-      window.location.href = "/api/google/gmail/oauth";
+      // Redirect to connect endpoint (GET request - no CSRF needed)
+      window.location.href = "/api/google/gmail/connect";
     },
   });
 

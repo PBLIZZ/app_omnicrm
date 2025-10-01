@@ -10,15 +10,25 @@ export const POST = handlePublic(
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
   async (data, request): Promise<z.infer<typeof OnboardingSubmitResponseSchema>> => {
+    // Debug: Log received data
+    console.log("=== ONBOARDING SUBMISSION ===");
+    console.log("Received data:", JSON.stringify(data, null, 2));
+    
     // Rate limiting
     const forwardedFor = request.headers.get("x-forwarded-for");
     const realIp = request.headers.get("x-real-ip");
-    const clientId = forwardedFor || realIp || "unknown";
+    const clientId = forwardedFor ?? realIp ?? "unknown";
 
     const { success } = await OnboardingService.checkRateLimit(clientId);
     if (!success) {
       const error = new Error("Too many requests");
-      (error as any).status = 429;
+      // Type-safe extension of Error object
+      Object.defineProperty(error, "status", {
+        value: 429,
+        writable: false,
+        enumerable: true,
+        configurable: false,
+      });
       throw error;
     }
 
@@ -32,9 +42,18 @@ export const POST = handlePublic(
     // Process the onboarding submission using service
     const result = await OnboardingService.processOnboardingSubmission(data, clientIpData);
 
+    // Handle Result type
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
     return {
       success: true,
-      data: result,
+      data: {
+        submissionId: result.data.contactId,
+        status: "completed",
+        message: result.data.message,
+      },
     };
   },
 );

@@ -4,7 +4,7 @@ import { getDb } from "@/server/db/client";
 import { rawEvents, calendarEvents } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
 import { drizzleAdminGuard } from "@/server/db/admin";
-import type { RawEvent } from "@/server/db/types";
+import type { RawEvent } from "@/server/db/schema";
 import { ErrorHandler } from "@/lib/errors/app-error";
 
 // Type guards for safe payload parsing

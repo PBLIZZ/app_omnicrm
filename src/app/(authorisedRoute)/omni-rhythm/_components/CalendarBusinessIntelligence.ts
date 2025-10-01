@@ -28,21 +28,21 @@ export class CalendarBusinessIntelligence {
    * Get high-value clients (those with high spending or satisfaction)
    */
   public getHighValueClients(): Client[] {
-    return this.clients.filter((client) => client.totalSpent > 1000 || client.satisfaction >= 4);
+    return this.clients.filter((client) => (client.totalSpent ?? 0) > 1000 || (client.satisfaction ?? 0) >= 4);
   }
 
   /**
    * Get clients that need attention (low satisfaction or inactive)
    */
   public getClientsNeedingAttention(): Client[] {
-    return this.clients.filter((client) => client.satisfaction < 3 || client.status === "inactive");
+    return this.clients.filter((client) => (client.satisfaction ?? 0) < 3 || client.status === "inactive");
   }
 
   /**
    * Calculate total revenue from all clients
    */
   public getTotalRevenue(): number {
-    return this.clients.reduce((total, client) => total + client.totalSpent, 0);
+    return this.clients.reduce((total, client) => total + (client.totalSpent ?? 0), 0);
   }
 
   /**
@@ -52,7 +52,7 @@ export class CalendarBusinessIntelligence {
     if (this.clients.length === 0) return 0;
 
     const totalSatisfaction = this.clients.reduce(
-      (total, client) => total + client.satisfaction,
+      (total, client) => total + (client.satisfaction ?? 0),
       0,
     );
 

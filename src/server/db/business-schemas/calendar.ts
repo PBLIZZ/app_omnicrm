@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { createSelectSchema } from "drizzle-zod";
 import { calendarEvents } from "@/server/db/schema";
 
 // ============================================================================
@@ -13,12 +13,11 @@ import { calendarEvents } from "@/server/db/schema";
 // ============================================================================
 
 // Create base schemas from drizzle table
-const insertCalendarEventSchema = createInsertSchema(calendarEvents);
 const selectCalendarEventSchema = createSelectSchema(calendarEvents);
 
 const BaseCalendarEventSchema = selectCalendarEventSchema;
 
-export const CalendarEventSchema = BaseCalendarEventSchema.transform((data: any) => ({
+export const CalendarEventSchema = BaseCalendarEventSchema.transform((data) => ({
   ...data,
   // UI computed fields
   duration: data.endTime.getTime() - data.startTime.getTime(),
@@ -40,6 +39,7 @@ export const CreateCalendarEventSchema = BaseCalendarEventSchema.omit({
 export type CreateCalendarEvent = z.infer<typeof CreateCalendarEventSchema>;
 
 export const UpdateCalendarEventSchema = BaseCalendarEventSchema.partial().required({ id: true });
+
 export type UpdateCalendarEvent = z.infer<typeof UpdateCalendarEventSchema>;
 
 // ============================================================================
@@ -67,11 +67,11 @@ export type CalendarOAuthQuery = z.infer<typeof CalendarOAuthQuerySchema>;
  */
 export const CalendarSyncRequestSchema = z.object({
   // Days to sync backwards from today
-  daysPast: z.number().int().min(1).max(730).optional().default(180), // 6 months default
+  daysPast: z.number().int().min(1).max(730).default(180), // 6 months default
   // Days to sync forwards from today
-  daysFuture: z.number().int().min(1).max(730).optional().default(365), // 1 year default
+  daysFuture: z.number().int().min(1).max(730).default(365), // 1 year default
   // Maximum events to sync per calendar
-  maxResults: z.number().int().min(10).max(2500).optional().default(2500),
+  maxResults: z.number().int().min(10).max(2500).default(2500),
 });
 
 export type CalendarSyncRequest = z.infer<typeof CalendarSyncRequestSchema>;
@@ -115,7 +115,7 @@ export const CalendarSyncBlockingRequestSchema = z.object({
   // Sync parameters
   daysPast: z.number().int().min(1).max(730).optional(),
   daysFuture: z.number().int().min(1).max(730).optional(),
-  maxResults: z.number().int().min(10).max(2500).optional().default(2500),
+  maxResults: z.number().int().min(10).max(2500).default(2500),
 });
 
 export type CalendarSyncBlockingRequest = z.infer<typeof CalendarSyncBlockingRequestSchema>;
@@ -175,8 +175,6 @@ export const CalendarStatusResponseSchema = z.object({
   service: z.string().optional(),
 });
 
-export type CalendarStatusResponse = z.infer<typeof CalendarStatusResponseSchema>;
-
 // ============================================================================
 // CALENDAR EVENTS SCHEMAS
 // ============================================================================
@@ -189,10 +187,8 @@ export const CalendarEventsQuerySchema = z.object({
   // Optional query parameters for filtering
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
-
-export type CalendarEventsQuery = z.infer<typeof CalendarEventsQuerySchema>;
 
 /**
  * Calendar Events Response Schema
@@ -206,7 +202,7 @@ export const CalendarEventsResponseSchema = z.object({
       description: z.string().nullable(),
       startTime: z.string(),
       endTime: z.string(),
-      attendees: z.record(z.unknown()).nullable(),
+      attendees: z.record(z.string(), z.unknown()).nullable(),
       location: z.string().nullable(),
       status: z.string().nullable(),
       eventType: z.string().nullable(),
@@ -215,8 +211,6 @@ export const CalendarEventsResponseSchema = z.object({
   ),
   total: z.number(),
 });
-
-export type CalendarEventsResponse = z.infer<typeof CalendarEventsResponseSchema>;
 
 // ============================================================================
 // CALENDAR LIST SCHEMAS
@@ -228,10 +222,8 @@ export type CalendarEventsResponse = z.infer<typeof CalendarEventsResponseSchema
  */
 export const CalendarListQuerySchema = z.object({
   // Optional query parameters
-  includeHidden: z.coerce.boolean().optional().default(false),
+  includeHidden: z.coerce.boolean().default(false),
 });
-
-export type CalendarListQuery = z.infer<typeof CalendarListQuerySchema>;
 
 /**
  * Calendar List Response Schema
@@ -251,8 +243,6 @@ export const CalendarListResponseSchema = z.object({
   ),
   total: z.number(),
 });
-
-export type CalendarListResponse = z.infer<typeof CalendarListResponseSchema>;
 
 // ============================================================================
 // BUSINESS INTELLIGENCE SCHEMAS (Moved from component types)

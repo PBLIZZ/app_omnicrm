@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   MoreHorizontal,
@@ -51,26 +51,6 @@ import type {
   ContactAIInsightsResponse,
 } from "@/server/db/business-schemas/contacts";
 import { toast } from "sonner";
-
-// Helper function to generate initials from display name
-function getInitials(displayName: string): string {
-  if (!displayName) return "?";
-  const names = displayName.trim().split(/\s+/).filter(Boolean);
-  if (names.length === 0) return "?";
-  if (names.length === 1) {
-    const firstName = names[0];
-    if (firstName) {
-      return firstName.charAt(0).toUpperCase();
-    }
-    return "?";
-  }
-  const firstName = names[0];
-  const lastName = names[names.length - 1];
-  if (firstName && lastName) {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  }
-  return "?";
-}
 
 // AI Action Icons Component
 function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Element {
@@ -233,23 +213,15 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     header: "",
     cell: ({ row }) => {
       const contact = row.original;
-      const initials = getInitials(contact.displayName);
-
-      // Only try to load avatar image if contact has a photo URL
-      const hasPhoto = contact.photoUrl && contact.photoUrl.trim();
 
       return (
-        <Avatar className="size-8" data-testid={`contact-avatar-${contact.id}`}>
-          {hasPhoto && (
-            <AvatarImage
-              src={`/api/contacts/${contact.id}/avatar`}
-              alt={`${contact.displayName} avatar`}
-            />
-          )}
-          <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-teal-100 to-teal-200 text-teal-700 dark:from-teal-900 dark:to-teal-800 dark:text-teal-300">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <AvatarImage
+          src={contact.photoUrl}
+          alt={contact.displayName}
+          size="sm"
+          className="size-8"
+          data-testid={`contact-avatar-${contact.id}`}
+        />
       );
     },
     size: 60,
@@ -286,7 +258,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
 
         const searchQuery =
           typeof window !== "undefined" && window.location.search.includes("search=")
-            ? new URLSearchParams(window.location.search).get("search") || undefined
+            ? new URLSearchParams(window.location.search).get("search") ?? undefined
             : undefined;
 
         const navigationContext = {
@@ -495,10 +467,10 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     },
   },
   {
-    accessorKey: "stage",
-    header: "Wellness Stage",
+    accessorKey: "lifecycleStage",
+    header: "Lifecycle Stage",
     cell: ({ row }) => {
-      const stage = row.getValue("stage") as string | null;
+      const stage = row.getValue("lifecycleStage") as string | null;
       const getStageColor = (stage: string | null): string => {
         switch (stage) {
           case "VIP Client":
@@ -522,18 +494,6 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
         <Badge className={`text-xs ${getStageColor(stage)}`}>{stage}</Badge>
       ) : (
         <span className="text-muted-foreground italic text-sm">No stage</span>
-      );
-    },
-  },
-  {
-    accessorKey: "interactions",
-    header: "Interactions",
-    cell: ({ row }) => {
-      const count = (row.getValue("interactions") as number) || 0;
-      return (
-        <Badge variant="outline" className="text-xs">
-          {count}
-        </Badge>
       );
     },
   },

@@ -45,8 +45,9 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
           },
           body: JSON.stringify({
             token,
-            mimeType: file.type,
+            fileName: file.name,
             fileSize: file.size,
+            contentType: file.type,
           }),
         });
 
@@ -56,8 +57,10 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
           throw new Error(signedUrlResult.error || "Failed to get upload URL");
         }
 
+        console.log("Signed URL result:", signedUrlResult);
+
         // Step 2: Upload file directly to Supabase Storage using signed URL
-        const uploadResponse = await fetch(signedUrlResult.data.uploadUrl, {
+        const uploadResponse = await fetch(signedUrlResult.uploadUrl, {
           method: "PUT",
           headers: {
             "Content-Type": file.type,
@@ -69,8 +72,8 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
           throw new Error("Failed to upload file to storage");
         }
 
-        // Store the uploaded URL
-        const photoUrl = signedUrlResult.data.filePath;
+        // Store the uploaded URL (the filePath from storage)
+        const photoUrl = signedUrlResult.filePath;
         setUploadedUrl(photoUrl);
         onPhotoUploaded(photoUrl);
         toast.success("Photo uploaded successfully!");

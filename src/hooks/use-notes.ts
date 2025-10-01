@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { Result, isOk, isErr } from "@/lib/utils/result";
+import { Result, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -20,7 +20,7 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Retry other errors up to 2 times
   return retryCount < 2;
 };
-import type { Note } from "@/server/db/types";
+import type { Note } from "@/server/db/schema";
 
 interface UseNotesOptions {
   contactId: string;
@@ -113,9 +113,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
-      void error;
-      void variables;
+    onError: (_error, _variables, context) => {
       // Rollback on error
       if (context?.previousNotes) {
         queryClient.setQueryData(queryKeys.contacts.notes(contactId), context.previousNotes);
@@ -171,9 +169,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
-      void error;
-      void variables;
+    onError: (_error, _variables, context) => {
       if (context?.previousNotes) {
         queryClient.setQueryData(queryKeys.contacts.notes(contactId), context.previousNotes);
       }
@@ -215,9 +211,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
-      void error;
-      void variables;
+    onError: (_error, _variables, context) => {
       if (context?.previousNotes) {
         queryClient.setQueryData(queryKeys.contacts.notes(contactId), context.previousNotes);
       }

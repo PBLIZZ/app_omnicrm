@@ -4,6 +4,8 @@
  * Handles all Supabase storage operations including signed URL generation
  * for file downloads and uploads. Centralizes storage bucket interactions
  * and provides consistent error handling.
+ *
+ * Updated: Enhanced logging for debugging signed URL generation issues
  */
 
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
@@ -35,6 +37,15 @@ export class StorageService {
       const [bucket, ...rest] = normalized.split("/");
       const pathInBucket = rest.join("/");
 
+      console.log("[StorageService] Creating signed URL:", {
+        originalPath: filePath,
+        normalized,
+        bucket,
+        pathInBucket,
+        hasAdmin: !!supabaseServerAdmin,
+        hasPublishable: !!supabaseServerPublishable,
+      });
+
       if (!bucket || !pathInBucket) {
         return {
           signedUrl: null,
@@ -50,20 +61,33 @@ export class StorageService {
         };
       }
 
+      console.log("[StorageService] Using client:", supabaseServerAdmin ? "ADMIN" : "PUBLISHABLE");
+
       const { data, error } = await client.storage
         .from(bucket)
         .createSignedUrl(pathInBucket, 3600);
 
       if (error) {
+        console.error("[StorageService] Supabase Storage API error:", {
+          errorObject: error,
+          errorName: error.name,
+          errorMessage: error.message,
+          errorStatus: error.status,
+          errorStatusCode: error.statusCode,
+          bucket,
+          pathInBucket,
+          fullError: JSON.stringify(error, null, 2),
+        });
         return {
           signedUrl: null,
-          error: "failed_to_create_signed_url",
+          error: `failed_to_create_signed_url: ${error.message || error.name || "unknown"}`,
         };
       }
 
+      console.log("[StorageService] Successfully created signed URL");
       return { signedUrl: data?.signedUrl ?? null };
     } catch (error) {
-      console.error("Error creating signed URL:", error);
+      console.error("[StorageService] Unexpected error creating signed URL:", error);
       return {
         signedUrl: null,
         error: "unexpected_error",

@@ -204,10 +204,6 @@ export function formatTimestampSafe(
 /**
  * Date range validation
  */
-export interface DateRange {
-  start: Date;
-  end: Date;
-}
 
 export function validateDateRange(start: unknown, end: unknown): Result<DateRange, string> {
   const startResult = parseDate(start);

@@ -31,17 +31,17 @@ export interface ApiFetchContactsParams extends PaginationParams, ContactFilters
   };
 }
 
-export interface ApiContactsListResponse extends PaginatedResponse<Contact> {
-  total: number;
+export interface ApiContactsListResponse {
   items: Contact[];
-}
-
-export interface ApiContactResponse {
-  item: Contact;
-}
-
-export interface ApiBulkDeleteResponse {
-  deleted: number;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+  total: number; // Convenience property for backward compatibility
 }
 
 /** ---- Debug Logging ---- */

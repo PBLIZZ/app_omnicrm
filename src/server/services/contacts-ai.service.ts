@@ -14,9 +14,9 @@ import {
   type ContactAIInsightResponse,
 } from "@/server/ai/contacts/ask-ai-about-contact";
 import { ContactsRepository } from "@repo";
-import { listContactsService } from "@/server/services/contacts.service";
+import { listContactsService, type ContactListItem } from "@/server/services/contacts.service";
 import { getDb } from "@/server/db/client";
-import { contacts } from "@/server/db/schema";
+import { contacts, type Contact } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import { isErr } from "@/lib/utils/result";
@@ -25,32 +25,6 @@ import { ErrorHandler } from "@/lib/errors/app-error";
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
-
-export interface EnrichmentOptions {
-  streaming?: boolean;
-  batchSize?: number;
-  delayMs?: number;
-}
-
-export interface EnrichmentResult {
-  enrichedCount: number;
-  totalRequested: number;
-  errors?: string[];
-  message: string;
-}
-
-export interface EnrichmentProgress {
-  type: "start" | "progress" | "enriched" | "error" | "complete";
-  contactId?: string;
-  contactName?: string;
-  lifecycleStage?: string;
-  tags?: string[];
-  confidenceScore?: number;
-  enrichedCount?: number;
-  total?: number;
-  error?: string;
-  message?: string;
-}
 
 const validStages = [
   "Prospect",
@@ -64,14 +38,42 @@ const validStages = [
 
 type ValidStage = (typeof validStages)[number];
 
+export interface EnrichmentOptions {
+  batchSize?: number;
+  delayMs?: number;
+}
+
+export interface EnrichmentResult {
+  enrichedCount: number;
+  totalRequested: number;
+  message: string;
+  errors?: string[];
+}
+
+export interface EnrichmentProgress {
+  current: number;
+  total: number;
+  percentage: number;
+  message: string;
+  type?: string;
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
+/**
+ * Type guard to check if a string is a valid lifecycle stage
+ */
+function isValidStage(value: string): value is ValidStage {
+  return validStages.includes(value as ValidStage);
+}
+
+/**
+ * Safely convert a string to a valid lifecycle stage with fallback
+ */
 function validateLifecycleStage(lifecycleStage: string): ValidStage {
-  return validStages.includes(lifecycleStage as ValidStage)
-    ? (lifecycleStage as ValidStage)
-    : "Prospect";
+  return isValidStage(lifecycleStage) ? lifecycleStage : "Prospect";
 }
 
 // ============================================================================
@@ -132,7 +134,7 @@ export async function enrichAllContacts(
   const { batchSize = 1000, delayMs = 200 } = options;
 
   // Get all contacts for the user by iterating through all pages
-  let allContacts: any[] = [];
+  let allContacts: ContactListItem[] = [];
   let page = 1;
   let hasMore = true;
 
@@ -144,10 +146,10 @@ export async function enrichAllContacts(
       order: "asc",
     });
 
-    if (result.success) {
-      allContacts = allContacts.concat(result.data.items);
+    if ('items' in result && Array.isArray(result.items)) {
+      allContacts = allContacts.concat(result.items);
       // Calculate hasMore based on items length vs pageSize
-      hasMore = result.data.items.length === batchSize;
+      hasMore = result.items.length === batchSize;
     } else {
       hasMore = false;
     }
@@ -248,7 +250,7 @@ export async function* enrichAllContactsStreaming(
     const { batchSize = 1000, delayMs = 200 } = options;
 
     // Get all contacts for the user by iterating through all pages
-    let allContacts: any[] = [];
+    let allContacts: ContactListItem[] = [];
     let page = 1;
     let hasMore = true;
 
@@ -435,7 +437,7 @@ export async function enrichContactsByIds(
     throw new Error(`Failed to get contacts: ${contactsToEnrichResult.error.message}`);
   }
 
-  const contactsToEnrich = (contactsToEnrichResult as { success: true; data: any[] }).data;
+  const contactsToEnrich = (contactsToEnrichResult as { success: true; data: Contact[] }).data;
 
   if (contactsToEnrich.length === 0) {
     return {
@@ -524,7 +526,7 @@ export async function contactNeedsEnrichment(userId: string, contactId: string):
       return false;
     }
 
-    const contact = (contactResult as { success: true; data: any }).data;
+    const contact = (contactResult as { success: true; data: Contact | null }).data;
     if (!contact) return false;
 
     // Contact needs enrichment if it's missing key AI-generated fields
@@ -572,7 +574,7 @@ export async function getEnrichmentStats(userId: string): Promise<{
 
     const totalContacts = allContacts.length;
     const enrichedContacts = allContacts.filter(
-      (contact: any) =>
+      (contact: ContactListItem) =>
         contact &&
         contact.lifecycleStage != null &&
         contact.tags != null &&

@@ -3,7 +3,7 @@
 import { getDb } from "@/server/db/client";
 import { contacts, rawEvents } from "@/server/db/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
-import { parseRawEvent } from "./parse-raw-event";
+import { parseRawEvent, type ParsedEvent } from "./parse-raw-event";
 import crypto from "crypto";
 
 export interface ContactSuggestion {
@@ -31,7 +31,7 @@ export async function getContactSuggestions(
 
   for (const event of recentEvents) {
     try {
-      const parsed = await parseRawEvent(userId, event.type, event.content);
+      const parsed: ParsedEvent = await parseRawEvent(userId, event.type, event.content);
 
       // Process attendees
       for (const attendee of parsed.attendees) {

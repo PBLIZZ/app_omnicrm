@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Home, Users, Calendar1, Megaphone, Bot, Mail, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useContactCount } from "@/hooks/use-contact-count";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetchContacts } from "@/lib/api/contacts-api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Only include sections that have a page.tsx under (authorisedRoute), excluding Settings
@@ -28,8 +29,16 @@ const mainNavItems = [
 
 export function SidebarMainSectionNav(): JSX.Element {
   const pathname = usePathname() ?? "/";
-  const contactCount = useContactCount();
   const { state } = useSidebar();
+  
+  // Share the same query as the dashboard for consistent contact count
+  const { data } = useQuery({
+    queryKey: ["contacts", "dashboard", "recent"],
+    queryFn: () => apiFetchContacts({ page: 1, pageSize: 50, sort: "createdAt", order: "desc" }),
+    staleTime: 30_000,
+  });
+  
+  const contactCount = data?.pagination?.total ?? 0;
 
   return (
     <SidebarGroup>

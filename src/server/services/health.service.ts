@@ -9,12 +9,6 @@ import { sql } from "drizzle-orm";
 import { ok, err, type Result } from "@/lib/utils/result";
 import type { HealthResponse } from "@/server/db/business-schemas";
 
-export interface HealthServiceError {
-  code: string;
-  message: string;
-  details?: unknown;
-}
-
 export class HealthService {
   /**
    * Check overall system health including database connectivity
@@ -106,7 +100,7 @@ export class HealthService {
   static getSystemInfo(): { timestamp: string; env: string } {
     return {
       timestamp: new Date().toISOString(),
-      env: process.env["NODE_ENV"] || "development",
+      env: process.env["NODE_ENV"] ?? "development",
     };
   }
 }

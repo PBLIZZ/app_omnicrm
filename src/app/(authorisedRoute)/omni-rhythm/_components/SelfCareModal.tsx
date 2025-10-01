@@ -77,7 +77,9 @@ export function SelfCareModal({ onCreateEvent }: SelfCareModalProps): JSX.Elemen
         },
       };
 
-      await onCreateEvent(eventData);
+      if (onCreateEvent) {
+        await onCreateEvent(eventData);
+      }
       setOpen(false);
       // Reset form
       const newNow = new Date();

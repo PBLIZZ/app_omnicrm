@@ -5,14 +5,6 @@ import { generateText } from "@/server/ai/core/llm.service";
 import { getContactData } from "./utils/contact-utils";
 import { buildGenerateTaskPrompt } from "@/server/ai/prompts/clients/generate-task.prompt";
 
-export interface ContactTaskSuggestion {
-  title: string;
-  description: string;
-  priority: "urgent" | "high" | "medium" | "low";
-  estimatedMinutes: number;
-  category: "follow-up" | "outreach" | "service" | "admin";
-}
-
 export async function generateTaskSuggestions(
   userId: string,
   contactId: string,
@@ -36,12 +28,15 @@ export async function generateTaskSuggestions(
   const messages = buildGenerateTaskPrompt(contactData);
 
   // Use explicit model or fallback to environment variable
-  const aiModel = model || process.env["AI_MODEL"] || "openai/gpt-4o-mini";
+  const aiModel = model ?? process.env["AI_MODEL"] ?? "openai/gpt-4o-mini";
 
-  const response = await generateText<{ tasks: ContactTaskSuggestion[] }>(userId, {
+  type ResponseType = { tasks: ContactTaskSuggestion[] };
+
+  const response = await generateText<ResponseType>(userId, {
     model: aiModel,
     messages,
   });
 
-  return response.data.tasks ?? [];
+  const data: ResponseType = response.data;
+  return data.tasks ?? [];
 }

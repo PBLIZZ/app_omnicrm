@@ -1,10 +1,4 @@
-import { DrivePreferencesSchema } from "@/server/db/business-schema/sync";
-
-export interface DrivePreviewRequest {
-  folderId?: string;
-  includeSubfolders?: boolean;
-  maxSizeMB?: number;
-}
+import { DrivePreferencesSchema } from "@/server/db/business-schemas/sync";
 
 export class DrivePreviewService {
   /**

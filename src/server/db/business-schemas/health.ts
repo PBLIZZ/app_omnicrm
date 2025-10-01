@@ -38,4 +38,3 @@ export const GoogleSignInQuerySchema = z.object({
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 export type DbPingResponse = z.infer<typeof DbPingResponseSchema>;
-export type GoogleSignInQuery = z.infer<typeof GoogleSignInQuerySchema>;

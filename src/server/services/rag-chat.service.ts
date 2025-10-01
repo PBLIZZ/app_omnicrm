@@ -3,7 +3,7 @@ import {
   getOpenRouterConfig,
   openRouterHeaders,
 } from "@/server/ai/providers/openrouter";
-import type { SearchResult, SearchResultType } from "@/server/services/semantic-search.service";
+import type { SearchResult } from "@/server/services/semantic-search.service";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant" | "system";
@@ -12,20 +12,12 @@ export interface ChatHistoryMessage {
 
 export interface ChatSource {
   id: string;
-  type: SearchResultType;
+  type: string;
   title: string;
   snippet: string;
   similarity?: number;
-  url: string;
-  metadata: Record<string, unknown>;
-}
-
-export interface GenerateChatCompletionParams {
-  message: string;
-  history: ChatHistoryMessage[];
-  context: SearchResult[];
-  temperature?: number;
-  maxTokens?: number;
+  url?: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface OpenRouterChatChoice {

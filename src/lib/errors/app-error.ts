@@ -6,8 +6,6 @@
 
 import { err, type Result } from "../utils/result";
 
-export type ErrorCategory = "auth" | "network" | "validation" | "system";
-
 export class AppError extends Error {
   public readonly code: string;
   public readonly category: ErrorCategory;

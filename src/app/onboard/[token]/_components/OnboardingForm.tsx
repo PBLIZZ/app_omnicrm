@@ -160,8 +160,7 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
       const submissionData = {
         token,
         client: {
-          first_name,
-          last_name,
+          display_name: data.displayName.trim(), // Use the full name as display_name
           primary_email: data.primaryEmail || "",
           primary_phone: data.primaryPhone || "",
           date_of_birth: data.dateOfBirth || "",

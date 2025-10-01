@@ -1,4 +1,4 @@
-"use contact";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { ImageUpload } from "@/components/ui/image-upload";
 import type { ClientWithNotes, EditClientData, UpdateClientResponse } from "./types";
 import validator from "validator";
 
@@ -22,6 +23,7 @@ interface EditContactData {
   displayName: string;
   primaryEmail: string;
   primaryPhone: string;
+  photoUrl: string | null;
 }
 
 

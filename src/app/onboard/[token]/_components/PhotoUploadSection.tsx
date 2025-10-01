@@ -37,46 +37,36 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
         const preview = URL.createObjectURL(file);
         setPreviewUrl(preview);
 
-        // Step 1: Get signed upload URL from our API
-        const signedUrlResponse = await fetch("/api/onboarding/public/signed-upload", {
+        // Upload file to our API - it will optimize and upload to Supabase Storage
+        const formData = new FormData();
+        formData.append("token", token);
+        formData.append("file", file);
+
+        const uploadResponse = await fetch("/api/onboarding/public/upload-photo", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            token,
-            fileName: file.name,
-            fileSize: file.size,
-            contentType: file.type,
-          }),
+          body: formData,
         });
 
-        const signedUrlResult = await signedUrlResponse.json();
+        const uploadResult = await uploadResponse.json() as {
+          success?: boolean;
+          filePath?: string;
+          error?: string;
+        };
 
-        if (!signedUrlResponse.ok) {
-          throw new Error(signedUrlResult.error || "Failed to get upload URL");
+        if (!uploadResponse.ok || !uploadResult.success) {
+          throw new Error(uploadResult.error || "Failed to upload photo");
         }
 
-        console.log("Signed URL result:", signedUrlResult);
-
-        // Step 2: Upload file directly to Supabase Storage using signed URL
-        const uploadResponse = await fetch(signedUrlResult.uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": file.type,
-          },
-          body: file,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload file to storage");
+        if (!uploadResult.filePath) {
+          throw new Error("No file path returned from upload");
         }
 
-        // Store the uploaded URL (the filePath from storage)
-        const photoUrl = signedUrlResult.filePath;
-        setUploadedUrl(photoUrl);
-        onPhotoUploaded(photoUrl);
-        toast.success("Photo uploaded successfully!");
+        console.log("Photo uploaded successfully:", uploadResult);
+
+        // Store the uploaded file path
+        setUploadedUrl(uploadResult.filePath);
+        onPhotoUploaded(uploadResult.filePath);
+        toast.success("Photo uploaded and optimized successfully!");
       } catch (error) {
         console.error("Upload error:", error);
         const message = error instanceof Error ? error.message : "Upload failed";
@@ -91,7 +81,7 @@ export function PhotoUploadSection({ token, onPhotoUploaded }: PhotoUploadSectio
         setIsUploading(false);
       }
     },
-    [token, onPhotoUploaded],
+    [token, onPhotoUploaded, previewUrl],
   );
 
   const onDrop = useCallback(

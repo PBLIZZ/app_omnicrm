@@ -262,11 +262,16 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
             ? new URLSearchParams(window.location.search).get("search") ?? undefined
             : undefined;
 
+        // Get active filters from table meta
+        const tableMeta = table.options.meta as { activeFilters?: unknown } | undefined;
+        const filterState = tableMeta?.activeFilters;
+
         const navigationContext = {
           currentIndex,
           totalItems: contactIds.length,
           contactIds,
           searchQuery,
+          filterState, // Include filter state for display in navigation bar
         };
 
         if (typeof window !== "undefined") {
@@ -281,7 +286,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
 
       return (
         <Link
-          href={`/contacts/details?id=${contact.id}`}
+          href={`/contacts/${contact.id}`}
           onClick={handleContactClick}
           className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
         >

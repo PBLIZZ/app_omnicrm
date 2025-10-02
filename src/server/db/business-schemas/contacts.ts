@@ -88,9 +88,7 @@ export const PaginationSchema = z.object({
  * Contact Schema - Single contact response
  */
 export const ContactResponseSchema = z.object({
-  item: ContactSchema.extend({
-    fullName: z.string(), // Legacy alias
-  }),
+  item: ContactSchema,
 });
 
 /**
@@ -199,16 +197,6 @@ export const ContactAIInsightsResponseSchema = z.object({
 export type ContactAIInsightsResponse = z.infer<typeof ContactAIInsightsResponseSchema>;
 
 /**
- * Contact Email Suggestion Schema
- */
-export const ContactEmailSuggestionSchema = z.object({
-  subject: z.string(),
-  body: z.string(),
-});
-
-export type ContactEmailSuggestion = z.infer<typeof ContactEmailSuggestionSchema>;
-
-/**
  * Contact Note Suggestion Schema
  */
 export const ContactNoteSuggestionSchema = z.object({
@@ -250,7 +238,7 @@ export const GetContactsQuerySchema = z.object({
 
   // Filtering
   search: z.string().optional(),
-  stage: z.array(z.string()).optional(),
+  lifecycleStage: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   source: z.array(z.string()).optional(),
   hasEmail: z.boolean().optional(),
@@ -287,7 +275,7 @@ export type ContactListResponse = z.infer<typeof ContactListResponseSchema>;
  */
 export const ContactFiltersSchema = z.object({
   search: z.string().optional(),
-  stage: z.array(z.string()).optional(),
+  lifecycleStage: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   source: z.array(z.string()).optional(),
   hasEmail: z.boolean().optional(),
@@ -392,10 +380,6 @@ export const CreatedAtFilterSchema = z
   );
 
 export type CreatedAtFilter = z.infer<typeof CreatedAtFilterSchema>;
-
-/**
- * Fetch Contacts Params (for API functions)
- */
 
 /**
  * Utility function to convert date strings to Date range

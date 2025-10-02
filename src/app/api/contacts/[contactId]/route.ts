@@ -11,7 +11,6 @@ import {
   DeleteContactResponseSchema,
 } from "@/server/db/business-schemas";
 import { z } from "zod";
-import { NextRequest } from "next/server";
 
 /**
  * Individual Contact Management API Routes
@@ -31,55 +30,57 @@ interface RouteParams {
 /**
  * GET /api/contacts/[contactId] - Get contact by ID
  */
-export async function GET(request: NextRequest, context: RouteParams) {
+export async function GET(req: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  
   const handler = handleAuth(z.void(), ContactResponseSchema, async (_, userId) => {
-    const params = await context.params;
     const result = await getContactByIdService(userId, params.contactId);
 
-    if (!result.ok) {
+    if (!result.success) {
       throw ApiError.notFound(result.error.message ?? "Contact not found");
     }
 
     return { item: result.data };
   });
 
-  return handler(request);
+  return handler(req);
 }
 
 /**
  * PUT /api/contacts/[contactId] - Update contact
  */
-export async function PUT(request: NextRequest, context: RouteParams) {
+export async function PUT(req: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  
   const handler = handleAuth(
     UpdateContactBodySchema,
     ContactResponseSchema,
     async (data, userId) => {
-      const params = await context.params;
       const result = await updateContactService(userId, params.contactId, data);
 
-      if (!result.ok) {
-        const errorMessage = result.error?.message || "Contact not found";
-        throw ApiError.notFound(errorMessage);
+      if (!result.success) {
+        throw ApiError.notFound(result.error.message ?? "Contact not found");
       }
 
       return { item: result.data };
     },
   );
 
-  return handler(request);
+  return handler(req);
 }
 
 /**
  * DELETE /api/contacts/[contactId] - Delete contact
  */
-export async function DELETE(request: NextRequest, context: RouteParams) {
+export async function DELETE(req: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  
   const handler = handleAuth(z.void(), DeleteContactResponseSchema, async (_, userId) => {
-    const params = await context.params;
     const result = await deleteContactService(userId, params.contactId);
 
     // idempotent delete - return success even if contact didn't exist
-    return { deleted: result.ok ? 1 : 0 };
+    return { deleted: result.success ? 1 : 0 };
   });
 
-  return handler(request);
+  return handler(req);
 }

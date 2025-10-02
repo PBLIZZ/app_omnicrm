@@ -62,6 +62,8 @@ export const NotesListResponseSchema = z.object({
   total: z.number(),
 });
 
+export type NotesListResponse = z.infer<typeof NotesListResponseSchema>;
+
 /**
  * Created Note Response Schema
  */

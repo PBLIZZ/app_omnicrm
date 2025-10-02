@@ -238,6 +238,9 @@ export function ContactsTable<TData, TValue>({
       rowSelection,
       columnFilters,
     },
+    meta: {
+      activeFilters: filters, // Pass filter state to columns via meta
+    },
     initialState: {
       pagination: {
         pageSize: 25,

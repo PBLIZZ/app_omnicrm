@@ -3,11 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, List } from "lucide-react";
-import { ContactDetailPage } from "./ContactDetailPage";
+import { Badge } from "@/components/ui/badge";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { ChevronLeft, ChevronRight, List, ChevronDown } from "lucide-react";
+import { ContactDetailsCard } from "./ContactDetailsCard";
 import { toast } from "sonner";
+import type { ContactSearchFilters } from "./types";
 
-interface ContactDetailPageWithNavigationProps {
+interface ContactDetailsNavWrapperProps {
   contactId: string;
 }
 
@@ -16,16 +19,91 @@ interface NavigationContext {
   totalItems: number;
   contactIds: string[];
   searchQuery?: string;
-  filterState?: Record<string, unknown>;
+  filterState?: ContactSearchFilters;
 }
 
 /**
- * Enhanced Contact Detail Page with Tinder-style navigation
+ * Check if any filters are active
+ */
+function hasActiveFilters(filterState?: ContactSearchFilters): boolean {
+  if (!filterState) return false;
+
+  return !!(
+    filterState.lifecycleStage?.length ||
+    filterState.tags?.length ||
+    filterState.source?.length ||
+    filterState.dateRange ||
+    filterState.query ||
+    filterState.search
+  );
+}
+
+/**
+ * Render filter details in hover card
+ */
+function FilterHoverContent({ filterState }: { filterState: ContactSearchFilters }): JSX.Element {
+  return (
+    <div className="space-y-3 min-w-[250px]">
+      <div className="font-semibold text-sm">Active Filters</div>
+
+      {filterState.lifecycleStage && filterState.lifecycleStage.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-muted-foreground mb-1">Lifecycle Stage</div>
+          <div className="flex flex-wrap gap-1">
+            {filterState.lifecycleStage.map((stage) => (
+              <Badge key={stage} variant="secondary" className="text-xs">
+                {stage}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {filterState.tags && filterState.tags.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-muted-foreground mb-1">Tags</div>
+          <div className="flex flex-wrap gap-1">
+            {filterState.tags.map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-xs">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {filterState.dateRange && (
+        <div>
+          <div className="text-xs font-medium text-muted-foreground mb-1">Date Range</div>
+          <div className="text-sm">
+            {filterState.dateRange.from && filterState.dateRange.to
+              ? `${filterState.dateRange.from.toLocaleDateString()} - ${filterState.dateRange.to.toLocaleDateString()}`
+              : filterState.dateRange.from
+                ? `From ${filterState.dateRange.from.toLocaleDateString()}`
+                : filterState.dateRange.to
+                  ? `Until ${filterState.dateRange.to.toLocaleDateString()}`
+                  : ""}
+          </div>
+        </div>
+      )}
+
+      {(filterState.query || filterState.search) && (
+        <div>
+          <div className="text-xs font-medium text-muted-foreground mb-1">Search</div>
+          <div className="text-sm italic">"{filterState.query || filterState.search}"</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Navigation wrapper for contact details with filter context
  * Allows browsing through table results without returning to the list
  */
-export function ContactDetailPageWithNavigation({
+export function ContactDetailsNavWrapper({
   contactId,
-}: ContactDetailPageWithNavigationProps): JSX.Element {
+}: ContactDetailsNavWrapperProps): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [navigationContext, setNavigationContext] = useState<NavigationContext | null>(null);
@@ -106,7 +184,7 @@ export function ContactDetailPageWithNavigation({
       }
 
       // Navigate to previous contact
-      router.push(`/contacts/details?id=${previousId}`);
+      router.push(`/contacts/${previousId}`);
     }
   };
 
@@ -131,7 +209,7 @@ export function ContactDetailPageWithNavigation({
       }
 
       // Navigate to next contact
-      router.push(`/contacts/details?id=${nextId}`);
+      router.push(`/contacts/${nextId}`);
     }
   };
 
@@ -147,6 +225,8 @@ export function ContactDetailPageWithNavigation({
 
     router.push(returnUrl);
   };
+
+  const showFilters = hasActiveFilters(navigationContext?.filterState);
 
   return (
     <div className="relative">
@@ -169,15 +249,23 @@ export function ContactDetailPageWithNavigation({
                 <div className="text-sm text-muted-foreground">
                   {navigationContext.currentIndex + 1} of {navigationContext.contactIds.length}{" "}
                   contacts
-                  {navigationContext.searchQuery && (
-                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                      Filtered results
-                    </span>
+                  {showFilters && navigationContext.filterState && (
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <Badge variant="secondary" className="ml-2 cursor-pointer inline-flex items-center gap-1">
+                          Filtered
+                          <ChevronDown className="h-3 w-3" />
+                        </Badge>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-auto" side="bottom" align="start">
+                        <FilterHoverContent filterState={navigationContext.filterState} />
+                      </HoverCardContent>
+                    </HoverCard>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
@@ -206,7 +294,7 @@ export function ContactDetailPageWithNavigation({
       )}
 
       {/* Main Content */}
-      <ContactDetailPage contactId={contactId} />
+      <ContactDetailsCard contactId={contactId} />
     </div>
   );
 }

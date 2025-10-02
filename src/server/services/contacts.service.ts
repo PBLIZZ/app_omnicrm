@@ -702,7 +702,7 @@ export async function getContactNotes(
       }),
     );
 
-    return ok({ notes: formattedNotes });
+    return ok({ notes: formattedNotes, total: formattedNotes.length });
   } catch (error) {
     return err({
       code: "NOTES_GET_ERROR",

@@ -246,7 +246,7 @@ export default function DashboardContent(): JSX.Element {
                           typeof contact.id === "string" || typeof contact.id === "number"
                             ? String(contact.id)
                             : undefined;
-                        const fullName =
+                        const displayName =
                           typeof contact.displayName === "string" ? contact.displayName : "";
                         // Contact doesn't have profileImageUrl property
                         const avatarUrl: string | undefined = undefined;
@@ -258,14 +258,14 @@ export default function DashboardContent(): JSX.Element {
                         return (
                           <Link
                             key={id}
-                            href={`/contacts/details/${id}`}
+                            href={`/contacts/${id}`}
                             className="flex items-center p-4 hover:bg-muted/50 transition-colors"
                           >
                             <Avatar className="h-10 w-10 mr-4">
-                              {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName} /> : null}
+                              {avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName} /> : null}
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{fullName}</p>
+                              <p className="text-sm font-medium truncate">{displayName}</p>
                               <p className="text-sm text-muted-foreground truncate">{email}</p>
                             </div>
                             <div className="text-sm text-muted-foreground flex items-center">

@@ -37,10 +37,7 @@ import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 import { ContactAIInsightsDialog } from "@/app/(authorisedRoute)/contacts/_components/ContactAIInsightsDialog";
 import { EditContactDialog } from "./EditContactDialog";
-import {
-  useAskAIAboutContact,
-  useCreateContactNote,
-} from "@/hooks/use-contacts-bridge";
+import { useAskAIAboutContact, useCreateContactNote } from "@/hooks/use-contacts-bridge";
 import { useDeleteContact } from "@/hooks/use-contact-delete";
 import {
   type Note,
@@ -48,36 +45,15 @@ import {
   type ContactAIInsightsResponse,
 } from "@/server/db/business-schemas/contacts";
 
-interface ContactDetailPageProps {
+interface ContactDetailsCardProps {
   contactId: string;
 }
 
-
-// Helper function to generate initials from display name
-function getInitials(displayName: string): string {
-  if (!displayName) return "?";
-  const names = displayName.trim().split(/\s+/).filter(Boolean);
-  if (names.length === 0) return "?";
-  if (names.length === 1) {
-    const firstName = names[0];
-    if (firstName) {
-      return firstName.charAt(0).toUpperCase();
-    }
-    return "?";
-  }
-  const firstName = names[0];
-  const lastName = names[names.length - 1];
-  if (firstName && lastName) {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  }
-  return "?";
-}
-
 /**
- * Comprehensive Contact Detail Page Component
- * Full contact profile with notes, interactions, and AI features
+ * Contact Details Card Component
+ * Displays comprehensive contact information with notes and AI insights
  */
-export function ContactDetailPage({ contactId }: ContactDetailPageProps): JSX.Element {
+export function ContactDetailsCard({ contactId }: ContactDetailsCardProps): JSX.Element {
   // All hooks must be called at the top of the component before any conditional logic
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -109,9 +85,7 @@ export function ContactDetailPage({ contactId }: ContactDetailPageProps): JSX.El
   const { data: notes, isLoading: notesLoading } = useQuery({
     queryKey: [`/api/contacts/${contactId}/notes`],
     queryFn: async (): Promise<Note[]> => {
-      const response = await apiClient.get<{ notes: Note[] }>(
-        `/api/contacts/${contactId}/notes`,
-      );
+      const response = await apiClient.get<{ notes: Note[] }>(`/api/contacts/${contactId}/notes`);
       return response.notes;
     },
   });

@@ -12,7 +12,6 @@ import {
   date,
   inet,
   pgEnum,
-  uniqueIndex,
   numeric,
   primaryKey,
 } from "drizzle-orm/pg-core";

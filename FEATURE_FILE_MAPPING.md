@@ -370,6 +370,60 @@ Public-facing intake form for new clients to submit their information, including
 
 - **Pagination Limit**: Schema caps pageSize at 100, need server-side pagination for larger datasets
 
+## Contact Details Page ✅ WORKING
+
+### Core Files
+
+- **Page**: `src/app/(authorisedRoute)/contacts/[contactId]/page.tsx`
+- **Main Component**: `src/app/(authorisedRoute)/contacts/_components/ContactDetailsCard.tsx`
+- **Navigation Wrapper**: `src/app/(authorisedRoute)/contacts/_components/ContactDetailsNavWrapper.tsx`
+- **Types**: `src/app/(authorisedRoute)/contacts/_components/types.ts`
+
+### API Routes
+
+- **Contact Details Route**: `src/app/api/contacts/[contactId]/route.ts`
+  - GET: Retrieve single contact by ID
+  - PUT: Update contact details
+  - DELETE: Delete contact
+  - Returns `{ item: Contact }` format
+  - Uses `ContactResponseSchema` for validation
+
+- **Contact Notes Route**: `src/app/api/contacts/[contactId]/notes/route.ts`
+  - GET: List all notes for a contact
+  - POST: Create new note for contact
+
+### Features
+
+- **Contact Information Display**: Shows all contact details
+  - Display name, email, phone
+  - Lifecycle stage, tags, source
+  - Health context, preferences, address
+  - Emergency contact information
+  - Date of birth, client status, referral source
+
+- **Notes Management**: View and add notes to contacts
+  - Real-time note loading via React Query
+  - Add new notes with rich text editor
+  - Notes displayed in chronological order
+
+- **Navigation**: Breadcrumb navigation back to contacts list
+  - Clean URL structure: `/contacts/[contactId]`
+  - No legacy parameter support (backwards compatibility removed)
+
+### Recent Fixes (2025-10-02)
+
+- ✅ **Removed fullName Legacy Code**
+  - Cleaned up `ContactResponseSchema` - removed unnecessary `fullName` field extension
+  - Updated API route to return clean contact data without legacy aliases
+  - Updated `DashboardContent.tsx` to use `displayName` consistently
+  - Files: `src/server/db/business-schemas/contacts.ts`, `src/app/api/contacts/[contactId]/route.ts`, `src/app/(authorisedRoute)/omni-flow/_components/DashboardContent.tsx`
+
+- ✅ **Fixed Contact Details Loading (400 Error)**
+  - Root cause: Schema validation failing due to missing `fullName` field
+  - Solution: Removed legacy `fullName` alias from schema and API response
+  - Contact details now load correctly when clicking from contacts list
+  - Files: `src/app/api/contacts/[contactId]/route.ts`, `src/server/db/business-schemas/contacts.ts`
+
 ### Recent Fixes
 
 **2025-10-01 - Photo URL Optimization & HIPAA/GDPR Compliance**:

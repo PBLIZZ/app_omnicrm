@@ -1,20 +1,29 @@
 /**
- * Interaction Business Schema - derived from database schema
+ * Interaction Business Schema - API-specific schemas only
  *
- * Handles email, call, meeting, and other interaction data
+ * For base types, import from @/server/db/schema:
+ * - Interaction (select type)
+ * - CreateInteraction (insert type)
+ * - UpdateInteraction (partial insert type)
+ *
+ * This file contains ONLY UI-enhanced versions and API-specific schemas.
  */
 
 import { z } from "zod";
 import { createSelectSchema } from "drizzle-zod";
-import { interactions } from "@/server/db/schema";
+import { interactions, type Interaction } from "@/server/db/schema";
 
-// Create base schemas from drizzle table
+// Re-export base types from schema for convenience
+export type { Interaction, CreateInteraction, UpdateInteraction } from "@/server/db/schema";
+
+// Create base schema from drizzle table for UI enhancements
 const selectInteractionSchema = createSelectSchema(interactions);
 
-// Transform schema with UI computed fields
-const BaseInteractionSchema = selectInteractionSchema;
-
-export const InteractionSchema = BaseInteractionSchema.transform((data) => ({
+/**
+ * UI-Enhanced Interaction Schema
+ * Extends base Interaction with computed fields for UI display
+ */
+export const InteractionWithUISchema = selectInteractionSchema.transform((data) => ({
   ...data,
   // UI computed fields
   hasContent: !!(data.bodyText || data.subject),
@@ -24,15 +33,12 @@ export const InteractionSchema = BaseInteractionSchema.transform((data) => ({
   isEmail: data.type === "email",
   isCall: data.type === "call",
   isMeeting: data.type === "meeting",
-}));
+})) satisfies z.ZodType<Interaction & {
+  hasContent: boolean;
+  contentPreview: string;
+  isEmail: boolean;
+  isCall: boolean;
+  isMeeting: boolean;
+}>;
 
-export type Interaction = z.infer<typeof InteractionSchema>;
-
-export const CreateInteractionSchema = BaseInteractionSchema.omit({
-  id: true,
-  createdAt: true,
-});
-
-export type CreateInteraction = z.infer<typeof CreateInteractionSchema>;
-
-export const UpdateInteractionSchema = BaseInteractionSchema.partial().required({ id: true });
+export type InteractionWithUI = z.infer<typeof InteractionWithUISchema>;

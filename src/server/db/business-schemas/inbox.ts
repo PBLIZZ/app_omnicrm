@@ -6,13 +6,14 @@
  */
 
 import { z } from "zod";
+import { type InboxItem as DbInboxItem, type CreateInboxItem as DbCreateInboxItem } from "@/server/db/schema";
 
 // ============================================================================
 // CORE INBOX SCHEMAS
 // ============================================================================
 
 /**
- * Base Inbox Item Schema (without transform)
+ * Base Inbox Item Schema (derived from database schema)
  */
 const BaseInboxItemSchema = z.object({
   id: z.string().uuid(),
@@ -23,7 +24,7 @@ const BaseInboxItemSchema = z.object({
   processedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
-});
+}) satisfies z.ZodType<DbInboxItem>;
 
 /**
  * Inbox Item Schema (with transform)

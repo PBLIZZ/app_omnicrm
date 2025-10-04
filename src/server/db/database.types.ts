@@ -746,31 +746,70 @@ export type Database = {
           },
         ]
       }
+      note_goals: {
+        Row: {
+          goal_id: string
+          note_id: string
+        }
+        Insert: {
+          goal_id: string
+          note_id: string
+        }
+        Update: {
+          goal_id?: string
+          note_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_goals_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_goals_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           contact_id: string | null
-          content: string
+          content_plain: string
+          content_rich: Json
           created_at: string
           id: string
-          title: string | null
+          pii_entities: Json
+          source_type: Database["public"]["Enums"]["note_source_type"]
+          tags: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
           contact_id?: string | null
-          content: string
+          content_plain?: string
+          content_rich?: Json
           created_at?: string
           id?: string
-          title?: string | null
+          pii_entities?: Json
+          source_type?: Database["public"]["Enums"]["note_source_type"]
+          tags?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
           contact_id?: string | null
-          content?: string
+          content_plain?: string
+          content_rich?: Json
           created_at?: string
           id?: string
-          title?: string | null
+          pii_entities?: Json
+          source_type?: Database["public"]["Enums"]["note_source_type"]
+          tags?: string[]
           updated_at?: string
           user_id?: string
         }
@@ -1339,6 +1378,26 @@ export type Database = {
         }
         Returns: boolean
       }
+      gtrgm_compress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_decompress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_options: {
+        Args: { "": unknown }
+        Returns: undefined
+      }
+      gtrgm_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
       immutable_90_days_ago: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -1351,6 +1410,18 @@ export type Database = {
           p_token: string
         }
         Returns: string
+      }
+      set_limit: {
+        Args: { "": number }
+        Returns: number
+      }
+      show_limit: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      show_trgm: {
+        Args: { "": string }
+        Returns: string[]
       }
       stable_90_days_ago: {
         Args: Record<PropertyKey, never>
@@ -1366,6 +1437,7 @@ export type Database = {
         | "practitioner_personal"
         | "client_wellness"
       inbox_item_status: "unprocessed" | "processed" | "archived"
+      note_source_type: "typed" | "voice" | "upload"
       project_status: "active" | "on_hold" | "completed" | "archived"
       task_priority: "low" | "medium" | "high" | "urgent"
       task_status: "todo" | "in_progress" | "done" | "canceled"
@@ -1508,6 +1580,7 @@ export const Constants = {
         "client_wellness",
       ],
       inbox_item_status: ["unprocessed", "processed", "archived"],
+      note_source_type: ["typed", "voice", "upload"],
       project_status: ["active", "on_hold", "completed", "archived"],
       task_priority: ["low", "medium", "high", "urgent"],
       task_status: ["todo", "in_progress", "done", "canceled"],

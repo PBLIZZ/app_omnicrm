@@ -1,8 +1,9 @@
 import { eq, and, desc, ilike } from "drizzle-orm";
-import { Note, CreateNote, notes } from "@/server/db/schema";
+import { Note, notes } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
 import { ok, err, DbResult } from "@/lib/utils/result";
 import { z } from "zod";
+import { redactPII } from "@/server/lib/pii-detector";
 
 export class NotesRepository {
   /**
@@ -19,23 +20,13 @@ export class NotesRepository {
         conditions.push(eq(notes.contactId, contactId));
       }
 
-      const query = db
-        .select({
-          id: notes.id,
-          userId: notes.userId,
-          contactId: notes.contactId,
-          title: notes.title,
-          content: notes.content,
-          createdAt: notes.createdAt,
-          updatedAt: notes.updatedAt,
-        })
+      const rows = await db
+        .select()
         .from(notes)
         .where(and(...conditions))
         .orderBy(desc(notes.createdAt));
 
-      const rows = await query;
-
-      return ok(rows.map((row) => row));
+      return ok(rows);
     } catch (error) {
       return err({
         code: "DB_QUERY_FAILED",
@@ -53,15 +44,7 @@ export class NotesRepository {
       const db = await getDb();
 
       const rows = await db
-        .select({
-          id: notes.id,
-          userId: notes.userId,
-          contactId: notes.contactId,
-          title: notes.title,
-          content: notes.content,
-          createdAt: notes.createdAt,
-          updatedAt: notes.updatedAt,
-        })
+        .select()
         .from(notes)
         .where(and(eq(notes.userId, userId), eq(notes.id, noteId)))
         .limit(1);
@@ -79,28 +62,17 @@ export class NotesRepository {
   /**
    * Get notes for a specific contact
    */
-  static async getNotesByContactId(
-    userId: string,
-    contactId: string,
-  ): Promise<DbResult<Note[]>> {
+  static async getNotesByContactId(userId: string, contactId: string): Promise<DbResult<Note[]>> {
     try {
       const db = await getDb();
 
       const rows = await db
-        .select({
-          id: notes.id,
-          userId: notes.userId,
-          contactId: notes.contactId,
-          title: notes.title,
-          content: notes.content,
-          createdAt: notes.createdAt,
-          updatedAt: notes.updatedAt,
-        })
+        .select()
         .from(notes)
         .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)))
         .orderBy(desc(notes.createdAt));
 
-      return ok(rows.map((row) => row));
+      return ok(rows);
     } catch (error) {
       return err({
         code: "DB_QUERY_FAILED",
@@ -118,20 +90,12 @@ export class NotesRepository {
       const db = await getDb();
 
       const rows = await db
-        .select({
-          id: notes.id,
-          userId: notes.userId,
-          contactId: notes.contactId,
-          title: notes.title,
-          content: notes.content,
-          createdAt: notes.createdAt,
-          updatedAt: notes.updatedAt,
-        })
+        .select()
         .from(notes)
-        .where(and(eq(notes.userId, userId), ilike(notes.content, `%${searchTerm}%`)))
+        .where(and(eq(notes.userId, userId), ilike(notes.contentPlain, `%${searchTerm}%`)))
         .orderBy(desc(notes.createdAt));
 
-      return ok(rows.map((row) => row));
+      return ok(rows);
     } catch (error) {
       return err({
         code: "DB_QUERY_FAILED",
@@ -150,9 +114,12 @@ export class NotesRepository {
 
       // Validate input data
       const createNoteSchema = z.object({
-        content: z.string(),
+        contentPlain: z.string(),
+        contentRich: z.record(z.string(), z.unknown()).optional().default({}),
         contactId: z.string().uuid().optional(),
-        title: z.string().optional(),
+        tags: z.array(z.string()).optional().default([]),
+        piiEntities: z.array(z.unknown()).optional().default([]),
+        sourceType: z.enum(["typed", "voice", "upload"]).optional().default("typed"),
       });
 
       const parseResult = createNoteSchema.safeParse(input);
@@ -166,23 +133,21 @@ export class NotesRepository {
 
       const data = parseResult.data;
 
+      // Redact PII from content
+      const redactionResult = redactPII(data.contentPlain);
+
       const [newNote] = await db
         .insert(notes)
         .values({
           userId,
           contactId: data.contactId ?? null,
-          title: data.title ?? null,
-          content: data.content,
+          contentPlain: redactionResult.sanitizedText,
+          contentRich: data.contentRich,
+          tags: data.tags,
+          piiEntities: redactionResult.entities,
+          sourceType: data.sourceType,
         })
-        .returning({
-          id: notes.id,
-          userId: notes.userId,
-          contactId: notes.contactId,
-          title: notes.title,
-          content: notes.content,
-          createdAt: notes.createdAt,
-          updatedAt: notes.updatedAt,
-        });
+        .returning();
 
       if (!newNote) {
         return err({
@@ -214,8 +179,10 @@ export class NotesRepository {
 
       // Validate input data
       const updateNoteSchema = z.object({
-        content: z.string().optional(),
-        title: z.string().optional(),
+        contentPlain: z.string().optional(),
+        contentRich: z.record(z.string(), z.unknown()).optional(),
+        tags: z.array(z.string()).optional(),
+        piiEntities: z.array(z.unknown()).optional(),
       });
 
       const parseResult = updateNoteSchema.safeParse(input);
@@ -229,26 +196,26 @@ export class NotesRepository {
 
       const data = parseResult.data;
 
-      // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
-      const updateValues = {
+      // Build update object with only defined fields
+      const updateValues: Record<string, unknown> = {
         updatedAt: new Date(),
-        ...(data.title !== undefined && { title: data.title ?? null }),
-        ...(data.content !== undefined && { content: data.content }),
       };
+
+      // Redact PII if contentPlain is being updated
+      if (data.contentPlain !== undefined) {
+        const redactionResult = redactPII(data.contentPlain);
+        updateValues["contentPlain"] = redactionResult.sanitizedText;
+        updateValues["piiEntities"] = redactionResult.entities;
+      }
+
+      if (data.contentRich !== undefined) updateValues["contentRich"] = data.contentRich;
+      if (data.tags !== undefined) updateValues["tags"] = data.tags;
 
       const [updatedNote] = await db
         .update(notes)
         .set(updateValues)
         .where(and(eq(notes.userId, userId), eq(notes.id, noteId)))
-        .returning({
-          id: notes.id,
-          userId: notes.userId,
-          contactId: notes.contactId,
-          title: notes.title,
-          content: notes.content,
-          createdAt: notes.createdAt,
-          updatedAt: notes.updatedAt,
-        });
+        .returning();
 
       return ok(updatedNote || null);
     } catch (error) {
@@ -277,46 +244,6 @@ export class NotesRepository {
       return err({
         code: "DB_DELETE_FAILED",
         message: error instanceof Error ? error.message : "Failed to delete note",
-        details: error,
-      });
-    }
-  }
-
-  /**
-   * Bulk create notes (useful for AI-generated insights)
-   */
-  static async bulkCreateNotes(
-    userId: string,
-    data: CreateNote[],
-  ): Promise<DbResult<Note[]>> {
-    try {
-      const db = await getDb();
-
-      const newNotes = await db
-        .insert(notes)
-        .values(
-          data.map((item) => ({
-            userId,
-            contactId: item.contactId ?? null,
-            title: item.title ?? null,
-            content: item.content,
-          })),
-        )
-        .returning({
-          id: notes.id,
-          userId: notes.userId,
-          contactId: notes.contactId,
-          title: notes.title,
-          content: notes.content,
-          createdAt: notes.createdAt,
-          updatedAt: notes.updatedAt,
-        });
-
-      return ok(newNotes.map((row) => row));
-    } catch (error) {
-      return err({
-        code: "DB_INSERT_FAILED",
-        message: error instanceof Error ? error.message : "Failed to bulk create notes",
         details: error,
       });
     }

@@ -36,6 +36,7 @@ export const goalTypeEnum = pgEnum("goal_type", [
   "practitioner_personal",
   "client_wellness",
 ]);
+export const noteSourceTypeEnum = pgEnum("note_source_type", ["typed", "voice", "upload"]);
 export const inboxItemStatusEnum = pgEnum("inbox_item_status", [
   "unprocessed",
   "processed",
@@ -308,11 +309,29 @@ export const notes = pgTable("notes", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
   contactId: uuid("contact_id").references(() => contacts.id),
-  title: text("title"),
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  contentRich: jsonb("content_rich").notNull().default({}),
+  contentPlain: text("content_plain").notNull().default(""),
+  piiEntities: jsonb("pii_entities").notNull().default([]),
+  tags: text("tags").array().notNull().default([]),
+  sourceType: noteSourceTypeEnum("source_type").notNull().default("typed"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const noteGoals = pgTable(
+  "note_goals",
+  {
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+    goalId: uuid("goal_id")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.noteId, table.goalId] }),
+  }),
+);
 
 export const onboardingTokens = pgTable("onboarding_tokens", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -401,25 +420,15 @@ export const syncSessions = pgTable("sync_sessions", {
   errorDetails: jsonb("error_details"),
 });
 
-export const taskContactTags = pgTable(
-  "task_contact_tags",
-  {
-    taskId: uuid("task_id")
-      .notNull()
-      .references(() => tasks.id),
-    contactId: uuid("contact_id")
-      .notNull()
-      .references(() => contacts.id),
-  },
-  (t) => ({
-    pk: primaryKey({ columns: [t.taskId, t.contactId] }),
-  }),
-);
-
+// Self-referential table: tasks can have parent tasks
+// TypeScript can't infer the type correctly due to circular reference
+// @ts-expect-error - TS7022: Self-referential table definition
 export const tasks = pgTable("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
   projectId: uuid("project_id").references(() => projects.id),
+  // @ts-expect-error - TS7024: Self-referential foreign key
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
   parentTaskId: uuid("parent_task_id").references(() => tasks.id),
   name: text("name").notNull(),
   status: taskStatusEnum("status").default("todo").notNull(),
@@ -430,6 +439,22 @@ export const tasks = pgTable("tasks", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
+
+export const taskContactTags = pgTable(
+  "task_contact_tags",
+  {
+    taskId: uuid("task_id")
+      .notNull()
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+      .references(() => tasks.id),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.taskId, t.contactId] }),
+  }),
+);
 
 // User Tables
 export const userIntegrations = pgTable(
@@ -526,10 +551,22 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
-export const notesRelations = relations(notes, ({ one }) => ({
+export const notesRelations = relations(notes, ({ one, many }) => ({
   contact: one(contacts, {
     fields: [notes.contactId],
     references: [contacts.id],
+  }),
+  noteGoals: many(noteGoals),
+}));
+
+export const noteGoalsRelations = relations(noteGoals, ({ one }) => ({
+  note: one(notes, {
+    fields: [noteGoals.noteId],
+    references: [notes.id],
+  }),
+  goal: one(goals, {
+    fields: [noteGoals.goalId],
+    references: [goals.id],
   }),
 }));
 
@@ -557,6 +594,7 @@ export const rawEventsRelations = relations(rawEvents, ({ one }) => ({
 export const taskContactTagsRelations = relations(taskContactTags, ({ one }) => ({
   task: one(tasks, {
     fields: [taskContactTags.taskId],
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     references: [tasks.id],
   }),
   contact: one(contacts, {
@@ -567,11 +605,14 @@ export const taskContactTagsRelations = relations(taskContactTags, ({ one }) => 
 
 export const tasksRelations = relations(tasks, ({ one }) => ({
   project: one(projects, {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     fields: [tasks.projectId],
     references: [projects.id],
   }),
   parentTask: one(tasks, {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     fields: [tasks.parentTaskId],
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     references: [tasks.id],
   }),
 }));
@@ -595,6 +636,9 @@ export type UpdateContact = Partial<CreateContact>;
 export type Note = typeof notes.$inferSelect;
 export type CreateNote = typeof notes.$inferInsert;
 export type UpdateNote = Partial<CreateNote>;
+
+export type NoteGoal = typeof noteGoals.$inferSelect;
+export type CreateNoteGoal = typeof noteGoals.$inferInsert;
 
 export type Interaction = typeof interactions.$inferSelect;
 export type CreateInteraction = typeof interactions.$inferInsert;

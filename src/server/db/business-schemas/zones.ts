@@ -6,22 +6,21 @@
  */
 
 import { z } from "zod";
+import { type Zone as DbZone, type CreateZone as DbCreateZone } from "@/server/db/schema";
 
 // ============================================================================
 // CORE ZONE SCHEMAS
 // ============================================================================
 
 /**
- * Base Zone Schema (actual database columns only)
+ * Base Zone Schema (derived from database schema)
  */
 const BaseZoneSchema = z.object({
   id: z.number().int().positive(),
   name: z.string().min(1),
   color: z.string().nullable(),
-  iconName: z.string().nullable(), // Maps to icon_name in database
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-});
+  iconName: z.string().nullable(),
+}) satisfies z.ZodType<DbZone>;
 
 /**
  * Zone Schema (with transform)
@@ -165,9 +164,7 @@ export const ZoneDetailsResponseSchema = z.object({
  */
 export const CreateZoneSchema = BaseZoneSchema.omit({
   id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+}) satisfies z.ZodType<DbCreateZone>;
 
 export type CreateZone = z.infer<typeof CreateZoneSchema>;
 

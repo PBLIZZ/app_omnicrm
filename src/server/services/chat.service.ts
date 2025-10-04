@@ -8,14 +8,10 @@ import {
   searchSemanticByEmbedding,
   type SearchResult,
 } from "@/server/services/semantic-search.service";
+import { ChatRequestSchema } from "@/server/db/business-schemas";
+import type { z } from "zod";
 
-export interface ChatRequestBody {
-  message: string;
-  history?: Array<{
-    role: string;
-    content: string;
-  }>;
-}
+export type ChatRequestBody = z.infer<typeof ChatRequestSchema>;
 
 export interface ChatResponse {
   response: string;

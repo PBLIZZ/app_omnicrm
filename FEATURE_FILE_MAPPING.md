@@ -375,9 +375,95 @@ Public-facing intake form for new clients to submit their information, including
 ### Core Files
 
 - **Page**: `src/app/(authorisedRoute)/contacts/[contactId]/page.tsx`
-- **Main Component**: `src/app/(authorisedRoute)/contacts/_components/ContactDetailsCard.tsx`
+  - Server component that handles authentication and fetches contact data
+  - Passes contactId to `ContactDetailsNavWrapper`
+
 - **Navigation Wrapper**: `src/app/(authorisedRoute)/contacts/_components/ContactDetailsNavWrapper.tsx`
+  - Client component wrapper for Tinder-style navigation (Previous/Next contacts)
+  - Manages navigation context from localStorage
+  - Renders `ContactDetailsCard` with contactId
+
+- **Main Component**: `src/app/(authorisedRoute)/contacts/_components/ContactDetailsCard.tsx`
+  - **NEW 2-column layout**: 2/3 notes main pane + 1/3 AI insights sidebar
+  - Fetches contact data and notes using React Query
+  - Renders: ContactHeader, NotesMainPane, AIInsightsSidebar
+
+- **Contact Header**: `src/app/(authorisedRoute)/contacts/_components/ContactHeader.tsx`
+  - Displays photo, name, email, phone, tags, lifecycle stage
+  - Action buttons: Ask AI, Add Note, Edit, Delete
+  - Last interaction and next appointment timeline
+
+- **Notes Main Pane**: `src/app/(authorisedRoute)/contacts/_components/NotesMainPane.tsx`
+  - Latest note preview card with deep link
+  - Add note editor section (TipTap rich text)
+  - All notes feed with chronological display
+  - "Add First Note" empty state
+
+- **AI Insights Sidebar**: `src/app/(authorisedRoute)/contacts/_components/AIInsightsSidebar.tsx`
+  - Collapsible AI insights panel
+  - Generate insights button
+  - Quick stats and risk flags
+
+- **Note Editor**: `src/app/(authorisedRoute)/contacts/_components/NoteEditor.tsx`
+  - TipTap rich text editor
+  - PII detection and redaction
+  - Auto-save functionality
+
 - **Types**: `src/app/(authorisedRoute)/contacts/_components/types.ts`
+
+### Notes System Files
+
+- **Notes API Route**: `src/app/api/notes/route.ts`
+  - GET: List notes with optional contactId filter
+  - POST: Create new note with PII redaction
+  - Returns `{ success: true, data: Note[] }` envelope
+  - Uses NotesRepository for data access
+
+- **Notes Hook**: `src/hooks/use-notes.ts`
+  - `useNotes({ contactId })` - React Query hook for notes CRUD
+  - Optimistic updates for create/update/delete
+  - Automatic cache management (no manual invalidation needed)
+  - **FIXED**: Removed `initialData: []` to enable proper fetching
+
+- **Notes Repository**: `packages/repo/src/notes.repo.ts`
+  - `listNotes(userId, contactId?)` - Fetch notes with optional contact filter
+  - `createNote(userId, data)` - Create note with PII redaction
+  - `updateNote(userId, noteId, data)` - Update note content
+  - `deleteNote(userId, noteId)` - Delete note
+  - Uses `getDb()` async pattern for database access
+
+- **Notes Schema**: `src/server/db/schema.ts`
+  - `notes` table with PII entities tracking
+  - Fields: `contentRich` (JSON), `contentPlain` (text), `piiEntities`, `tags`, `sourceType`
+  - Relations to contacts and goals
+
+- **PII Detector**: `src/server/lib/pii-detector.ts`
+  - Server-side PII detection and redaction
+  - Detects: SSN, credit cards, emails, phone numbers, addresses
+
+### Notes in Contacts Table
+
+- **Table Columns**: `src/app/(authorisedRoute)/contacts/_components/contacts-columns.tsx`
+  - Notes column displays Badge "See note ↑" when contact has notes
+  - Uses `ContactWithNotes` type with `lastNote` field
+  - Triggers `NotesHoverCard` on hover
+
+- **Notes Hover Card**: `src/app/(authorisedRoute)/contacts/_components/NotesHoverCard.tsx`
+  - Displays last note preview (500 char limit) in hover card
+  - Lazy loads notes on hover (hasFetched flag prevents re-fetching)
+  - Fixed minimum height to prevent flickering
+  - Delays: `openDelay={150}` `closeDelay={200}`
+  - Side: top, align: center, sideOffset: 10
+
+- **Contacts Service**: `src/server/services/contacts.service.ts`
+  - `listContactsService()` includes `getLastNotePreviewForContacts()`
+  - Batch fetches last note (first 500 chars) for all contacts
+  - Returns `ContactWithNotes[]` with `lastNote` field populated
+
+- **Contacts Schema**: `src/server/db/business-schemas/contacts.ts`
+  - `ContactWithNotesSchema` extends `ContactSchema` with `lastNote: string | null`
+  - `ContactListResponseSchema` uses `ContactWithNotesSchema` array
+  - **FIXED**: Schema definition order (ContactWithNotesSchema before ContactListResponseSchema)
 
 ### API Routes
 
@@ -388,11 +474,7 @@ Public-facing intake form for new clients to submit their information, including
   - Returns `{ item: Contact }` format
   - Uses `ContactResponseSchema` for validation
 
-- **Contact Notes Route**: `src/app/api/contacts/[contactId]/notes/route.ts`
-  - GET: List all notes for a contact
-  - POST: Create new note for contact
-
-### Features
+### Api Features
 
 - **Contact Information Display**: Shows all contact details
   - Display name, email, phone
@@ -401,14 +483,51 @@ Public-facing intake form for new clients to submit their information, including
   - Emergency contact information
   - Date of birth, client status, referral source
 
-- **Notes Management**: View and add notes to contacts
-  - Real-time note loading via React Query
-  - Add new notes with rich text editor
-  - Notes displayed in chronological order
+- **Notes Management**: Practitioner-focused notes workflow
+  - **Contacts table preview**: Hover over "See note ↑" badge to preview last note (500 chars)
+  - **Contact details page**: 2/3 screen dedicated to notes with AI sidebar (1/3)
+  - Latest note preview card at top with deep link
+  - Add note with TipTap rich text editor
+  - PII auto-detection and redaction
+  - Notes feed in chronological order
+  - Individual note pages: `/contacts/[contactId]/notes/[noteId]`
 
 - **Navigation**: Breadcrumb navigation back to contacts list
   - Clean URL structure: `/contacts/[contactId]`
-  - No legacy parameter support (backwards compatibility removed)
+  - Tinder-style Previous/Next navigation between contacts
+  - Navigation context preserved in localStorage
+
+### Recent Fixes (2025-10-03)
+
+- ✅ **Notes Not Displaying in Contact Details Page**
+  - Root cause: `initialData: []` in `useNotes` hook prevented React Query from fetching
+  - Solution: Removed `initialData` config to allow proper data fetching
+  - Notes now load correctly on contact details page
+  - File: `src/hooks/use-notes.ts`
+
+- ✅ **Notes Hover Card Flickering on Mouse Movement**
+  - Root cause 1: No delays on HoverCard, causing instant open/close cycles
+  - Root cause 2: Content height changing during load, pushing mouse outside hover zone
+  - Root cause 3: Notes re-fetching on every mouse movement
+  - Solutions:
+    - Added `hasFetched` flag to prevent re-fetching notes
+    - Added `min-h-[120px]` to prevent layout shifts
+    - Configured delays: `openDelay={150}` `closeDelay={200}`
+    - Set `avoidCollisions={false}` for consistent positioning
+    - Increased `sideOffset={10}` for more space between trigger and content
+  - Result: Smooth hover experience with no flickering
+  - File: `src/app/(authorisedRoute)/contacts/_components/NotesHoverCard.tsx`
+
+- ✅ **"See note" Hover Sensitivity**
+  - Changed from button to Badge component for larger hover target area
+  - Badge has more padding (`px-3 py-1`) reducing accidental exits
+  - Added hover feedback: `hover:bg-blue-50`
+  - File: `src/app/(authorisedRoute)/contacts/_components/contacts-columns.tsx`
+
+- ✅ **Dead Code Cleanup**
+  - Removed unused `ScrollArea` import from NotesHoverCard
+  - All notes-related files verified clean of dead code
+  - Files: `src/app/(authorisedRoute)/contacts/_components/NotesHoverCard.tsx`
 
 ### Recent Fixes (2025-10-02)
 
@@ -423,6 +542,12 @@ Public-facing intake form for new clients to submit their information, including
   - Solution: Removed legacy `fullName` alias from schema and API response
   - Contact details now load correctly when clicking from contacts list
   - Files: `src/app/api/contacts/[contactId]/route.ts`, `src/server/db/business-schemas/contacts.ts`
+
+- ✅ **Notes Table Preview Working**
+  - Fixed schema definition order: `ContactWithNotesSchema` now defined before `ContactListResponseSchema`
+  - Fixed contacts table to show "See note ↑" for contacts with notes
+  - Backend correctly fetches last note preview (500 chars) for each contact
+  - Files: `src/server/db/business-schemas/contacts.ts`, `src/server/services/contacts.service.ts`
 
 ### Recent Fixes
 

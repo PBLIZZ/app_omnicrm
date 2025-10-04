@@ -49,39 +49,47 @@ export function unwrapResult<T>(result: DbResult<T>): T {
 // DATABASE ROW TYPE GUARDS
 // ============================================================================
 
-export interface NotesCountRow {
+/**
+ * Generic database row from notes queries
+ * Supports various note aggregation formats
+ */
+export interface NotesQueryRow {
   contact_id: string;
-  count: string | number;
-  last_note: string | null;
+  count?: string | number;
+  last_note?: string | null;
+  last_note_preview?: string | null;
 }
 
 /**
- * Type guard for notes count query result row
+ * Type guard for notes query result row
  */
-
-export function isNotesCountRow(row: unknown): row is NotesCountRow {
+export function isNotesQueryRow(row: unknown): row is NotesQueryRow {
   return (
     typeof row === "object" &&
     row !== null &&
     "contact_id" in row &&
-    typeof row.contact_id === "string" &&
-    "count" in row &&
-    (typeof row.count === "string" || typeof row.count === "number") &&
-    "last_note" in row &&
-    (row.last_note === null || typeof row.last_note === "string")
+    typeof row.contact_id === "string"
   );
 }
 
 /**
- * Validate and convert database rows to NotesCountRow array
+ * Validate and convert database rows to NotesQueryRow array
  */
-export function validateNotesCountRows(rows: unknown): NotesCountRow[] {
+export function validateNotesQueryRows(rows: unknown): NotesQueryRow[] {
   if (!Array.isArray(rows)) {
     return [];
   }
   
-  return rows.filter(isNotesCountRow);
+  return rows.filter(isNotesQueryRow);
 }
+
+// Legacy aliases for backward compatibility
+/** @deprecated Use NotesQueryRow instead */
+export type NotesCountRow = NotesQueryRow;
+/** @deprecated Use validateNotesQueryRows instead */
+export const validateNotesCountRows = validateNotesQueryRows;
+/** @deprecated Use isNotesQueryRow instead */
+export const isNotesCountRow = isNotesQueryRow;
 
 // ============================================================================
 // CONTACT TYPE GUARDS

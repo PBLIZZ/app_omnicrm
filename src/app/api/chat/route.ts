@@ -10,8 +10,8 @@ import {
 export const POST = handleAuth(
   ChatRequestSchema,
   ChatResponseSchema,
-  async (data, _userId): Promise<ChatResponse> => {
-    const result = await ChatService.processChatRequest(data);
+  async (data, userId): Promise<ChatResponse> => {
+    const result = await ChatService.processChatRequest(userId, data);
     return result;
   }
 );

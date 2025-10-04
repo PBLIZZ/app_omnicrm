@@ -14,14 +14,14 @@ export async function GET() {
 
     // 2. Create OAuth2 client
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/google/calendar/callback`
+      process.env["GOOGLE_CLIENT_ID"],
+      process.env["GOOGLE_CLIENT_SECRET"],
+      `${process.env["NEXT_PUBLIC_APP_URL"]}/api/google/calendar/callback`,
     );
 
     // 3. Generate state token for CSRF protection
     const state = randomBytes(32).toString("hex");
-    
+
     // 4. Store state in cookie
     const cookieStore = await cookies();
     cookieStore.set("calendar_oauth_state", state, {
@@ -57,7 +57,7 @@ export async function GET() {
   } catch (error) {
     console.error("[Calendar OAuth] Error:", error);
     return Response.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/omni-rhythm?error=oauth_init_failed`
+      `${process.env["NEXT_PUBLIC_APP_URL"]}/omni-rhythm?error=oauth_init_failed`,
     );
   }
 }

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { NotesHoverCard } from "../NotesHoverCard";
+import { NotesHoverCard } from "../../[contactId]/notes/[noteId]/_components/NotesHoverCard";
 import { renderWithProviders, mockApiResponses } from "../../../../../__tests__/test-utils";
 import {
   setupRepoMocks,

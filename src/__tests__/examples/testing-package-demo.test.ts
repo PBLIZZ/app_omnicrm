@@ -46,7 +46,7 @@ describe("Testing Package Demo", () => {
       contacts.forEach((contact) => {
         expect(contact).toHaveProperty("id");
         expect(contact).toHaveProperty("displayName");
-        expect(contact).toHaveProperty("notesCount");
+        expect(contact).toHaveProperty("lastNote");
       });
 
       // All should have different IDs

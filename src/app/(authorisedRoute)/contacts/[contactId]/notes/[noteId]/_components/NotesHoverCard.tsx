@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { get } from "@/lib/api/client";
 
 interface Note {
   id: string;
-  content: string;
+  contentPlain: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,16 +29,18 @@ export function NotesHoverCard({
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
 
   const fetchNotes = async (): Promise<void> => {
-    if (!contactId) return;
+    if (!contactId || hasFetched) return;
 
     setLoading(true);
     setError(null);
+    setHasFetched(true);
 
     try {
-      const data = await get<{ notes: Note[] }>(`/api/contacts/${contactId}/notes`);
-      setNotes(data.notes || []);
+      const data = await get<Note[]>(`/api/notes?contactId=${contactId}`);
+      setNotes(data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load notes");
     } finally {
@@ -48,20 +49,19 @@ export function NotesHoverCard({
   };
 
   return (
-    <HoverCard>
-      <HoverCardTrigger asChild>
-        <div
-          className="cursor-pointer hover:bg-muted/20 p-1 rounded-sm transition-colors"
-          data-testid={testId}
-          onMouseEnter={fetchNotes}
-          onFocus={fetchNotes}
-        >
-          {children}
-        </div>
+    <HoverCard openDelay={150} closeDelay={200}>
+      <HoverCardTrigger asChild onMouseEnter={fetchNotes} onFocus={fetchNotes} data-testid={testId}>
+        {children}
       </HoverCardTrigger>
-      <HoverCardContent className="w-96 p-4" side="top" align="start">
+      <HoverCardContent
+        className="w-96 p-4 min-h-[120px]"
+        side="top"
+        align="center"
+        sideOffset={10}
+        avoidCollisions={false}
+      >
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-foreground">Notes for {contactName}</h4>
+          <h4 className="text-sm font-semibold text-foreground">Last Note for {contactName}</h4>
 
           {loading && (
             <div className="space-y-2">
@@ -74,25 +74,23 @@ export function NotesHoverCard({
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           {!loading && !error && (
-            <ScrollArea className="max-h-80">
+            <>
               {notes.length > 0 ? (
-                <div className="space-y-4">
-                  {notes.slice(0, 20).map((note, index) => (
-                    <div key={note.id} className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <time dateTime={note.createdAt}>
-                          {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })}
-                        </time>
-                        {index === 0 && <span className="text-primary font-medium">(Latest)</span>}
-                      </div>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{note.content}</p>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    <time dateTime={notes[0].createdAt}>
+                      {formatDistanceToNow(new Date(notes[0].createdAt), { addSuffix: true })}
+                    </time>
+                  </div>
+                  <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
+                    {notes[0].contentPlain.slice(0, 500)}
+                    {notes[0].contentPlain.length > 500 && "..."}
+                  </p>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground italic">No notes yet</p>
               )}
-            </ScrollArea>
+            </>
           )}
         </div>
       </HoverCardContent>

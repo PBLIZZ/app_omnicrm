@@ -273,7 +273,7 @@ function mapClientData(contact: unknown): Client {
   const id = getString(c, "id") ?? getString(c, "userId") ?? `contact-${Math.random()}`;
   const displayName = getString(c, "displayName") ?? getString(c, "name") ?? "Unknown Client";
   const email = getString(c, "primaryEmail") ?? getString(c, "email") ?? "";
-  const totalSessions = getNumber(c, "notesCount") ?? getNumber(c, "totalSessions") ?? 0;
+  const totalSessions = getNumber(c, "totalSessions") ?? 0;
   const totalSpent = getNumber(c, "totalSpent") ?? 0;
   const lastSessionDate =
     getString(c, "updatedAt") ?? getString(c, "lastSessionDate") ?? new Date().toISOString();

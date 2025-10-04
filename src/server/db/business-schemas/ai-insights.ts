@@ -1,20 +1,29 @@
 /**
- * AI Insights Business Schema - derived from database schema
+ * AI Insights Business Schema - API-specific schemas only
  *
- * Handles AI-generated insights and analysis data
+ * For base types, import from @/server/db/schema:
+ * - AiInsight (select type)
+ * - CreateAiInsight (insert type)
+ * - UpdateAiInsight (partial insert type)
+ *
+ * This file contains ONLY UI-enhanced versions and API-specific schemas.
  */
 
 import { z } from "zod";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-import { aiInsights } from "@/server/db/schema";
+import { createSelectSchema } from "drizzle-zod";
+import { aiInsights, type AiInsight } from "@/server/db/schema";
 
-// Create base schemas from drizzle table
-const insertAiInsightSchema = createInsertSchema(aiInsights);
+// Re-export base types from schema for convenience
+export type { AiInsight, CreateAiInsight, UpdateAiInsight } from "@/server/db/schema";
+
+// Create base schema from drizzle table for UI enhancements
 const selectAiInsightSchema = createSelectSchema(aiInsights);
 
-const BaseAiInsightSchema = selectAiInsightSchema;
-
-export const AiInsightSchema = BaseAiInsightSchema.transform((data) => ({
+/**
+ * UI-Enhanced AI Insight Schema
+ * Extends base AiInsight with computed fields for UI display
+ */
+export const AiInsightWithUISchema = selectAiInsightSchema.transform((data) => ({
   ...data,
   // UI computed fields
   isRecent: new Date(data.createdAt).getTime() > Date.now() - 24 * 60 * 60 * 1000, // Within 24h
@@ -24,14 +33,6 @@ export const AiInsightSchema = BaseAiInsightSchema.transform((data) => ({
       : typeof data.content === "object" && data.content !== null
         ? JSON.stringify(data.content).slice(0, 100) + "..."
         : "No content",
-}));
+})) satisfies z.ZodType<AiInsight & { isRecent: boolean; contentPreview: string }>;
 
-export type AiInsight = z.infer<typeof AiInsightSchema>;
-
-export const CreateAiInsightSchema = insertAiInsightSchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const UpdateAiInsightSchema = BaseAiInsightSchema.partial().required({ id: true });
+export type AiInsightWithUI = z.infer<typeof AiInsightWithUISchema>;

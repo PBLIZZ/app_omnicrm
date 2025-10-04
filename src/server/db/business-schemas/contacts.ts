@@ -1,78 +1,24 @@
 /**
  * Contact Business Schemas
  *
- * Business logic validation schemas for contact-related API endpoints
+ * For base types, import from @/server/db/schema:
+ * - Contact (select type)
+ * - CreateContact (insert type)
+ * - UpdateContact (partial insert type)
+ *
+ * This file contains ONLY API-specific schemas and business logic validations.
  */
 
 import { z } from "zod";
-import {
-  type Contact as DbContact,
-  type CreateContact as DbCreateContact,
-} from "@/server/db/schema";
+import { createSelectSchema, createInsertSchema } from "drizzle-zod";
+import { contacts } from "@/server/db/schema";
 
-// ============================================================================
-// CORE CONTACT SCHEMAS
-// ============================================================================
+// Re-export base types from schema for convenience
+export type { Contact, CreateContact, UpdateContact } from "@/server/db/schema";
 
-/**
- * Base Contact Schema - matches database reality exactly
- */
-export const ContactSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
-  displayName: z.string(),
-  primaryEmail: z.string().nullable(),
-  primaryPhone: z.string().nullable(),
-  source: z.string().nullable(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-  lifecycleStage: z.string().nullable(),
-  tags: z.array(z.string()).nullable(),
-  confidenceScore: z.string().nullable(),
-  dateOfBirth: z.string().nullable(),
-  emergencyContactName: z.string().nullable(),
-  emergencyContactPhone: z.string().nullable(),
-  clientStatus: z.string().nullable(),
-  referralSource: z.string().nullable(),
-  address: z.unknown().nullable(),
-  healthContext: z.unknown().nullable(),
-  preferences: z.unknown().nullable(),
-  photoUrl: z.string().nullable(),
-}) satisfies z.ZodType<DbContact>;
-
-export type Contact = z.infer<typeof ContactSchema>;
-
-/**
- * Create Contact Schema - matches database insert type
- */
-export const CreateContactSchema = z.object({
-  userId: z.string().uuid(),
-  displayName: z.string().min(1),
-  primaryEmail: z.string().email().optional(),
-  primaryPhone: z.string().optional(),
-  source: z.string().optional(),
-  lifecycleStage: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  confidenceScore: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  emergencyContactName: z.string().optional(),
-  emergencyContactPhone: z.string().optional(),
-  clientStatus: z.string().optional(),
-  referralSource: z.string().optional(),
-  address: z.unknown().optional(),
-  healthContext: z.unknown().optional(),
-  preferences: z.unknown().optional(),
-  photoUrl: z.string().optional(),
-}) satisfies z.ZodType<DbCreateContact>;
-
-export type CreateContact = z.infer<typeof CreateContactSchema>;
-
-/**
- * Update Contact Schema - Input for updating contacts
- */
-export const UpdateContactSchema = CreateContactSchema.partial();
-
-export type UpdateContact = z.infer<typeof UpdateContactSchema>;
+// Create Zod schemas from Drizzle table for API validation
+const ContactDataSchema = createSelectSchema(contacts);
+const CreateContactDataSchema = createInsertSchema(contacts);
 
 /**
  * Pagination Schema
@@ -88,7 +34,7 @@ export const PaginationSchema = z.object({
  * Contact Schema - Single contact response
  */
 export const ContactResponseSchema = z.object({
-  item: ContactSchema,
+  item: ContactDataSchema,
 });
 
 /**
@@ -196,17 +142,6 @@ export const ContactAIInsightsResponseSchema = z.object({
 
 export type ContactAIInsightsResponse = z.infer<typeof ContactAIInsightsResponseSchema>;
 
-/**
- * Contact Note Suggestion Schema
- */
-export const ContactNoteSuggestionSchema = z.object({
-  content: z.string(),
-  category: z.enum(["summary", "interaction", "observation", "follow-up"]),
-  priority: z.enum(["high", "medium", "low"]),
-});
-
-export type ContactNoteSuggestion = z.infer<typeof ContactNoteSuggestionSchema>;
-
 // ============================================================================
 // AVATAR SCHEMAS
 // ============================================================================
@@ -230,7 +165,7 @@ export const AvatarUploadResponseSchema = z.object({
 export const GetContactsQuerySchema = z.object({
   // Pagination
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(3000).default(20),
 
   // Sorting
   sort: z.enum(["displayName", "createdAt", "updatedAt"]).default("createdAt"),
@@ -249,11 +184,26 @@ export const GetContactsQuerySchema = z.object({
 
 export type GetContactsQuery = z.infer<typeof GetContactsQuerySchema>;
 
+// ============================================================================
+// CONTACT WITH NOTES SCHEMA (must be defined before ContactListResponseSchema)
+// ============================================================================
+
+/**
+ * Contact with Notes - Extended type for list views
+ * Includes last note preview (first 500 chars) from API aggregation
+ */
+export const ContactWithNotesSchema = ContactDataSchema.extend({
+  lastNote: z.string().nullable().default(null),
+});
+
+export type ContactWithNotes = z.infer<typeof ContactWithNotesSchema>;
+
 /**
  * Contact List Response Schema
+ * Returns ContactWithNotes (includes lastNote field)
  */
 export const ContactListResponseSchema = z.object({
-  items: z.array(ContactSchema),
+  items: z.array(ContactWithNotesSchema),
   pagination: z.object({
     page: z.number(),
     pageSize: z.number(),
@@ -286,38 +236,10 @@ export const ContactFiltersSchema = z.object({
 
 export type ContactFilters = z.infer<typeof ContactFiltersSchema>;
 
-// Legacy alias for backward compatibility
-export type ContactSearchFilters = ContactFilters;
-
-// ============================================================================
-// CONTACT WITH NOTES SCHEMA
-// ============================================================================
-
-/**
- * Contact with Notes - Extended type for detail views
- */
-export const ContactWithNotesSchema = ContactSchema.extend({
-  notes: z
-    .array(
-      z.object({
-        id: z.string().uuid(),
-        userId: z.string().uuid(),
-        title: z.string().nullable(),
-        content: z.string(),
-        createdAt: z.coerce.date(),
-        updatedAt: z.coerce.date(),
-        contactId: z.string().uuid().nullable(),
-      }),
-    )
-    .default([]),
-});
-
-export type ContactWithNotes = z.infer<typeof ContactWithNotesSchema>;
-
 /**
  * Contact Input Schemas for Forms
  */
-export const CreateContactInputSchema = CreateContactSchema.extend({
+export const CreateContactInputSchema = CreateContactDataSchema.extend({
   // Additional form-specific validations
   confirmEmail: z.string().email().optional(),
 }).refine(
@@ -333,7 +255,7 @@ export const CreateContactInputSchema = CreateContactSchema.extend({
   },
 );
 
-export const UpdateContactInputSchema = UpdateContactSchema.extend({
+export const UpdateContactInputSchema = CreateContactDataSchema.partial().extend({
   confirmEmail: z.string().email().optional(),
 }).refine(
   (data) => {
@@ -355,7 +277,7 @@ export type UpdateContactInput = z.infer<typeof UpdateContactInputSchema>;
  * Contact API Types
  */
 // Request body schema - omits userId since it's injected by auth handler
-export const CreateContactBodySchema = CreateContactSchema.omit({ userId: true });
+export const CreateContactBodySchema = CreateContactDataSchema.omit({ userId: true, id: true, createdAt: true, updatedAt: true });
 
 export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
 

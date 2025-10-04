@@ -1,23 +1,33 @@
 /**
  * Calendar API Business Schemas
  *
- * Schemas for Calendar events and Google Calendar integration endpoints
+ * For base types, import from @/server/db/schema:
+ * - CalendarEvent (select type)
+ * - CreateCalendarEvent (insert type)
+ * - UpdateCalendarEvent (partial insert type)
+ *
+ * This file contains ONLY API-specific schemas and UI-enhanced versions.
  */
 
 import { z } from "zod";
 import { createSelectSchema } from "drizzle-zod";
-import { calendarEvents } from "@/server/db/schema";
+import { calendarEvents, type CalendarEvent } from "@/server/db/schema";
+
+// Re-export base types from schema for convenience
+export type { CalendarEvent, CreateCalendarEvent, UpdateCalendarEvent } from "@/server/db/schema";
 
 // ============================================================================
-// CALENDAR EVENT ENTITY SCHEMAS
+// UI-ENHANCED CALENDAR EVENT SCHEMAS
 // ============================================================================
 
-// Create base schemas from drizzle table
+// Create base schema from drizzle table for UI enhancements
 const selectCalendarEventSchema = createSelectSchema(calendarEvents);
 
-const BaseCalendarEventSchema = selectCalendarEventSchema;
-
-export const CalendarEventSchema = BaseCalendarEventSchema.transform((data) => ({
+/**
+ * UI-Enhanced Calendar Event Schema
+ * Extends base CalendarEvent with computed fields for UI display
+ */
+export const CalendarEventWithUISchema = selectCalendarEventSchema.transform((data) => ({
   ...data,
   // UI computed fields
   duration: data.endTime.getTime() - data.startTime.getTime(),
@@ -26,21 +36,16 @@ export const CalendarEventSchema = BaseCalendarEventSchema.transform((data) => (
   isPast: data.endTime < new Date(),
   isUpcoming: data.startTime > new Date(),
   attendeeCount: Array.isArray(data.attendees) ? data.attendees.length : 0,
-}));
+})) satisfies z.ZodType<CalendarEvent & { 
+  duration: number; 
+  isAllDay: boolean; 
+  isToday: boolean; 
+  isPast: boolean; 
+  isUpcoming: boolean; 
+  attendeeCount: number; 
+}>;
 
-export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
-
-export const CreateCalendarEventSchema = BaseCalendarEventSchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type CreateCalendarEvent = z.infer<typeof CreateCalendarEventSchema>;
-
-export const UpdateCalendarEventSchema = BaseCalendarEventSchema.partial().required({ id: true });
-
-export type UpdateCalendarEvent = z.infer<typeof UpdateCalendarEventSchema>;
+export type CalendarEventWithUI = z.infer<typeof CalendarEventWithUISchema>;
 
 // ============================================================================
 // CALENDAR OAUTH SCHEMAS

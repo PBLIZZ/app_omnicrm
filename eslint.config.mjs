@@ -63,7 +63,13 @@ export default [
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/ban-ts-comment": [
         "error",
-        { "ts-ignore": true, "ts-expect-error": true, "ts-nocheck": true, "ts-check": true },
+        {
+          "ts-ignore": true,
+          "ts-expect-error": "allow-with-description",
+          "ts-nocheck": true,
+          "ts-check": true,
+          minimumDescriptionLength: 10,
+        },
       ],
       // Next hints
       "@next/next/no-html-link-for-pages": "off",

@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     // 1. Validate required parameters
     if (!code || !state) {
       return Response.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/omni-connect?error=missing_params`
+        `${process.env["NEXT_PUBLIC_APP_URL"]}/omni-connect?error=missing_params`,
       );
     }
 
@@ -28,19 +28,19 @@ export async function GET(request: Request) {
 
     if (!storedState || storedState !== state || !userId) {
       return Response.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/omni-connect?error=invalid_state`
+        `${process.env["NEXT_PUBLIC_APP_URL"]}/omni-connect?error=invalid_state`,
       );
     }
 
     // 3. Exchange code for tokens
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/google/gmail/callback`
+      process.env["GOOGLE_CLIENT_ID"],
+      process.env["GOOGLE_CLIENT_SECRET"],
+      `${process.env["NEXT_PUBLIC_APP_URL"]}/api/google/gmail/callback`,
     );
 
     const { tokens } = await oauth2Client.getToken(code);
-    
+
     if (!tokens.access_token) {
       throw new Error("No access token received");
     }
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
 
     // 6. Store tokens in database
     const db = await getDb();
-    
+
     // Check if integration already exists
     const existing = await db
       .select()
@@ -66,8 +66,8 @@ export async function GET(request: Request) {
         and(
           eq(userIntegrations.userId, userId),
           eq(userIntegrations.provider, "google"),
-          eq(userIntegrations.service, "gmail")
-        )
+          eq(userIntegrations.service, "gmail"),
+        ),
       )
       .limit(1);
 
@@ -99,13 +99,11 @@ export async function GET(request: Request) {
     cookieStore.delete("gmail_oauth_user");
 
     // 8. Redirect to success page
-    return Response.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/omni-connect?connected=gmail`
-    );
+    return Response.redirect(`${process.env["NEXT_PUBLIC_APP_URL"]}/omni-connect?connected=gmail`);
   } catch (error) {
     console.error("[Gmail OAuth Callback] Error:", error);
     return Response.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/omni-connect?error=oauth_failed`
+      `${process.env["NEXT_PUBLIC_APP_URL"]}/omni-connect?error=oauth_failed`,
     );
   }
 }

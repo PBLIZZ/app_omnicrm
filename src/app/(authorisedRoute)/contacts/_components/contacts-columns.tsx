@@ -6,15 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import {
-  Pencil,
-  Trash2,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Sparkles,
-  NotebookPen,
-} from "lucide-react";
+import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -24,24 +16,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
-import { NotesHoverCard } from "./NotesHoverCard";
+import { NotesHoverCard } from "../[contactId]/notes/[noteId]/_components/NotesHoverCard";
 import Link from "next/link";
 import { ContactAIInsightsDialog } from "./ContactAIInsightsDialog";
-import { NoteComposerPopover } from "./NoteComposerPopover";
 import { EditContactDialog } from "./EditContactDialog";
-import {
-  useAskAIAboutContact,
-  useCreateContactNote,
-  useDeleteContact,
-} from "@/hooks/use-contacts-bridge";
+import { useAskAIAboutContact, useDeleteContact } from "@/hooks/use-contacts-bridge";
 import type {
   ContactWithNotes,
   ContactAIInsightsResponse,
 } from "@/server/db/business-schemas/contacts";
-import { toast } from "sonner";
 
 // Custom Filter Functions for TanStack Table
 const arrayIncludesFilter: FilterFn<ContactWithNotes> = (row, columnId, filterValue) => {
@@ -56,13 +40,10 @@ const arrayIncludesFilter: FilterFn<ContactWithNotes> = (row, columnId, filterVa
 // AI Action Icons Component
 function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Element {
   const [aiInsightsOpen, setAiInsightsOpen] = useState(false);
-  const [addNoteDialogOpen, setAddNoteDialogOpen] = useState(false);
-  const [newNoteContent, setNewNoteContent] = useState("");
 
   const [aiInsights, setAiInsights] = useState<ContactAIInsightsResponse | null>(null);
 
   const askAIMutation = useAskAIAboutContact();
-  const createNoteMutation = useCreateContactNote();
 
   const handleAskAI = async (): Promise<void> => {
     try {
@@ -72,24 +53,6 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
     } catch {
       // Error handled by mutation
       setAiInsightsOpen(false);
-    }
-  };
-
-  const handleAddNote = async (): Promise<void> => {
-    if (!newNoteContent.trim()) {
-      toast.error("Please enter a note");
-      return;
-    }
-
-    try {
-      await createNoteMutation.mutateAsync({
-        contactId: contact.id,
-        content: newNoteContent.trim(),
-      });
-      setAddNoteDialogOpen(false);
-      setNewNoteContent("");
-    } catch {
-      // Error handled by mutation
     }
   };
 
@@ -113,25 +76,6 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
         </TooltipContent>
       </Tooltip>
 
-      <NoteComposerPopover contactId={contact.id} contactName={contact.displayName}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-950 dark:hover:text-teal-300"
-              data-testid={`take-note-${contact.id}`}
-            >
-              <NotebookPen className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
-              <span className="sr-only">Take Note</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Take a note</p>
-          </TooltipContent>
-        </Tooltip>
-      </NoteComposerPopover>
-
       {/* AI Dialogs */}
       <ContactAIInsightsDialog
         open={aiInsightsOpen}
@@ -141,47 +85,6 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
         isLoading={askAIMutation.isPending}
         contactName={contact.displayName}
       />
-
-      {/* Add Note Dialog */}
-      <Dialog open={addNoteDialogOpen} onOpenChange={setAddNoteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Add Note to {contact.displayName}</DialogTitle>
-            <DialogDescription>
-              Add a new note to track interactions or observations about this contact.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="note">Note Content</Label>
-              <Textarea
-                id="note"
-                value={newNoteContent}
-                onChange={(e) => setNewNoteContent(e.target.value)}
-                placeholder="Enter your note here..."
-                className="min-h-[100px]"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setAddNoteDialogOpen(false);
-                setNewNoteContent("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddNote}
-              disabled={createNoteMutation.isPending || !newNoteContent.trim()}
-            >
-              {createNoteMutation.isPending ? "Adding..." : "Add Note"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -259,7 +162,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
 
         const searchQuery =
           typeof window !== "undefined" && window.location.search.includes("search=")
-            ? new URLSearchParams(window.location.search).get("search") ?? undefined
+            ? (new URLSearchParams(window.location.search).get("search") ?? undefined)
             : undefined;
 
         // Get active filters from table meta
@@ -332,9 +235,16 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     accessorKey: "lastNote",
     header: "Notes",
     cell: ({ row }) => {
-      const lastNote = row.original.notes[row.original.notes.length - 1]?.content;
+      // Access lastNote preview directly from API response (first 500 chars)
+      const lastNote = row.original.lastNote;
       const contact = row.original;
 
+      // Display nothing if no note exists
+      if (!lastNote) {
+        return null;
+      }
+
+      // Display "See note" trigger with hover card showing preview
       return (
         <div className="max-w-[48ch] min-w-0">
           <NotesHoverCard
@@ -342,13 +252,12 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
             contactName={contact.displayName ?? "Unknown"}
             data-testid={`notes-hover-card-${contact.id}`}
           >
-            <div className="line-clamp-2 text-sm text-muted-foreground leading-tight overflow-hidden text-ellipsis">
-              {lastNote ? (
-                <span className="whitespace-pre-wrap">{lastNote}</span>
-              ) : (
-                <span className="italic text-muted-foreground/60">No notes yet</span>
-              )}
-            </div>
+            <Badge
+              variant="outline"
+              className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors px-3 py-1"
+            >
+              See note ↑
+            </Badge>
           </NotesHoverCard>
         </div>
       );

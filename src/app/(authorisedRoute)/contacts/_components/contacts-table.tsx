@@ -200,11 +200,11 @@ export function ContactsTable<TData, TValue>({
       }
       const contact = item;
 
-      // Has notes filter - explicit boolean comparison
-      if (filters.hasNotes === true && (!contact.notes || contact.notes.length === 0)) {
+      // Has notes filter - check if lastNote exists
+      if (filters.hasNotes === true && !contact.lastNote) {
         return false;
       }
-      if (filters.hasNotes === false && contact.notes && contact.notes.length > 0) {
+      if (filters.hasNotes === false && contact.lastNote) {
         return false;
       }
 

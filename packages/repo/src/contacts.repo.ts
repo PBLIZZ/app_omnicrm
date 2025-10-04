@@ -1,8 +1,8 @@
 import { eq, and, ilike, desc, asc, inArray, count } from "drizzle-orm";
-import { contacts, notes, type Contact, type Note } from "@/server/db/schema";
+import { contacts, notes, type Contact, type Note, type CreateContact } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
 import { ok, err, DbResult, dbError } from "@/lib/utils/result";
-import { CreateContactSchema, UpdateContactBodySchema } from "@/server/db/business-schemas";
+import { UpdateContactBodySchema } from "@/server/db/business-schemas";
 import { safeParse } from "@/lib/utils/zod-helpers";
 
 // Only export types that actually transform/extend base types

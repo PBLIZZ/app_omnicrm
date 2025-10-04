@@ -29,7 +29,8 @@ import { contactsColumns } from "./contacts-columns";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import { useContacts, useContactSuggestions, type Contact } from "@/hooks/use-contacts";
+import { queryKeys } from "@/lib/queries/keys";
+import { useContacts, useContactSuggestions } from "@/hooks/use-contacts";
 import type { ContactWithNotes, ContactQuickAddData } from "./types";
 
 /**
@@ -58,14 +59,13 @@ export function ContactsPage(): JSX.Element {
   const router = useRouter();
 
   // System Queries using Contact endpoints
-  const { data: contactsData, isLoading } = useContacts(searchQuery);
+  // Fetch all contacts at once (pageSize=3000) for client-side pagination/filtering
+  // Uses smart caching (30min staleTime) to minimize API calls
+  const { data: contactsData, isLoading } = useContacts(searchQuery, 1, 3000);
 
+  // API already returns ContactWithNotes with lastNote field populated
   const contacts: ContactWithNotes[] = useMemo(
-    (): ContactWithNotes[] =>
-      (contactsData?.items ?? []).map((contact: Contact) => ({
-        ...contact,
-        notes: [], // Initialize notes as empty array - will be loaded separately when needed
-      })),
+    (): ContactWithNotes[] => contactsData?.items ?? [],
     [contactsData?.items],
   );
 
@@ -135,7 +135,8 @@ export function ContactsPage(): JSX.Element {
       }>("/api/contacts/suggestions", { suggestionIds });
     },
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      // Invalidate all contacts queries to refetch with new data
+      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
       void queryClient.invalidateQueries({ queryKey: ["/api/contacts/suggestions"] });
       setSelectedSuggestions([]);
       toast({
@@ -195,7 +196,8 @@ export function ContactsPage(): JSX.Element {
 
       await apiClient.post("/api/contacts", contactData);
 
-      await queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      // Invalidate all contacts queries to refetch with new contact
+      await queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
       setIsAddingContact(false);
       setNewContact({ displayName: "", primaryEmail: "", primaryPhone: "", source: "manual" });
       toast({

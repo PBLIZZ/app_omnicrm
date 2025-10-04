@@ -46,7 +46,6 @@ describe("/api/contacts API Routes", () => {
         photoUrl: null,
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
-        notesCount: 2,
         lastNote: "Recent interaction",
       };
 
@@ -61,7 +60,6 @@ describe("/api/contacts API Routes", () => {
         primaryEmail: "john@example.com",
         primaryPhone: "+1234567890",
         lifecycleStage: "New Client" as const,
-        notesCount: 2,
         lastNote: "Recent interaction",
       });
 
@@ -152,7 +150,6 @@ describe("/api/contacts API Routes", () => {
         photoUrl: null,
         createdAt: new Date("2024-01-02"),
         updatedAt: new Date("2024-01-02"),
-        notesCount: 0,
         lastNote: null,
       };
 

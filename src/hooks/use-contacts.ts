@@ -38,10 +38,10 @@ export function useContacts(
   searchQuery: string,
   page = 1,
   pageSize = 25, // Default to 25 for better performance
-): ReturnType<typeof useQuery<{ items: Contact[]; total: number }>> {
+): ReturnType<typeof useQuery<{ items: ContactWithNotes[]; total: number }>> {
   return useQuery({
     queryKey: queryKeys.contacts.list({ search: searchQuery, page, pageSize }),
-    queryFn: async (): Promise<{ items: Contact[]; total: number }> => {
+    queryFn: async (): Promise<{ items: ContactWithNotes[]; total: number }> => {
       const params = new URLSearchParams({
         page: String(page),
         pageSize: String(pageSize),
@@ -50,16 +50,23 @@ export function useContacts(
         params.set("search", searchQuery.trim());
       }
 
+      // apiClient automatically unwraps { success: true, data: T } → returns T directly
       const data = await apiClient.get<ContactListResponse>(`/api/contacts?${params.toString()}`);
 
       return {
-        items: data.items,
+        items: data.items, // items now includes lastNote field
         total: data.pagination.total,
       };
     },
-    // Cache signed URLs for 4 hours (matching backend expiry)
-    staleTime: 1000 * 60 * 60 * 4, // 4 hours
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours (renamed from cacheTime in React Query v5)
+    // Smart caching strategy for 300-3000 contacts:
+    // - Fetch all contacts once (pageSize=3000)
+    // - Cache for 30 minutes to minimize API calls
+    // - Only refetch on window focus if data is stale (>30 min)
+    // - Mutations manually invalidate to force refetch
+    staleTime: 30 * 60 * 1000, // 30 minutes - data stays fresh
+    gcTime: 60 * 60 * 1000, // 1 hour - keep in memory
+    refetchOnWindowFocus: true, // Refetch on tab focus (respects staleTime)
+    refetchOnMount: false, // Don't refetch on component remount (use cache)
   });
 }
 

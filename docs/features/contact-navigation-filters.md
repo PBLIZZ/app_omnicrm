@@ -7,12 +7,14 @@ When browsing filtered contacts, the navigation bar displays a "Filtered" badge.
 ## User Experience
 
 **Navigation Bar Display:**
-```
+
+```bash
 [Back to List] 1 of 18 contacts [Filtered ↓]     [Previous] [Next]
 ```
 
 **Hover Card (on "Filtered" badge):**
-```
+
+```bash
 Active Filters
 ─────────────────
 Lifecycle Stage
@@ -38,7 +40,7 @@ Date Range
 
 ### Data Flow
 
-```
+```bash
 Table Filters → Table Meta → Column Click → localStorage → Navigation Bar → Hover Card
 ```
 

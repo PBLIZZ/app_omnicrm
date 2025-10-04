@@ -2,18 +2,16 @@
  * Simplified Contacts Service
  */
 
-import { ContactsRepository, NotesRepository } from "@repo";
+import { ContactsRepository } from "@repo";
 import type { Contact, CreateContact, CreateContactInput } from "@/server/db/business-schemas";
-import { CreateNoteSchema } from "@/server/db/business-schemas";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { isErr, DbResult, ok, err, isOk } from "@/lib/utils/result";
-import { z } from "zod";
 import { logger } from "@/lib/observability";
 import {
   unwrapResult,
   isSuccessResult,
-  validateNotesCountRows,
+  validateNotesQueryRows,
 } from "@/lib/utils/type-guards/contacts";
 import { StorageService } from "@/server/services/storage.service";
 
@@ -31,7 +29,6 @@ export type ContactListParams = {
 };
 
 export type ContactListItem = Contact & {
-  notesCount: number;
   lastNote: string | null;
 };
 
@@ -52,7 +49,6 @@ interface ContactSuggestion {
 export interface NoteResponse {
   id: string;
   content: string;
-  title: string | null;
   createdAt: Date;
   updatedAt: Date;
   userId: string;
@@ -149,14 +145,6 @@ export type ContactsServiceResult<T> = DbResult<T>;
 export type QueryResult<T> = DbResult<T>;
 
 // ============================================================================
-// VALIDATION SCHEMAS
-// ============================================================================
-
-const ParamsSchema = z.object({
-  contactId: z.string().uuid(),
-});
-
-// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
@@ -175,10 +163,14 @@ function unwrapDbResult<T>(result: DbResult<T>): T {
 // NOTES HELPER FUNCTIONS
 // ============================================================================
 
-async function getNotesDataForContacts(
+/**
+ * Get last note preview (first 500 chars) for each contact
+ * Returns Map of contactId -> last note preview (or null if no notes)
+ */
+async function getLastNotePreviewForContacts(
   userId: string,
   contactIds: string[],
-): Promise<Map<string, { count: number; lastNote: string | null }>> {
+): Promise<Map<string, string | null>> {
   if (contactIds.length === 0) {
     return new Map();
   }
@@ -193,21 +185,16 @@ async function getNotesDataForContacts(
   let notesData;
   try {
     notesData = await db.execute(sql`
-      SELECT 
+      SELECT DISTINCT ON (contact_id)
         contact_id,
-        COUNT(*) as count,
-        (SELECT content FROM notes n2 
-         WHERE n2.contact_id = n.contact_id 
-         AND n2.user_id = ${userId}
-         ORDER BY n2.created_at DESC 
-         LIMIT 1) as last_note
-      FROM notes n
+        LEFT(content_plain, 500) as last_note_preview
+      FROM notes
       WHERE user_id = ${userId} 
       AND contact_id = ANY(${uuidArray})
-      GROUP BY contact_id
+      ORDER BY contact_id, created_at DESC
     `);
   } catch (error) {
-    console.error("Database error in getNotesCounts:", {
+    console.error("Database error in getLastNotePreview:", {
       error: error instanceof Error ? error.message : String(error),
       userId,
       contactIds: contactIds.length,
@@ -215,45 +202,27 @@ async function getNotesDataForContacts(
     return new Map();
   }
 
-  const result = new Map<string, { count: number; lastNote: string | null }>();
+  const result = new Map<string, string | null>();
 
+  // Initialize all contacts with null
   for (const contactId of contactIds) {
-    result.set(contactId, { count: 0, lastNote: null });
+    result.set(contactId, null);
   }
 
   // Validate and process database rows with type guard
-  const validatedRows = validateNotesCountRows(notesData);
+  const validatedRows = validateNotesQueryRows(notesData);
 
   for (const row of validatedRows) {
     const contactId = row.contact_id;
-    const count = parseInt(String(row.count), 10);
-    const lastNote = row.last_note;
-
-    result.set(contactId, { count, lastNote });
+    const preview: string | null =
+      typeof row.last_note_preview === "string" ? row.last_note_preview : null;
+    result.set(contactId, preview);
   }
 
   return result;
 }
 
-function formatNoteResponse(note: {
-  id: string;
-  title: string | null;
-  content: string;
-  userId?: string;
-  contactId?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): NoteResponse {
-  return {
-    id: note.id,
-    title: note.title,
-    content: note.content,
-    userId: note.userId || "",
-    contactId: note.contactId || null,
-    createdAt: note.createdAt,
-    updatedAt: note.updatedAt,
-  };
-}
+// Legacy formatNoteResponse removed - notes now use schema types directly
 
 // ============================================================================
 // CORE CONTACT OPERATIONS (Single source of truth)
@@ -294,7 +263,6 @@ async function createContactInDB(
     createdAt: contact.createdAt || new Date(),
     updatedAt: contact.updatedAt || new Date(),
     tags: Array.isArray(contact.tags) ? contact.tags : null,
-    notesCount: 0,
     lastNote: null,
   };
 }
@@ -335,19 +303,9 @@ async function updateContactInDB(
   contactId: string,
   updateData: Partial<CreateContactInput>,
 ): Promise<Contact | null> {
-  const result = await ContactsRepository.updateContact(userId, contactId, updateData);
+  await ContactsRepository.updateContact(userId, contactId, updateData);
 
-  if (isErr(result)) {
-    // Log the actual error for debugging
-    logger.error("Repository updateContact error:", result.error);
-    throw new Error(result.error.message || "Database update failed");
-  }
-
-  if (!isSuccessResult(result)) {
-    return null;
-  }
-
-  const contact = result.data;
+  const contact = await ContactsRepository.getContactById(userId, contactId);
 
   if (!contact) {
     return null;
@@ -388,7 +346,17 @@ async function deleteContactFromDB(userId: string, contactId: string): Promise<b
 export async function listContactsService(
   userId: string,
   params: ContactListParams,
-): Promise<{ items: ContactListItem[]; pagination: { page: number; pageSize: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean } }> {
+): Promise<{
+  items: ContactListItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}> {
   const repoParams: Parameters<typeof ContactsRepository.listContacts>[1] = {
     page: params.page,
     pageSize: params.pageSize,
@@ -419,12 +387,10 @@ export async function listContactsService(
   const total: number = typeof data.total === "number" ? data.total : 0;
 
   const contactIds = contactItems.map((c) => c.id);
-  const notesData = await getNotesDataForContacts(userId, contactIds);
+  const lastNotePreviews = await getLastNotePreviewForContacts(userId, contactIds);
 
   // Batch generate signed URLs for all photos in this page
-  const photoPaths = contactItems
-    .filter((c) => c.photoUrl)
-    .map((c) => c.photoUrl as string);
+  const photoPaths = contactItems.filter((c) => c.photoUrl).map((c) => c.photoUrl as string);
 
   let photoUrls: Record<string, string | null> = {};
   if (photoPaths.length > 0) {
@@ -440,7 +406,7 @@ export async function listContactsService(
   }
 
   const transformedItems: ContactListItem[] = contactItems.map((contact) => {
-    const notesInfo = notesData.get(contact.id) ?? { count: 0, lastNote: null };
+    const lastNote = lastNotePreviews.get(contact.id) ?? null;
 
     return {
       ...contact,
@@ -449,8 +415,7 @@ export async function listContactsService(
       tags: Array.isArray(contact.tags) ? contact.tags : null,
       // Replace photoUrl with signed URL if available
       photoUrl: contact.photoUrl ? (photoUrls[contact.photoUrl] ?? contact.photoUrl) : null,
-      notesCount: notesInfo.count,
-      lastNote: notesInfo.lastNote,
+      lastNote,
     };
   });
 
@@ -662,106 +627,7 @@ export async function createContactsBatchService(
 // PUBLIC API - NOTES OPERATIONS
 // ============================================================================
 
-/**
- * Get all notes for a specific Contact
- */
-export async function getContactNotes(
-  userId: string,
-  contactId: string,
-): Promise<ContactsServiceResult<NotesListResponse>> {
-  try {
-    const validatedParams = ParamsSchema.parse({ contactId });
-
-    const contactNotesResult = await NotesRepository.getNotesByContactId(
-      userId,
-      validatedParams.contactId,
-    );
-
-    if (isErr(contactNotesResult)) {
-      return err({
-        code: "NOTES_GET_FAILED",
-        message: "Failed to get notes",
-        details: contactNotesResult.error,
-      });
-    }
-
-    if (!isOk(contactNotesResult)) {
-      return err({
-        code: "NOTES_GET_FAILED",
-        message: "Invalid result state",
-        details: "Unexpected result state",
-      });
-    }
-
-    const contactNotes = contactNotesResult.data;
-    const formattedNotes = contactNotes.map((note) =>
-      formatNoteResponse({
-        ...note,
-        createdAt: note.createdAt ?? new Date(),
-        updatedAt: note.updatedAt ?? new Date(),
-      }),
-    );
-
-    return ok({ notes: formattedNotes, total: formattedNotes.length });
-  } catch (error) {
-    return err({
-      code: "NOTES_GET_ERROR",
-      message: "Error getting notes",
-      details: error,
-    });
-  }
-}
-
-/**
- * Create a new note for a specific Contact
- */
-export async function createContactNote(
-  userId: string,
-  contactId: string,
-  noteData: unknown,
-): Promise<ContactsServiceResult<NoteResponse>> {
-  try {
-    const validatedParams = ParamsSchema.parse({ contactId });
-    const validatedBody = CreateNoteSchema.parse(noteData);
-
-    const newNoteResult = await NotesRepository.createNote(userId, {
-      contactId: validatedParams.contactId,
-      title: validatedBody.title,
-      content: validatedBody.content,
-    });
-
-    if (isErr(newNoteResult)) {
-      return err({
-        code: "NOTE_CREATE_FAILED",
-        message: "Failed to create note",
-        details: newNoteResult.error,
-      });
-    }
-
-    if (!isOk(newNoteResult)) {
-      return err({
-        code: "NOTE_CREATE_FAILED",
-        message: "Invalid result state",
-        details: "Unexpected result state",
-      });
-    }
-
-    const newNote = newNoteResult.data;
-    return ok(
-      formatNoteResponse({
-        ...newNote,
-        createdAt: newNote.createdAt ?? new Date(),
-        updatedAt: newNote.updatedAt ?? new Date(),
-      }),
-    );
-  } catch (error) {
-    return err({
-      code: "NOTE_CREATE_ERROR",
-      message: "Error creating note",
-      details: error,
-    });
-  }
-}
+// Legacy note methods removed - use NotesRepository directly via /api/notes endpoints
 
 // ============================================================================
 // BULK DELETE OPERATIONS

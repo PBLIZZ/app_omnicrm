@@ -289,3 +289,60 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
     }
   };
 }
+/**
+ * Authenticated API Handler for routes with dynamic URL parameters.
+ *
+ * Extends handleAuth to provide the `context.params` object to the business logic.
+ */
+export function handleAuthWithParams<TIn, TOut, TParams extends Record<string, string>>(
+  input: z.ZodType<TIn>,
+  output: z.ZodType<TOut>,
+  fn: (parsed: TIn, userId: string, params: TParams) => Promise<TOut>,
+): (req: Request, context: { params: TParams }) => Promise<Response> {
+  // This returned function is what Next.js will actually call
+  return async (req: Request, context: { params: TParams }): Promise<Response> => {
+    try {
+      const { getServerUserId } = await import("../server/auth/user");
+      const { cookies } = await import("next/headers");
+
+      const cookieStore = await cookies();
+      const userId = await getServerUserId(cookieStore);
+
+      let body: unknown = undefined;
+      const contentType = req.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        const rawBody = await req.text();
+        body = rawBody === "" ? undefined : JSON.parse(rawBody);
+      }
+
+      const parsed = input.parse(body);
+
+      // The key change: we pass the `context.params` as the third argument
+      const result = await fn(parsed, userId, context.params);
+
+      const validated = output.parse(result);
+
+      return new Response(JSON.stringify(validated), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      });
+    } catch (error) {
+      // Identical error handling as handleAuth
+      const { ApiError } = await import("./api/errors");
+      if (error instanceof ApiError) {
+        return new Response(JSON.stringify({ error: error.message, details: error.details }), {
+          status: error.status,
+        });
+      }
+      if (error instanceof z.ZodError) {
+        return new Response(JSON.stringify({ error: "Validation failed", details: error.issues }), {
+          status: 400,
+        });
+      }
+      if (error instanceof Error && "status" in error && error.status === 401) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+      }
+      throw error;
+    }
+  };
+}

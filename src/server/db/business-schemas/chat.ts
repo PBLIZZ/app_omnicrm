@@ -11,7 +11,7 @@ import { z } from "zod";
 // =============================================================================
 
 export const ChatRequestSchema = z.object({
-  message: z.string().optional(),
+  message: z.string().min(1, "Message is required"),
   history: z
     .array(
       z.object({

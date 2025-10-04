@@ -1,4 +1,3 @@
-import { handleAuth } from "@/lib/api";
 import { ApiError } from "@/lib/api/errors";
 import {
   getContactByIdService,
@@ -6,81 +5,142 @@ import {
   deleteContactService,
 } from "@/server/services/contacts.service";
 import {
-  ContactResponseSchema,
   UpdateContactBodySchema,
   DeleteContactResponseSchema,
+  ContactResponseSchema,
 } from "@/server/db/business-schemas";
-import { z } from "zod";
+import { getServerUserId } from "@/server/auth/user";
+import { cookies } from "next/headers";
 
 /**
  * Individual Contact Management API Routes
  *
- * Migrated to new auth pattern:
- * ✅ handleAuth for all operations
- * ✅ Zod validation and type safety
- * ✅ Business schema standardization
+ * Uses Next.js App Router patterns with direct param access
  */
 
-interface RouteParams {
-  params: Promise<{
-    contactId: string;
-  }>;
-}
+type RouteContext = {
+  params: Promise<{ contactId: string }>;
+};
 
 /**
  * GET /api/contacts/[contactId] - Get contact by ID
  */
-export async function GET(req: Request, context: RouteParams): Promise<Response> {
-  const params = await context.params;
-  
-  const handler = handleAuth(z.void(), ContactResponseSchema, async (_, userId) => {
-    const result = await getContactByIdService(userId, params.contactId);
+export async function GET(
+  _request: Request,
+  context: RouteContext,
+): Promise<Response> {
+  try {
+    const cookieStore = await cookies();
+    const userId = await getServerUserId(cookieStore);
+    const { contactId } = await context.params;
+    
+    const result = await getContactByIdService(userId, contactId);
 
     if (!result.success) {
       throw ApiError.notFound(result.error.message ?? "Contact not found");
     }
 
-    return { item: result.data };
-  });
-
-  return handler(req);
+    const validated = ContactResponseSchema.parse({ item: result.data });
+    return new Response(JSON.stringify(validated), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return new Response(
+        JSON.stringify({
+          error: error.message,
+          details: error.details,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: error.status,
+        },
+      );
+    }
+    throw error;
+  }
 }
 
 /**
  * PUT /api/contacts/[contactId] - Update contact
  */
-export async function PUT(req: Request, context: RouteParams): Promise<Response> {
-  const params = await context.params;
-  
-  const handler = handleAuth(
-    UpdateContactBodySchema,
-    ContactResponseSchema,
-    async (data, userId) => {
-      const result = await updateContactService(userId, params.contactId, data);
+export async function PUT(
+  request: Request,
+  context: RouteContext,
+): Promise<Response> {
+  try {
+    const cookieStore = await cookies();
+    const userId = await getServerUserId(cookieStore);
+    const { contactId } = await context.params;
+    
+    const body = await request.json();
+    const data = UpdateContactBodySchema.parse(body);
+    
+    const result = await updateContactService(userId, contactId, data);
 
-      if (!result.success) {
-        throw ApiError.notFound(result.error.message ?? "Contact not found");
-      }
+    if (!result.success) {
+      throw ApiError.notFound(result.error.message ?? "Contact not found");
+    }
 
-      return { item: result.data };
-    },
-  );
-
-  return handler(req);
+    const validated = ContactResponseSchema.parse({ item: result.data });
+    return new Response(JSON.stringify(validated), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return new Response(
+        JSON.stringify({
+          error: error.message,
+          details: error.details,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: error.status,
+        },
+      );
+    }
+    throw error;
+  }
 }
 
 /**
  * DELETE /api/contacts/[contactId] - Delete contact
  */
-export async function DELETE(req: Request, context: RouteParams): Promise<Response> {
-  const params = await context.params;
-  
-  const handler = handleAuth(z.void(), DeleteContactResponseSchema, async (_, userId) => {
-    const result = await deleteContactService(userId, params.contactId);
+export async function DELETE(
+  _request: Request,
+  context: RouteContext,
+): Promise<Response> {
+  try {
+    const cookieStore = await cookies();
+    const userId = await getServerUserId(cookieStore);
+    const { contactId } = await context.params;
+
+    const result = await deleteContactService(userId, contactId);
 
     // idempotent delete - return success even if contact didn't exist
-    return { deleted: result.success ? 1 : 0 };
-  });
-
-  return handler(req);
+    const validated = DeleteContactResponseSchema.parse({
+      deleted: result.success && result.data ? 1 : 0,
+    });
+    
+    return new Response(JSON.stringify(validated), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return new Response(
+        JSON.stringify({
+          error: error.message,
+          details: error.details,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: error.status,
+        },
+      );
+    }
+    throw error;
+  }
 }

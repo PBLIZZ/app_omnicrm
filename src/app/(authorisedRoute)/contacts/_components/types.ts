@@ -8,21 +8,15 @@
 // Import core contact types from business schemas
 import type {
   Contact,
-  ContactWithNotes,
   CreateContact,
   UpdateContact,
+  UpdateContactBody,
   GetContactsQuery,
   ContactListResponse,
   CreateContactBody,
-  CreateContactInput,
-  UpdateContactInput,
-  CreatedAtFilter,
-  BulkDeleteBody,
-  CreateNote,
-  UpdateNote,
-  Note,
   ContactAIInsightsResponse,
 } from "@/server/db/business-schemas/contacts";
+import { ContactWithNotes } from "@repo";
 
 // Import additional types needed
 import type { ColumnDef } from "@tanstack/react-table";
@@ -30,19 +24,12 @@ import type { ColumnDef } from "@tanstack/react-table";
 // Re-export the imported types with clean names
 export type {
   Contact,
-  ContactWithNotes,
   CreateContact,
   UpdateContact,
   GetContactsQuery,
   ContactListResponse,
   CreateContactBody,
-  CreateContactInput,
-  UpdateContactInput,
-  CreatedAtFilter,
-  BulkDeleteBody,
-  CreateNote,
-  UpdateNote,
-  Note,
+  UpdateContactBody,
   ContactAIInsightsResponse,
 };
 
@@ -90,7 +77,7 @@ export interface EditContactData {
  */
 export interface UpdateContactResponse {
   ok: boolean;
-  data?: ContactWithNotes;
+  data?: Contact;
   error?: string;
 }
 

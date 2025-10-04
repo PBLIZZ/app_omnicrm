@@ -1,6 +1,12 @@
-import { NotesRepository } from "@repo";
 import { getServerUserId } from "@/server/auth/user";
 import { cookies } from "next/headers";
+import {
+  getNoteByIdService,
+  updateNoteService,
+  deleteNoteService,
+} from "@/server/services/notes.service";
+import { AppError } from "@/lib/errors/app-error";
+import { UpdateNoteBodySchema } from "@/server/db/business-schemas/notes";
 
 type RouteContext = {
   params: Promise<{ noteId: string }>;
@@ -11,58 +17,53 @@ type RouteContext = {
  * Get a specific note by ID
  */
 export async function GET(_request: Request, context: RouteContext): Promise<Response> {
-  const cookieStore = await cookies();
-  const userId = await getServerUserId(cookieStore);
+  try {
+    const cookieStore = await cookies();
+    const userId = await getServerUserId(cookieStore);
+    const { noteId } = await context.params;
 
-  const { noteId } = await context.params;
+    const note = await getNoteByIdService(userId, noteId);
 
-  const result = await NotesRepository.getNoteById(userId, noteId);
-
-  if (!result.success) {
-    return Response.json(
-      {
-        success: false,
-        error: typeof result.error === "string" ? result.error : result.error.message,
-      },
-      { status: 500 },
-    );
+    return Response.json({ success: true, data: note });
+  } catch (error) {
+    if (error instanceof AppError) {
+      const status = error.code === "NOTE_NOT_FOUND" ? 404 : 500;
+      return Response.json({ success: false, error: error.message }, { status });
+    }
+    return Response.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
-
-  if (!result.data) {
-    return Response.json({ success: false, error: "Note not found" }, { status: 404 });
-  }
-
-  return Response.json({ success: true, data: result.data });
 }
 
 /**
  * PUT /api/notes/[noteId]
- * Update a note
+ * Update a note with PII redaction
  */
 export async function PUT(request: Request, context: RouteContext): Promise<Response> {
-  const cookieStore = await cookies();
-  const userId = await getServerUserId(cookieStore);
+  try {
+    const cookieStore = await cookies();
+    const userId = await getServerUserId(cookieStore);
+    const { noteId } = await context.params;
 
-  const { noteId } = await context.params;
-  const body: unknown = await request.json();
+    const body = (await request.json()) as {
+      contentPlain?: string;
+      contentRich?: unknown;
+      tags?: string[];
+    };
 
-  const result = await NotesRepository.updateNote(userId, noteId, body);
+    // Validate with Zod schema
+    const validated = UpdateNoteBodySchema.parse(body);
 
-  if (!result.success) {
-    return Response.json(
-      {
-        success: false,
-        error: typeof result.error === "string" ? result.error : result.error.message,
-      },
-      { status: result.error.code === "VALIDATION_ERROR" ? 400 : 500 },
-    );
+    const note = await updateNoteService(userId, noteId, validated);
+
+    return Response.json({ success: true, data: note });
+  } catch (error) {
+    if (error instanceof AppError) {
+      const status =
+        error.code === "NOTE_NOT_FOUND" ? 404 : error.code === "VALIDATION_ERROR" ? 400 : 500;
+      return Response.json({ success: false, error: error.message }, { status });
+    }
+    return Response.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
-
-  if (!result.data) {
-    return Response.json({ success: false, error: "Note not found" }, { status: 404 });
-  }
-
-  return Response.json({ success: true, data: result.data });
 }
 
 /**
@@ -70,26 +71,19 @@ export async function PUT(request: Request, context: RouteContext): Promise<Resp
  * Delete a note
  */
 export async function DELETE(_request: Request, context: RouteContext): Promise<Response> {
-  const cookieStore = await cookies();
-  const userId = await getServerUserId(cookieStore);
+  try {
+    const cookieStore = await cookies();
+    const userId = await getServerUserId(cookieStore);
+    const { noteId } = await context.params;
 
-  const { noteId } = await context.params;
+    await deleteNoteService(userId, noteId);
 
-  const result = await NotesRepository.deleteNote(userId, noteId);
-
-  if (!result.success) {
-    return Response.json(
-      {
-        success: false,
-        error: typeof result.error === "string" ? result.error : result.error.message,
-      },
-      { status: 500 },
-    );
+    return Response.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    if (error instanceof AppError) {
+      const status = error.code === "NOTE_NOT_FOUND" ? 404 : 500;
+      return Response.json({ success: false, error: error.message }, { status });
+    }
+    return Response.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
-
-  if (!result.data) {
-    return Response.json({ success: false, error: "Note not found" }, { status: 404 });
-  }
-
-  return Response.json({ success: true, data: { deleted: true } });
 }

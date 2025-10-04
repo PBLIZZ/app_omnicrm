@@ -1,10 +1,12 @@
 /**
- * Contact Business Schemas
+ * Contact API Business Schemas
  *
  * For base types, import from @/server/db/schema:
  * - Contact (select type)
  * - CreateContact (insert type)
  * - UpdateContact (partial insert type)
+ *
+ * Generated from Drizzle schema using drizzle-zod.
  *
  * This file contains ONLY API-specific schemas and business logic validations.
  */
@@ -20,26 +22,24 @@ export type { Contact, CreateContact, UpdateContact } from "@/server/db/schema";
 const ContactDataSchema = createSelectSchema(contacts);
 const CreateContactDataSchema = createInsertSchema(contacts);
 
-/**
- * Pagination Schema
- */
-export const PaginationSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  sortBy: z.string().optional(),
-  sortOrder: z.enum(["asc", "desc"]).default("desc"),
-});
+// ============================================================================
+// API REQUEST SCHEMAS
+// ============================================================================
 
 /**
- * Contact Schema - Single contact response
+ * POST /api/contacts - Request body (excludes server-managed fields)
  */
-export const ContactResponseSchema = z.object({
-  item: ContactDataSchema,
+export const CreateContactBodySchema = CreateContactDataSchema.omit({
+  userId: true, // From auth
+  id: true, // Generated
+  createdAt: true, // Generated
+  updatedAt: true, // Generated
 });
 
+export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
+
 /**
- * Update Contact Body Schema
- * Note: id and userId are NOT included as they come from URL parameter and auth
+ * PATCH /api/contacts/[id] - Request body
  */
 export const UpdateContactBodySchema = z.object({
   displayName: z.string().min(1).optional(),
@@ -60,118 +60,16 @@ export const UpdateContactBodySchema = z.object({
   preferences: z.unknown().nullable().optional(),
 });
 
-/**
- * Delete Contact Response Schema
- */
-export const DeleteContactResponseSchema = z.object({
-  deleted: z.number(),
-});
-
-// ============================================================================
-// BULK OPERATIONS SCHEMAS
-// ============================================================================
+export type UpdateContactBody = z.infer<typeof UpdateContactBodySchema>;
 
 /**
- * Bulk Delete Body Schema (fixed field name)
- */
-export const BulkDeleteBodySchema = z.object({
-  ids: z.array(z.string().uuid()).min(1, "At least one contact ID required"),
-});
-
-export type BulkDeleteBody = z.infer<typeof BulkDeleteBodySchema>;
-
-/**
- * Bulk Delete Response Schema
- */
-export const BulkDeleteResponseSchema = z.object({
-  deleted: z.number(),
-  errors: z.array(
-    z.object({
-      id: z.string(),
-      error: z.string(),
-    }),
-  ),
-});
-
-/**
- * Bulk Enrich Response Schema
- */
-export const BulkEnrichResponseSchema = z.object({
-  enriched: z.number(),
-  failed: z.number(),
-  errors: z
-    .array(
-      z.object({
-        id: z.string(),
-        error: z.string(),
-      }),
-    )
-    .default([]),
-});
-
-// ============================================================================
-// COUNT & QUERY SCHEMAS
-// ============================================================================
-
-/**
- * Contact Count Response Schema
- */
-export const ContactCountResponseSchema = z.object({
-  count: z.number(),
-});
-
-// ============================================================================
-// AI INSIGHTS SCHEMAS
-// ============================================================================
-
-/**
- * Contact AI Insights Response Schema (for GET requests)
- */
-export const ContactAIInsightsResponseSchema = z.object({
-  insights: z.array(
-    z.object({
-      type: z.string(),
-      content: z.string(),
-      confidence: z.number().min(0).max(1),
-      timestamp: z.coerce.date(),
-    }),
-  ),
-  summary: z.string().optional(),
-  recommendations: z.array(z.string()).optional(),
-});
-
-export type ContactAIInsightsResponse = z.infer<typeof ContactAIInsightsResponseSchema>;
-
-// ============================================================================
-// AVATAR SCHEMAS
-// ============================================================================
-
-/**
- * Avatar Upload Response Schema
- */
-export const AvatarUploadResponseSchema = z.object({
-  success: z.boolean(),
-  url: z.string().url().optional(),
-  message: z.string().optional(),
-});
-
-// ============================================================================
-// CONTACT QUERY AND RESPONSE SCHEMAS
-// ============================================================================
-
-/**
- * Get Contacts Query Schema (for main route list)
+ * GET /api/contacts - Query parameters
  */
 export const GetContactsQuerySchema = z.object({
-  // Pagination
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(3000).default(20),
-
-  // Sorting
   sort: z.enum(["displayName", "createdAt", "updatedAt"]).default("createdAt"),
   order: z.enum(["asc", "desc"]).default("desc"),
-
-  // Filtering
   search: z.string().optional(),
   lifecycleStage: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
@@ -185,25 +83,15 @@ export const GetContactsQuerySchema = z.object({
 export type GetContactsQuery = z.infer<typeof GetContactsQuerySchema>;
 
 // ============================================================================
-// CONTACT WITH NOTES SCHEMA (must be defined before ContactListResponseSchema)
+// API RESPONSE SCHEMAS
 // ============================================================================
 
 /**
- * Contact with Notes - Extended type for list views
- * Includes last note preview (first 500 chars) from API aggregation
- */
-export const ContactWithNotesSchema = ContactDataSchema.extend({
-  lastNote: z.string().nullable().default(null),
-});
-
-export type ContactWithNotes = z.infer<typeof ContactWithNotesSchema>;
-
-/**
- * Contact List Response Schema
- * Returns ContactWithNotes (includes lastNote field)
+ * GET /api/contacts - List response
+ * Note: Items have lastNote added by service layer
  */
 export const ContactListResponseSchema = z.object({
-  items: z.array(ContactWithNotesSchema),
+  items: z.array(ContactDataSchema), // Service adds lastNote at runtime
   pagination: z.object({
     page: z.number(),
     pageSize: z.number(),
@@ -216,107 +104,55 @@ export const ContactListResponseSchema = z.object({
 
 export type ContactListResponse = z.infer<typeof ContactListResponseSchema>;
 
-// ============================================================================
-// CONTACT FILTERS
-// ============================================================================
-
-/**
- * Contact filters for search/filtering
- */
-export const ContactFiltersSchema = z.object({
-  search: z.string().optional(),
-  lifecycleStage: z.array(z.string()).optional(),
-  tags: z.array(z.string()).optional(),
-  source: z.array(z.string()).optional(),
-  hasEmail: z.boolean().optional(),
-  hasPhone: z.boolean().optional(),
-  createdAfter: z.coerce.date().optional(),
-  createdBefore: z.coerce.date().optional(),
+export const ContactCountResponseSchema = z.object({
+  count: z.number(),
 });
 
-export type ContactFilters = z.infer<typeof ContactFiltersSchema>;
-
-/**
- * Contact Input Schemas for Forms
- */
-export const CreateContactInputSchema = CreateContactDataSchema.extend({
-  // Additional form-specific validations
-  confirmEmail: z.string().email().optional(),
-}).refine(
-  (data) => {
-    if (data.confirmEmail && data.primaryEmail) {
-      return data.confirmEmail === data.primaryEmail;
-    }
-    return true;
-  },
-  {
-    message: "Email addresses must match",
-    path: ["confirmEmail"],
-  },
-);
-
-export const UpdateContactInputSchema = CreateContactDataSchema.partial().extend({
-  confirmEmail: z.string().email().optional(),
-}).refine(
-  (data) => {
-    if (data.confirmEmail && data.primaryEmail) {
-      return data.confirmEmail === data.primaryEmail;
-    }
-    return true;
-  },
-  {
-    message: "Email addresses must match",
-    path: ["confirmEmail"],
-  },
-);
-
-export type CreateContactInput = z.infer<typeof CreateContactInputSchema>;
-export type UpdateContactInput = z.infer<typeof UpdateContactInputSchema>;
-
-/**
- * Contact API Types
- */
-// Request body schema - omits userId since it's injected by auth handler
-export const CreateContactBodySchema = CreateContactDataSchema.omit({ userId: true, id: true, createdAt: true, updatedAt: true });
-
-export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
-
-/**
- * Created At Filter Schema
- */
-export const CreatedAtFilterSchema = z
-  .object({
-    from: z.coerce.date().optional(),
-    to: z.coerce.date().optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.from && data.to) {
-        return data.from <= data.to;
-      }
-      return true;
-    },
-    {
-      message: "From date must be before to date",
-    },
-  );
-
-export type CreatedAtFilter = z.infer<typeof CreatedAtFilterSchema>;
-
-/**
- * Utility function to convert date strings to Date range
- */
-export function toDateRange(from?: string, to?: string): { from?: Date; to?: Date } {
-  const result: { from?: Date; to?: Date } = {};
-  if (from) result.from = new Date(from);
-  if (to) result.to = new Date(to);
-  return result;
-}
+export const DeleteContactResponseSchema = z.object({
+  deleted: z.number(),
+});
 
 // ============================================================================
-// NOTES SCHEMAS (re-exported for convenience)
+// BULK OPERATIONS
 // ============================================================================
 
-// Re-export note types for convenience
-export { NoteSchema, CreateNoteSchema, UpdateNoteSchema } from "./notes";
-export type { Note, CreateNote, UpdateNote } from "./notes";
+export const BulkDeleteBodySchema = z.object({
+  ids: z.array(z.string().uuid()).min(1),
+});
+
+export const BulkDeleteResponseSchema = z.object({
+  deleted: z.number(),
+  errors: z.array(z.object({ id: z.string(), error: z.string() })),
+});
+
+export const BulkEnrichResponseSchema = z.object({
+  enriched: z.number(),
+  failed: z.number(),
+  errors: z.array(z.object({ id: z.string(), error: z.string() })).default([]),
+});
+
+// ============================================================================
+// AI INSIGHTS (Fix shape to match actual service response)
+// ============================================================================
+
+export const ContactAIInsightsResponseSchema = z.object({
+  insights: z.string(), // Actual response is a string, not array
+  suggestions: z.array(z.string()),
+  nextSteps: z.array(z.string()),
+  confidence: z.number().min(0).max(1),
+  keyFindings: z.array(z.string()),
+  error: z.boolean().optional(),
+  errorMessage: z.string().optional(),
+});
+
+export type ContactAIInsightsResponse = z.infer<typeof ContactAIInsightsResponseSchema>;
+
+// ============================================================================
+// AVATAR
+// ============================================================================
+
+export const AvatarUploadResponseSchema = z.object({
+  success: z.boolean(),
+  url: z.string().url().optional(),
+  message: z.string().optional(),
+});

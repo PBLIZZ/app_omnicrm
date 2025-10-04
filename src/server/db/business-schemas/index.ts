@@ -5,14 +5,14 @@
  */
 
 // Task schemas
+// Base types (Task, CreateTask, UpdateTask) are re-exported from schema.ts
 export {
-  TaskSchema,
-  CreateTaskSchema,
-  UpdateTaskSchema,
+  TaskWithUISchema,
   TaskFiltersSchema,
   type Task,
   type CreateTask,
   type UpdateTask,
+  type TaskWithUI,
   type TaskFilters,
 } from "./tasks";
 
@@ -151,6 +151,7 @@ export {
 } from "./sync-progress";
 
 // Inbox Management
+// Base types (InboxItem, CreateInboxItem, UpdateInboxItem) are re-exported from schema.ts
 export * from "./inbox";
 
 // Re-export specific types for convenience
@@ -217,26 +218,29 @@ export {
   type DashboardResponse,
 } from "./admin";
 
-// Chat & AI Features
+// Zone schemas
+// Base types (Zone, CreateZone, UpdateZone) are re-exported from schema.ts
 export {
-  ChatRequestSchema,
-  ChatResponseSchema,
-  GmailSearchRequestSchema,
-  GmailSearchResponseSchema,
-  GmailInsightsQuerySchema,
-  GmailInsightsResponseSchema,
-  GmailIngestTestInputSchema,
-  type ChatResponse,
-  type GmailSearchResponse,
-  type GmailInsightsResponse,
-  type GmailIngestTestInput,
-} from "./chat";
+  ZoneWithUISchema,
+  ZoneWithStatsSchema,
+  ZonesQuerySchema,
+  ZoneFiltersSchema,
+  ZonesListResponseSchema,
+  ZonesWithStatsResponseSchema,
+  ZoneDetailsResponseSchema,
+  type Zone,
+  type CreateZone,
+  type UpdateZone,
+  type ZoneWithUI,
+  type ZoneWithStats,
+  type ZonesListResponse,
+  type ZonesWithStatsResponse,
+} from "./zones";
 
 // Health & System Monitoring
 export {
   HealthResponseSchema,
   DbPingResponseSchema,
-  GoogleSignInQuerySchema,
   type HealthResponse,
   type DbPingResponse,
 } from "./health";

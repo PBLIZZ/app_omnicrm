@@ -47,9 +47,10 @@ export const queryKeys = {
   // Contacts and related data
   contacts: {
     all: ["/api/contacts"] as const,
-    list: (filters?: { search?: string }) => ["/api/contacts", filters] as const,
+    list: (filters?: { search?: string; page?: number; pageSize?: number }) => ["/api/contacts", filters] as const,
+    detail: (id: string) => ["/api/contacts", "detail", id] as const,
     byId: (id: string) => ["/api/contacts", id] as const,
-    notes: (contactId: string) => ["/api/contacts", id, "notes"] as const,
+    notes: (contactId: string) => ["/api/contacts", contactId, "notes"] as const,
   },
 
   // Chat and messaging

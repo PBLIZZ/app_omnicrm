@@ -29,6 +29,7 @@ These two files must remain synchronized and serve as the canonical source for a
 ## Phase 1: Business Schemas Audit
 
 ### Objective
+
 Verify each business-schema file contains ONLY unique types not already in `schema.ts`. Remove duplicates and unnecessary abstractions.
 
 ### Files to Audit
@@ -45,11 +46,15 @@ Verify each business-schema file contains ONLY unique types not already in `sche
 | `src/server/db/business-schemas/notes.ts`           | ✅ Completed - Unique types only | 2025-10-04 | Removed duplicate base types. Now re-exports `Note`, `CreateNote`, `UpdateNote` from schema.ts. Kept API-specific schemas like `CreateNoteBodySchema`, `UpdateNoteBodySchema`, `GetNotesQuerySchema`. |
 | `src/server/db/business-schemas/onboarding.ts`      | ✅ Completed - Unique types only | 2025-10-04 | No duplicates found. Contains only API-specific schemas for token management and onboarding form submission. No database table for onboarding. |
 | `src/server/db/business-schemas/projects.ts`        | ✅ Completed - Unique types only | 2025-10-04 | Removed duplicate base types. Now re-exports `Project`, `CreateProject`, `UpdateProject` from schema.ts. Added `ProjectWithUISchema` for UI-enhanced version with computed fields. |
-| `src/server/db/business-schemas/storage.ts`         | ⬜ Not Started | -            |       |
-| `src/server/db/business-schemas/sync-progress.ts`   | ⬜ Not Started | -            |       |
-| `src/server/db/business-schemas/tasks.ts`           | ⬜ Not Started | -            |       |
-| `src/server/db/business-schemas/user-management.ts` | ⬜ Not Started | -            |       |
-| `src/server/db/business-schemas/zones.ts`           | ⬜ Not Started | -            |       |
+| `src/server/db/business-schemas/storage.ts`         | ✅ Completed - Unique types only | 2025-10-04 | No duplicates found. Contains only API-specific schemas for file upload/download URL generation. No database table for storage. |
+| `src/server/db/business-schemas/sync-progress.ts`   | ✅ Completed - Unique types only | 2025-10-04 | No duplicates found. Contains only API-specific schemas for sync session tracking and progress monitoring. |
+| `src/server/db/business-schemas/tasks.ts`           | ✅ Completed - Unique types only | 2025-10-04 | Removed duplicate base types. Now re-exports `Task`, `CreateTask`, `UpdateTask` from schema.ts. Added `TaskWithUISchema` for UI-enhanced version with computed fields. |
+| `src/server/db/business-schemas/user-management.ts` | ✅ Completed - Unique types only | 2025-10-04 | No duplicates found. Contains only API-specific schemas for GDPR compliance (user export/deletion). No database types involved. |
+| `src/server/db/business-schemas/zones.ts`           | ✅ Completed - Unique types only | 2025-10-04 | Removed duplicate base types. Now re-exports `Zone`, `CreateZone`, `UpdateZone` from schema.ts. Added `ZoneWithUISchema` and `ZoneWithStatsSchema` for UI-enhanced versions. |
+| `src/server/db/business-schemas/gmail.ts`           | ✅ Completed - Unique types only | 2025-10-04 | No duplicates found. Contains only API-specific schemas for Gmail OAuth, sync operations, and preview functionality. |
+| `src/server/db/business-schemas/google-auth.ts`     | ✅ Completed - Unique types only | 2025-10-04 | No duplicates found. Contains only API-specific schemas for Google OAuth callbacks and authentication flows. |
+| `src/server/db/business-schemas/health.ts`          | ✅ Completed - Unique types only | 2025-10-04 | No duplicates found. Contains only API-specific schemas for health checks and system monitoring. |
+| `src/server/db/business-schemas/inbox.ts`           | ✅ Completed - Unique types only | 2025-10-04 | Removed duplicate base types. Now re-exports `InboxItem`, `CreateInboxItem`, `UpdateInboxItem` from schema.ts. Added `InboxItemWithUISchema` for UI-enhanced version with computed fields. |
 
 **Legend:**
 
@@ -62,7 +67,7 @@ Verify each business-schema file contains ONLY unique types not already in `sche
 
 ## Phase 2: Repository Layer Refactoring
 
-### Objective
+### Objectives
 
 Refactor each repository file to ensure:
 
@@ -77,14 +82,14 @@ Refactor each repository file to ensure:
 | --------------------------------------------- | -------------- | -------------- | ------------ | ----- |
 | `packages/repo/src/auth-user.repo.ts`         | ⬜ Not Started | -              | -            |       |
 | `packages/repo/src/calendar-events.repo.ts`   | ⬜ Not Started | -              | -            |       |
-| `packages/repo/src/contacts.repo.ts`          | ⬜ Not Started | -              | -            |       |
+| `packages/repo/src/contacts.repo.ts`          | ✅ Completed - All criteria met | 2025-10-04 | None | Gold standard pattern for all repos |
 | `packages/repo/src/identities.repo.ts`        | ⬜ Not Started | -              | -            |       |
 | `packages/repo/src/inbox.repo.ts`             | ⬜ Not Started | -              | -            |       |
 | `packages/repo/src/index.ts`                  | ⬜ Not Started | -              | -            |       |
 | `packages/repo/src/interactions.repo.ts`      | ⬜ Not Started | -              | -            |       |
 | `packages/repo/src/jobs.repo.ts`              | ⬜ Not Started | -              | -            |       |
 | `packages/repo/src/momentum.repo.ts`          | ⬜ Not Started | -              | -            |       |
-| `packages/repo/src/notes.repo.ts`             | ⬜ Not Started | -              | -            |       |
+| `packages/repo/src/notes.repo.ts`             | ✅ Completed - All criteria met | 2025-10-04 | None | Removed validation and business logic (PII redaction). Pure data access only. |
 | `packages/repo/src/onboarding.repo.ts`        | ⬜ Not Started | -              | -            |       |
 | `packages/repo/src/raw-events.repo.ts`        | ⬜ Not Started | -              | -            |       |
 | `packages/repo/src/schema-canaries.test.ts`   | ⬜ Not Started | -              | -            |       |
@@ -142,20 +147,32 @@ Refactor each repository file to ensure:
 ### Progress Tracking
 
 ### Phase 1: Business Schemas
+
 - **Total Files**: 21
-- **Completed**: 10
+- **Completed**: 20
 - **In Progress**: 0
-- **Not Started**: 11
-- **Progress**: 48%
+- **Not Started**: 1
+- **Progress**: 95%
 
 ### Phase 2: Repository Layer
 
 - **Total Files**: 17
-- **Completed**: 0
-- **In Progress**: 1
-- **Not Started**: 16
-- **Not Started**: 17
-- **Progress**: 0%
+- **Completed**: 2
+- **In Progress**: 0
+- **Not Started**: 15
+- **Progress**: 12%
+
+### Phase 3: Service Layer
+
+- **Total Files**: TBD
+- **Completed**: 1
+- **In Progress**: 0
+- **Not Started**: TBD
+- **Progress**: Initial implementation
+
+| File                                          | Status         | Date Completed | Notes |
+| --------------------------------------------- | -------------- | -------------- | ----- |
+| `src/server/services/notes.service.ts`        | ✅ Completed - All criteria met | 2025-10-04 | Created following contacts.service.ts pattern. Includes PII redaction, error handling, and business logic orchestration. |
 
 ---
 
@@ -166,6 +183,9 @@ Refactor each repository file to ensure:
 - Document created
 - Refactoring approach defined
 - Files catalogued and ready for audit
+- **Completed contacts.repo.ts refactoring** - Established as gold standard pattern
+- **Completed notes.repo.ts refactoring** - Removed all validation and business logic (Zod schemas, PII redaction). Repository now contains only pure data access operations following the contacts.repo.ts pattern.
+- **Created notes.service.ts** - Established service layer for notes domain following contacts.service.ts pattern. Includes PII redaction business logic, error handling, and proper separation of concerns.
 
 ---
 

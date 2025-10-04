@@ -1,11 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr } from "@/lib/utils/result";
 import type {
   Contact,
-  ContactWithNotes,
   ContactListResponse,
+  CreateContact,
+  UpdateContact,
 } from "@/server/db/business-schemas/contacts";
+
+import { ContactWithNotes } from "@/server/db/schema";
 
 // Re-export types for components
 export type { Contact, ContactWithNotes };
@@ -33,7 +38,19 @@ interface ContactSuggestionsResponse {
   suggestions: ContactSuggestion[];
 }
 
-// GET /api/contacts
+interface ContactResponse {
+  item: Contact;
+}
+
+interface BulkDeleteResponse {
+  deleted: number;
+}
+
+// ============================================================================
+// QUERIES
+// ============================================================================
+
+// GET /api/contacts - List contacts with pagination and filters
 export function useContacts(
   searchQuery: string,
   page = 1,
@@ -70,8 +87,10 @@ export function useContacts(
   });
 }
 
-// GET /api/contacts/suggestions
-export function useContactSuggestions(enabled = true): ReturnType<typeof useQuery<ContactSuggestion[]>> {
+// GET /api/contacts/suggestions - Calendar-based contact suggestions
+export function useContactSuggestions(
+  enabled = true,
+): ReturnType<typeof useQuery<ContactSuggestion[]>> {
   return useQuery({
     queryKey: ["/api/contacts/suggestions"],
     queryFn: async (): Promise<ContactSuggestion[]> => {
@@ -79,5 +98,131 @@ export function useContactSuggestions(enabled = true): ReturnType<typeof useQuer
       return data.suggestions;
     },
     enabled,
+  });
+}
+
+// GET /api/contacts/:id - Fetch a single contact by ID
+export function useContact(id: string) {
+  return useQuery({
+    queryKey: queryKeys.contacts.detail(id),
+    queryFn: async (): Promise<Contact> => {
+      const result = await apiClient.get<
+        Result<ContactResponse, { message: string; code: string }>
+      >(`/api/contacts/${id}`);
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data.item;
+    },
+    enabled: !!id,
+  });
+}
+
+// ============================================================================
+// MUTATIONS
+// ============================================================================
+
+// POST /api/contacts - Create a new contact
+export function useCreateContact() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: Omit<CreateContact, "userId">): Promise<Contact> => {
+      const result = await apiClient.post<
+        Result<ContactResponse, { message: string; code: string }>
+      >("/api/contacts", {
+        ...input,
+        source: input.source ?? "manual",
+      });
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data.item;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+      toast.success("Contact created", {
+        description: "The contact has been added successfully.",
+      });
+    },
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to create contact", {
+        description: errorMessage,
+      });
+    },
+  });
+}
+
+// PUT /api/contacts/:id - Update an existing contact
+export function useUpdateContact() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateContact }): Promise<Contact> => {
+      const result = await apiClient.put<
+        Result<ContactResponse, { message: string; code: string }>
+      >(`/api/contacts/${id}`, input);
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data.item;
+    },
+    onSuccess: (updatedContact) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.contacts.detail(updatedContact.id),
+      });
+      toast.success("Contact updated", {
+        description: "The contact has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to update contact", {
+        description: errorMessage,
+      });
+    },
+  });
+}
+
+// POST /api/contacts/bulk-delete - Delete multiple contacts by IDs
+export function useDeleteContacts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]): Promise<number> => {
+      const result = await apiClient.post<
+        Result<BulkDeleteResponse, { message: string; code: string }>
+      >("/api/contacts/bulk-delete", { ids });
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data.deleted;
+    },
+    onSuccess: (deletedCount) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+      toast.success("Contacts deleted", {
+        description: `${deletedCount} contact${deletedCount === 1 ? "" : "s"} deleted successfully.`,
+      });
+    },
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to delete contacts", {
+        description: errorMessage,
+      });
+    },
   });
 }

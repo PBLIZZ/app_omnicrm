@@ -15,9 +15,7 @@ import type { VisibilityState } from "@tanstack/react-table";
 /**
  * Type guard to check if a DbResult is successful
  */
-export function isSuccessResult<T>(
-  result: DbResult<T>,
-): result is { success: true; data: T } {
+export function isSuccessResult<T>(result: DbResult<T>): result is { success: true; data: T } {
   return result.success === true && "data" in result;
 }
 
@@ -37,11 +35,11 @@ export function unwrapResult<T>(result: DbResult<T>): T {
   if (isSuccessResult(result)) {
     return result.data;
   }
-  
+
   if (isErrorResult(result)) {
     throw new Error(`Database operation failed: ${result.error.message}`);
   }
-  
+
   throw new Error("Invalid DbResult state: result must have success property");
 }
 
@@ -79,17 +77,9 @@ export function validateNotesQueryRows(rows: unknown): NotesQueryRow[] {
   if (!Array.isArray(rows)) {
     return [];
   }
-  
+
   return rows.filter(isNotesQueryRow);
 }
-
-// Legacy aliases for backward compatibility
-/** @deprecated Use NotesQueryRow instead */
-export type NotesCountRow = NotesQueryRow;
-/** @deprecated Use validateNotesQueryRows instead */
-export const validateNotesCountRows = validateNotesQueryRows;
-/** @deprecated Use isNotesQueryRow instead */
-export const isNotesCountRow = isNotesQueryRow;
 
 // ============================================================================
 // CONTACT TYPE GUARDS
@@ -136,7 +126,7 @@ export function isVisibilityState(data: unknown): data is VisibilityState {
   if (typeof data !== "object" || data === null) {
     return false;
   }
-  
+
   // Check if all values are booleans
   return Object.values(data).every((value) => typeof value === "boolean");
 }
@@ -147,11 +137,11 @@ export function isVisibilityState(data: unknown): data is VisibilityState {
 export function parseVisibilityState(jsonString: string): VisibilityState | null {
   try {
     const parsed: unknown = JSON.parse(jsonString);
-    
+
     if (isVisibilityState(parsed)) {
       return parsed;
     }
-    
+
     return null;
   } catch {
     return null;
@@ -181,10 +171,7 @@ export type ValidLifecycleStage = (typeof VALID_LIFECYCLE_STAGES)[number];
  * Type guard to check if a string is a valid lifecycle stage
  */
 export function isValidLifecycleStage(value: unknown): value is ValidLifecycleStage {
-  return (
-    typeof value === "string" &&
-    VALID_LIFECYCLE_STAGES.includes(value as ValidLifecycleStage)
-  );
+  return typeof value === "string" && VALID_LIFECYCLE_STAGES.includes(value as ValidLifecycleStage);
 }
 
 /**

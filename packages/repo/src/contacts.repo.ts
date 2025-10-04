@@ -1,16 +1,18 @@
 import { eq, and, ilike, desc, asc, inArray, count } from "drizzle-orm";
-import { contacts, notes, type Contact, type Note, type CreateContact } from "@/server/db/schema";
+import { contacts, type Contact } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
-import { ok, err, DbResult, dbError } from "@/lib/utils/result";
-import { UpdateContactBodySchema } from "@/server/db/business-schemas";
-import { safeParse } from "@/lib/utils/zod-helpers";
+import { ok, dbError, type DbResult } from "@/lib/utils/result";
 
-// Only export types that actually transform/extend base types
-export type ContactWithNotes = Contact & { notes: Note[] };
+/**
+ * Contacts Repository
+ *
+ * Pure database operations - no business logic, no validation.
+ * All methods return DbResult<T> for consistent error handling.
+ */
 
 export class ContactsRepository {
   /**
-   * List contacts for a user with pagination, search, and sorting
+   * List contacts with pagination and search
    */
   static async listContacts(
     userId: string,
@@ -30,55 +32,43 @@ export class ContactsRepository {
       const sortKey = params.sort ?? "updatedAt";
       const sortDir = params.order === "desc" ? desc : asc;
 
-      // Build conditions array
       const conditions = [eq(contacts.userId, userId)];
-
       if (params.search) {
         conditions.push(ilike(contacts.displayName, `%${params.search}%`));
       }
 
-      // Count total using Drizzle's typed count helper
+      // Count total
       const countResult = await db
         .select({ count: count() })
         .from(contacts)
         .where(and(...conditions));
 
-      const total = countResult[0]?.count ?? 0;
+      const totalRow = countResult[0];
+      const total = totalRow?.count ?? 0;
 
-      // Main query with dynamic sort and limit/offset
+      // Fetch items
       const sortColumnMap = {
         displayName: contacts.displayName,
         createdAt: contacts.createdAt,
         updatedAt: contacts.updatedAt,
       } as const;
 
-      const orderByClause = sortDir(sortColumnMap[sortKey] ?? contacts.updatedAt);
-
-      const query = db
+      const items = await db
         .select()
         .from(contacts)
         .where(and(...conditions))
-        .orderBy(orderByClause)
+        .orderBy(sortDir(sortColumnMap[sortKey]))
         .limit(pageSize)
         .offset(offset);
 
-      const rows = await query;
-
-      // Transform DB rows to DTOs
-      const items = rows;
-
       return ok({ items, total });
     } catch (error) {
-      return err({
-        code: "DB_QUERY_FAILED",
-        message: error instanceof Error ? error.message : "Failed to list contacts",
-        details: error,
-      });
+      return dbError("DB_QUERY_FAILED", "Failed to list contacts", error);
     }
   }
 
   /**
-   * Get a single contact by ID
+   * Get single contact by ID
    */
   static async getContactById(
     userId: string,
@@ -86,194 +76,102 @@ export class ContactsRepository {
   ): Promise<DbResult<Contact | null>> {
     try {
       const db = await getDb();
-
       const rows = await db
         .select()
         .from(contacts)
         .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
         .limit(1);
 
-      if (rows.length === 0) {
-        return ok(null);
-      }
-
-      return ok(rows[0] ?? null);
+      return ok(rows.length > 0 && rows[0] ? rows[0] : null);
     } catch (error) {
-      return err({
-        code: "DB_QUERY_FAILED",
-        message: error instanceof Error ? error.message : "Failed to get contact",
-        details: error,
-      });
+      return dbError("DB_QUERY_FAILED", "Failed to get contact", error);
     }
   }
 
   /**
-   * Get contact with associated notes
+   * Create new contact
    */
-  static async getContactWithNotes(
-    userId: string,
-    contactId: string,
-  ): Promise<DbResult<ContactWithNotes | null>> {
+  static async createContact(data: {
+    userId: string;
+    displayName: string;
+    primaryEmail?: string | null;
+    primaryPhone?: string | null;
+    photoUrl?: string | null;
+    source?: string | null;
+    lifecycleStage?: string | null;
+    tags?: string[] | null;
+    confidenceScore?: string | null;
+    dateOfBirth?: string | null;
+    emergencyContactName?: string | null;
+    emergencyContactPhone?: string | null;
+    clientStatus?: string | null;
+    referralSource?: string | null;
+    address?: unknown;
+    healthContext?: unknown;
+    preferences?: unknown;
+  }): Promise<DbResult<Contact>> {
     try {
       const db = await getDb();
+      const [contact] = await db.insert(contacts).values(data).returning();
 
-      // Get contact
-      const contactRows = await db
-        .select()
-        .from(contacts)
-        .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
-        .limit(1);
-
-      if (contactRows.length === 0) {
-        return ok(null);
+      if (!contact) {
+        return dbError("DB_INSERT_FAILED", "Insert returned no data");
       }
 
-      // Get associated notes
-      const noteRows = await db
-        .select()
-        .from(notes)
-        .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)))
-        .orderBy(desc(notes.createdAt));
-
-      const contactWithNotes = {
-        ...contactRows[0],
-        notes: noteRows,
-      } as ContactWithNotes;
-
-      return ok(contactWithNotes);
+      return ok(contact);
     } catch (error) {
-      return dbError(
-        "DB_QUERY_FAILED",
-        error instanceof Error ? error.message : "Failed to get contact with notes",
-        error,
-      );
+      return dbError("DB_INSERT_FAILED", "Failed to create contact", error);
     }
   }
 
   /**
-   * Create a new contact
-   */
-  static async createContact(input: unknown): Promise<DbResult<Contact>> {
-    try {
-      const db = await getDb();
-
-      // Validate and narrow the input type using Zod
-      // CreateContactSchema already includes userId, so just use it directly
-      const dataValidation = safeParse(CreateContactSchema, input);
-
-      if (!dataValidation.success) {
-        return err({
-          code: "VALIDATION_ERROR",
-          message: `Invalid contact data: ${dataValidation.error.issues.map((i: { message: string }) => i.message).join(", ")}`,
-        });
-      }
-
-      const data = dataValidation.data as {
-        userId: string;
-        displayName: string;
-        primaryEmail?: string | null;
-        primaryPhone?: string | null;
-        photoUrl?: string | null;
-        source?: string | null;
-        lifecycleStage?: string | null;
-        tags?: string[] | null;
-        confidenceScore?: string | null;
-      };
-
-      // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
-      const insertValues = {
-        userId: data.userId,
-        displayName: data.displayName,
-        primaryEmail: data.primaryEmail ?? null,
-        primaryPhone: data.primaryPhone ?? null,
-        photoUrl: data.photoUrl ?? null,
-        source: data.source ?? null,
-        lifecycleStage: data.lifecycleStage ?? null,
-        tags: data.tags ?? null,
-        confidenceScore: data.confidenceScore ?? null,
-      };
-
-      const [newContact] = await db.insert(contacts).values(insertValues).returning();
-
-      if (!newContact) {
-        return err({
-          code: "DB_INSERT_FAILED",
-          message: "Failed to create contact - no data returned",
-        });
-      }
-
-      return ok(newContact);
-    } catch (error) {
-      return err({
-        code: "DB_INSERT_FAILED",
-        message: error instanceof Error ? error.message : "Failed to create contact",
-        details: error,
-      });
-    }
-  }
-
-  /**
-   * Update an existing contact
+   * Update existing contact
    */
   static async updateContact(
     userId: string,
     contactId: string,
-    input: unknown,
+    updates: {
+      displayName?: string;
+      primaryEmail?: string | null;
+      primaryPhone?: string | null;
+      photoUrl?: string | null;
+      source?: string | null;
+      lifecycleStage?: string | null;
+      tags?: string[] | null;
+      confidenceScore?: string | null;
+      dateOfBirth?: string | null;
+      emergencyContactName?: string | null;
+      emergencyContactPhone?: string | null;
+      clientStatus?: string | null;
+      referralSource?: string | null;
+      address?: unknown;
+      healthContext?: unknown;
+      preferences?: unknown;
+    },
   ): Promise<DbResult<Contact | null>> {
     try {
       const db = await getDb();
-
-      // Validate and narrow the input type using Zod
-      // Use UpdateContactBodySchema which excludes userId (comes from auth) and id (comes from URL)
-      const dataValidation = safeParse(UpdateContactBodySchema, input);
-
-      if (!dataValidation.success) {
-        return err({
-          code: "VALIDATION_ERROR",
-          message: `Invalid update data: ${dataValidation.error.issues.map((i: { message: string }) => i.message).join(", ")}`,
-        });
-      }
-
-      const data = dataValidation.data;
-
-      // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
-      const updateValues = {
-        updatedAt: new Date(),
-        ...(data.displayName !== undefined && { displayName: data.displayName }),
-        ...(data.primaryEmail !== undefined && { primaryEmail: data.primaryEmail ?? null }),
-        ...(data.primaryPhone !== undefined && { primaryPhone: data.primaryPhone ?? null }),
-        ...(data.photoUrl !== undefined && { photoUrl: data.photoUrl ?? null }),
-        ...(data.source !== undefined && { source: data.source ?? null }),
-        ...(data.lifecycleStage !== undefined && { lifecycleStage: data.lifecycleStage ?? null }),
-        ...(data.tags !== undefined && { tags: data.tags ?? null }),
-        ...(data.confidenceScore !== undefined && {
-          confidenceScore: data.confidenceScore ?? null,
-        }),
-      };
-
-      const [updatedContact] = await db
+      const [contact] = await db
         .update(contacts)
-        .set(updateValues)
-        .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
+        .set({
+          ...updates,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)))
         .returning();
 
-      return ok(updatedContact || null);
+      return ok(contact ?? null);
     } catch (error) {
-      return err({
-        code: "DB_UPDATE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to update contact",
-        details: error,
-      });
+      return dbError("DB_UPDATE_FAILED", "Failed to update contact", error);
     }
   }
 
   /**
-   * Delete a contact
+   * Delete contact
    */
   static async deleteContact(userId: string, contactId: string): Promise<DbResult<boolean>> {
     try {
       const db = await getDb();
-
       const result = await db
         .delete(contacts)
         .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
@@ -281,16 +179,12 @@ export class ContactsRepository {
 
       return ok(result.length > 0);
     } catch (error) {
-      return dbError(
-        "DB_DELETE_FAILED",
-        error instanceof Error ? error.message : "Failed to delete contact",
-        error,
-      );
+      return dbError("DB_DELETE_FAILED", "Failed to delete contact", error);
     }
   }
 
   /**
-   * Check if contact exists by email
+   * Find contact by email
    */
   static async findContactByEmail(
     userId: string,
@@ -298,20 +192,15 @@ export class ContactsRepository {
   ): Promise<DbResult<Contact | null>> {
     try {
       const db = await getDb();
-
       const rows = await db
         .select()
         .from(contacts)
         .where(and(eq(contacts.userId, userId), eq(contacts.primaryEmail, email)))
         .limit(1);
 
-      return ok(rows.length === 0 ? null : (rows[0] ?? null));
+      return ok(rows.length > 0 && rows[0] ? rows[0] : null);
     } catch (error) {
-      return dbError(
-        "DB_QUERY_FAILED",
-        error instanceof Error ? error.message : "Failed to find contact by email",
-        error,
-      );
+      return dbError("DB_QUERY_FAILED", "Failed to find contact by email", error);
     }
   }
 
@@ -328,7 +217,6 @@ export class ContactsRepository {
       }
 
       const db = await getDb();
-
       const rows = await db
         .select()
         .from(contacts)
@@ -336,16 +224,12 @@ export class ContactsRepository {
 
       return ok(rows);
     } catch (error) {
-      return dbError(
-        "DB_QUERY_FAILED",
-        error instanceof Error ? error.message : "Failed to get contacts by IDs",
-        error,
-      );
+      return dbError("DB_QUERY_FAILED", "Failed to get contacts by IDs", error);
     }
   }
 
   /**
-   * Bulk delete contacts by IDs
+   * Bulk delete contacts
    */
   static async deleteContactsByIds(
     userId: string,
@@ -357,42 +241,24 @@ export class ContactsRepository {
       }
 
       const db = await getDb();
-
-      // Count contacts to delete first
-      const countRows = await db
-        .select({ n: count() })
-        .from(contacts)
-        .where(and(eq(contacts.userId, userId), inArray(contacts.id, contactIds)))
-        .limit(1);
-      const n = countRows[0]?.n ?? 0;
-
-      if (n === 0) {
-        return ok(0);
-      }
-
-      // Delete the contacts
       const result = await db
         .delete(contacts)
         .where(and(eq(contacts.userId, userId), inArray(contacts.id, contactIds)));
 
-      return ok(result.count || n);
+      return ok(result.count ?? 0);
     } catch (error) {
-      return dbError(
-        "DB_DELETE_FAILED",
-        error instanceof Error ? error.message : "Failed to bulk delete contacts",
-        error,
-      );
+      return dbError("DB_DELETE_FAILED", "Failed to bulk delete contacts", error);
     }
   }
 
   /**
-   * Count contacts for a user with optional search filter
+   * Count contacts with optional search
    */
   static async countContacts(userId: string, search?: string): Promise<DbResult<number>> {
     try {
       const db = await getDb();
-
       const conditions = [eq(contacts.userId, userId)];
+
       if (search) {
         conditions.push(ilike(contacts.displayName, `%${search}%`));
       }
@@ -400,16 +266,12 @@ export class ContactsRepository {
       const result = await db
         .select({ count: count() })
         .from(contacts)
-        .where(and(...conditions))
-        .limit(1);
+        .where(and(...conditions));
 
-      return ok(result[0]?.count ?? 0);
+      const row = result[0];
+      return ok(row?.count ?? 0);
     } catch (error) {
-      return dbError(
-        "DB_QUERY_FAILED",
-        error instanceof Error ? error.message : "Failed to count contacts",
-        error,
-      );
+      return dbError("DB_QUERY_FAILED", "Failed to count contacts", error);
     }
   }
 }

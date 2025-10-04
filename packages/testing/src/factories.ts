@@ -107,33 +107,6 @@ export type CreateNoteInput = {
   content: string;
 };
 
-export type ChatMessage = {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string;
-};
-
-export type ChatRequest = {
-  model: string;
-  messages: ChatMessage[];
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-};
-
-export type ChatResponse = {
-  id: string;
-  model: string;
-  message: ChatMessage;
-  usage?: {
-    input_tokens: number;
-    output_tokens: number;
-  };
-};
-
-export type SimpleChatRequest = {
-  prompt: string;
-};
-
 export type CreateTaskInput = {
   title: string;
   description?: string;
@@ -473,54 +446,6 @@ export function makeNoteDTO(overrides: Partial<NoteDTO> = {}): NoteDTO {
 export function makeCreateNoteInput(overrides: Partial<CreateNoteInput> = {}): CreateNoteInput {
   return {
     content: faker.lorem.paragraph(),
-    ...overrides,
-  };
-}
-
-// =============================================================================
-// CHAT FACTORIES
-// =============================================================================
-
-export function makeChatMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
-  return {
-    role: faker.helpers.arrayElement(["system", "user", "assistant", "tool"]),
-    content: faker.lorem.sentence(),
-    ...overrides,
-  };
-}
-
-export function makeChatRequest(overrides: Partial<ChatRequest> = {}): ChatRequest {
-  return {
-    model: faker.helpers.arrayElement(["gpt-4", "gpt-3.5-turbo", "claude-3-sonnet"]),
-    messages: [
-      makeChatMessage({ role: "user", content: faker.lorem.sentence() }),
-      makeChatMessage({ role: "assistant", content: faker.lorem.paragraph() }),
-    ],
-    temperature: faker.number.float({ min: 0, max: 2, fractionDigits: 1 }),
-    max_tokens: faker.number.int({ min: 100, max: 4000 }),
-    stream: faker.datatype.boolean(),
-    ...overrides,
-  };
-}
-
-export function makeChatResponse(overrides: Partial<ChatResponse> = {}): ChatResponse {
-  return {
-    id: faker.string.uuid(),
-    model: faker.helpers.arrayElement(["gpt-4", "gpt-3.5-turbo", "claude-3-sonnet"]),
-    message: makeChatMessage({ role: "assistant" }),
-    usage: {
-      input_tokens: faker.number.int({ min: 10, max: 1000 }),
-      output_tokens: faker.number.int({ min: 10, max: 1000 }),
-    },
-    ...overrides,
-  };
-}
-
-export function makeSimpleChatRequest(
-  overrides: Partial<SimpleChatRequest> = {},
-): SimpleChatRequest {
-  return {
-    prompt: faker.lorem.sentence(),
     ...overrides,
   };
 }

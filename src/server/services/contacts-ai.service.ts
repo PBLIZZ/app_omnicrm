@@ -1,11 +1,10 @@
 /**
  * Contacts AI Service
  *
- * Consolidates all AI-powered contact operations including:
- * - AI insights and analysis (contact-ai-actions.service.ts)
- * - Contact enrichment with AI (contact-enrichment.service.ts)
- *
- * This replaces 2 separate AI service files with a single, focused service.
+ * AI-powered contact operations:
+ * - AI insights and analysis
+ * - Contact enrichment with AI
+ * - Bulk enrichment operations
  */
 
 import { generateContactInsights } from "@/server/ai/contacts/generate-contact-insights";
@@ -14,16 +13,15 @@ import {
   type ContactAIInsightResponse,
 } from "@/server/ai/contacts/ask-ai-about-contact";
 import { ContactsRepository } from "@repo";
-import { listContactsService, type ContactListItem } from "@/server/services/contacts.service";
+import { listContactsService, type ContactWithLastNote } from "@/server/services/contacts.service";
 import { getDb } from "@/server/db/client";
-import { contacts, type Contact } from "@/server/db/schema";
+import { contacts } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/observability";
-import { isErr } from "@/lib/utils/result";
-import { ErrorHandler } from "@/lib/errors/app-error";
+import { AppError } from "@/lib/errors/app-error";
 
 // ============================================================================
-// TYPES & INTERFACES
+// TYPES
 // ============================================================================
 
 const validStages = [
@@ -51,55 +49,62 @@ export interface EnrichmentResult {
 }
 
 export interface EnrichmentProgress {
-  current: number;
-  total: number;
-  percentage: number;
+  current?: number;
+  total?: number;
+  percentage?: number;
   message: string;
   type?: string;
+  contactId?: string;
+  contactName?: string;
+  error?: string;
+  lifecycleStage?: string;
+  tags?: string[];
+  confidenceScore?: number;
+  enrichedCount?: number;
 }
 
 // ============================================================================
-// HELPER FUNCTIONS
+// HELPERS
 // ============================================================================
 
-/**
- * Type guard to check if a string is a valid lifecycle stage
- */
 function isValidStage(value: string): value is ValidStage {
   return validStages.includes(value as ValidStage);
 }
 
-/**
- * Safely convert a string to a valid lifecycle stage with fallback
- */
 function validateLifecycleStage(lifecycleStage: string): ValidStage {
   return isValidStage(lifecycleStage) ? lifecycleStage : "Prospect";
 }
 
 // ============================================================================
-// AI INSIGHTS OPERATIONS
+// AI INSIGHTS
 // ============================================================================
 
 /**
  * Ask AI about a specific contact
+ * Returns insights or error state (never throws to caller)
  */
 export async function askAIAboutContactService(
   userId: string,
   contactId: string,
 ): Promise<ContactAIInsightResponse> {
   // Validate parameters
-  if (!userId || typeof userId !== "string" || userId.trim().length === 0) {
-    throw new Error("userId must be a non-empty string");
+  if (!userId?.trim()) {
+    throw new AppError("userId must be a non-empty string", "INVALID_INPUT", "validation", false);
   }
 
-  if (!contactId || typeof contactId !== "string" || contactId.trim().length === 0) {
-    throw new Error("contactId must be a non-empty string");
+  if (!contactId?.trim()) {
+    throw new AppError(
+      "contactId must be a non-empty string",
+      "INVALID_INPUT",
+      "validation",
+      false,
+    );
   }
 
   try {
     return await askAIAboutContact(userId, contactId);
   } catch (error) {
-    logger.error(
+    await logger.error(
       "Failed to ask AI about contact",
       {
         operation: "ask_ai_about_contact",
@@ -108,6 +113,7 @@ export async function askAIAboutContactService(
       error instanceof Error ? error : new Error(String(error)),
     );
 
+    // Return error state instead of throwing (AI is optional feature)
     return {
       insights: "Unable to generate insights at this time",
       suggestions: [],
@@ -121,11 +127,11 @@ export async function askAIAboutContactService(
 }
 
 // ============================================================================
-// CONTACT ENRICHMENT OPERATIONS
+// CONTACT ENRICHMENT
 // ============================================================================
 
 /**
- * Enrich all contacts for a user with AI insights
+ * Enrich all contacts with AI insights
  */
 export async function enrichAllContacts(
   userId: string,
@@ -133,8 +139,8 @@ export async function enrichAllContacts(
 ): Promise<EnrichmentResult> {
   const { batchSize = 1000, delayMs = 200 } = options;
 
-  // Get all contacts for the user by iterating through all pages
-  let allContacts: ContactListItem[] = [];
+  // Get all contacts (service throws on error)
+  let allContacts: ContactWithLastNote[] = [];
   let page = 1;
   let hasMore = true;
 
@@ -146,19 +152,12 @@ export async function enrichAllContacts(
       order: "asc",
     });
 
-    if ('items' in result && Array.isArray(result.items)) {
-      allContacts = allContacts.concat(result.items);
-      // Calculate hasMore based on items length vs pageSize
-      hasMore = result.items.length === batchSize;
-    } else {
-      hasMore = false;
-    }
+    allContacts = allContacts.concat(result.items);
+    hasMore = result.items.length === batchSize;
     page++;
   }
 
   const totalContacts = allContacts.length;
-  let enrichedCount = 0;
-  const errors: string[] = [];
 
   if (totalContacts === 0) {
     return {
@@ -168,23 +167,25 @@ export async function enrichAllContacts(
     };
   }
 
+  let enrichedCount = 0;
+  const errors: string[] = [];
   const db = await getDb();
 
   // Process each contact
   for (const contact of allContacts) {
     try {
-      // Skip if contact has no email (can't analyze calendar events without email)
+      // Skip if no email
       if (!contact.primaryEmail) {
         errors.push(`${contact.displayName}: No email address to analyze`);
         continue;
       }
 
-      // Generate AI insights using the contact intelligence service
+      // Generate AI insights
       const insights = await generateContactInsights(userId, contact.primaryEmail, {
         forceRefresh: true,
       });
 
-      // Update the contact in the database with the insights
+      // Update contact
       await db
         .update(contacts)
         .set({
@@ -197,7 +198,6 @@ export async function enrichAllContacts(
 
       enrichedCount++;
 
-      // Add delay to avoid overwhelming the AI service
       if (delayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
@@ -213,7 +213,6 @@ export async function enrichAllContacts(
             userId: userId.slice(0, 8) + "...",
             contactId: contact.id,
             contactName: contact.displayName,
-            error: error instanceof Error ? error.message : String(error),
           },
         },
         error instanceof Error ? error : new Error(String(error)),
@@ -234,7 +233,7 @@ export async function enrichAllContacts(
   return {
     enrichedCount,
     totalRequested: totalContacts,
-    errors: errors.length > 0 ? errors : [],
+    errors: errors.length > 0 ? errors : undefined,
     message: `Successfully enriched ${enrichedCount} of ${totalContacts} contacts with AI insights`,
   };
 }
@@ -249,8 +248,8 @@ export async function* enrichAllContactsStreaming(
   try {
     const { batchSize = 1000, delayMs = 200 } = options;
 
-    // Get all contacts for the user by iterating through all pages
-    let allContacts: ContactListItem[] = [];
+    // Get all contacts (service throws on error)
+    let allContacts: ContactWithLastNote[] = [];
     let page = 1;
     let hasMore = true;
 
@@ -262,21 +261,14 @@ export async function* enrichAllContactsStreaming(
         order: "asc",
       });
 
-      if (result.success) {
-        allContacts = allContacts.concat(result.data.items);
-        // Calculate hasMore based on items length vs pageSize
-        hasMore = result.data.items.length === batchSize;
-      } else {
-        hasMore = false;
-      }
+      allContacts = allContacts.concat(result.items);
+      hasMore = result.items.length === batchSize;
       page++;
     }
 
     const totalContacts = allContacts.length;
     let enrichedCount = 0;
-    const errors: string[] = [];
 
-    // Send start event
     yield {
       type: "start",
       total: totalContacts,
@@ -295,37 +287,33 @@ export async function* enrichAllContactsStreaming(
 
     const db = await getDb();
 
-    // Process each contact
     for (const contact of allContacts) {
       try {
-        // Send progress event
         yield {
           type: "progress",
           contactId: contact.id,
           contactName: contact.displayName,
           enrichedCount,
+          message: "Enriching contact...",
           total: totalContacts,
         };
 
-        // Skip if contact has no email (can't analyze calendar events without email)
         if (!contact.primaryEmail) {
           const errorMsg = `${contact.displayName}: No email address to analyze`;
-          errors.push(errorMsg);
           yield {
             type: "error",
             contactId: contact.id,
             contactName: contact.displayName,
             error: errorMsg,
+            message: errorMsg,
           };
           continue;
         }
 
-        // Generate AI insights using the contact intelligence service
         const insights = await generateContactInsights(userId, contact.primaryEmail, {
           forceRefresh: true,
         });
 
-        // Update the contact in the database with the insights
         await db
           .update(contacts)
           .set({
@@ -338,7 +326,6 @@ export async function* enrichAllContactsStreaming(
 
         enrichedCount++;
 
-        // Send enriched event
         yield {
           type: "enriched",
           contactId: contact.id,
@@ -347,23 +334,22 @@ export async function* enrichAllContactsStreaming(
           tags: insights.tags,
           confidenceScore: insights.confidenceScore,
           enrichedCount,
+          message: "Contact enriched successfully",
           total: totalContacts,
         };
 
-        // Add delay to avoid overwhelming the AI service
         if (delayMs > 0) {
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
       } catch (error) {
         const errorMessage = `Failed to enrich ${contact.displayName}: ${error instanceof Error ? error.message : "Unknown error"}`;
-        errors.push(errorMessage);
 
-        // Send error event
         yield {
           type: "error",
           contactId: contact.id,
           contactName: contact.displayName,
           error: errorMessage,
+          message: errorMessage,
         };
 
         await logger.error(
@@ -374,7 +360,6 @@ export async function* enrichAllContactsStreaming(
               userId: userId.slice(0, 8) + "...",
               contactId: contact.id,
               contactName: contact.displayName,
-              error: error instanceof Error ? error.message : String(error),
             },
           },
           error instanceof Error ? error : new Error(String(error)),
@@ -382,40 +367,26 @@ export async function* enrichAllContactsStreaming(
       }
     }
 
-    // Send complete event
     yield {
       type: "complete",
       enrichedCount,
       total: totalContacts,
       message: `Successfully enriched ${enrichedCount} of ${totalContacts} contacts with AI insights`,
     };
-
-    await logger.info("Streaming contact enrichment completed", {
-      operation: "contact_enrichment_streaming",
-      additionalData: {
-        userId: userId.slice(0, 8) + "...",
-        totalContacts,
-        enrichedCount,
-        errorCount: errors.length,
-      },
-    });
   } catch (error) {
-    // Send error and close stream
     yield {
       type: "error",
       error: error instanceof Error ? error.message : "Unknown error occurred",
+      message: error instanceof Error ? error.message : "Unknown error occurred",
     };
 
     await logger.error(
       "Streaming contact enrichment failed",
       {
         operation: "contact_enrichment_streaming",
-        additionalData: {
-          userId: userId.slice(0, 8) + "...",
-          error: error instanceof Error ? error.message : String(error),
-        },
+        additionalData: { userId: userId.slice(0, 8) + "..." },
       },
-      ErrorHandler.fromError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
   }
 }
@@ -430,14 +401,14 @@ export async function enrichContactsByIds(
 ): Promise<EnrichmentResult> {
   const { delayMs = 200 } = options;
 
-  // Get contacts to enrich with their emails using repository
-  const contactsToEnrichResult = await ContactsRepository.getContactsByIds(userId, contactIds);
+  // Get contacts from repo (unwrap or throw)
+  const result = await ContactsRepository.getContactsByIds(userId, contactIds);
 
-  if (isErr(contactsToEnrichResult)) {
-    throw new Error(`Failed to get contacts: ${contactsToEnrichResult.error.message}`);
+  if (!result.success) {
+    throw new AppError(result.error.message, result.error.code, "database", false);
   }
 
-  const contactsToEnrich = (contactsToEnrichResult as { success: true; data: Contact[] }).data;
+  const contactsToEnrich = result.data;
 
   if (contactsToEnrich.length === 0) {
     return {
@@ -450,30 +421,30 @@ export async function enrichContactsByIds(
   let enrichedCount = 0;
   const errors: string[] = [];
 
-  // Process each contact
   for (const contact of contactsToEnrich) {
     try {
-      // Skip clients without email addresses (can't analyze without email for calendar events)
       if (!contact.primaryEmail) {
         errors.push(`${contact.displayName}: No email address to analyze`);
         continue;
       }
 
-      // Generate AI insights for this contact
       const insights = await generateContactInsights(userId, contact.primaryEmail, {
         forceRefresh: true,
       });
 
-      // Update the contact with AI insights using repository
-      await ContactsRepository.updateContact(userId, contact.id, {
+      // Update via repo
+      const updateResult = await ContactsRepository.updateContact(userId, contact.id, {
         lifecycleStage: validateLifecycleStage(insights.lifecycleStage),
         tags: insights.tags,
         confidenceScore: insights.confidenceScore?.toString(),
       });
 
+      if (!updateResult.success) {
+        throw new AppError(updateResult.error.message, updateResult.error.code, "database", false);
+      }
+
       enrichedCount++;
 
-      // Add delay to avoid overwhelming the AI service
       if (delayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
@@ -489,7 +460,6 @@ export async function enrichContactsByIds(
             userId: userId.slice(0, 8) + "...",
             contactId: contact.id,
             contactName: contact.displayName,
-            error: error instanceof Error ? error.message : String(error),
           },
         },
         error instanceof Error ? error : new Error(String(error)),
@@ -510,34 +480,30 @@ export async function enrichContactsByIds(
   return {
     enrichedCount,
     totalRequested: contactIds.length,
-    errors: errors.length > 0 ? errors : [],
+    errors: errors.length > 0 ? errors : undefined,
     message: `Successfully enriched ${enrichedCount} of ${contactIds.length} contact${contactIds.length === 1 ? "" : "s"} with AI insights`,
   };
 }
 
 /**
- * Check if a contact needs enrichment (missing stage, tags, or confidence score)
+ * Check if contact needs enrichment
  */
 export async function contactNeedsEnrichment(userId: string, contactId: string): Promise<boolean> {
   try {
-    const contactResult = await ContactsRepository.getContactById(userId, contactId);
+    const result = await ContactsRepository.getContactById(userId, contactId);
 
-    if (isErr(contactResult)) {
+    if (!result.success || !result.data) {
       return false;
     }
 
-    const contact = (contactResult as { success: true; data: Contact | null }).data;
-    if (!contact) return false;
-
-    // Contact needs enrichment if it's missing key AI-generated fields
+    const contact = result.data;
     return !contact.lifecycleStage || !contact.tags || !contact.confidenceScore;
   } catch (error) {
     await logger.warn("Failed to check if contact needs enrichment", {
       operation: "contact_enrichment_check",
       additionalData: {
         userId: userId.slice(0, 8) + "...",
-        contactId: contactId,
-        error: error instanceof Error ? error.message : String(error),
+        contactId,
       },
     });
     return false;
@@ -545,7 +511,7 @@ export async function contactNeedsEnrichment(userId: string, contactId: string):
 }
 
 /**
- * Get enrichment statistics for a user
+ * Get enrichment statistics
  */
 export async function getEnrichmentStats(userId: string): Promise<{
   totalContacts: number;
@@ -556,30 +522,19 @@ export async function getEnrichmentStats(userId: string): Promise<{
   try {
     const result = await listContactsService(userId, {
       page: 1,
-      pageSize: 10000, // Get all contacts for stats
+      pageSize: 10000,
       sort: "displayName",
       order: "asc",
     });
 
-    if (!result.success) {
-      return {
-        totalContacts: 0,
-        enrichedContacts: 0,
-        needsEnrichment: 0,
-        enrichmentPercentage: 0,
-      };
-    }
-
-    const allContacts = result.data.items;
-
+    const allContacts = result.items;
     const totalContacts = allContacts.length;
     const enrichedContacts = allContacts.filter(
-      (contact: ContactListItem) =>
-        contact &&
-        contact.lifecycleStage != null &&
-        contact.tags != null &&
+      (contact) =>
+        contact.lifecycleStage &&
+        contact.tags &&
         Array.isArray(contact.tags) &&
-        contact.confidenceScore != null,
+        contact.confidenceScore,
     ).length;
     const needsEnrichment = totalContacts - enrichedContacts;
     const enrichmentPercentage =
@@ -596,12 +551,9 @@ export async function getEnrichmentStats(userId: string): Promise<{
       "Failed to get enrichment stats",
       {
         operation: "contact_enrichment_stats",
-        additionalData: {
-          userId: userId.slice(0, 8) + "...",
-          error: error instanceof Error ? error.message : String(error),
-        },
+        additionalData: { userId: userId.slice(0, 8) + "..." },
       },
-      ErrorHandler.fromError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
 
     return {

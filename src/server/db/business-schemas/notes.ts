@@ -71,21 +71,12 @@ export type NotesListResponse = z.infer<typeof NotesListResponseSchema>;
 // ============================================================================
 
 /**
- * Get Notes Query Schema (for future filtering)
+ * Get Notes Query Schema
  */
 export const GetNotesQuerySchema = z.object({
+  contactId: z.string().uuid().optional(),
+  search: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-  includeAI: z
-    .preprocess((val) => {
-      if (typeof val === "boolean") return val;
-      if (typeof val === "string") {
-        const lower = val.toLowerCase();
-        if (["false", "0", "no"].includes(lower)) return false;
-        if (["true", "1", "yes"].includes(lower)) return true;
-      }
-      return val;
-    }, z.boolean())
-    .default(true),
 });
 

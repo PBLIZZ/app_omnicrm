@@ -5,7 +5,8 @@
  */
 
 export const ERROR_CATEGORIES = {
-  AUTH: "auth",
+  DATABASE: "database",
+  AUTHENTICATION: "authentication",
   NETWORK: "network",
   VALIDATION: "validation",
   SYSTEM: "system",

@@ -1,31 +1,29 @@
 /**
  * Zones Schemas
  *
- * Type definitions and validation schemas for wellness zone categories.
- * Zones are shared categories that all users can access for organizing tasks and projects.
+ * For base types, import from @/server/db/schema:
+ * - Zone (select type)
+ * - CreateZone (insert type)
+ * - UpdateZone (partial insert type)
+ *
+ * This file contains ONLY UI-enhanced versions and API-specific schemas.
  */
 
 import { z } from "zod";
-import { type Zone as DbZone, type CreateZone as DbCreateZone } from "@/server/db/schema";
+import { createSelectSchema } from "drizzle-zod";
+import { zones, type Zone } from "@/server/db/schema";
 
-// ============================================================================
-// CORE ZONE SCHEMAS
-// ============================================================================
+// Re-export base types from schema for convenience
+export type { Zone, CreateZone, UpdateZone } from "@/server/db/schema";
 
-/**
- * Base Zone Schema (derived from database schema)
- */
-const BaseZoneSchema = z.object({
-  id: z.number().int().positive(),
-  name: z.string().min(1),
-  color: z.string().nullable(),
-  iconName: z.string().nullable(),
-}) satisfies z.ZodType<DbZone>;
+// Create base schema from drizzle table for UI enhancements
+const selectZoneSchema = createSelectSchema(zones);
 
 /**
- * Zone Schema (with transform)
+ * UI-Enhanced Zone Schema
+ * Extends base Zone with computed fields for UI display
  */
-export const ZoneSchema = BaseZoneSchema.transform((data) => ({
+export const ZoneWithUISchema = selectZoneSchema.transform((data) => ({
   ...data,
   // Rename iconName to icon for UI consistency
   icon: data.iconName,
@@ -33,14 +31,20 @@ export const ZoneSchema = BaseZoneSchema.transform((data) => ({
   displayName: data.name,
   hasIcon: !!data.iconName,
   hasColor: !!data.color,
-}));
+})) satisfies z.ZodType<Zone & {
+  icon: string | null;
+  displayName: string;
+  hasIcon: boolean;
+  hasColor: boolean;
+}>;
 
-export type Zone = z.infer<typeof ZoneSchema>;
+export type ZoneWithUI = z.infer<typeof ZoneWithUISchema>;
 
 /**
- * Base Zone with Statistics Schema (without transform)
+ * Zone with Statistics Schema (with transform)
+ * Extends base Zone with statistics and additional computed fields
  */
-const BaseZoneWithStatsSchema = BaseZoneSchema.extend({
+export const ZoneWithStatsSchema = selectZoneSchema.extend({
   stats: z.object({
     activeProjects: z.number().int().min(0),
     completedProjects: z.number().int().min(0),
@@ -49,12 +53,7 @@ const BaseZoneWithStatsSchema = BaseZoneSchema.extend({
     totalItems: z.number().int().min(0),
     lastActivity: z.coerce.date().nullable(),
   }),
-});
-
-/**
- * Zone with Statistics Schema (with transform)
- */
-export const ZoneWithStatsSchema = BaseZoneWithStatsSchema.transform((data) => ({
+}).transform((data) => ({
   ...data,
   // Rename iconName to icon for UI consistency
   icon: data.iconName,
@@ -111,7 +110,7 @@ export const ZoneFiltersSchema = z.object({
  * Zones List Response Schema
  */
 export const ZonesListResponseSchema = z.object({
-  items: z.array(ZoneSchema),
+  items: z.array(ZoneWithUISchema),
   total: z.number().int().min(0),
 });
 
@@ -154,25 +153,5 @@ export const ZoneDetailsResponseSchema = z.object({
     )
     .optional(),
 });
-
-// ============================================================================
-// ADMIN SCHEMAS (for zone management)
-// ============================================================================
-
-/**
- * Create Zone Schema (admin only)
- */
-export const CreateZoneSchema = BaseZoneSchema.omit({
-  id: true,
-}) satisfies z.ZodType<DbCreateZone>;
-
-export type CreateZone = z.infer<typeof CreateZoneSchema>;
-
-/**
- * Update Zone Schema (admin only)
- */
-export const UpdateZoneSchema = CreateZoneSchema.partial();
-
-// Zone categories removed as they don't exist in the database
 
 // All schemas and types are already exported above

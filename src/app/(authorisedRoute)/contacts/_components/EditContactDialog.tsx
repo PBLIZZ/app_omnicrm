@@ -9,22 +9,28 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
-import type { ClientWithNotes, EditClientData, UpdateClientResponse } from "./types";
-import validator from "validator";
+import type { Contact, EditContactData, UpdateContactResponse } from "./types";
+import { UpdateContactBodySchema } from "@/server/db/business-schemas/contacts";
+import { z } from "zod";
+
+// Form validation schema - inline
+const formSchema = UpdateContactBodySchema.extend({
+  confirmEmail: z.string().email().optional(),
+}).refine(
+  (data) => {
+    if (data.confirmEmail && data.primaryEmail) {
+      return data.confirmEmail === data.primaryEmail;
+    }
+    return true;
+  },
+  { message: "Email addresses must match", path: ["confirmEmail"] },
+);
 
 interface EditContactDialogProps {
-  contact: ClientWithNotes | null;
+  contact: Contact | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-interface EditContactData {
-  displayName: string;
-  primaryEmail: string;
-  primaryPhone: string;
-  photoUrl: string | null;
-}
-
 
 /**
  * Edit Contact Dialog Component
@@ -35,11 +41,16 @@ export function EditContactDialog({
   open,
   onOpenChange,
 }: EditContactDialogProps): JSX.Element {
-  const [formData, setFormData] = useState<EditContactData>({
+  const [formData, setFormData] = useState<{
+    displayName: string;
+    primaryEmail: string;
+    primaryPhone: string;
+  }>({
     displayName: "",
     primaryEmail: "",
     primaryPhone: "",
   });
+  const [confirmEmail, setConfirmEmail] = useState("");
   const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
 
   const queryClient = useQueryClient();
@@ -52,13 +63,14 @@ export function EditContactDialog({
         primaryEmail: contact.primaryEmail || "",
         primaryPhone: contact.primaryPhone || "",
       });
+      setConfirmEmail("");
       setFormErrors({});
     }
   }, [contact]);
 
   // Update contact mutation
   const updateClientMutation = useMutation({
-    mutationFn: async (data: EditClientData): Promise<UpdateClientResponse> => {
+    mutationFn: async (data: EditContactData): Promise<UpdateContactResponse> => {
       if (!contact) throw new Error("No contact to update");
 
       const updateData = {
@@ -67,7 +79,7 @@ export function EditContactDialog({
         primaryPhone: data.primaryPhone?.trim() || null,
       };
 
-      return apiClient.put<UpdateClientResponse>(`/api/contacts/${contact.id}`, updateData);
+      return apiClient.put<UpdateContactResponse>(`/api/contacts/${contact.id}`, updateData);
     },
     onSuccess: (response) => {
       const updatedContact = response.data;
@@ -105,23 +117,28 @@ export function EditContactDialog({
   });
 
   const handleSubmit = (): void => {
-    // Basic validation
-    const errors: Record<string, string[]> = {};
+    // Validate
+    const validation = formSchema.safeParse({
+      displayName: formData.displayName || undefined,
+      primaryEmail: formData.primaryEmail || null,
+      primaryPhone: formData.primaryPhone || null,
+      confirmEmail: confirmEmail || undefined,
+    });
 
-    if (!formData["displayName"].trim()) {
-      errors["displayName"] = ["Name is required"];
-    }
-
-    if (formData["primaryEmail"].trim() && !validator.isEmail(formData["primaryEmail"].trim())) {
-      errors["primaryEmail"] = ["Please enter a valid email address"];
-    }
-
-    if (Object.keys(errors).length > 0) {
+    if (!validation.success) {
+      const errors: Record<string, string[]> = {};
+      validation.error.issues.forEach((err) => {
+        const field = err.path.join(".");
+        if (!errors[field]) errors[field] = [];
+        errors[field].push(err.message);
+      });
       setFormErrors(errors);
       return;
     }
 
-    updateClientMutation.mutate(formData);
+    // Extract only API fields
+    const { confirmEmail: _unused, ...apiData } = validation.data;
+    updateClientMutation.mutate(apiData as EditContactData);
   };
 
   const handleCancel = (): void => {
@@ -132,11 +149,15 @@ export function EditContactDialog({
         primaryPhone: contact.primaryPhone || "",
       });
     }
+    setConfirmEmail("");
     setFormErrors({});
     onOpenChange(false);
   };
 
-  const updateField = (field: keyof EditClientData, value: string): void => {
+  const updateField = (
+    field: "displayName" | "primaryEmail" | "primaryPhone",
+    value: string,
+  ): void => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
     // Clear field error when user starts typing
@@ -205,6 +226,33 @@ export function EditContactDialog({
             />
             {formErrors["primaryPhone"] && (
               <p className="text-sm text-red-500">{formErrors["primaryPhone"][0]}</p>
+            )}
+          </div>
+
+          {/* Confirm Email Field */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-confirm-email">Confirm Email</Label>
+            <Input
+              id="edit-confirm-email"
+              type="email"
+              placeholder="Re-enter email address"
+              value={confirmEmail}
+              onChange={(e) => {
+                setConfirmEmail(e.target.value);
+                // Clear field error when user starts typing
+                if (formErrors["confirmEmail"]) {
+                  setFormErrors((prev) => {
+                    const newErrors = { ...prev };
+                    delete newErrors["confirmEmail"];
+                    return newErrors;
+                  });
+                }
+              }}
+              className={formErrors["confirmEmail"] ? "border-red-500" : ""}
+              disabled={updateClientMutation.isPending}
+            />
+            {formErrors["confirmEmail"] && (
+              <p className="text-sm text-red-500">{formErrors["confirmEmail"][0]}</p>
             )}
           </div>
 

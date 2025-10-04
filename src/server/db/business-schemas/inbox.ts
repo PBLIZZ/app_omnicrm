@@ -1,66 +1,41 @@
 /**
  * Inbox Schemas
  *
- * Type definitions and validation schemas for inbox functionality.
- * Supports quick capture, voice capture, bulk processing, and AI categorization.
+ * For base types, import from @/server/db/schema:
+ * - InboxItem (select type)
+ * - CreateInboxItem (insert type)
+ * - UpdateInboxItem (partial insert type)
+ *
+ * This file contains ONLY UI-enhanced versions and API-specific schemas.
  */
 
 import { z } from "zod";
-import { type InboxItem as DbInboxItem, type CreateInboxItem as DbCreateInboxItem } from "@/server/db/schema";
+import { createSelectSchema } from "drizzle-zod";
+import { inboxItems, type InboxItem } from "@/server/db/schema";
 
-// ============================================================================
-// CORE INBOX SCHEMAS
-// ============================================================================
+// Re-export base types from schema for convenience
+export type { InboxItem, CreateInboxItem, UpdateInboxItem } from "@/server/db/schema";
 
-/**
- * Base Inbox Item Schema (derived from database schema)
- */
-const BaseInboxItemSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
-  rawText: z.string().min(1),
-  status: z.enum(["unprocessed", "processed", "archived"]),
-  createdTaskId: z.string().uuid().nullable(),
-  processedAt: z.coerce.date().nullable(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-}) satisfies z.ZodType<DbInboxItem>;
+// Create base schema from drizzle table for UI enhancements
+const selectInboxItemSchema = createSelectSchema(inboxItems);
 
 /**
- * Inbox Item Schema (with transform)
+ * UI-Enhanced Inbox Item Schema
+ * Extends base InboxItem with computed fields for UI display
  */
-export const InboxItemSchema = BaseInboxItemSchema.transform((data) => ({
+export const InboxItemWithUISchema = selectInboxItemSchema.transform((data) => ({
   ...data,
   // UI computed fields derived from rawText
   isProcessed: data.status === "processed",
   wordCount: data.rawText.split(/\s+/).length,
   preview: data.rawText.slice(0, 100) + (data.rawText.length > 100 ? "..." : ""),
-}));
+})) satisfies z.ZodType<InboxItem & {
+  isProcessed: boolean;
+  wordCount: number;
+  preview: string;
+}>;
 
-export type InboxItem = z.infer<typeof InboxItemSchema>;
-
-/**
- * Create Inbox Item Schema
- * Note: userId is optional for client-side usage (injected server-side from auth session)
- */
-export const CreateInboxItemSchema = BaseInboxItemSchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  processedAt: true,
-}).partial({
-  userId: true, // Optional - server provides from authenticated session
-  status: true,
-  createdTaskId: true,
-});
-
-export type CreateInboxItem = z.infer<typeof CreateInboxItemSchema>;
-
-/**
- * Update Inbox Item Schema
- */
-export const UpdateInboxItemSchema = BaseInboxItemSchema.partial().required({ id: true });
-export type UpdateInboxItem = z.infer<typeof UpdateInboxItemSchema>;
+export type InboxItemWithUI = z.infer<typeof InboxItemWithUISchema>;
 
 // ============================================================================
 // QUERY & REQUEST SCHEMAS
@@ -145,7 +120,7 @@ export type ProcessInboxItemDTO = ProcessInboxItem;
  * Inbox List Response Schema
  */
 export const InboxListResponseSchema = z.object({
-  items: z.array(InboxItemSchema),
+  items: z.array(z.unknown()), // Will be validated as InboxItem[] at runtime
   total: z.number(),
 });
 
@@ -166,7 +141,7 @@ export const InboxStatsResponseSchema = z.object({
  * Inbox Item Response Schema
  */
 export const InboxItemResponseSchema = z.object({
-  item: InboxItemSchema,
+  item: z.unknown(), // Will be validated as InboxItem at runtime
 });
 
 /**
@@ -187,7 +162,11 @@ export const InboxProcessResultResponseSchema = z.object({
 export const InboxPostRequestSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("quick_capture"),
-    data: CreateInboxItemSchema,
+    data: z.object({
+      rawText: z.string().min(1),
+      status: z.enum(["unprocessed", "processed", "archived"]).optional(),
+      createdTaskId: z.string().uuid().nullable().optional(),
+    }),
   }),
   z.object({
     type: z.literal("voice_capture"),
@@ -205,7 +184,13 @@ export const InboxPostRequestSchema = z.discriminatedUnion("type", [
 export const InboxUpdateRequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("update_status"),
-    data: UpdateInboxItemSchema,
+    data: z.object({
+      id: z.string().uuid(),
+      status: z.enum(["unprocessed", "processed", "archived"]).optional(),
+      rawText: z.string().optional(),
+      createdTaskId: z.string().uuid().nullable().optional(),
+      processedAt: z.coerce.date().nullable().optional(),
+    }),
   }),
   z.object({
     action: z.literal("mark_processed"),

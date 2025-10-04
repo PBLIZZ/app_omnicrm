@@ -32,6 +32,21 @@ import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
 import { useContacts, useContactSuggestions } from "@/hooks/use-contacts";
 import type { ContactWithNotes, ContactQuickAddData } from "./types";
+import { CreateContactBodySchema } from "@/server/db/business-schemas/contacts";
+import { z } from "zod";
+
+// Form validation schema - inline, simple
+const formSchema = CreateContactBodySchema.extend({
+  confirmEmail: z.string().email().optional(),
+}).refine(
+  (data) => {
+    if (data.confirmEmail && data.primaryEmail) {
+      return data.confirmEmail === data.primaryEmail;
+    }
+    return true;
+  },
+  { message: "Email addresses must match", path: ["confirmEmail"] },
+);
 
 /**
  * ContactsPage - Main Contact Component
@@ -51,6 +66,7 @@ export function ContactsPage(): JSX.Element {
     primaryPhone: "",
     source: "manual",
   });
+  const [confirmEmail, setConfirmEmail] = useState("");
   const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
 
   const { toast } = useToast();
@@ -159,47 +175,46 @@ export function ContactsPage(): JSX.Element {
 
   // Enhanced System Handlers
   const handleAddContact = async (): Promise<void> => {
-    // Simple validation without complex error mapping
-    if (!newContact.displayName.trim()) {
-      setFormErrors({ displayName: ["Name is required"] });
+    // Validate form data
+    const validation = formSchema.safeParse({
+      displayName: newContact.displayName,
+      primaryEmail: newContact.primaryEmail || null,
+      primaryPhone: newContact.primaryPhone || null,
+      source: newContact.source || "manual",
+      confirmEmail: confirmEmail || undefined,
+    });
+
+    if (!validation.success) {
+      // Map errors
+      const errors: Record<string, string[]> = {};
+      validation.error.issues.forEach((err) => {
+        const field = err.path.join(".");
+        if (!errors[field]) errors[field] = [];
+        errors[field].push(err.message);
+      });
+      setFormErrors(errors);
+
       toast({
         title: "Validation Error",
-        description: "Please enter a contact name",
+        description: validation.error.issues[0]?.message ?? "Validation failed",
         variant: "destructive",
       });
       return;
     }
 
-    if (
-      newContact.primaryEmail &&
-      newContact.primaryEmail.trim() &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newContact.primaryEmail.trim())
-    ) {
-      setFormErrors({ primaryEmail: ["Please enter a valid email address"] });
-      toast({
-        title: "Validation Error",
-        description: "Please enter a valid email address",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Clear any previous errors
     setFormErrors({});
 
     try {
-      const contactData = {
-        displayName: newContact.displayName.trim(),
-        primaryEmail: newContact.primaryEmail?.trim() || null,
-        primaryPhone: newContact.primaryPhone?.trim() || null,
-      };
+      // Extract only API fields (no confirmEmail)
+      const { confirmEmail: _unused, ...apiData } = validation.data;
 
-      await apiClient.post("/api/contacts", contactData);
-
-      // Invalidate all contacts queries to refetch with new contact
+      await apiClient.post("/api/contacts", apiData);
       await queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+
       setIsAddingContact(false);
       setNewContact({ displayName: "", primaryEmail: "", primaryPhone: "", source: "manual" });
+      setConfirmEmail("");
+
       toast({
         title: "Success",
         description: "Contact created successfully",
@@ -378,6 +393,30 @@ export function ContactsPage(): JSX.Element {
                 />
                 {formErrors["primaryPhone"] && (
                   <p className="text-sm text-red-500">{formErrors["primaryPhone"][0]}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmEmail">Confirm Email</Label>
+                <Input
+                  id="confirmEmail"
+                  type="email"
+                  placeholder="Re-enter email address"
+                  value={confirmEmail}
+                  onChange={(e) => {
+                    setConfirmEmail(e.target.value);
+                    // Clear field error when user starts typing
+                    if (formErrors["confirmEmail"]) {
+                      setFormErrors((prev) => {
+                        const { confirmEmail: _confirmEmail, ...rest } = prev;
+                        return rest;
+                      });
+                    }
+                  }}
+                  data-testid="contact-confirm-email-input"
+                  className={formErrors["confirmEmail"] ? "border-red-500" : ""}
+                />
+                {formErrors["confirmEmail"] && (
+                  <p className="text-sm text-red-500">{formErrors["confirmEmail"][0]}</p>
                 )}
               </div>
               <div className="flex justify-end gap-2">

@@ -52,14 +52,16 @@ import {
 } from "lucide-react";
 import { useBulkDeleteContacts } from "@/hooks/use-contact-delete";
 import { useBulkEnrichContacts } from "@/hooks/use-contacts-bridge";
-import type { DataTableProps, ContactSearchFilters, ContactWithNotes } from "./types";
+import type { ContactSearchFilters, ContactWithLastNote } from "./types";
 import { toast } from "sonner";
-import { isContactWithNotes, parseVisibilityState } from "@/lib/utils/type-guards/contacts";
+import { parseVisibilityState } from "@/lib/utils/type-guards/contacts";
 
-export function ContactsTable<TData, TValue>({
-  columns,
-  data,
-}: DataTableProps<TData, TValue>): JSX.Element {
+interface ContactsTableProps {
+  columns: ColumnDef<ContactWithLastNote>[];
+  data: ContactWithLastNote[];
+}
+
+export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Element {
   const bulkDeleteContacts = useBulkDeleteContacts();
   const bulkEnrichContacts = useBulkEnrichContacts();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -146,21 +148,16 @@ export function ContactsTable<TData, TValue>({
         return;
       }
 
-      const headers = ["Name", "Email", "Phone", "Stage", "Tags", "AI Insights", "Last Updated"];
-      const rows = data.map((item) => {
-        // Validate that item is ContactWithNotes before using
-        if (!isContactWithNotes(item)) {
-          return ["Unknown", "", "", "", "", "", ""];
-        }
-        const contact = item;
+      const headers = ["Name", "Email", "Phone", "Stage", "Tags", "Last Note", "Last Updated"];
+      const rows = data.map((contact) => {
         return [
           contact.displayName ?? "",
           contact.primaryEmail ?? "",
           contact.primaryPhone ?? "",
           contact.lifecycleStage ?? "",
           Array.isArray(contact.tags) ? contact.tags.join(", ") : "",
-          "", // Notes are stored separately
-          new Date(contact.updatedAt).toLocaleDateString(),
+          contact.lastNote ?? "",
+          contact.updatedAt ? new Date(contact.updatedAt).toLocaleDateString() : "",
         ];
       });
 
@@ -194,27 +191,15 @@ export function ContactsTable<TData, TValue>({
   const filteredDataForNotes = useMemo(() => {
     if (filters.hasNotes === undefined) return data;
 
-    return data.filter((item) => {
-      if (!isContactWithNotes(item)) {
-        return false;
-      }
-      const contact = item;
-
-      // Has notes filter - check if lastNote exists
-      if (filters.hasNotes === true && !contact.lastNote) {
-        return false;
-      }
-      if (filters.hasNotes === false && contact.lastNote) {
-        return false;
-      }
-
-      return true;
+    return data.filter((contact) => {
+      const hasNotes = contact.lastNote !== null && contact.lastNote.trim().length > 0;
+      return filters.hasNotes ? hasNotes : !hasNotes;
     });
   }, [data, filters.hasNotes]);
 
-  const table = useReactTable({
+  const table = useReactTable<ContactWithLastNote>({
     data: filteredDataForNotes,
-    columns: columns as ColumnDef<TData, unknown>[],
+    columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -224,14 +209,7 @@ export function ContactsTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
     enableRowSelection: true,
-    getRowId: (row) => {
-      // Safely extract ID with validation
-      if (isContactWithNotes(row)) {
-        return row.id;
-      }
-      // Fallback for invalid rows
-      return String(Math.random());
-    }, // Use contact ID instead of array index
+    getRowId: (row) => row.id, // Use contact ID instead of array index
     state: {
       sorting,
       columnVisibility,
@@ -262,12 +240,7 @@ export function ContactsTable<TData, TValue>({
     const selectedRows = table.getSelectedRowModel().rows;
     const selectedIds = selectedRows.map((row) => row.id);
     const contactNames = selectedRows
-      .map((row) => {
-        if (isContactWithNotes(row.original)) {
-          return row.original.displayName;
-        }
-        return "Unknown";
-      })
+      .map((row) => row.original.displayName)
       .filter((name) => name !== "Unknown");
 
     return { selectedIds, contactNames, count: selectedIds.length };
@@ -293,24 +266,17 @@ export function ContactsTable<TData, TValue>({
         setBulkDeleteDialogOpen(false);
       },
     });
-  }, [selectedContactInfo.selectedIds, bulkDeleteContacts]);
+  }, [selectedContactInfo.selectedIds, bulkDeleteContacts, setRowSelection]);
 
   // Optimized bulk enrich handler - defined after table creation
   const handleBulkEnrich = useCallback(() => {
     const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
     const selectedRows = table.getSelectedRowModel().rows;
-    const contactNames = selectedRows
-      .map((row) => {
-        if (isContactWithNotes(row.original)) {
-          return row.original.displayName;
-        }
-        return "Unknown";
-      })
-      .join(", ");
+    const contactNames = selectedRows.map((row) => row.original.displayName);
 
     if (
       confirm(
-        `Are you sure you want to enrich ${selectedIds.length} Contact(s) with AI insights?\n\nContacts: ${contactNames}\n\nThis may take a few minutes.`,
+        `Are you sure you want to enrich ${selectedIds.length} Contact(s) with AI insights?\n\nContacts: ${contactNames.join(", ")}\n\nThis may take a few minutes.`,
       )
     ) {
       bulkEnrichContacts.mutate(selectedIds, {
@@ -326,9 +292,7 @@ export function ContactsTable<TData, TValue>({
       {/* Bulk Actions */}
       {selectedContactInfo.count > 0 && (
         <div className="flex items-center justify-between p-4 bg-muted/50 border rounded-lg">
-          <div className="text-sm font-medium">
-            {selectedContactInfo.count} Contact(s) selected
-          </div>
+          <div className="text-sm font-medium">{selectedContactInfo.count} Contact(s) selected</div>
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" onClick={handleClearSelection}>
               Clear Selection
@@ -462,10 +426,7 @@ export function ContactsTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead
-                      key={header.id}
-                      className="sticky top-0 bg-background z-10 border-b"
-                    >
+                    <TableHead key={header.id} className="sticky top-0 bg-background z-10 border-b">
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}
@@ -481,7 +442,7 @@ export function ContactsTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  data-testid={`contact-row-${(row.original as ContactWithNotes).id}`}
+                  data-testid={`contact-row-${row.id}`}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

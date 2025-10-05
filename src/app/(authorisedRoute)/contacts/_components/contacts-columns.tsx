@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
+import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -19,16 +19,12 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { NotesHoverCard } from "../[contactId]/notes/[noteId]/_components/NotesHoverCard";
 import Link from "next/link";
-import { ContactAIInsightsDialog } from "./ContactAIInsightsDialog";
 import { EditContactDialog } from "./EditContactDialog";
-import { useAskAIAboutContact, useDeleteContact } from "@/hooks/use-contacts-bridge";
-import type {
-  ContactWithNotes,
-  ContactAIInsightsResponse,
-} from "@/server/db/business-schemas/contacts";
+import { useDeleteContact } from "@/hooks/use-contacts-bridge";
+import type { ContactWithLastNote } from "@/server/db/business-schemas/contacts";
 
 // Custom Filter Functions for TanStack Table
-const arrayIncludesFilter: FilterFn<ContactWithNotes> = (row, columnId, filterValue) => {
+const arrayIncludesFilter: FilterFn<ContactWithLastNote> = (row, columnId, filterValue) => {
   if (!filterValue || !Array.isArray(filterValue) || filterValue.length === 0) {
     return true;
   }
@@ -37,59 +33,7 @@ const arrayIncludesFilter: FilterFn<ContactWithNotes> = (row, columnId, filterVa
   return filterValue.includes(cellValue);
 };
 
-// AI Action Icons Component
-function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Element {
-  const [aiInsightsOpen, setAiInsightsOpen] = useState(false);
-
-  const [aiInsights, setAiInsights] = useState<ContactAIInsightsResponse | null>(null);
-
-  const askAIMutation = useAskAIAboutContact();
-
-  const handleAskAI = async (): Promise<void> => {
-    try {
-      setAiInsightsOpen(true);
-      const insights = await askAIMutation.mutateAsync(contact.id);
-      setAiInsights(insights);
-    } catch {
-      // Error handled by mutation
-      setAiInsightsOpen(false);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-1">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950 dark:hover:text-violet-300"
-            onClick={handleAskAI}
-            data-testid={`ask-ai-${contact.id}`}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-            <span className="sr-only">Ask AI</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Ask AI about this contact</p>
-        </TooltipContent>
-      </Tooltip>
-
-      {/* AI Dialogs */}
-      <ContactAIInsightsDialog
-        open={aiInsightsOpen}
-        onOpenChange={setAiInsightsOpen}
-        contact={contact}
-        insights={aiInsights}
-        isLoading={askAIMutation.isPending}
-        contactName={contact.displayName}
-      />
-    </div>
-  );
-}
-
-export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
+export const contactsColumns: ColumnDef<ContactWithLastNote>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -197,15 +141,6 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
         </Link>
       );
     },
-  },
-  {
-    id: "aiActions",
-    header: "Actions",
-    cell: ({ row }) => {
-      const contact = row.original;
-      return <ContactAIActions contact={contact} />;
-    },
-    size: 140,
   },
   {
     accessorKey: "primaryEmail",
@@ -473,7 +408,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
   },
 ];
 
-function ContactActionsCell({ contact }: { contact: ContactWithNotes }): JSX.Element {
+function ContactActionsCell({ contact }: { contact: ContactWithLastNote }): JSX.Element {
   const deleteContact = useDeleteContact();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

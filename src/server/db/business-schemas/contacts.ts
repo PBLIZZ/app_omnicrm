@@ -63,24 +63,26 @@ export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
  * PATCH /api/contacts/[id] - Request body
  * Note: Uses nullable().optional() to allow setting fields to null or omitting them
  */
-export const UpdateContactBodySchema = z.object({
-  displayName: z.string().min(1).optional(),
-  primaryEmail: z.string().email().nullish(),
-  primaryPhone: z.string().nullish(),
-  photoUrl: z.string().nullish(),
-  source: z.string().nullish(),
-  lifecycleStage: z.string().nullish(),
-  tags: z.array(z.string()).nullish(),
-  confidenceScore: z.string().nullish(),
-  dateOfBirth: z.string().nullish(),
-  emergencyContactName: z.string().nullish(),
-  emergencyContactPhone: z.string().nullish(),
-  clientStatus: z.string().nullish(),
-  referralSource: z.string().nullish(),
-  address: z.unknown().nullish(),
-  healthContext: z.unknown().nullish(),
-  preferences: z.unknown().nullish(),
-}).partial();
+export const UpdateContactBodySchema = z
+  .object({
+    displayName: z.string().min(1).optional(),
+    primaryEmail: z.string().email().nullish(),
+    primaryPhone: z.string().nullish(),
+    photoUrl: z.string().nullish(),
+    source: z.string().nullish(),
+    lifecycleStage: z.string().nullish(),
+    tags: z.array(z.string()).nullish(),
+    confidenceScore: z.string().nullish(),
+    dateOfBirth: z.string().nullish(),
+    emergencyContactName: z.string().nullish(),
+    emergencyContactPhone: z.string().nullish(),
+    clientStatus: z.string().nullish(),
+    referralSource: z.string().nullish(),
+    address: z.unknown().nullish(),
+    healthContext: z.unknown().nullish(),
+    preferences: z.unknown().nullish(),
+  })
+  .partial();
 
 export type UpdateContactBody = z.infer<typeof UpdateContactBodySchema>;
 
@@ -160,16 +162,14 @@ export const BulkDeleteBodySchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
 });
 
+export type BulkDeleteBody = z.infer<typeof BulkDeleteBodySchema>;
+
 export const BulkDeleteResponseSchema = z.object({
   deleted: z.number(),
   errors: z.array(z.object({ id: z.string(), error: z.string() })),
 });
 
-export const BulkEnrichResponseSchema = z.object({
-  enriched: z.number(),
-  failed: z.number(),
-  errors: z.array(z.object({ id: z.string(), error: z.string() })).default([]),
-});
+export type BulkDeleteResponse = z.infer<typeof BulkDeleteResponseSchema>;
 
 // ============================================================================
 // AI INSIGHTS (Fix shape to match actual service response)

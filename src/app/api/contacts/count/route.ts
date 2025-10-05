@@ -1,29 +1,28 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { GetContactsQuerySchema, ContactCountResponseSchema } from "@/server/db/business-schemas";
+import {
+  GetContactsQuerySchema,
+  ContactCountResponseSchema,
+} from "@/server/db/business-schemas/contacts";
 import { ContactsRepository } from "@repo";
-import { isErr } from "@/lib/utils/result";
-import type { z } from "zod";
+import { AppError } from "@/lib/errors/app-error";
 
 /**
- * Contacts Count API
+ * GET /api/contacts/count - Get total count of contacts
  *
- * GET: Get total count of contacts with optional filtering
- * Uses existing contacts table with UI terminology transformation
- *
- * Migrated to new auth pattern:
- * ✅ handleGetWithQueryAuth for GET
- * ✅ Zod validation and type safety
+ * Pattern: handleGetWithQueryAuth wrapper → Call repository → Unwrap DbResult → Return response
+ * 
+ * Architecture Note: This is a pure database query with NO business logic, NO transforms,
+ * and NO orchestration, so it calls the repository directly per the blueprint.
+ * Service layer is only for operations that need business logic or data transformation.
  */
-
 export const GET = handleGetWithQueryAuth(
   GetContactsQuerySchema,
   ContactCountResponseSchema,
-  async (query, userId): Promise<z.infer<typeof ContactCountResponseSchema>> => {
-    // Get count using repository
+  async (query, userId): Promise<{ count: number }> => {
     const result = await ContactsRepository.countContacts(userId, query.search);
 
-    if (isErr(result)) {
-      throw new Error(result.error.message);
+    if (!result.success) {
+      throw new AppError(result.error.message, result.error.code, "database", false);
     }
 
     return { count: result.data };

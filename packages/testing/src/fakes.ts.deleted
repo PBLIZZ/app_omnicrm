@@ -56,10 +56,6 @@ function convertToContactListItem(dto: OmniClientWithNotesDTO): ContactListItem 
   };
 }
 
-  primaryEmail: string | null;
-  primaryPhone: string | null;
-  source: "manual" | "gmail_import" | "upload" | "calendar_import";
-};
 
 // =============================================================================
 // CONTACTS REPOSITORY FAKES

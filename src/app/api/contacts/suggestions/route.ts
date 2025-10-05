@@ -1,20 +1,22 @@
 import { z } from "zod";
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
 import {
-  getContactSuggestions,
-  createContactsFromSuggestions,
+  getContactSuggestionsService,
+  createContactsFromSuggestionsService,
 } from "@/server/services/contacts.service";
-import { isErr, isOk } from "@/lib/utils/result";
+import type { Contact } from "@/server/db/schema";
 
 /**
- * Contacts Suggestions API
+ * Contact Suggestions API
  *
  * GET: Returns calendar-based contact suggestions
  * POST: Creates contacts from approved suggestions
+ *
+ * Pattern: handleAuth wrapper → Call service (throws) → Return response
  */
 
 const CreateFromSuggestionsSchema = z.object({
-  suggestionIds: z.array(z.string().min(1)).min(1).max(50), // Limit to 50 suggestions at once
+  suggestionIds: z.array(z.string().min(1)).min(1).max(50),
 });
 
 const GetSuggestionsQuerySchema = z.object({});
@@ -28,43 +30,29 @@ const CreateFromSuggestionsResponseSchema = z.object({
   created: z.array(z.unknown()),
 });
 
+/**
+ * GET /api/contacts/suggestions - Get calendar-based contact suggestions
+ */
 export const GET = handleGetWithQueryAuth(
   GetSuggestionsQuerySchema,
   GetSuggestionsResponseSchema,
-  async (_query: z.infer<typeof GetSuggestionsQuerySchema>, userId: string) => {
-    const result = await getContactSuggestions(userId);
-
-    if (isErr(result)) {
-      throw new Error(result.error.message);
-    }
-
-    if (!isOk(result)) {
-      throw new Error("Invalid result state");
-    }
-
-    return {
-      suggestions: result.data.suggestions,
-    };
+  async (_query, userId): Promise<{ suggestions: Array<unknown> }> => {
+    const suggestions = await getContactSuggestionsService(userId);
+    return { suggestions };
   },
 );
 
+/**
+ * POST /api/contacts/suggestions - Create contacts from suggestions
+ */
 export const POST = handleAuth(
   CreateFromSuggestionsSchema,
   CreateFromSuggestionsResponseSchema,
-  async (data: z.infer<typeof CreateFromSuggestionsSchema>, userId: string) => {
-    const result = await createContactsFromSuggestions(userId, data.suggestionIds);
-
-    if (isErr(result)) {
-      throw new Error(result.error.message);
-    }
-
-    if (!isOk(result)) {
-      throw new Error("Invalid result state");
-    }
-
+  async (data, userId): Promise<{ message: string; created: Contact[] }> => {
+    const result = await createContactsFromSuggestionsService(userId, data.suggestionIds);
     return {
-      message: `Successfully created ${result.data.createdCount} contacts`,
-      created: result.data,
+      message: `Successfully created ${result.createdCount} contacts`,
+      created: result.contacts,
     };
   },
 );

@@ -16,6 +16,7 @@ import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
 import type { ContactWithLastNote as ContactWithLastNoteType } from "@/server/db/business-schemas/contacts";
+import { getContactSuggestions } from "../ai/contacts/suggest-contacts";
 
 // ============================================================================
 // SERVICE LAYER TYPES (Data enrichment)
@@ -63,6 +64,63 @@ export interface BulkDeleteRequest {
 export interface BulkDeleteResponse {
   deleted: number;
   errors: { id: string; error: string }[];
+}
+
+// ============================================================================
+// PUBLIC API - CONTACT SUGGESTIONS
+// ============================================================================
+
+/**
+ * Get contact suggestions from calendar events
+ * Note: Requires calendar sync to be active
+ */
+export async function getContactSuggestionsService(
+  userId: string,
+): Promise<Array<unknown>> {
+  // Call AI suggestion logic directly (it returns the array, not a Result)
+  const suggestions = await getContactSuggestions(userId);
+  return suggestions;
+}
+
+/**
+ * Create contacts from approved suggestion IDs
+ * 
+ * Implementation:
+ * 1. Get all suggestions from calendar
+ * 2. Filter by provided IDs
+ * 3. Transform to contact data
+ * 4. Batch create contacts
+ */
+export async function createContactsFromSuggestionsService(
+  userId: string,
+  suggestionIds: string[],
+): Promise<{ createdCount: number; contacts: Contact[] }> {
+  // 1. Get all suggestions
+  const allSuggestions = await getContactSuggestions(userId);
+  
+  // 2. Filter to only requested IDs
+  const selectedSuggestions = allSuggestions.filter((s) => suggestionIds.includes(s.id));
+  
+  if (selectedSuggestions.length === 0) {
+    return { createdCount: 0, contacts: [] };
+  }
+  
+  // 3. Transform suggestions to contact data
+  const contactsData = selectedSuggestions.map((suggestion) => ({
+    displayName: suggestion.displayName,
+    primaryEmail: suggestion.email,
+    source: suggestion.source,
+    lifecycleStage: "Prospect",
+    tags: ["calendar_import"],
+  }));
+  
+  // 4. Batch create contacts
+  const batchResult = await createContactsBatchService(userId, contactsData);
+  
+  return {
+    createdCount: batchResult.created.length,
+    contacts: batchResult.created,
+  };
 }
 
 // ============================================================================

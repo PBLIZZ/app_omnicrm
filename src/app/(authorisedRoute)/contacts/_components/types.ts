@@ -15,8 +15,9 @@ import type {
   ContactListResponse,
   CreateContactBody,
   ContactAIInsightsResponse,
+  ContactWithLastNote,
 } from "@/server/db/business-schemas/contacts";
-import { ContactWithNotes } from "@repo";
+import type { ContactWithNotes } from "@/server/db/schema";
 
 // Import additional types needed
 import type { ColumnDef } from "@tanstack/react-table";
@@ -31,6 +32,8 @@ export type {
   CreateContactBody,
   UpdateContactBody,
   ContactAIInsightsResponse,
+  ContactWithLastNote,
+  ContactWithNotes,
 };
 
 // ============================================================================

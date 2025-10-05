@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getAuthUserId } from "@/lib/auth-simple";
 import {
-  getContactByIdService,
+  getContactWithNotesService,
   updateContactService,
   deleteContactService,
 } from "@/server/services/contacts.service";
@@ -26,17 +26,19 @@ const ParamsSchema = z.object({
 type RouteContext = { params: Promise<{ contactId: string }> };
 
 /**
- * GET /api/contacts/[contactId] - Get contact by ID
+ * GET /api/contacts/[contactId] - Get contact with full notes array
+ * Returns ContactWithNotes for detail views
  */
 export async function GET(_request: Request, context: RouteContext): Promise<Response> {
   try {
     const userId = await getAuthUserId();
     const { contactId } = ParamsSchema.parse(await context.params);
 
-    const contact = await getContactByIdService(userId, contactId);
-    const validated = ContactSchema.parse(contact);
-
-    return Response.json(validated);
+    // Use getContactWithNotesService to include full notes array
+    const contactWithNotes = await getContactWithNotesService(userId, contactId);
+    
+    // Note: ContactSchema validates base Contact fields, notes are added on top
+    return Response.json(contactWithNotes);
   } catch (error) {
     return handleRouteError(error);
   }

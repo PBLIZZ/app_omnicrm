@@ -6,6 +6,7 @@ import { Result, isErr } from "@/lib/utils/result";
 import type {
   Contact,
   ContactListResponse,
+  ContactWithLastNote,
   CreateContact,
   UpdateContact,
 } from "@/server/db/business-schemas/contacts";
@@ -13,7 +14,7 @@ import type {
 import { ContactWithNotes } from "@/server/db/schema";
 
 // Re-export types for components
-export type { Contact, ContactWithNotes };
+export type { Contact, ContactWithNotes, ContactWithLastNote };
 
 // Define suggestion types locally since they're not in the schema
 export interface ContactSuggestion {
@@ -55,10 +56,10 @@ export function useContacts(
   searchQuery: string,
   page = 1,
   pageSize = 25, // Default to 25 for better performance
-): ReturnType<typeof useQuery<{ items: ContactWithNotes[]; total: number }>> {
+): ReturnType<typeof useQuery<{ items: ContactWithLastNote[]; total: number }>> {
   return useQuery({
     queryKey: queryKeys.contacts.list({ search: searchQuery, page, pageSize }),
-    queryFn: async (): Promise<{ items: ContactWithNotes[]; total: number }> => {
+    queryFn: async (): Promise<{ items: ContactWithLastNote[]; total: number }> => {
       const params = new URLSearchParams({
         page: String(page),
         pageSize: String(pageSize),

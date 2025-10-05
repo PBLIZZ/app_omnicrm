@@ -31,7 +31,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
 import { useContacts, useContactSuggestions } from "@/hooks/use-contacts";
-import type { ContactWithNotes, ContactQuickAddData } from "./types";
+import type { ContactWithLastNote, ContactQuickAddData } from "./types";
 import { CreateContactBodySchema } from "@/server/db/business-schemas/contacts";
 import { z } from "zod";
 
@@ -79,13 +79,13 @@ export function ContactsPage(): JSX.Element {
   // Uses smart caching (30min staleTime) to minimize API calls
   const { data: contactsData, isLoading } = useContacts(searchQuery, 1, 3000);
 
-  // API already returns ContactWithNotes with lastNote field populated
-  const contacts: ContactWithNotes[] = useMemo(
-    (): ContactWithNotes[] => contactsData?.items ?? [],
+  // API returns ContactWithLastNote (has lastNote preview, not full notes array)
+  const contacts: ContactWithLastNote[] = useMemo(
+    (): ContactWithLastNote[] => contactsData?.items ?? [],
     [contactsData?.items],
   );
 
-  const filteredContacts = useMemo((): ContactWithNotes[] => {
+  const filteredContacts = useMemo((): ContactWithLastNote[] => {
     if (!searchQuery.trim()) return contacts;
     const query = searchQuery.toLowerCase();
     return contacts.filter(

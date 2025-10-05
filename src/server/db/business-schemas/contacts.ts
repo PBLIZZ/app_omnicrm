@@ -12,7 +12,7 @@
  */
 
 import { z } from "zod";
-import { createSelectSchema, createInsertSchema } from "drizzle-zod";
+import { createSelectSchema } from "drizzle-zod";
 import { contacts } from "@/server/db/schema";
 
 // Re-export base types from schema for convenience
@@ -20,7 +20,15 @@ export type { Contact, CreateContact, UpdateContact } from "@/server/db/schema";
 
 // Create Zod schemas from Drizzle table for API validation
 const ContactDataSchema = createSelectSchema(contacts);
-const CreateContactDataSchema = createInsertSchema(contacts);
+
+// Export base schema for single contact responses
+// Override JSONB fields to use unknown (matches Drizzle's Contact type)
+export const ContactSchema = ContactDataSchema.extend({
+  address: z.unknown(),
+  healthContext: z.unknown(),
+  preferences: z.unknown(),
+  tags: z.unknown(),
+});
 
 // ============================================================================
 // API REQUEST SCHEMAS
@@ -28,37 +36,51 @@ const CreateContactDataSchema = createInsertSchema(contacts);
 
 /**
  * POST /api/contacts - Request body (excludes server-managed fields)
+ * Note: Transforms nullable fields to optional non-null for exactOptionalPropertyTypes compatibility
  */
-export const CreateContactBodySchema = CreateContactDataSchema.omit({
-  userId: true, // From auth
-  id: true, // Generated
-  createdAt: true, // Generated
-  updatedAt: true, // Generated
+export const CreateContactBodySchema = z.object({
+  displayName: z.string().min(1),
+  primaryEmail: z.string().email().optional(),
+  primaryPhone: z.string().optional(),
+  photoUrl: z.string().optional(),
+  source: z.string().optional(),
+  lifecycleStage: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  confidenceScore: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
+  clientStatus: z.string().optional(),
+  referralSource: z.string().optional(),
+  address: z.unknown().optional(),
+  healthContext: z.unknown().optional(),
+  preferences: z.unknown().optional(),
 });
 
 export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
 
 /**
  * PATCH /api/contacts/[id] - Request body
+ * Note: Uses nullable().optional() to allow setting fields to null or omitting them
  */
 export const UpdateContactBodySchema = z.object({
   displayName: z.string().min(1).optional(),
-  primaryEmail: z.string().email().nullable().optional(),
-  primaryPhone: z.string().nullable().optional(),
-  photoUrl: z.string().nullable().optional(),
-  source: z.string().nullable().optional(),
-  lifecycleStage: z.string().nullable().optional(),
-  tags: z.array(z.string()).nullable().optional(),
-  confidenceScore: z.string().nullable().optional(),
-  dateOfBirth: z.string().nullable().optional(),
-  emergencyContactName: z.string().nullable().optional(),
-  emergencyContactPhone: z.string().nullable().optional(),
-  clientStatus: z.string().nullable().optional(),
-  referralSource: z.string().nullable().optional(),
-  address: z.unknown().nullable().optional(),
-  healthContext: z.unknown().nullable().optional(),
-  preferences: z.unknown().nullable().optional(),
-});
+  primaryEmail: z.string().email().nullish(),
+  primaryPhone: z.string().nullish(),
+  photoUrl: z.string().nullish(),
+  source: z.string().nullish(),
+  lifecycleStage: z.string().nullish(),
+  tags: z.array(z.string()).nullish(),
+  confidenceScore: z.string().nullish(),
+  dateOfBirth: z.string().nullish(),
+  emergencyContactName: z.string().nullish(),
+  emergencyContactPhone: z.string().nullish(),
+  clientStatus: z.string().nullish(),
+  referralSource: z.string().nullish(),
+  address: z.unknown().nullish(),
+  healthContext: z.unknown().nullish(),
+  preferences: z.unknown().nullish(),
+}).partial();
 
 export type UpdateContactBody = z.infer<typeof UpdateContactBodySchema>;
 
@@ -87,11 +109,24 @@ export type GetContactsQuery = z.infer<typeof GetContactsQuerySchema>;
 // ============================================================================
 
 /**
+ * Contact with last note preview (service layer enrichment)
+ * Note: JSONB fields (address, healthContext, preferences, tags) are typed as unknown
+ * to match the Contact type from Drizzle schema
+ */
+export const ContactWithLastNoteSchema = ContactDataSchema.extend({
+  lastNote: z.string().nullable(),
+  // Override JSONB fields to accept unknown (matches Contact type from Drizzle)
+  address: z.unknown(),
+  healthContext: z.unknown(),
+  preferences: z.unknown(),
+  tags: z.unknown(),
+});
+
+/**
  * GET /api/contacts - List response
- * Note: Items have lastNote added by service layer
  */
 export const ContactListResponseSchema = z.object({
-  items: z.array(ContactDataSchema), // Service adds lastNote at runtime
+  items: z.array(ContactWithLastNoteSchema),
   pagination: z.object({
     page: z.number(),
     pageSize: z.number(),
@@ -103,9 +138,14 @@ export const ContactListResponseSchema = z.object({
 });
 
 export type ContactListResponse = z.infer<typeof ContactListResponseSchema>;
+export type ContactWithLastNote = z.infer<typeof ContactWithLastNoteSchema>;
 
 export const ContactCountResponseSchema = z.object({
   count: z.number(),
+});
+
+export const ContactResponseSchema = z.object({
+  item: ContactDataSchema,
 });
 
 export const DeleteContactResponseSchema = z.object({

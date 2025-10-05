@@ -131,19 +131,19 @@ export class ContactsRepository {
     userId: string,
     contactId: string,
     updates: {
-      displayName?: string;
-      primaryEmail?: string | null;
-      primaryPhone?: string | null;
-      photoUrl?: string | null;
-      source?: string | null;
-      lifecycleStage?: string | null;
-      tags?: string[] | null;
-      confidenceScore?: string | null;
-      dateOfBirth?: string | null;
-      emergencyContactName?: string | null;
-      emergencyContactPhone?: string | null;
-      clientStatus?: string | null;
-      referralSource?: string | null;
+      displayName?: string | undefined;
+      primaryEmail?: string | null | undefined;
+      primaryPhone?: string | null | undefined;
+      photoUrl?: string | null | undefined;
+      source?: string | null | undefined;
+      lifecycleStage?: string | null | undefined;
+      tags?: string[] | null | undefined;
+      confidenceScore?: string | null | undefined;
+      dateOfBirth?: string | null | undefined;
+      emergencyContactName?: string | null | undefined;
+      emergencyContactPhone?: string | null | undefined;
+      clientStatus?: string | null | undefined;
+      referralSource?: string | null | undefined;
       address?: unknown;
       healthContext?: unknown;
       preferences?: unknown;

@@ -1,4 +1,5 @@
-import { ApiError } from "@/lib/api/errors";
+import { z } from "zod";
+import { getAuthUserId } from "@/lib/auth-simple";
 import {
   getContactByIdService,
   updateContactService,
@@ -7,140 +8,89 @@ import {
 import {
   UpdateContactBodySchema,
   DeleteContactResponseSchema,
-  ContactResponseSchema,
+  ContactSchema,
 } from "@/server/db/business-schemas";
-import { getServerUserId } from "@/server/auth/user";
-import { cookies } from "next/headers";
+import { ApiError } from "@/lib/api/errors";
 
 /**
  * Individual Contact Management API Routes
  *
- * Uses Next.js App Router patterns with direct param access
+ * Pattern: Extract params → Call service (throws) → Return response
+ * Error handling: Catch AppError/ApiError and format to JSON response
  */
 
-type RouteContext = {
-  params: Promise<{ contactId: string }>;
-};
+const ParamsSchema = z.object({
+  contactId: z.string().uuid(),
+});
+
+type RouteContext = { params: Promise<{ contactId: string }> };
 
 /**
  * GET /api/contacts/[contactId] - Get contact by ID
  */
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-): Promise<Response> {
+export async function GET(_request: Request, context: RouteContext): Promise<Response> {
   try {
-    const cookieStore = await cookies();
-    const userId = await getServerUserId(cookieStore);
-    const { contactId } = await context.params;
-    
-    const result = await getContactByIdService(userId, contactId);
+    const userId = await getAuthUserId();
+    const { contactId } = ParamsSchema.parse(await context.params);
 
-    if (!result.success) {
-      throw ApiError.notFound(result.error.message ?? "Contact not found");
-    }
+    const contact = await getContactByIdService(userId, contactId);
+    const validated = ContactSchema.parse(contact);
 
-    const validated = ContactResponseSchema.parse({ item: result.data });
-    return new Response(JSON.stringify(validated), {
-      headers: { "content-type": "application/json" },
-      status: 200,
-    });
+    return Response.json(validated);
   } catch (error) {
-    if (error instanceof ApiError) {
-      return new Response(
-        JSON.stringify({
-          error: error.message,
-          details: error.details,
-        }),
-        {
-          headers: { "content-type": "application/json" },
-          status: error.status,
-        },
-      );
-    }
-    throw error;
+    return handleRouteError(error);
   }
 }
 
 /**
  * PUT /api/contacts/[contactId] - Update contact
  */
-export async function PUT(
-  request: Request,
-  context: RouteContext,
-): Promise<Response> {
+export async function PUT(request: Request, context: RouteContext): Promise<Response> {
   try {
-    const cookieStore = await cookies();
-    const userId = await getServerUserId(cookieStore);
-    const { contactId } = await context.params;
-    
-    const body = await request.json();
+    const userId = await getAuthUserId();
+    const { contactId } = ParamsSchema.parse(await context.params);
+    const body: unknown = await request.json();
     const data = UpdateContactBodySchema.parse(body);
-    
-    const result = await updateContactService(userId, contactId, data);
 
-    if (!result.success) {
-      throw ApiError.notFound(result.error.message ?? "Contact not found");
-    }
+    const contact = await updateContactService(userId, contactId, data);
+    const validated = ContactSchema.parse(contact);
 
-    const validated = ContactResponseSchema.parse({ item: result.data });
-    return new Response(JSON.stringify(validated), {
-      headers: { "content-type": "application/json" },
-      status: 200,
-    });
+    return Response.json(validated);
   } catch (error) {
-    if (error instanceof ApiError) {
-      return new Response(
-        JSON.stringify({
-          error: error.message,
-          details: error.details,
-        }),
-        {
-          headers: { "content-type": "application/json" },
-          status: error.status,
-        },
-      );
-    }
-    throw error;
+    return handleRouteError(error);
   }
 }
 
 /**
  * DELETE /api/contacts/[contactId] - Delete contact
  */
-export async function DELETE(
-  _request: Request,
-  context: RouteContext,
-): Promise<Response> {
+export async function DELETE(_request: Request, context: RouteContext): Promise<Response> {
   try {
-    const cookieStore = await cookies();
-    const userId = await getServerUserId(cookieStore);
-    const { contactId } = await context.params;
+    const userId = await getAuthUserId();
+    const { contactId } = ParamsSchema.parse(await context.params);
 
-    const result = await deleteContactService(userId, contactId);
+    const deleted = await deleteContactService(userId, contactId);
+    const response = DeleteContactResponseSchema.parse({ deleted: deleted ? 1 : 0 });
 
-    // idempotent delete - return success even if contact didn't exist
-    const validated = DeleteContactResponseSchema.parse({
-      deleted: result.success && result.data ? 1 : 0,
-    });
-    
-    return new Response(JSON.stringify(validated), {
-      headers: { "content-type": "application/json" },
-      status: 200,
-    });
+    return Response.json(response);
   } catch (error) {
-    if (error instanceof ApiError) {
-      return new Response(
-        JSON.stringify({
-          error: error.message,
-          details: error.details,
-        }),
-        {
-          headers: { "content-type": "application/json" },
-          status: error.status,
-        },
-      );
-    }
-    throw error;
+    return handleRouteError(error);
   }
+}
+
+/**
+ * Centralized error handler for this route
+ */
+function handleRouteError(error: unknown): Response {
+  if (error instanceof z.ZodError) {
+    return Response.json({ error: "Validation failed", details: error.issues }, { status: 400 });
+  }
+
+  if (error instanceof ApiError) {
+    return Response.json({ error: error.message }, { status: error.status });
+  }
+
+  // All other errors (including AppError from services)
+  const message = error instanceof Error ? error.message : "Internal server error";
+  return Response.json({ error: message }, { status: 500 });
 }

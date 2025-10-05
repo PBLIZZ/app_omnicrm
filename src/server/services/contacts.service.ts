@@ -15,6 +15,7 @@ import { StorageService } from "@/server/services/storage.service";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
+import type { ContactWithLastNote as ContactWithLastNoteType } from "@/server/db/business-schemas/contacts";
 
 // ============================================================================
 // SERVICE LAYER TYPES (Data enrichment)
@@ -23,10 +24,9 @@ import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
 /**
  * Contact enriched with last note preview
  * Used by list endpoint to show note snippets
+ * Re-exported from business schemas for consistency
  */
-export type ContactWithLastNote = Contact & {
-  lastNote: string | null;
-};
+export type ContactWithLastNote = ContactWithLastNoteType;
 
 /**
  * Contact with full notes array
@@ -35,19 +35,25 @@ export type ContactWithLastNote = Contact & {
 export type ContactWithNotes = Contact & {
   notes: Array<{
     id: string;
-    content: string;
+    userId: string;
+    contactId: string | null;
+    contentRich: unknown;
+    contentPlain: string;
+    piiEntities: unknown;
+    tags: string[];
+    sourceType: "typed" | "voice" | "upload";
     createdAt: Date;
     updatedAt: Date;
   }>;
 };
 
 export type ContactListParams = {
-  search?: string;
-  sort?: "displayName" | "createdAt" | "updatedAt";
-  order?: "asc" | "desc";
+  search?: string | undefined;
+  sort?: "displayName" | "createdAt" | "updatedAt" | undefined;
+  order?: "asc" | "desc" | undefined;
   page: number;
   pageSize: number;
-  dateRange?: { from?: Date; to?: Date };
+  dateRange?: { from?: Date; to?: Date } | undefined;
 };
 
 export interface BulkDeleteRequest {
@@ -142,9 +148,9 @@ export async function listContactsService(
   const repoResult = await ContactsRepository.listContacts(userId, {
     page: params.page,
     pageSize: params.pageSize,
-    search: params.search,
-    sort: params.sort,
-    order: params.order,
+    ...(params.search !== undefined && { search: params.search }),
+    ...(params.sort !== undefined && { sort: params.sort }),
+    ...(params.order !== undefined && { order: params.order }),
   });
 
   if (!repoResult.success) {
@@ -210,7 +216,7 @@ export async function getContactByIdService(userId: string, contactId: string): 
     throw new AppError("contact not found", "CONTACT_NOT_FOUND", "validation", false);
   }
 
-  return result.data;
+  return normalizeContactNulls(result.data);
 }
 
 /**
@@ -243,10 +249,10 @@ export async function getContactWithNotesService(
     return { ...contact, notes: [] };
   }
 
-  // 3. Combine
+  // 3. Combine - notesResult.data is Note[], not { items: Note[] }
   return {
     ...contact,
-    notes: notesResult.data.items,
+    notes: notesResult.data,
   };
 }
 
@@ -257,18 +263,18 @@ export async function createContactService(
   userId: string,
   input: {
     displayName: string;
-    primaryEmail?: string;
-    primaryPhone?: string;
-    photoUrl?: string;
-    source?: string;
-    lifecycleStage?: string;
-    tags?: string[];
-    confidenceScore?: string;
-    dateOfBirth?: string;
-    emergencyContactName?: string;
-    emergencyContactPhone?: string;
-    clientStatus?: string;
-    referralSource?: string;
+    primaryEmail?: string | undefined;
+    primaryPhone?: string | undefined;
+    photoUrl?: string | undefined;
+    source?: string | undefined;
+    lifecycleStage?: string | undefined;
+    tags?: string[] | undefined;
+    confidenceScore?: string | undefined;
+    dateOfBirth?: string | undefined;
+    emergencyContactName?: string | undefined;
+    emergencyContactPhone?: string | undefined;
+    clientStatus?: string | undefined;
+    referralSource?: string | undefined;
     address?: unknown;
     healthContext?: unknown;
     preferences?: unknown;
@@ -298,7 +304,33 @@ export async function createContactService(
     throw new AppError(result.error.message, result.error.code, "database", false);
   }
 
-  return result.data;
+  // Transform null to undefined for exactOptionalPropertyTypes compatibility
+  return normalizeContactNulls(result.data);
+}
+
+/**
+ * Helper: Convert null values to undefined for schema compatibility
+ * Required because exactOptionalPropertyTypes treats null and undefined as distinct
+ */
+function normalizeContactNulls(contact: Contact): Contact {
+  return {
+    ...contact,
+    primaryEmail: contact.primaryEmail ?? undefined,
+    primaryPhone: contact.primaryPhone ?? undefined,
+    photoUrl: contact.photoUrl ?? undefined,
+    source: contact.source ?? undefined,
+    lifecycleStage: contact.lifecycleStage ?? undefined,
+    clientStatus: contact.clientStatus ?? undefined,
+    referralSource: contact.referralSource ?? undefined,
+    confidenceScore: contact.confidenceScore ?? undefined,
+    dateOfBirth: contact.dateOfBirth ?? undefined,
+    emergencyContactName: contact.emergencyContactName ?? undefined,
+    emergencyContactPhone: contact.emergencyContactPhone ?? undefined,
+    address: contact.address ?? undefined,
+    healthContext: contact.healthContext ?? undefined,
+    preferences: contact.preferences ?? undefined,
+    tags: contact.tags ?? undefined,
+  } as Contact;
 }
 
 /**
@@ -308,19 +340,19 @@ export async function updateContactService(
   userId: string,
   contactId: string,
   updates: {
-    displayName?: string;
-    primaryEmail?: string | null;
-    primaryPhone?: string | null;
-    photoUrl?: string | null;
-    source?: string | null;
-    lifecycleStage?: string | null;
-    tags?: string[] | null;
-    confidenceScore?: string | null;
-    dateOfBirth?: string | null;
-    emergencyContactName?: string | null;
-    emergencyContactPhone?: string | null;
-    clientStatus?: string | null;
-    referralSource?: string | null;
+    displayName?: string | undefined;
+    primaryEmail?: string | null | undefined;
+    primaryPhone?: string | null | undefined;
+    photoUrl?: string | null | undefined;
+    source?: string | null | undefined;
+    lifecycleStage?: string | null | undefined;
+    tags?: string[] | null | undefined;
+    confidenceScore?: string | null | undefined;
+    dateOfBirth?: string | null | undefined;
+    emergencyContactName?: string | null | undefined;
+    emergencyContactPhone?: string | null | undefined;
+    clientStatus?: string | null | undefined;
+    referralSource?: string | null | undefined;
     address?: unknown;
     healthContext?: unknown;
     preferences?: unknown;
@@ -336,7 +368,7 @@ export async function updateContactService(
     throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
   }
 
-  return result.data;
+  return normalizeContactNulls(result.data);
 }
 
 /**
@@ -365,7 +397,7 @@ export async function findContactByEmailService(
     throw new AppError(result.error.message, result.error.code, "database", false);
   }
 
-  return result.data;
+  return result.data ? normalizeContactNulls(result.data) : null;
 }
 
 // ============================================================================

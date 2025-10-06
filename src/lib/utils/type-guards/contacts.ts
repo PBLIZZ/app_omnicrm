@@ -5,7 +5,7 @@
  */
 
 import type { DbResult } from "@/lib/utils/result";
-import type { ContactWithNotes } from "@/server/db/business-schemas/contacts";
+import type { ContactWithNotes } from "@/server/db/schema";
 import type { VisibilityState } from "@tanstack/react-table";
 
 // ============================================================================
@@ -86,7 +86,7 @@ export function validateNotesQueryRows(rows: unknown): NotesQueryRow[] {
 // ============================================================================
 
 /**
- * Type guard to check if data is ContactWithNotes
+ * Type guard to check if data is ContactWithNotes (Contact with full notes array)
  */
 export function isContactWithNotes(data: unknown): data is ContactWithNotes {
   return (

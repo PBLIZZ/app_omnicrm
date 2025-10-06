@@ -50,7 +50,8 @@ export function sanitizeText(text: string | null | undefined, maxLength: number 
     sanitized = sanitized.substring(0, maxLength - 3) + "...";
   }
 
-  return sanitized || "No content";
+  // Ensure we always return a string
+  return sanitized.length > 0 ? sanitized : "No content";
 }
 
 /**
@@ -79,7 +80,7 @@ export function sanitizeDate(date: string | null | undefined): string {
   }
 
   // Normalize to YYYY-MM-DD format for consistency
-  return dateObj.toISOString().split("T")[0];
+  return dateObj.toISOString().split("T")[0] ?? "No date";
 }
 
 /**

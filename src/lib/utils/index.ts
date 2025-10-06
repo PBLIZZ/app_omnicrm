@@ -7,9 +7,6 @@ export * from "./encoding";
 export * from "./data-transforms";
 export * from "./string-helpers";
 
-// Error handling utilities
-export * from "./error-handler";
-
 // Type guards and validation utilities
 export * from "./type-guards";
 

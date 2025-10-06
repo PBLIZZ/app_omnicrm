@@ -47,11 +47,9 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Settings2,
-  Brain,
   Download,
 } from "lucide-react";
-import { useBulkDeleteContacts } from "@/hooks/use-contact-delete";
-import { useBulkEnrichContacts } from "@/hooks/use-contacts-bridge";
+import { useDeleteContacts } from "@/hooks/use-contacts";
 import type { ContactSearchFilters, ContactWithLastNote } from "./types";
 import { toast } from "sonner";
 import { parseVisibilityState } from "@/lib/utils/type-guards/contacts";
@@ -62,8 +60,7 @@ interface ContactsTableProps {
 }
 
 export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Element {
-  const bulkDeleteContacts = useBulkDeleteContacts();
-  const bulkEnrichContacts = useBulkEnrichContacts();
+  const bulkDeleteContacts = useDeleteContacts();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
@@ -268,25 +265,6 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
     });
   }, [selectedContactInfo.selectedIds, bulkDeleteContacts, setRowSelection]);
 
-  // Optimized bulk enrich handler - defined after table creation
-  const handleBulkEnrich = useCallback(() => {
-    const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
-    const selectedRows = table.getSelectedRowModel().rows;
-    const contactNames = selectedRows.map((row) => row.original.displayName);
-
-    if (
-      confirm(
-        `Are you sure you want to enrich ${selectedIds.length} Contact(s) with AI insights?\n\nContacts: ${contactNames.join(", ")}\n\nThis may take a few minutes.`,
-      )
-    ) {
-      bulkEnrichContacts.mutate(selectedIds, {
-        onSuccess: () => {
-          setRowSelection({}); // Clear selection after successful enrich
-        },
-      });
-    }
-  }, [rowSelection, table, bulkEnrichContacts]);
-
   return (
     <div className="space-y-4">
       {/* Bulk Actions */}
@@ -304,15 +282,6 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
               onClick={handleBulkDeleteClick}
             >
               {bulkDeleteContacts.isPending ? "Deleting..." : "Delete Selected"}
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              disabled={bulkEnrichContacts.isPending}
-              onClick={handleBulkEnrich}
-            >
-              <Brain className="mr-2 h-4 w-4" />
-              {bulkEnrichContacts.isPending ? "Enriching..." : "Bulk Enrich"}
             </Button>
           </div>
         </div>

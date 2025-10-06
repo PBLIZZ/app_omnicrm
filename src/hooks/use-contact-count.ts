@@ -2,11 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api/client";
-import { Result, isErr, isOk } from "@/lib/utils/result";
-
-type CountResponse = {
-  count: number;
-};
 
 export function useContactCount(): number {
   const [count, setCount] = useState(0);
@@ -16,22 +11,13 @@ export function useContactCount(): number {
 
     const loadCount = async (): Promise<void> => {
       try {
-        // Use dedicated count endpoint for better performance
-        const result =
-          await apiClient.get<Result<CountResponse, { message: string; code: string }>>(
-            "/api/contacts/count",
-          );
-        if (isErr(result)) {
-          throw new Error(result.error.message);
-        }
-        if (!isOk(result)) {
-          throw new Error("Invalid result state");
-        }
+        // apiClient returns unwrapped data directly
+        const data = await apiClient.get<{ count: number }>("/api/contacts/count");
         if (isMounted) {
-          setCount(result.data.count);
+          setCount(data.count);
         }
-      } catch {
-        // Silent error handling - set count to 0 on failure
+      } catch (error) {
+        console.error("Failed to load contact count:", error);
         if (isMounted) {
           setCount(0);
         }

@@ -20,7 +20,7 @@ import { formatDistanceToNow } from "date-fns";
 import { NotesHoverCard } from "../[contactId]/notes/[noteId]/_components/NotesHoverCard";
 import Link from "next/link";
 import { EditContactDialog } from "./EditContactDialog";
-import { useDeleteContact } from "@/hooks/use-contacts-bridge";
+import { useDeleteContact } from "@/hooks/use-contacts";
 import type { ContactWithLastNote } from "@/server/db/business-schemas/contacts";
 
 // Custom Filter Functions for TanStack Table

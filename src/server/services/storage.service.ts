@@ -14,11 +14,7 @@
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
 import { getDb } from "@/server/db/client";
 import { photoAccessAudit } from "@/server/db/schema";
-
-export interface SignedUrlResult {
-  signedUrl: string | null;
-  error?: string;
-}
+import { AppError } from "@/lib/errors/app-error";
 
 export interface UploadUrlResult {
   signedUrl: string | null;
@@ -26,9 +22,13 @@ export interface UploadUrlResult {
   error?: string;
 }
 
+export interface SignedUrlResult {
+  signedUrl: string | null;
+}
+
 export interface BatchSignedUrlResult {
   urls: Record<string, string | null>;
-  errors?: Record<string, string>;
+  errors?: Record<string, string> | undefined;
 }
 
 export interface PhotoAccessAuditParams {
@@ -55,106 +55,44 @@ export class StorageService {
       const [bucket, ...rest] = normalized.split("/");
       const pathInBucket = rest.join("/");
 
-      console.log("[StorageService] Creating signed URL:", {
-        originalPath: filePath,
-        normalized,
-        bucket,
-        pathInBucket,
-        hasAdmin: !!supabaseServerAdmin,
-        hasPublishable: !!supabaseServerPublishable,
-      });
-
       if (!bucket || !pathInBucket) {
-        return {
-          signedUrl: null,
-          error: "filePath must be of the form 'bucket/path/to/file'",
-        };
+        throw new AppError(
+          "filePath must be 'bucket/path/to/file'",
+          "INVALID_PATH",
+          "validation",
+          false,
+        );
       }
 
       const client = supabaseServerAdmin ?? supabaseServerPublishable;
       if (!client) {
-        return {
-          signedUrl: null,
-          error: "Supabase client unavailable on server",
-        };
+        throw new AppError(
+          "Supabase client unavailable on server",
+          "CONFIG_ERROR",
+          "database",
+          false,
+        );
       }
 
-      console.log("[StorageService] Using client:", supabaseServerAdmin ? "ADMIN" : "PUBLISHABLE");
-
-      const { data, error } = await client.storage
-        .from(bucket)
-        .createSignedUrl(pathInBucket, 3600);
+      const { data, error } = await client.storage.from(bucket).createSignedUrl(pathInBucket, 3600);
 
       if (error) {
-        console.error("[StorageService] Supabase Storage API error:", {
-          errorObject: error,
-          errorName: error.name,
-          errorMessage: error.message,
-          errorStatus: error.status,
-          errorStatusCode: error.statusCode,
-          bucket,
-          pathInBucket,
-          fullError: JSON.stringify(error, null, 2),
-        });
-        return {
-          signedUrl: null,
-          error: `failed_to_create_signed_url: ${error.message || error.name || "unknown"}`,
-        };
+        throw new AppError(`Storage error: ${error.message}`, "STORAGE_ERROR", "database", true);
       }
 
-      console.log("[StorageService] Successfully created signed URL");
-      return { signedUrl: data?.signedUrl ?? null };
+      return {
+        signedUrl: data.signedUrl,
+      };
     } catch (error) {
-      console.error("[StorageService] Unexpected error creating signed URL:", error);
-      return {
-        signedUrl: null,
-        error: "unexpected_error",
-      };
-    }
-  }
-
-  /**
-   * Get signed URL for uploading a file to storage
-   */
-  static async getUploadSignedUrl(
-    fileName: string,
-    _contentType: string,
-    folderPath?: string,
-    bucket = "contacts"
-  ): Promise<UploadUrlResult> {
-    try {
-      const path = folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName;
-
-      const client = supabaseServerAdmin ?? supabaseServerPublishable;
-      if (!client) {
-        return {
-          signedUrl: null,
-          path,
-          error: "Supabase server client not available",
-        };
+      if (error instanceof AppError) {
+        throw error;
       }
-
-      const { data, error } = await client.storage.from(bucket).createSignedUploadUrl(path);
-
-      if (error) {
-        return {
-          signedUrl: null,
-          path,
-          error: "Failed to create signed upload URL",
-        };
-      }
-
-      return {
-        signedUrl: data?.signedUrl ?? null,
-        path,
-      };
-    } catch (error: unknown) {
-      console.error("Error creating signed upload URL:", error);
-      return {
-        signedUrl: null,
-        path: folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName,
-        error: "unexpected_error",
-      };
+      throw new AppError(
+        "Unexpected error creating signed URL",
+        "UNEXPECTED_ERROR",
+        "database",
+        true,
+      );
     }
   }
 
@@ -168,7 +106,7 @@ export class StorageService {
    */
   static async getBatchSignedUrls(
     filePaths: string[],
-    expiresIn = 14400
+    expiresIn = 14400,
   ): Promise<BatchSignedUrlResult> {
     const urls: Record<string, string | null> = {};
     const errors: Record<string, string> = {};
@@ -180,7 +118,7 @@ export class StorageService {
     try {
       const client = supabaseServerAdmin ?? supabaseServerPublishable;
       if (!client) {
-        filePaths.forEach(path => {
+        filePaths.forEach((path) => {
           urls[path] = null;
           errors[path] = "Supabase client unavailable";
         });
@@ -217,12 +155,10 @@ export class StorageService {
       for (const [bucket, paths] of pathsByBucket) {
         try {
           // Supabase supports batch signed URL creation
-          const { data, error } = await client.storage
-            .from(bucket)
-            .createSignedUrls(
-              paths.map(p => p.inBucket),
-              expiresIn
-            );
+          const { data, error } = await client.storage.from(bucket).createSignedUrls(
+            paths.map((p) => p.inBucket),
+            expiresIn,
+          );
 
           if (error) {
             paths.forEach(({ original }) => {
@@ -257,7 +193,7 @@ export class StorageService {
       return { urls, errors: Object.keys(errors).length > 0 ? errors : undefined };
     } catch (error) {
       console.error("[StorageService] Unexpected error in batch signed URLs:", error);
-      filePaths.forEach(path => {
+      filePaths.forEach((path) => {
         urls[path] = null;
         errors[path] = "Unexpected error";
       });
@@ -295,7 +231,7 @@ export class StorageService {
     userId: string,
     contactPhotos: Array<{ contactId: string; photoPath: string }>,
     ipAddress?: string,
-    userAgent?: string
+    userAgent?: string,
   ): Promise<void> {
     try {
       const db = await getDb();

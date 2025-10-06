@@ -343,7 +343,7 @@ export const onboardingTokens = pgTable("onboarding_tokens", {
   usedCount: integer("used_count").default(0).notNull(),
   createdBy: uuid("created_by").notNull(),
   disabled: boolean("disabled").default(false).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const photoAccessAudit = pgTable("photo_access_audit", {

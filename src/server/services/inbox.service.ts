@@ -18,9 +18,9 @@ import type {
   ProcessInboxItem,
   BulkProcessInboxDTO,
   VoiceInboxCaptureDTO,
-} from "@/server/db/business-schemas/inbox";
-import type { Zone } from "@/server/db/business-schemas/zones";
-import { ZoneSchema } from "@/server/db/business-schemas/zones";
+} from "@/server/db/business-schemas/tasks";
+import type { Zone } from "@/server/db/business-schemas/tasks";
+import { ZoneSchema } from "@/server/db/business-schemas/tasks";
 import { categorizeInboxItem } from "@/server/ai/connect/categorize-inbox-item";
 
 // Repository-compatible filter types
@@ -185,7 +185,10 @@ export class InboxService {
   /**
    * Voice capture with transcription
    */
-  static async voiceCapture(userId: string, data: VoiceInboxCaptureDTO): Promise<DbResult<InboxItem>> {
+  static async voiceCapture(
+    userId: string,
+    data: VoiceInboxCaptureDTO,
+  ): Promise<DbResult<InboxItem>> {
     try {
       // createInboxItem returns direct type, not DbResult
       const rawItem = await InboxRepository.createInboxItem({
@@ -222,7 +225,10 @@ export class InboxService {
   /**
    * List inbox items with filtering
    */
-  static async listInboxItems(userId: string, filters?: InboxFilters): Promise<DbResult<InboxItem[]>> {
+  static async listInboxItems(
+    userId: string,
+    filters?: InboxFilters,
+  ): Promise<DbResult<InboxItem[]>> {
     try {
       // listInboxItems returns DbResult, need to unwrap
       const result = await InboxRepository.listInboxItems(userId, filters);
@@ -261,12 +267,14 @@ export class InboxService {
   /**
    * Get inbox statistics
    */
-  static async getInboxStats(userId: string): Promise<DbResult<{
-    unprocessed: number;
-    processed: number;
-    archived: number;
-    total: number;
-  }>> {
+  static async getInboxStats(userId: string): Promise<
+    DbResult<{
+      unprocessed: number;
+      processed: number;
+      archived: number;
+      total: number;
+    }>
+  > {
     try {
       const stats = await InboxRepository.getInboxStats(userId);
       return ok(stats);
@@ -364,10 +372,12 @@ export class InboxService {
   static async bulkProcessInbox(
     userId: string,
     data: BulkProcessInboxDTO,
-  ): Promise<DbResult<{
-    processed: InboxItem[];
-    results?: InboxProcessingResultDTO[];
-  }>> {
+  ): Promise<
+    DbResult<{
+      processed: InboxItem[];
+      results?: InboxProcessingResultDTO[];
+    }>
+  > {
     try {
       if (data.action === "archive") {
         // bulkUpdateStatus returns direct type, not DbResult

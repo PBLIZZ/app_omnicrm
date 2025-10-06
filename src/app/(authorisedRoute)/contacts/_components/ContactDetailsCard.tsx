@@ -6,18 +6,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
-import { ContactAIInsightsDialog } from "@/app/(authorisedRoute)/contacts/_components/ContactAIInsightsDialog";
 import { EditContactDialog } from "./EditContactDialog";
 import { ContactHeader } from "./ContactHeader";
 import { NotesMainPane } from "../[contactId]/notes/[noteId]/_components/NotesMainPane";
-import { AIInsightsSidebar } from "./AIInsightsSidebar";
-import { useAskAIAboutContact } from "@/hooks/use-contacts-bridge";
 import { useNotes } from "@/hooks/use-notes";
-import { useDeleteContact } from "@/hooks/use-contact-delete";
-import {
-  type ContactWithNotes,
-  type ContactAIInsightsResponse,
-} from "@/server/db/business-schemas/contacts";
+import { useDeleteContact } from "@/hooks/use-contacts";
+import { type ContactWithNotes } from "@/server/db/schema";
 
 interface ContactDetailsCardProps {
   contactId: string;
@@ -32,8 +26,6 @@ export function ContactDetailsCard({ contactId }: ContactDetailsCardProps): JSX.
 
   // State management
   const [isAddingNote, setIsAddingNote] = useState(false);
-  const [aiInsightsOpen, setAiInsightsOpen] = useState(false);
-  const [aiInsights, setAiInsights] = useState<ContactAIInsightsResponse | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   // Fetch contact data
@@ -79,7 +71,6 @@ export function ContactDetailsCard({ contactId }: ContactDetailsCardProps): JSX.
   });
 
   // Mutations
-  const askAIMutation = useAskAIAboutContact();
   const deleteContactMutation = useDeleteContact();
 
   // Loading state
@@ -116,16 +107,6 @@ export function ContactDetailsCard({ contactId }: ContactDetailsCardProps): JSX.
   const safeClient = client as ContactWithNotes;
 
   // Handlers
-  const handleAskAI = async (): Promise<void> => {
-    try {
-      setAiInsightsOpen(true);
-      const insights = await askAIMutation.mutateAsync(contactId);
-      setAiInsights(insights);
-    } catch {
-      setAiInsightsOpen(false);
-    }
-  };
-
   const handleDeleteClient = (): void => {
     if (
       confirm(
@@ -156,45 +137,22 @@ export function ContactDetailsCard({ contactId }: ContactDetailsCardProps): JSX.
         nextEvent={nextEvent ?? null}
         onEdit={() => setEditDialogOpen(true)}
         onDelete={handleDeleteClient}
-        onAskAI={handleAskAI}
         onAddNote={() => setIsAddingNote(true)}
       />
 
-      {/* Main Content: 2/3 Notes + 1/3 AI Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Notes Main Pane (2/3 width on desktop) */}
-        <div className="lg:col-span-2">
-          <NotesMainPane
-            contactId={contactId}
-            notes={notes}
-            isLoading={notesLoading}
-            isAddingNote={isAddingNote}
-            setIsAddingNote={setIsAddingNote}
-            createNote={createNote}
-          />
-        </div>
-
-        {/* AI Insights Sidebar (1/3 width on desktop) */}
-        <div className="lg:col-span-1">
-          <AIInsightsSidebar
-            contactId={contactId}
-            insights={aiInsights}
-            isLoading={askAIMutation.isPending}
-            onGenerateInsights={handleAskAI}
-          />
-        </div>
+      {/* Main Content: Notes */}
+      <div>
+        <NotesMainPane
+          contactId={contactId}
+          notes={notes}
+          isLoading={notesLoading}
+          isAddingNote={isAddingNote}
+          setIsAddingNote={setIsAddingNote}
+          createNote={createNote}
+        />
       </div>
 
       {/* Dialogs */}
-      <ContactAIInsightsDialog
-        contact={safeClient}
-        open={aiInsightsOpen}
-        onOpenChange={setAiInsightsOpen}
-        insights={aiInsights}
-        isLoading={askAIMutation.isPending}
-        contactName={safeClient.displayName}
-      />
-
       <EditContactDialog
         contact={safeClient}
         open={editDialogOpen}

@@ -9,12 +9,11 @@ import {
   Calendar,
   Edit,
   Trash2,
-  Sparkles,
   NotebookPen,
   Mail,
   Phone,
 } from "lucide-react";
-import type { ContactWithNotes } from "@/server/db/business-schemas/contacts";
+import type { ContactWithNotes } from "@/server/db/schema";
 
 interface ContactHeaderProps {
   contact: ContactWithNotes;
@@ -22,7 +21,6 @@ interface ContactHeaderProps {
   nextEvent: { date: Date } | null;
   onEdit: () => void;
   onDelete: () => void;
-  onAskAI: () => void;
   onAddNote: () => void;
 }
 
@@ -32,7 +30,6 @@ export function ContactHeader({
   nextEvent,
   onEdit,
   onDelete,
-  onAskAI,
   onAddNote,
 }: ContactHeaderProps): JSX.Element {
   return (
@@ -82,7 +79,7 @@ export function ContactHeader({
                   <span>Next: {formatDistanceToNow(nextEvent.date, { addSuffix: false })}</span>
                 </div>
               )}
-              {!lastInteraction && !nextEvent && (
+              {!lastInteraction && !nextEvent && contact.createdAt && (
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Clock className="h-3.5 w-3.5" />
                   <span>Added {new Date(contact.createdAt).toLocaleDateString()}</span>
@@ -102,9 +99,9 @@ export function ContactHeader({
                   Referred by: {contact.referralSource}
                 </Badge>
               )}
-              {contact.tags && contact.tags.length > 0 && (
+              {contact.tags && Array.isArray(contact.tags) && contact.tags.length > 0 && (
                 <>
-                  {contact.tags.map((tag: string, index: number) => (
+                  {(contact.tags as string[]).map((tag: string, index: number) => (
                     <Badge key={index} variant="outline" className="text-xs">
                       {tag}
                     </Badge>
@@ -118,16 +115,10 @@ export function ContactHeader({
         {/* Right: Action Buttons */}
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onAskAI}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              Ask AI
-            </Button>
             <Button variant="outline" size="sm" onClick={onAddNote}>
               <NotebookPen className="h-4 w-4 mr-2" />
               Add Note
             </Button>
-          </div>
-          <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={onEdit}>
               <Edit className="h-3.5 w-3.5 mr-1.5" />
               Edit

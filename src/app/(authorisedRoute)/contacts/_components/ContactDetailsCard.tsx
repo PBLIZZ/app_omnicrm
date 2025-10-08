@@ -5,12 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { apiClient } from "@/lib/api/client";
 import { EditContactDialog } from "./EditContactDialog";
 import { ContactHeader } from "./ContactHeader";
 import { NotesMainPane } from "../[contactId]/notes/[noteId]/_components/NotesMainPane";
 import { useNotes } from "@/hooks/use-notes";
-import { useDeleteContact } from "@/hooks/use-contacts";
+import { useContact, useDeleteContact } from "@/hooks/use-contacts";
 import { type ContactWithNotes } from "@/server/db/schema";
 
 interface ContactDetailsCardProps {
@@ -28,20 +27,12 @@ export function ContactDetailsCard({ contactId }: ContactDetailsCardProps): JSX.
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
-  // Fetch contact data
+  // Fetch contact data using centralized hook
   const {
     data: client,
     isLoading: clientLoading,
     error: clientError,
-  } = useQuery({
-    queryKey: [`/api/contacts/${contactId}`],
-    queryFn: async (): Promise<ContactWithNotes> => {
-      const response = await apiClient.get<{ item: ContactWithNotes }>(
-        `/api/contacts/${contactId}`,
-      );
-      return response.item;
-    },
-  });
+  } = useContact(contactId);
 
   // Use notes hook for CRUD operations
   const { notes, isLoading: notesLoading, createNote } = useNotes({ contactId });

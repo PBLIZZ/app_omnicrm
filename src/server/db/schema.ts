@@ -25,6 +25,7 @@ export const consentTypeEnum = pgEnum("consent_type", [
   "photography",
 ]);
 export const fileTypeEnum = pgEnum("file_type", ["photo", "document", "form"]);
+export const providerTypeEnum = pgEnum("provider_type", ["gmail", "calendar", "drive", "upload"]);
 export const goalStatusEnum = pgEnum("goal_status", [
   "on_track",
   "at_risk",
@@ -51,58 +52,9 @@ export const projectStatusEnum = pgEnum("project_status", [
 export const taskPriorityEnum = pgEnum("task_priority", ["low", "medium", "high", "urgent"]);
 export const taskStatusEnum = pgEnum("task_status", ["todo", "in_progress", "done", "canceled"]);
 
-// AI Tables
-export const aiInsights = pgTable("ai_insights", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  subjectType: text("subject_type").notNull(),
-  subjectId: uuid("subject_id"),
-  kind: text("kind").notNull(),
-  content: jsonb("content").notNull(),
-  model: text("model"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  fingerprint: text("fingerprint"),
-});
-
-export const aiQuotas = pgTable("ai_quotas", {
-  userId: uuid("user_id").primaryKey().notNull(),
-  creditsLeft: integer("credits_left").notNull(),
-  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
-});
-
-export const aiUsage = pgTable("ai_usage", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  model: text("model").notNull(),
-  inputTokens: integer("input_tokens").default(0),
-  outputTokens: integer("output_tokens").default(0),
-  costUsd: numeric("cost_usd").default("0"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
-// Calendar Tables
-export const calendarEvents = pgTable("calendar_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  googleEventId: text("google_event_id").notNull(),
-  title: text("title").notNull(),
-  description: text("description"),
-  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
-  endTime: timestamp("end_time", { withTimezone: true }).notNull(),
-  isAllDay: boolean("is_all_day"),
-  timeZone: text("time_zone"),
-  location: text("location"),
-  status: text("status"),
-  visibility: text("visibility"),
-  eventType: text("event_type"),
-  businessCategory: text("business_category"),
-  attendees: jsonb("attendees"),
-  keywords: jsonb("keywords"),
-  googleUpdated: timestamp("google_updated", { withTimezone: true }),
-  lastSynced: timestamp("last_synced", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+// ============================================================================
+// CRM - Customer Relationship Management
+// ============================================================================
 
 // Client Tables
 export const clientConsents = pgTable("client_consents", {
@@ -160,31 +112,46 @@ export const contacts = pgTable("contacts", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-export const contactIdentities = pgTable("contact_identities", {
+export const notes = pgTable("notes", {
   id: uuid("id").primaryKey().defaultRandom(),
-  contactId: uuid("contact_id")
-    .notNull()
-    .references(() => contacts.id),
   userId: uuid("user_id").notNull(),
-  kind: text("kind").notNull(),
-  provider: text("provider"),
-  value: text("value").notNull(),
+  contactId: uuid("contact_id").references(() => contacts.id),
+  contentRich: jsonb("content_rich").notNull().default({}),
+  contentPlain: text("content_plain").notNull().default(""),
+  piiEntities: jsonb("pii_entities").notNull().default([]),
+  tags: text("tags").array().notNull().default([]),
+  sourceType: noteSourceTypeEnum("source_type").notNull().default("typed"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const photoAccessAudit = pgTable("photo_access_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  contactId: uuid("contact_id").notNull(),
+  photoPath: text("photo_path").notNull(),
+  accessedAt: timestamp("accessed_at", { withTimezone: true }).defaultNow(),
+  ipAddress: inet("ip_address"),
+  userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
-export const contactTimeline = pgTable("contact_timeline", {
+export const onboardingTokens = pgTable("onboarding_tokens", {
   id: uuid("id").primaryKey().defaultRandom(),
-  contactId: uuid("contact_id")
-    .notNull()
-    .references(() => contacts.id),
   userId: uuid("user_id").notNull(),
-  eventType: text("event_type").notNull(),
-  title: text("title").notNull(),
-  description: text("description"),
-  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
-  eventData: jsonb("event_data"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  token: text("token").notNull().unique(),
+  label: text("label"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  maxUses: integer("max_uses").default(1).notNull(),
+  usedCount: integer("used_count").default(0).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  disabled: boolean("disabled").default(false).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ============================================================================
+// PRODUCTIVITY SUITE - Tasks, Goals, Projects
+// ============================================================================
 
 // Core Tables
 export const dailyPulseLogs = pgTable("daily_pulse_logs", {
@@ -195,29 +162,20 @@ export const dailyPulseLogs = pgTable("daily_pulse_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
-export const documents = pgTable("documents", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  ownerContactId: uuid("owner_contact_id"),
-  title: text("title"),
-  text: text("text"),
-  mime: text("mime"),
-  meta: jsonb("meta"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
-export const embeddings = pgTable("embeddings", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  ownerType: text("owner_type").notNull(),
-  ownerId: uuid("owner_id").notNull(),
-  embedding: text("embedding"),
-  embeddingV: text("embedding_v"),
-  contentHash: text("content_hash"),
-  chunkIndex: integer("chunk_index"),
-  meta: jsonb("meta"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+export const noteGoals = pgTable(
+  "note_goals",
+  {
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+    goalId: uuid("goal_id")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.noteId, table.goalId] }),
+  }),
+);
 
 export const goals = pgTable("goals", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -243,120 +201,6 @@ export const inboxItems = pgTable("inbox_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-export const interactions = pgTable("interactions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  contactId: uuid("contact_id").references(() => contacts.id),
-  type: text("type").notNull(),
-  subject: text("subject"),
-  bodyText: text("body_text"),
-  bodyRaw: jsonb("body_raw"),
-  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
-  source: text("source"),
-  sourceId: text("source_id"),
-  sourceMeta: jsonb("source_meta"),
-  batchId: uuid("batch_id"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
-export const jobs = pgTable("jobs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  kind: text("kind").notNull(),
-  payload: jsonb("payload").notNull(),
-  status: text("status").default("queued").notNull(),
-  attempts: integer("attempts").default(0).notNull(),
-  lastError: text("last_error"),
-  batchId: uuid("batch_id"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
-
-// Chat/Message Tables
-export const messages = pgTable("messages", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  threadId: uuid("thread_id")
-    .notNull()
-    .references(() => threads.id),
-  role: text("role").notNull(),
-  content: jsonb("content").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
-export const threads = pgTable("threads", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  title: text("title"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
-
-export const toolInvocations = pgTable("tool_invocations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  messageId: uuid("message_id")
-    .notNull()
-    .references(() => messages.id),
-  tool: text("tool").notNull(),
-  args: jsonb("args").notNull(),
-  result: jsonb("result"),
-  latencyMs: integer("latency_ms"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
-export const notes = pgTable("notes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  contactId: uuid("contact_id").references(() => contacts.id),
-  contentRich: jsonb("content_rich").notNull().default({}),
-  contentPlain: text("content_plain").notNull().default(""),
-  piiEntities: jsonb("pii_entities").notNull().default([]),
-  tags: text("tags").array().notNull().default([]),
-  sourceType: noteSourceTypeEnum("source_type").notNull().default("typed"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const noteGoals = pgTable(
-  "note_goals",
-  {
-    noteId: uuid("note_id")
-      .notNull()
-      .references(() => notes.id, { onDelete: "cascade" }),
-    goalId: uuid("goal_id")
-      .notNull()
-      .references(() => goals.id, { onDelete: "cascade" }),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.noteId, table.goalId] }),
-  }),
-);
-
-export const onboardingTokens = pgTable("onboarding_tokens", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  token: text("token").notNull().unique(),
-  label: text("label"),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  maxUses: integer("max_uses").default(1).notNull(),
-  usedCount: integer("used_count").default(0).notNull(),
-  createdBy: uuid("created_by").notNull(),
-  disabled: boolean("disabled").default(false).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const photoAccessAudit = pgTable("photo_access_audit", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  contactId: uuid("contact_id").notNull(),
-  photoPath: text("photo_path").notNull(),
-  accessedAt: timestamp("accessed_at", { withTimezone: true }).defaultNow(),
-  ipAddress: inet("ip_address"),
-  userAgent: text("user_agent"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
@@ -367,57 +211,6 @@ export const projects = pgTable("projects", {
   zoneId: integer("zone_id").references(() => zones.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
-
-export const rawEventErrors = pgTable("raw_event_errors", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  rawEventId: uuid("raw_event_id").references(() => rawEvents.id),
-  provider: text("provider").notNull(),
-  stage: text("stage").notNull(),
-  error: text("error").notNull(),
-  context: jsonb("context"),
-  errorAt: timestamp("error_at", { withTimezone: true }).defaultNow(),
-});
-
-export const rawEvents = pgTable("raw_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  provider: text("provider").notNull(),
-  payload: jsonb("payload").notNull(),
-  contactId: uuid("contact_id").references(() => contacts.id),
-  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
-  sourceId: text("source_id"),
-  sourceMeta: jsonb("source_meta"),
-  batchId: uuid("batch_id"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
-// Sync Tables
-export const syncAudit = pgTable("sync_audit", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  provider: text("provider").notNull(),
-  action: text("action").notNull(),
-  payload: jsonb("payload"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
-export const syncSessions = pgTable("sync_sessions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  service: text("service").notNull(),
-  status: text("status").default("pending").notNull(),
-  startedAt: timestamp("started_at", { withTimezone: true }),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
-  currentStep: text("current_step"),
-  totalItems: integer("total_items"),
-  processedItems: integer("processed_items"),
-  importedItems: integer("imported_items"),
-  failedItems: integer("failed_items"),
-  progressPercentage: integer("progress_percentage"),
-  preferences: jsonb("preferences"),
-  errorDetails: jsonb("error_details"),
 });
 
 // Self-referential table: tasks can have parent tasks
@@ -456,6 +249,115 @@ export const taskContactTags = pgTable(
   }),
 );
 
+export const zones = pgTable("zones", {
+  id: integer("id").primaryKey(),
+  name: text("name").notNull(),
+  color: text("color"),
+  iconName: text("icon_name"),
+});
+
+// ============================================================================
+// DATA INTELLIGENCE - Raw Events, Interactions, AI Insights
+// ============================================================================
+
+export const aiInsights = pgTable("ai_insights", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  subjectType: text("subject_type").notNull(),
+  subjectId: uuid("subject_id"),
+  kind: text("kind").notNull(),
+  content: jsonb("content").notNull(),
+  model: text("model"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  fingerprint: text("fingerprint"),
+});
+
+export const contactIdentities = pgTable("contact_identities", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contactId: uuid("contact_id")
+    .notNull()
+    .references(() => contacts.id),
+  userId: uuid("user_id").notNull(),
+  kind: text("kind").notNull(),
+  provider: text("provider"),
+  value: text("value").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const embeddings = pgTable("embeddings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  ownerType: text("owner_type").notNull(),
+  ownerId: uuid("owner_id").notNull(),
+  embedding: text("embedding"),
+  embeddingV: text("embedding_v"),
+  contentHash: text("content_hash"),
+  chunkIndex: integer("chunk_index"),
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const documents = pgTable("documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  ownerContactId: uuid("owner_contact_id"),
+  title: text("title"),
+  text: text("text"),
+  mime: text("mime"),
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const ignoredIdentifiers = pgTable("ignored_identifiers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  kind: text("kind").notNull(),
+  value: text("value").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const interactions = pgTable("interactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  contactId: uuid("contact_id")
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  subject: text("subject"),
+  bodyText: text("body_text"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  source: text("source"),
+  sourceId: text("source_id").notNull(),
+  sourceMeta: jsonb("source_meta"),
+  batchId: uuid("batch_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const rawEvents = pgTable("raw_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  provider: providerTypeEnum("provider").notNull(),
+  payload: jsonb("payload").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  sourceId: text("source_id").notNull(),
+  sourceMeta: jsonb("source_meta"),
+  batchId: uuid("batch_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  // Processing state columns (added in migration 40)
+  processingStatus: text("processing_status").default("pending"),
+  processingAttempts: integer("processing_attempts").default(0),
+  processingError: text("processing_error"),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  // Contact extraction workflow (added in migration 46, enhanced in 50)
+  contactExtractionStatus: text("contact_extraction_status"),
+  extractedAt: timestamp("extracted_at", { withTimezone: true }),
+});
+
+// ============================================================================
+// ADMIN - User Management, Jobs, Quotas
+// ============================================================================
+
 // User Tables
 export const userIntegrations = pgTable(
   "user_integrations",
@@ -466,6 +368,7 @@ export const userIntegrations = pgTable(
     accessToken: text("access_token").notNull(),
     refreshToken: text("refresh_token"),
     expiryDate: timestamp("expiry_date", { withTimezone: true }),
+    config: jsonb("config"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
@@ -474,28 +377,70 @@ export const userIntegrations = pgTable(
   }),
 );
 
-export const userSyncPrefs = pgTable("user_sync_prefs", {
+export const aiQuotas = pgTable("ai_quotas", {
   userId: uuid("user_id").primaryKey().notNull(),
-  initialSyncCompleted: boolean("initial_sync_completed").default(false).notNull(),
-  initialSyncDate: timestamp("initial_sync_date", { withTimezone: true }),
-  calendarTimeWindowDays: integer("calendar_time_window_days").default(90).notNull(),
-  calendarFutureDays: integer("calendar_future_days").default(365),
-  calendarIds: text("calendar_ids").array(),
-  calendarIncludePrivate: boolean("calendar_include_private").default(false).notNull(),
-  calendarIncludeOrganizerSelf: boolean("calendar_include_organizer_self").default(true).notNull(),
-  gmailTimeRangeDays: integer("gmail_time_range_days").default(90),
-  driveFolderIds: text("drive_folder_ids").array().default([]).notNull(),
-  driveIngestionMode: text("drive_ingestion_mode").default("all").notNull(),
-  driveMaxSizeMb: integer("drive_max_size_mb").default(25),
+  creditsLeft: integer("credits_left").notNull(),
+  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+});
+
+export const aiUsage = pgTable("ai_usage", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").default(0),
+  outputTokens: integer("output_tokens").default(0),
+  costUsd: numeric("cost_usd").default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const jobs = pgTable("jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  kind: text("kind").notNull(),
+  payload: jsonb("payload"),
+  status: text("status").default("queued").notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+  lastError: text("last_error"),
+  result: jsonb("result"),
+  batchId: uuid("batch_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-export const zones = pgTable("zones", {
-  id: integer("id").primaryKey(),
-  name: text("name").notNull(),
-  color: text("color"),
-  iconName: text("icon_name"),
+// ============================================================================
+// AI CHAT - Threads, Messages, Tool Invocations
+// ============================================================================
+
+export const messages = pgTable("messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  threadId: uuid("thread_id")
+    .notNull()
+    .references(() => threads.id),
+  role: text("role").notNull(),
+  content: jsonb("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const threads = pgTable("threads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  title: text("title"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const toolInvocations = pgTable("tool_invocations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  messageId: uuid("message_id")
+    .notNull()
+    .references(() => messages.id),
+  tool: text("tool").notNull(),
+  args: jsonb("args").notNull(),
+  result: jsonb("result"),
+  latencyMs: integer("latency_ms"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 // ============================================================================
@@ -519,13 +464,6 @@ export const clientFilesRelations = relations(clientFiles, ({ one }) => ({
 export const contactIdentitiesRelations = relations(contactIdentities, ({ one }) => ({
   contact: one(contacts, {
     fields: [contactIdentities.contactId],
-    references: [contacts.id],
-  }),
-}));
-
-export const contactTimelineRelations = relations(contactTimeline, ({ one }) => ({
-  contact: one(contacts, {
-    fields: [contactTimeline.contactId],
     references: [contacts.id],
   }),
 }));
@@ -577,19 +515,7 @@ export const projectsRelations = relations(projects, ({ one }) => ({
   }),
 }));
 
-export const rawEventErrorsRelations = relations(rawEventErrors, ({ one }) => ({
-  rawEvent: one(rawEvents, {
-    fields: [rawEventErrors.rawEventId],
-    references: [rawEvents.id],
-  }),
-}));
-
-export const rawEventsRelations = relations(rawEvents, ({ one }) => ({
-  contact: one(contacts, {
-    fields: [rawEvents.contactId],
-    references: [contacts.id],
-  }),
-}));
+// Raw events no longer have direct contact relations - contact linking happens in interactions table
 
 export const taskContactTagsRelations = relations(taskContactTags, ({ one }) => ({
   task: one(tasks, {
@@ -644,10 +570,6 @@ export type Interaction = typeof interactions.$inferSelect;
 export type CreateInteraction = typeof interactions.$inferInsert;
 export type UpdateInteraction = Partial<CreateInteraction>;
 
-export type CalendarEvent = typeof calendarEvents.$inferSelect;
-export type CreateCalendarEvent = typeof calendarEvents.$inferInsert;
-export type UpdateCalendarEvent = Partial<CreateCalendarEvent>;
-
 export type Task = typeof tasks.$inferSelect;
 export type CreateTask = typeof tasks.$inferInsert;
 export type UpdateTask = Partial<CreateTask>;
@@ -667,9 +589,6 @@ export type UpdateAiInsight = Partial<CreateAiInsight>;
 export type Job = typeof jobs.$inferSelect;
 export type CreateJob = typeof jobs.$inferInsert;
 
-export type SyncSession = typeof syncSessions.$inferSelect;
-export type CreateSyncSession = typeof syncSessions.$inferInsert;
-
 export type UserIntegration = typeof userIntegrations.$inferSelect;
 export type CreateUserIntegration = typeof userIntegrations.$inferInsert;
 
@@ -685,9 +604,23 @@ export type CreateDailyPulseLog = typeof dailyPulseLogs.$inferInsert;
 
 export type RawEvent = typeof rawEvents.$inferSelect;
 export type CreateRawEvent = typeof rawEvents.$inferInsert;
+export type UpdateRawEvent = Partial<CreateRawEvent>;
 
-export type RawEventError = typeof rawEventErrors.$inferSelect;
-export type CreateRawEventError = typeof rawEventErrors.$inferInsert;
+export type IgnoredIdentifier = typeof ignoredIdentifiers.$inferSelect;
+export type CreateIgnoredIdentifier = typeof ignoredIdentifiers.$inferInsert;
+export type UpdateIgnoredIdentifier = Partial<CreateIgnoredIdentifier>;
+
+export type ContactIdentity = typeof contactIdentities.$inferSelect;
+export type CreateContactIdentity = typeof contactIdentities.$inferInsert;
+export type UpdateContactIdentity = Partial<CreateContactIdentity>;
+
+export type Embedding = typeof embeddings.$inferSelect;
+export type CreateEmbedding = typeof embeddings.$inferInsert;
+export type UpdateEmbedding = Partial<CreateEmbedding>;
+
+export type IntelligenceDocument = typeof documents.$inferSelect;
+export type CreateIntelligenceDocument = typeof documents.$inferInsert;
+export type UpdateIntelligenceDocument = Partial<CreateIntelligenceDocument>;
 
 // Extended types for common patterns
 export type ContactWithNotes = Contact & { notes: Note[] };

@@ -1,1935 +1,841 @@
-===== src/app/api/onboarding/public/track-access/route.ts =====
-import { handlePublic } from "@/lib/api-edge-cases";
-import { OnboardingTrackingService } from "@/server/services/onboarding-tracking.service";
-import {
-  TrackAccessRequestSchema,
-  TrackAccessResponseSchema,
-} from "@/server/db/business-schemas";
+===== supabase/sql/35_merge_calendar_events_into_interactions.sql =====
+-- =========================
+-- 35_merge_calendar_events_into_interactions.sql
+-- Phase 1: Add calendar-specific columns to interactions table
+-- This allows interactions to store calendar event data alongside emails, calls, etc.
+-- =========================
 
-export const POST = handlePublic(
-  TrackAccessRequestSchema,
-  TrackAccessResponseSchema,
-  async (data, request) => {
-    // Extract client IP data from headers
-    const clientIpData = OnboardingTrackingService.extractClientIpData({
-      "x-forwarded-for": request.headers.get("x-forwarded-for"),
-      "x-real-ip": request.headers.get("x-real-ip"),
-      "user-agent": request.headers.get("user-agent"),
-    });
+-- Step 1: Add calendar-specific columns to interactions table
+ALTER TABLE public.interactions 
+  ADD COLUMN IF NOT EXISTS start_time timestamptz,
+  ADD COLUMN IF NOT EXISTS end_time timestamptz,
+  ADD COLUMN IF NOT EXISTS location text,
+  ADD COLUMN IF NOT EXISTS attendees jsonb,
+  ADD COLUMN IF NOT EXISTS event_status text,  -- renamed from 'status' to avoid confusion
+  ADD COLUMN IF NOT EXISTS time_zone text,
+  ADD COLUMN IF NOT EXISTS is_all_day boolean,
+  ADD COLUMN IF NOT EXISTS visibility text,
+  ADD COLUMN IF NOT EXISTS event_category text,  -- renamed from 'eventType' to avoid conflict with 'type'
+  ADD COLUMN IF NOT EXISTS keywords jsonb,
+  ADD COLUMN IF NOT EXISTS google_updated timestamptz,
+  ADD COLUMN IF NOT EXISTS last_synced timestamptz;
 
-    // Track access using service
-    const result = await OnboardingTrackingService.trackTokenAccess(data, clientIpData);
+-- Add comments for documentation
+COMMENT ON COLUMN public.interactions.start_time IS 'Start time for calendar events';
+COMMENT ON COLUMN public.interactions.end_time IS 'End time for calendar events';
+COMMENT ON COLUMN public.interactions.event_status IS 'Calendar event status (confirmed, tentative, cancelled)';
+COMMENT ON COLUMN public.interactions.event_category IS 'Calendar event category/type';
 
-    return {
-      message: result.message,
-    };
-  }
+-- Step 2: Populate calendar columns from source_meta for existing calendar_event records
+UPDATE public.interactions
+SET 
+  start_time = (source_meta->>'startTime')::timestamptz,
+  end_time = (source_meta->>'endTime')::timestamptz,
+  location = source_meta->>'location',
+  attendees = source_meta->'attendees',
+  event_status = source_meta->>'status',
+  time_zone = source_meta->>'timeZone',
+  is_all_day = (source_meta->>'isAllDay')::boolean,
+  visibility = COALESCE(source_meta->>'visibility', 'default'),
+  event_category = source_meta->>'eventType',
+  keywords = source_meta->'keywords',
+  last_synced = (source_meta->>'lastSynced')::timestamptz
+WHERE type = 'calendar_event' 
+  AND source_meta IS NOT NULL;
+
+-- Step 3: Add check constraint to ensure calendar events have start/end times
+ALTER TABLE public.interactions 
+  ADD CONSTRAINT interactions_calendar_times_check 
+  CHECK (
+    (type = 'calendar_event' AND start_time IS NOT NULL AND end_time IS NOT NULL)
+    OR type != 'calendar_event'
+  );
+
+-- Step 4: Add indexes for calendar queries
+-- Note: These must be run separately outside a transaction using execute_sql
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS interactions_user_start_time_idx 
+--   ON public.interactions(user_id, start_time DESC) 
+--   WHERE start_time IS NOT NULL;
+-- 
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS interactions_attendees_gin 
+--   ON public.interactions USING gin(attendees) 
+--   WHERE attendees IS NOT NULL;
+
+
+
+===== supabase/sql/36_migrate_calendar_events_data.sql =====
+-- =========================
+-- 36_migrate_calendar_events_data.sql
+-- Phase 2: Migrate data from calendar_events table to interactions table
+-- =========================
+
+-- Migrate calendar_events to interactions
+INSERT INTO interactions (
+  user_id, type, subject, body_text, occurred_at,
+  source, source_id, source_meta,
+  start_time, end_time, location, attendees,
+  event_status, time_zone, is_all_day, visibility,
+  event_category, keywords, google_updated, last_synced,
+  created_at
+)
+SELECT 
+  user_id,
+  'calendar_event' as type,
+  title as subject,
+  description as body_text,
+  start_time as occurred_at,  -- Use start_time as the occurrence time
+  'google_calendar' as source,
+  google_event_id as source_id,
+  jsonb_build_object('migrated_from', 'calendar_events') as source_meta,
+  start_time,
+  end_time,
+  location,
+  attendees,
+  status as event_status,
+  time_zone,
+  is_all_day,
+  visibility,
+  event_type as event_category,  -- Map eventType to event_category
+  keywords,
+  google_updated,
+  last_synced,
+  created_at
+FROM calendar_events
+ON CONFLICT (user_id, source, source_id) DO NOTHING;  -- Skip duplicates if any
+
+-- Verify migration
+SELECT 
+  'calendar_events' as source_table,
+  COUNT(*) as count 
+FROM calendar_events
+UNION ALL
+SELECT 
+  'interactions (calendar type)' as source_table,
+  COUNT(*) as count 
+FROM interactions 
+WHERE type = 'calendar_event';
+
+
+
+===== supabase/sql/37_backup_calendar_events_table.sql =====
+-- =========================
+-- 37_backup_calendar_events_table.sql
+-- Phase 3: Rename calendar_events table as backup (keep for 1 week)
+-- Safe to drop after 2025-10-13
+-- =========================
+
+-- Rename table instead of dropping (safety measure)
+ALTER TABLE calendar_events RENAME TO calendar_events_backup_20251006;
+
+-- Add comment
+COMMENT ON TABLE calendar_events_backup_20251006 IS 
+  'Backup of calendar_events table. Migrated to interactions on 2025-10-06. Safe to drop after 2025-10-13.';
+
+
+
+===== supabase/sql/38_wipe_interaction_tables.sql =====
+-- =========================
+-- 38_wipe_interaction_tables.sql
+-- WIPE interactions and raw_events tables
+-- Description: Clears all existing data from interactions and raw_events tables
+-- to prepare for the new schema. This is a destructive operation.
+-- WARNING: This will delete all interaction and raw event data!
+-- =========================
+
+-- Wipe all data from interactions table
+TRUNCATE TABLE public.interactions CASCADE;
+
+-- Wipe all data from raw_events table
+TRUNCATE TABLE public.raw_events CASCADE;
+
+-- Add comments to document the wipe
+COMMENT ON TABLE public.interactions IS 'Interaction records (wiped and refactored on 2025-10-07)';
+COMMENT ON TABLE public.raw_events IS 'Raw event records (wiped and refactored on 2025-10-07)';
+
+
+
+===== supabase/sql/39_refactor_interactions_table.sql =====
+-- =========================
+-- 39_refactor_interactions_table.sql
+-- REFACTOR interactions table
+-- Description: Adds new columns and constraints to the interactions table
+-- to support the unified data model.
+-- =========================
+
+-- Add new columns for enhanced interaction tracking
+ALTER TABLE public.interactions
+  ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN IF NOT EXISTS priority TEXT,
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+
+-- Add check constraint for status
+ALTER TABLE public.interactions
+  DROP CONSTRAINT IF EXISTS interactions_status_check;
+
+ALTER TABLE public.interactions
+  ADD CONSTRAINT interactions_status_check
+  CHECK (status IN ('active', 'archived', 'deleted'));
+
+-- Add check constraint for priority
+ALTER TABLE public.interactions
+  DROP CONSTRAINT IF EXISTS interactions_priority_check;
+
+ALTER TABLE public.interactions
+  ADD CONSTRAINT interactions_priority_check
+  CHECK (priority IS NULL OR priority IN ('low', 'medium', 'high', 'urgent'));
+
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS interactions_status_idx
+  ON public.interactions (user_id, status, occurred_at DESC);
+
+CREATE INDEX IF NOT EXISTS interactions_tags_gin
+  ON public.interactions USING gin(tags)
+  WHERE tags IS NOT NULL AND array_length(tags, 1) > 0;
+
+CREATE INDEX IF NOT EXISTS interactions_metadata_gin
+  ON public.interactions USING gin(metadata)
+  WHERE metadata IS NOT NULL AND metadata != '{}'::jsonb;
+
+-- Add comments
+COMMENT ON COLUMN public.interactions.metadata IS 'Additional flexible metadata for interactions';
+COMMENT ON COLUMN public.interactions.tags IS 'User-defined tags for categorization';
+COMMENT ON COLUMN public.interactions.priority IS 'Priority level for the interaction';
+COMMENT ON COLUMN public.interactions.status IS 'Current status of the interaction (active, archived, deleted)';
+
+
+
+===== supabase/sql/40_refactor_raw_events_table.sql =====
+-- =========================
+-- 40_refactor_raw_events_table.sql
+-- REFACTOR raw_events table
+-- Description: Adds new columns and constraints to the raw_events table
+-- to support better event tracking and processing.
+-- =========================
+
+-- Add new columns for enhanced raw event tracking
+ALTER TABLE public.raw_events
+  ADD COLUMN IF NOT EXISTS processing_status TEXT DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS processing_attempts INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS processing_error TEXT,
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+
+-- Add check constraint for processing_status
+ALTER TABLE public.raw_events
+  DROP CONSTRAINT IF EXISTS raw_events_processing_status_check;
+
+ALTER TABLE public.raw_events
+  ADD CONSTRAINT raw_events_processing_status_check
+  CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed', 'skipped'));
+
+-- Create indexes for processing workflow
+CREATE INDEX IF NOT EXISTS raw_events_processing_status_idx
+  ON public.raw_events (user_id, processing_status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS raw_events_pending_idx
+  ON public.raw_events (user_id, provider, created_at)
+  WHERE processing_status = 'pending';
+
+CREATE INDEX IF NOT EXISTS raw_events_failed_idx
+  ON public.raw_events (user_id, processing_attempts DESC, created_at DESC)
+  WHERE processing_status = 'failed';
+
+-- Add comments
+COMMENT ON COLUMN public.raw_events.processing_status IS 'Current processing state of the raw event';
+COMMENT ON COLUMN public.raw_events.processing_attempts IS 'Number of times processing has been attempted';
+COMMENT ON COLUMN public.raw_events.processing_error IS 'Error message from last failed processing attempt';
+COMMENT ON COLUMN public.raw_events.processed_at IS 'Timestamp when the event was successfully processed';
+
+
+
+===== supabase/sql/41_create_jobs_table.sql =====
+-- =========================
+-- 41_create_jobs_table.sql
+-- CREATE jobs TABLE
+-- Description: Creates a unified, generic table for managing all asynchronous background
+-- tasks. This table is designed to handle everything from data syncing and normalization
+-- to AI processing and report generation, replacing the need for specialized tables like
+-- sync_sessions and sync_audit.
+-- =========================
+
+-- Drop the old version if it exists to ensure a clean slate with the new structure.
+DROP TABLE IF EXISTS public.jobs CASCADE;
+
+-- Create the new jobs table
+CREATE TABLE public.jobs (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  payload JSONB,
+  result JSONB,
+  last_error TEXT,
+  attempts INT NOT NULL DEFAULT 0,
+  batch_id UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT jobs_pkey PRIMARY KEY (id),
+  CONSTRAINT jobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT jobs_status_check CHECK (status IN (
+    'queued',   -- Waiting to be picked up by a worker.
+    'running',  -- Actively being processed.
+    'completed',-- Successfully finished.
+    'failed',   -- Failed after exhausting retries.
+    'archived'  -- Old job, kept for logging but not active.
+  ))
 );
 
-
-
-===== src/server/db/business-schemas/storage.ts =====
-/**
- * Storage Schemas
- *
- * Input/output validation for storage endpoints:
- * - File upload URL generation
- * - File access URL generation
- */
-
-import { z } from "zod";
-
-// ============================================================================
-// UPLOAD URL SCHEMAS
-// ============================================================================
-
-/**
- * Upload URL Request Schema
- */
-export const UploadUrlRequestSchema = z.object({
-  fileName: z.string().min(1),
-  contentType: z.string().min(1),
-  folderPath: z.string().optional(),
-  bucket: z.string().default("contacts"),
-});
-
-/**
- * Upload URL Response Schema
- */
-export const UploadUrlResponseSchema = z.object({
-  signedUrl: z.string().nullable(),
-  path: z.string(),
-  error: z.string().optional(),
-  details: z.string().optional(),
-});
-
-// ============================================================================
-// FILE URL SCHEMAS
-// ============================================================================
-
-/**
- * File URL Query Schema
- */
-export const FileUrlQuerySchema = z.object({
-  filePath: z.string().min(1),
-});
-
-/**
- * File URL Response Schema
- */
-export const FileUrlResponseSchema = z.object({
-  signedUrl: z.string().nullable(),
-  error: z.string().optional(),
-});
-
-// ============================================================================
-// BATCH FILE URL SCHEMAS
-// ============================================================================
-
-/**
- * Batch File URL Request Schema
- * Generates signed URLs for multiple files in one request
- */
-export const BatchFileUrlRequestSchema = z.object({
-  filePaths: z.array(z.string().min(1)).max(100), // Limit to 100 files per batch
-  expiresIn: z.number().default(14400), // Default 4 hours (in seconds)
-});
-
-/**
- * Batch File URL Response Schema
- */
-export const BatchFileUrlResponseSchema = z.object({
-  urls: z.record(z.string(), z.string().nullable()), // Map of filePath -> signedUrl
-  errors: z.record(z.string(), z.string()).optional(), // Map of filePath -> error message
-});
-
-// ============================================================================
-// TYPE EXPORTS
-// ============================================================================
-
-export type UploadUrlRequest = z.infer<typeof UploadUrlRequestSchema>;
-export type UploadUrlResponse = z.infer<typeof UploadUrlResponseSchema>;
-export type FileUrlQuery = z.infer<typeof FileUrlQuerySchema>;
-export type FileUrlResponse = z.infer<typeof FileUrlResponseSchema>;
-export type BatchFileUrlRequest = z.infer<typeof BatchFileUrlRequestSchema>;
-export type BatchFileUrlResponse = z.infer<typeof BatchFileUrlResponseSchema>;
-
-
-
-===== src/server/db/business-schemas/onboarding.ts =====
-// ===== src/server/db/business-schemas/onboarding.ts =====
-/**
- * Onboarding Business Schemas
- * Separated into three logical groups:
- * 1. Admin Token Management
- * 2. Public Form Submission
- * 3. Photo Upload
- */
-
-import { z } from "zod";
-
-// ============================================================================
-// ADMIN - TOKEN MANAGEMENT
-// ============================================================================
-
-export const GenerateTokenRequestSchema = z.object({
-  hoursValid: z.number().int().min(1).max(168).default(72),
-  label: z.string().min(1).max(100).optional(),
-});
-
-export const GenerateTokenResponseSchema = z.object({
-  success: z.boolean(),
-  token: z.string(),
-  expiresAt: z.string(),
-  label: z.string().optional(),
-  publicUrl: z.string(),
-  message: z.string(),
-});
-
-export const TokenInfoSchema = z.object({
-  id: z.string(),
-  token: z.string(),
-  label: z.string().optional(),
-  expiresAt: z.string(),
-  createdAt: z.string(),
-  isActive: z.boolean(),
-  usageCount: z.number(),
-});
-
-export const ListTokensQuerySchema = z.object({
-  limit: z.string().optional(),
-  offset: z.string().optional(),
-});
-
-export const ListTokensResponseSchema = z.object({
-  tokens: z.array(TokenInfoSchema),
-});
-
-export const TokenIdParamsSchema = z.object({
-  tokenId: z.string().uuid(),
-});
-
-export const DeleteTokenResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
-});
-
-// ============================================================================
-// PUBLIC - FORM SUBMISSION
-// ============================================================================
-
-export const OnboardingSubmitRequestSchema = z.object({
-  token: z.string().min(1),
-  client: z
-    .object({
-      display_name: z.string().min(1),
-      primary_email: z.string().email(),
-      primary_phone: z.string().nullish(),
-      date_of_birth: z.string().nullish(),
-      emergency_contact_name: z.string().nullish(),
-      emergency_contact_phone: z.string().nullish(),
-      referral_source: z.string().nullish(),
-      address: z
-        .object({
-          line1: z.string().nullish(),
-          line2: z.string().nullish(),
-          city: z.string().nullish(),
-          state: z.string().nullish(),
-          postalCode: z.string().nullish(),
-          country: z.string().nullish(),
-        })
-        .passthrough()
-        .nullish(),
-      health_context: z
-        .object({
-          conditions: z.array(z.string()).nullish(),
-          allergies: z.array(z.string()).nullish(),
-          fitnessLevel: z.string().nullish(),
-          stressLevel: z.string().nullish(),
-          medications: z.array(z.string()).nullish(),
-          notes: z.string().nullish(),
-        })
-        .passthrough()
-        .nullish(),
-      preferences: z
-        .object({
-          sessionTimes: z.array(z.string()).nullish(),
-          communicationPreference: z.enum(["email", "phone", "text"]).nullish(),
-          reminderFrequency: z.enum(["none", "daily", "weekly", "monthly"]).nullish(),
-          notes: z.string().nullish(),
-        })
-        .passthrough()
-        .nullish(),
-    })
-    .passthrough(),
-  consent: z
-    .object({
-      consent_type: z
-        .enum(["data_processing", "marketing", "hipaa", "photography"])
-        .default("data_processing"),
-      consent_text_version: z.string().default("v1.0"),
-      granted: z.boolean().default(true),
-      signature_svg: z.string().nullish(),
-      signature_image_url: z.string().nullish(),
-    })
-    .passthrough(),
-  photo_path: z.string().nullish(),
-  photo_size: z.number().int().positive().nullish(),
-});
-
-export const OnboardingSubmitResponseSchema = z.object({
-  success: z.boolean(),
-  data: z.object({
-    contactId: z.string(),
-    message: z.string(),
-  }),
-});
-
-export const TrackAccessRequestSchema = z.object({
-  token: z.string().min(1),
-  action: z.enum(["page_view", "form_start", "form_submit"]).optional(),
-});
-
-export const TrackAccessResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
-});
-
-// ============================================================================
-// PUBLIC - PHOTO UPLOAD
-// ============================================================================
-
-// Note: FormData parsing happens in route, this validates the parsed data
-export const PhotoUploadRequestSchema = z.object({
-  token: z.string().min(1),
-  file: z.any(), // File object from FormData
-});
-
-export const PhotoUploadResponseSchema = z.object({
-  success: z.boolean(),
-  filePath: z.string(),
-  fileSize: z.number(),
-  originalSize: z.number(),
-  message: z.string(),
-});
-
-// ============================================================================
-// TYPE EXPORTS
-// ============================================================================
-
-export type GenerateTokenRequest = z.infer<typeof GenerateTokenRequestSchema>;
-export type GenerateTokenResponse = z.infer<typeof GenerateTokenResponseSchema>;
-export type OnboardingSubmitRequest = z.infer<typeof OnboardingSubmitRequestSchema>;
-export type OnboardingSubmitResponse = z.infer<typeof OnboardingSubmitResponseSchema>;
-export type PhotoUploadResponse = z.infer<typeof PhotoUploadResponseSchema>;
-
-
-
-===== src/server/services/onboarding.service.ts =====
-// ===== src/server/services/onboarding.service.ts =====
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
-import { optimizePhoto, validatePhotoFile } from "@/lib/utils/photo-optimization";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/database.types";
-import { randomUUID } from "crypto";
-
-import { OnboardingRepository, type ClientData, type ConsentData } from "@repo";
-import { AppError } from "@/lib/errors/app-error";
-
-const ratelimit = new Ratelimit({
-  redis: Redis.fromEnv(),
-  limiter: Ratelimit.slidingWindow(5, "1 m"),
-});
-
-interface ClientIpData {
-  ip: string;
-  userAgent: string;
-}
-
-export class OnboardingService {
-  /**
-   * Check rate limit
-   */
-  static async checkRateLimit(clientId: string): Promise<boolean> {
-    try {
-      const { success } = await ratelimit.limit(clientId);
-      return success;
-    } catch (error) {
-      console.warn("Rate limit check failed:", error);
-      return true; // Allow on error
-    }
-  }
-
-  /**
-   * Extract client IP from headers
-   */
-  static extractClientIpData(headers: {
-    "x-forwarded-for"?: string | null;
-    "x-real-ip"?: string | null;
-    "user-agent"?: string | null;
-  }): ClientIpData {
-    let ip = "127.0.0.1"; // Default fallback
-
-    const forwardedFor = headers["x-forwarded-for"];
-    const realIp = headers["x-real-ip"];
-
-    if (forwardedFor) {
-      const ips = forwardedFor
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      if (ips[0]) ip = ips[0];
-    } else if (realIp) {
-      ip = realIp.trim();
-    }
-
-    // Clean IP
-    ip = ip.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
-    if (!ip || ip === ":") ip = "127.0.0.1";
-
-    return {
-      ip,
-      userAgent: headers["user-agent"] || "unknown",
-    };
-  }
-
-  /**
-   * Process onboarding submission
-   */
-  static async processSubmission(
-    submissionData: {
-      token: string;
-      client: ClientData;
-      consent: {
-        consent_type: "data_processing" | "marketing" | "hipaa" | "photography";
-        consent_text_version: string;
-        granted: boolean;
-        signature_svg?: string;
-        signature_image_url?: string;
-      };
-      photo_path?: string;
-      photo_size?: number;
-    },
-    clientIpData: ClientIpData,
-  ): Promise<{ contactId: string; message: string }> {
-    // Validate token and get userId
-    const tokenResult = await OnboardingRepository.validateToken(submissionData.token);
-    if (!tokenResult.success) {
-      throw new AppError("Failed to validate token", "VALIDATION_ERROR", "database", false);
-    }
-
-    if (!tokenResult.data.isValid || !tokenResult.data.token) {
-      throw new AppError(
-        tokenResult.data.error || "Invalid token",
-        "INVALID_TOKEN",
-        "validation",
-        false,
-      );
-    }
-
-    const userId = tokenResult.data.token.userId;
-
-    // Prepare consent with IP tracking
-    const consentData: ConsentData = {
-      ...submissionData.consent,
-      ip_address: clientIpData.ip,
-      user_agent: clientIpData.userAgent,
-    };
-
-    // Submit to database
-    const result = await OnboardingRepository.createContactWithConsent(
-      userId,
-      submissionData.token,
-      submissionData.client,
-      consentData,
-      submissionData.photo_path,
-      submissionData.photo_size,
-    );
-
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
-    }
-
-    return {
-      contactId: result.data,
-      message: "Onboarding completed successfully",
-    };
-  }
-
-  /**
-   * Track token access (best-effort, doesn't fail)
-   */
-  static async trackAccess(_token: string, _clientIpData: ClientIpData): Promise<void> {
-    // This could call analytics service, log to DB, etc.
-    // For now, it's a no-op placeholder
-    return;
-  }
-}
-
-//=============================================================================
-// ONBOARDING PHOTO SERVICE
-//=============================================================================
-
-const MAX_FILE_SIZE = 512 * 1024;
-
-function getRequiredEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) throw new AppError(`Missing env: ${key}`, "CONFIG_ERROR", "system", false);
-  return value;
-}
-
-export class OnboardingPhotoService {
-  /**
-   * Process photo upload for onboarding
-   */
-  static async processPhotoUpload(data: { token: string; file: File }): Promise<{
-    success: boolean;
-    filePath: string;
-    fileSize: number;
-    originalSize: number;
-    message: string;
-  }> {
-    // 1. Validate token
-    const tokenResult = await OnboardingRepository.validateToken(data.token);
-    if (!tokenResult.success) {
-      throw new AppError(tokenResult.error.message, "INVALID_TOKEN", "validation", false);
-    }
-
-    const validation = tokenResult.data;
-    if (!validation.isValid || !validation.token?.userId) {
-      throw new AppError(validation.error || "Invalid token", "INVALID_TOKEN", "validation", false);
-    }
-
-    const userId = validation.token.userId;
-
-    // 2. Validate file
-    const fileValidation = validatePhotoFile(data.file);
-    if (!fileValidation.valid) {
-      throw new AppError(fileValidation.error!, "INVALID_FILE", "validation", false);
-    }
-
-    if (data.file.size > MAX_FILE_SIZE) {
-      throw new AppError(
-        `File size exceeds ${MAX_FILE_SIZE / 1024}KB limit`,
-        "FILE_TOO_LARGE",
-        "validation",
-        false,
-      );
-    }
-
-    // 3. Optimize photo
-    const arrayBuffer = await data.file.arrayBuffer();
-    const optimizedBuffer = await optimizePhoto(arrayBuffer);
-
-    // 4. Generate file path
-    const fileId = randomUUID();
-    const timestamp = Date.now();
-    const filePath = `${userId}/${timestamp}-${fileId}.webp`;
-
-    // 5. Upload to storage
-    const supabase = createClient<Database>(
-      getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-      getRequiredEnv("SUPABASE_SECRET_KEY"),
-    );
-
-    const { error: uploadError } = await supabase.storage
-      .from("client-photos")
-      .upload(filePath, optimizedBuffer, {
-        contentType: "image/webp",
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      throw new AppError("Failed to upload photo", "STORAGE_ERROR", "network", true);
-    }
-
-    return {
-      success: true,
-      filePath: `client-photos/${filePath}`,
-      fileSize: optimizedBuffer.length,
-      originalSize: arrayBuffer.byteLength,
-      message: "Photo uploaded successfully",
-    };
-  }
-}
-
-//=============================================================================
-// ONBOARDING TOKEN SERVICE
-//=============================================================================
-
-export interface TokenListOptions {
-  limit: number;
-  offset: number;
-}
-
-export class OnboardingTokenService {
-  /**
-   * Generate new onboarding token
-   */
-  static async generateToken(
-    userId: string,
-    hoursValid: number,
-    label?: string,
-  ): Promise<{
-    success: boolean;
-    token: string;
-    expiresAt: string;
-    label?: string;
-    publicUrl: string;
-    message: string;
-  }> {
-    // Calculate expiry
-    const expiresAt = new Date(Date.now() + hoursValid * 3600 * 1000);
-
-    // Create token
-    const result = await OnboardingRepository.createToken(userId, expiresAt, label);
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
-    }
-
-    const token = result.data;
-    const baseUrl = process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000";
-    const publicUrl = `${baseUrl}/onboard/${token.token}`;
-
-    return {
-      success: true,
-      token: token.token,
-      expiresAt: token.expiresAt.toISOString(),
-      ...(token.label && { label: token.label }),
-      publicUrl,
-      message: "Token created successfully",
-    };
-  }
-
-  /**
-   * List user's tokens with pagination
-   */
-  static async listTokens(
-    userId: string,
-    options: TokenListOptions,
-  ): Promise<
-    Array<{
-      id: string;
-      token: string;
-      label?: string;
-      expiresAt: string;
-      createdAt: string;
-      isActive: boolean;
-      usageCount: number;
-    }>
-  > {
-    const result = await OnboardingRepository.listTokens(userId, options.limit, options.offset);
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
-    }
-
-    const now = new Date().toISOString();
-    return result.data.map((token) => ({
-      id: token.id,
-      token: token.token,
-      ...(token.label && { label: token.label }),
-      expiresAt: token.expiresAt.toISOString(),
-      createdAt: token.createdAt.toISOString(),
-      isActive:
-        !token.disabled && token.expiresAt.toISOString() > now && token.usedCount < token.maxUses,
-      usageCount: token.usedCount,
-    }));
-  }
-
-  /**
-   * Get single token by ID
-   */
-  static async getTokenById(
-    userId: string,
-    tokenId: string,
-  ): Promise<{
-    id: string;
-    token: string;
-    label?: string;
-    expiresAt: string;
-    createdAt: string;
-    isActive: boolean;
-    usageCount: number;
-  }> {
-    const result = await OnboardingRepository.getTokenById(userId, tokenId);
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
-    }
-
-    if (!result.data) {
-      throw new AppError("Token not found", "TOKEN_NOT_FOUND", "validation", false);
-    }
-
-    const token = result.data;
-    const now = new Date().toISOString();
-
-    return {
-      id: token.id,
-      token: token.token,
-      ...(token.label && { label: token.label }),
-      expiresAt: token.expiresAt.toISOString(),
-      createdAt: token.createdAt.toISOString(),
-      isActive:
-        !token.disabled && token.expiresAt.toISOString() > now && token.usedCount < token.maxUses,
-      usageCount: token.usedCount,
-    };
-  }
-
-  /**
-   * Delete token
-   */
-  static async deleteToken(
-    userId: string,
-    tokenId: string,
-  ): Promise<{ success: boolean; message: string }> {
-    const result = await OnboardingRepository.deleteToken(userId, tokenId);
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
-    }
-
-    if (!result.data) {
-      throw new AppError("Token not found", "TOKEN_NOT_FOUND", "validation", false);
-    }
-
-    return { success: true, message: "Token deleted successfully" };
-  }
-
-  /**
-   * Validate list options
-   */
-  static validateListOptions(limit?: string, offset?: string): TokenListOptions {
-    return {
-      limit: Math.min(Math.max(parseInt(limit ?? "20", 10) || 20, 1), 100),
-      offset: Math.max(parseInt(offset ?? "0", 10) || 0, 0),
-    };
-  }
-}
-
-
-
-===== src/server/services/signed-upload.service.ts =====
-import { z } from "zod";
-import { randomUUID } from "crypto";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/database.types";
-import {
-  isValidImageType,
-  isValidFileSize,
-  getOptimizedExtension,
-} from "@/lib/utils/photo-validation";
-
-// Validation schema for upload request
-const UploadRequestSchema = z.object({
-  token: z.string().min(1, "Token is required"),
-  fileName: z.string().min(1, "File name is required"),
-  fileSize: z.number().int().min(1, "File size must be greater than 0 bytes"),
-  contentType: z.string().min(1, "Content type is required"),
-});
-
-type UploadRequestData = z.infer<typeof UploadRequestSchema>;
-
-interface TokenValidationResult {
-  isValid: boolean;
-  userId: string | null;
-  error: string | null;
-}
-
-interface SignedUploadResult {
-  uploadUrl: string;
-  filePath: string;
-  token: string;
-}
-
-// Environment variable validation helper
-function getRequiredEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Required environment variable ${key} is not set`);
-  }
-  return value;
-}
-
-export class SignedUploadService {
-  /**
-   * Validate upload request data
-   */
-  static validateUploadRequest(body: unknown): UploadRequestData {
-    return UploadRequestSchema.parse(body);
-  }
-
-  /**
-   * Validate file type and size
-   */
-  static validateFileUpload(mimeType: string, fileSize: number): void {
-    if (!isValidImageType(mimeType)) {
-      throw new Error("Invalid image type. Supported types: JPEG, PNG, WebP, GIF");
-    }
-
-    if (!isValidFileSize(fileSize)) {
-      throw new Error("File size exceeds 512KB limit");
-    }
-  }
-
-  /**
-   * Validate onboarding token and return user information
-   */
-  static async validateOnboardingToken(token: string): Promise<TokenValidationResult> {
-    const supabase = createClient<Database>(
-      getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-      getRequiredEnv("SUPABASE_SECRET_KEY"),
-    );
-
-    const now = new Date().toISOString();
-
-    // Check if the token exists
-    const { data: tokenExists, error: existsError } = await supabase
-      .from("onboarding_tokens")
-      .select("user_id, disabled, expires_at, used_count, max_uses, created_at")
-      .eq("token", token)
-      .single();
-
-    if (existsError || !tokenExists) {
-      return {
-        isValid: false,
-        userId: null,
-        error: "Token not found",
-      };
-    }
-
-    // Check individual validation conditions
-    if (tokenExists.disabled) {
-      return {
-        isValid: false,
-        userId: null,
-        error: "Token is disabled",
-      };
-    }
-
-    if (tokenExists.expires_at <= now) {
-      return {
-        isValid: false,
-        userId: null,
-        error: "Token has expired",
-      };
-    }
-
-    if (tokenExists.used_count >= tokenExists.max_uses) {
-      return {
-        isValid: false,
-        userId: null,
-        error: "Token usage limit exceeded",
-      };
-    }
-
-    return {
-      isValid: true,
-      userId: tokenExists.user_id,
-      error: null,
-    };
-  }
-
-  /**
-   * Generate file path for storage
-   */
-  static generateFilePath(userId: string): string {
-    const fileId = randomUUID();
-    const timestamp = Date.now();
-    const extension = getOptimizedExtension();
-    return `client-photos/${userId}/${timestamp}-${fileId}.${extension}`;
-  }
-
-  /**
-   * Create signed upload URL using Supabase Storage
-   */
-  static async createSignedUploadUrl(filePath: string): Promise<SignedUploadResult> {
-    const supabase = createClient<Database>(
-      getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-      getRequiredEnv("SUPABASE_SECRET_KEY"),
-    );
-
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("client-photos")
-      .createSignedUploadUrl(filePath);
-
-    if (uploadError) {
-      console.error("Storage upload URL error:", uploadError);
-      throw new Error("Failed to generate upload URL");
-    }
-
-    return {
-      uploadUrl: uploadData.signedUrl,
-      filePath,
-      token: uploadData.token,
-    };
-  }
-
-  /**
-   * Process signed upload request - main service method
-   */
-  static async processSignedUpload(uploadData: UploadRequestData): Promise<SignedUploadResult> {
-    const { token, contentType, fileSize } = uploadData;
-
-    // Validate file type and size
-    this.validateFileUpload(contentType, fileSize);
-
-    // Validate token and get user information
-    const tokenValidation = await this.validateOnboardingToken(token);
-
-    if (!tokenValidation.isValid || !tokenValidation.userId) {
-      throw new Error(tokenValidation.error || "Invalid token");
-    }
-
-    // Generate file path
-    const filePath = this.generateFilePath(tokenValidation.userId);
-
-    // Create signed upload URL
-    const uploadResult = await this.createSignedUploadUrl(filePath);
-
-    return uploadResult;
-  }
-}
-
-
-
-===== src/server/services/storage.service.ts =====
-/**
- * Storage Service
- *
- * Handles all Supabase storage operations including signed URL generation
- * for file downloads and uploads. Centralizes storage bucket interactions
- * and provides consistent error handling.
- *
- * Features:
- * - Single file signed URL generation
- * - Batch signed URL generation (optimized for table views)
- * - Photo access audit logging (HIPAA/GDPR compliance)
- */
-
-import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
-import { getDb } from "@/server/db/client";
-import { photoAccessAudit } from "@/server/db/schema";
-
-export interface SignedUrlResult {
-  signedUrl: string | null;
-  error?: string;
-}
-
-export interface UploadUrlResult {
-  signedUrl: string | null;
-  path: string;
-  error?: string;
-}
-
-export interface BatchSignedUrlResult {
-  urls: Record<string, string | null>;
-  errors?: Record<string, string>;
-}
-
-export interface PhotoAccessAuditParams {
-  userId: string;
-  contactId: string;
-  photoPath: string;
-  ipAddress?: string;
-  userAgent?: string;
-}
-
-export class StorageService {
-  /**
-   * Get signed URL for downloading a file from storage
-   */
-  static async getFileSignedUrl(filePath: string): Promise<SignedUrlResult> {
-    try {
-      // If already an absolute URL (e.g., public or already signed), just echo it back
-      if (/^https?:\/\//i.test(filePath)) {
-        return { signedUrl: filePath };
-      }
-
-      // Expected format: bucket/path/to/file.ext
-      const normalized = filePath.replace(/^\/+/, "");
-      const [bucket, ...rest] = normalized.split("/");
-      const pathInBucket = rest.join("/");
-
-      console.log("[StorageService] Creating signed URL:", {
-        originalPath: filePath,
-        normalized,
-        bucket,
-        pathInBucket,
-        hasAdmin: !!supabaseServerAdmin,
-        hasPublishable: !!supabaseServerPublishable,
-      });
-
-      if (!bucket || !pathInBucket) {
-        return {
-          signedUrl: null,
-          error: "filePath must be of the form 'bucket/path/to/file'",
-        };
-      }
-
-      const client = supabaseServerAdmin ?? supabaseServerPublishable;
-      if (!client) {
-        return {
-          signedUrl: null,
-          error: "Supabase client unavailable on server",
-        };
-      }
-
-      console.log("[StorageService] Using client:", supabaseServerAdmin ? "ADMIN" : "PUBLISHABLE");
-
-      const { data, error } = await client.storage.from(bucket).createSignedUrl(pathInBucket, 3600);
-
-      if (error) {
-        console.error("[StorageService] Supabase Storage API error:", {
-          errorObject: error,
-          errorName: error.name,
-          errorMessage: error.message,
-          errorStatus: error.status,
-          errorStatusCode: error.statusCode,
-          bucket,
-          pathInBucket,
-          fullError: JSON.stringify(error, null, 2),
-        });
-        return {
-          signedUrl: null,
-          error: `failed_to_create_signed_url: ${error.message || error.name || "unknown"}`,
-        };
-      }
-
-      console.log("[StorageService] Successfully created signed URL");
-      return { signedUrl: data?.signedUrl ?? null };
-    } catch (error) {
-      console.error("[StorageService] Unexpected error creating signed URL:", error);
-      return {
-        signedUrl: null,
-        error: "unexpected_error",
-      };
-    }
-  }
-
-  /**
-   * Get signed URL for uploading a file to storage
-   */
-  static async getUploadSignedUrl(
-    fileName: string,
-    _contentType: string,
-    folderPath?: string,
-    bucket = "contacts",
-  ): Promise<UploadUrlResult> {
-    try {
-      const path = folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName;
-
-      const client = supabaseServerAdmin ?? supabaseServerPublishable;
-      if (!client) {
-        return {
-          signedUrl: null,
-          path,
-          error: "Supabase server client not available",
-        };
-      }
-
-      const { data, error } = await client.storage.from(bucket).createSignedUploadUrl(path);
-
-      if (error) {
-        return {
-          signedUrl: null,
-          path,
-          error: "Failed to create signed upload URL",
-        };
-      }
-
-      return {
-        signedUrl: data?.signedUrl ?? null,
-        path,
-      };
-    } catch (error: unknown) {
-      console.error("Error creating signed upload URL:", error);
-      return {
-        signedUrl: null,
-        path: folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName,
-        error: "unexpected_error",
-      };
-    }
-  }
-
-  /**
-   * Batch generate signed URLs for multiple files
-   * Optimized for table views where multiple photos need URLs at once
-   *
-   * @param filePaths - Array of file paths in format "bucket/path/to/file.ext"
-   * @param expiresIn - Expiration time in seconds (default: 14400 = 4 hours)
-   * @returns Map of filePath -> signedUrl
-   */
-  static async getBatchSignedUrls(
-    filePaths: string[],
-    expiresIn = 14400,
-  ): Promise<BatchSignedUrlResult> {
-    const urls: Record<string, string | null> = {};
-    const errors: Record<string, string> = {};
-
-    if (filePaths.length === 0) {
-      return { urls, errors };
-    }
-
-    try {
-      const client = supabaseServerAdmin ?? supabaseServerPublishable;
-      if (!client) {
-        filePaths.forEach((path) => {
-          urls[path] = null;
-          errors[path] = "Supabase client unavailable";
-        });
-        return { urls, errors };
-      }
-
-      // Group paths by bucket for efficient batch processing
-      const pathsByBucket = new Map<string, { original: string; inBucket: string }[]>();
-
-      for (const filePath of filePaths) {
-        // Skip already absolute URLs
-        if (/^https?:\/\//i.test(filePath)) {
-          urls[filePath] = filePath;
-          continue;
-        }
-
-        const normalized = filePath.replace(/^\/+/, "");
-        const [bucket, ...rest] = normalized.split("/");
-        const pathInBucket = rest.join("/");
-
-        if (!bucket || !pathInBucket) {
-          urls[filePath] = null;
-          errors[filePath] = "Invalid path format";
-          continue;
-        }
-
-        if (!pathsByBucket.has(bucket)) {
-          pathsByBucket.set(bucket, []);
-        }
-        pathsByBucket.get(bucket)?.push({ original: filePath, inBucket: pathInBucket });
-      }
-
-      // Process each bucket
-      for (const [bucket, paths] of pathsByBucket) {
-        try {
-          // Supabase supports batch signed URL creation
-          const { data, error } = await client.storage.from(bucket).createSignedUrls(
-            paths.map((p) => p.inBucket),
-            expiresIn,
-          );
-
-          if (error) {
-            paths.forEach(({ original }) => {
-              urls[original] = null;
-              errors[original] = error.message || "Failed to create signed URL";
-            });
-            continue;
-          }
-
-          if (data) {
-            data.forEach((result, index) => {
-              const original = paths[index]?.original;
-              if (original) {
-                if (result.error) {
-                  urls[original] = null;
-                  errors[original] = result.error;
-                } else {
-                  urls[original] = result.signedUrl;
-                }
-              }
-            });
-          }
-        } catch (bucketError) {
-          paths.forEach(({ original }) => {
-            urls[original] = null;
-            errors[original] = "Unexpected error processing bucket";
-          });
-          console.error(`[StorageService] Error processing bucket ${bucket}:`, bucketError);
-        }
-      }
-
-      return { urls, errors: Object.keys(errors).length > 0 ? errors : undefined };
-    } catch (error) {
-      console.error("[StorageService] Unexpected error in batch signed URLs:", error);
-      filePaths.forEach((path) => {
-        urls[path] = null;
-        errors[path] = "Unexpected error";
-      });
-      return { urls, errors };
-    }
-  }
-
-  /**
-   * Log photo access for HIPAA/GDPR compliance
-   * Called whenever a client photo URL is generated or accessed
-   */
-  static async logPhotoAccess(params: PhotoAccessAuditParams): Promise<void> {
-    try {
-      const db = await getDb();
-      await db.insert(photoAccessAudit).values({
-        id: crypto.randomUUID(),
-        userId: params.userId,
-        contactId: params.contactId,
-        photoPath: params.photoPath,
-        accessedAt: new Date(),
-        ipAddress: params.ipAddress ?? null,
-        userAgent: params.userAgent ?? null,
-      });
-    } catch (error) {
-      // Best-effort logging; don't fail the request if audit fails
-      console.error("[StorageService] Failed to log photo access:", error);
-    }
-  }
-
-  /**
-   * Batch log photo access for multiple contacts
-   * Used when generating batch signed URLs for table views
-   */
-  static async logBatchPhotoAccess(
-    userId: string,
-    contactPhotos: Array<{ contactId: string; photoPath: string }>,
-    ipAddress?: string,
-    userAgent?: string,
-  ): Promise<void> {
-    try {
-      const db = await getDb();
-      const auditRecords = contactPhotos.map(({ contactId, photoPath }) => ({
-        id: crypto.randomUUID(),
-        userId,
-        contactId,
-        photoPath,
-        accessedAt: new Date(),
-        ipAddress: ipAddress ?? null,
-        userAgent: userAgent ?? null,
-      }));
-
-      await db.insert(photoAccessAudit).values(auditRecords);
-    } catch (error) {
-      // Best-effort logging; don't fail the request if audit fails
-      console.error("[StorageService] Failed to batch log photo access:", error);
-    }
-  }
-}
-
-
-
-===== src/hooks/use-storage.ts =====
-import { useQuery, QueryKey } from "@tanstack/react-query";
-import { get, post, buildUrl } from "@/lib/api";
-
-export async function getFileUrl(filePath: string): Promise<GetFileUrlResponse> {
-  try {
-    const url = buildUrl("/api/storage/file-url", { filePath });
-    return await get<GetFileUrlResponse>(url);
-  } catch (error) {
-    return {
-      signedUrl: null,
-      error: error instanceof Error ? error.message : "Failed to get file URL",
-    };
-  }
-}
-
-export function useFileUrl(
-  filePath: string | null | undefined,
-  options?: { enabled?: boolean; staleTime?: number },
-): ReturnType<typeof useQuery<GetFileUrlResponse, Error, GetFileUrlResponse, QueryKey>> {
-  // Only enable query if filePath is a non-empty string AND enabled option is true
-  const enabled = Boolean(filePath && filePath.length > 0) && (options?.enabled ?? true);
-  const key: QueryKey = ["storage", "file-url", filePath ?? ""];
-  return useQuery({
-    queryKey: key,
-    queryFn: () => {
-      if (!filePath) {
-        return Promise.resolve({ signedUrl: null, error: "No file path provided" });
-      }
-      return getFileUrl(filePath);
-    },
-    enabled,
-    staleTime: options?.staleTime ?? 55 * 60 * 1000, // default 55 minutes
-  });
-}
-
-export async function getUploadUrl(args: GetUploadUrlArgs): Promise<GetUploadUrlResponse> {
-  try {
-    return await post<GetUploadUrlResponse>("/api/storage/upload-url", args);
-  } catch (error) {
-    return {
-      signedUrl: null,
-      path: args.folderPath ? `${args.folderPath}/${args.fileName}` : args.fileName,
-      error: error instanceof Error ? error.message : "Failed to get upload URL",
-    };
-  }
-}
-
-
-
-===== src/app/api/storage/file-url/route.ts =====
-import { handleGetWithQueryAuth } from "@/lib/api";
-import { StorageService } from "@/server/services/storage.service";
-import {
-  FileUrlQuerySchema,
-  FileUrlResponseSchema,
-} from "@/server/db/business-schemas";
-
-export const GET = handleGetWithQueryAuth(
-  FileUrlQuerySchema,
-  FileUrlResponseSchema,
-  async (query, _userId) => {
-    const { filePath } = query;
-
-    const result = await StorageService.getFileSignedUrl(filePath);
-
-    if (result.error) {
-      throw new Error(result.error);
-    }
-
-    return { signedUrl: result.signedUrl };
-  }
+-- Add comments to clarify the purpose of each column
+COMMENT ON COLUMN public.jobs.kind IS 'The type of job to be performed, e.g., ''sync.google.gmail'', ''normalize.interactions'', ''generate.ai.insight''.';
+COMMENT ON COLUMN public.jobs.status IS 'The current state of the job in its lifecycle.';
+COMMENT ON COLUMN public.jobs.payload IS 'The input data required for the job to run, e.g., { "raw_event_id": "uuid-goes-here" }.';
+COMMENT ON COLUMN public.jobs.result IS 'The output data from a successfully completed job.';
+COMMENT ON COLUMN public.jobs.last_error IS 'The error message from the last failed attempt.';
+COMMENT ON COLUMN public.jobs.attempts IS 'The number of times this job has been attempted.';
+COMMENT ON COLUMN public.jobs.batch_id IS 'An optional ID to group multiple jobs together as part of a single, larger operation.';
+
+-- Create indexes for efficient querying by workers and for monitoring.
+
+-- Index for workers to find queued jobs to process.
+CREATE INDEX IF NOT EXISTS jobs_find_queued_idx
+  ON public.jobs (status, created_at)
+  WHERE (status = 'queued');
+
+-- Index for querying jobs by user and status.
+CREATE INDEX IF NOT EXISTS jobs_user_status_idx
+  ON public.jobs (user_id, status, created_at DESC);
+
+-- Index for looking up jobs belonging to a specific batch.
+CREATE INDEX IF NOT EXISTS jobs_batch_id_idx
+  ON public.jobs (batch_id)
+  WHERE (batch_id IS NOT NULL);
+
+-- Index for general user-based lookups.
+CREATE INDEX IF NOT EXISTS jobs_user_id_idx
+  ON public.jobs (user_id);
+
+
+
+===== supabase/sql/42_consolidate_sync_and_error_tables.sql =====
+-- =========================
+-- 42_consolidate_sync_and_error_tables.sql
+-- CONSOLIDATE Sync, Preferences, and Error Tables
+-- Description: Merges sync preferences into user_integrations, and deprecates
+-- the sync_sessions, sync_audit, and raw_event_errors tables in favor of the
+-- new, more robust 'jobs' table.
+-- =========================
+
+-- Step 1: Add a 'config' column to user_integrations to hold all sync settings.
+-- This column will store sync preferences, last sync timestamps, etc.
+ALTER TABLE public.user_integrations
+  ADD COLUMN IF NOT EXISTS config JSONB DEFAULT '{}'::jsonb;
+
+-- Step 2: Migrate existing sync preferences into the new 'config' column.
+-- We will create a JSON object from the user_sync_prefs table and store it
+-- on the primary 'auth' integration record for that user.
+UPDATE public.user_integrations AS ui
+SET
+  config = jsonb_build_object(
+    'calendar_include_organizer_self', usp.calendar_include_organizer_self,
+    'calendar_include_private', usp.calendar_include_private,
+    'calendar_time_window_days', usp.calendar_time_window_days,
+    'drive_ingestion_mode', usp.drive_ingestion_mode,
+    'drive_folder_ids', usp.drive_folder_ids,
+    'gmail_time_range_days', usp.gmail_time_range_days,
+    'calendar_ids', usp.calendar_ids,
+    'calendar_future_days', usp.calendar_future_days,
+    'drive_max_size_mb', usp.drive_max_size_mb,
+    'initial_sync_completed', usp.initial_sync_completed,
+    'initial_sync_date', usp.initial_sync_date
+  )
+FROM public.user_sync_prefs AS usp
+WHERE
+  ui.user_id = usp.user_id
+  AND ui.provider = 'google'
+  AND ui.service = 'auth';
+
+-- Step 3: Drop the now-obsolete tables.
+-- Their functionality is now fully covered by user_integrations.config and the jobs table.
+DROP TABLE IF EXISTS public.user_sync_prefs CASCADE;
+DROP TABLE IF EXISTS public.sync_sessions CASCADE;
+DROP TABLE IF EXISTS public.sync_audit CASCADE;
+DROP TABLE IF EXISTS public.raw_event_errors CASCADE;
+
+-- Add comments to document the changes.
+COMMENT ON COLUMN public.user_integrations.config IS 'Stores all integration-specific configurations, including sync preferences, last sync timestamps, and other settings. Migrated from user_sync_prefs on 2025-10-07.';
+COMMENT ON TABLE public.jobs IS 'Single source of truth for all background processing, replacing sync_sessions and sync_audit. Errors are logged in the last_error and result columns.';
+
+
+
+===== supabase/sql/43_jobs_table_rls.sql =====
+-- =========================
+-- 43_jobs_table_rls.sql
+-- Apply Row Level Security (RLS) policies to jobs table
+-- Description: Ensures users can only access their own jobs.
+-- Pattern: Owner full CRUD (select, insert, update, delete)
+-- =========================
+
+-- Enable RLS on jobs table
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS jobs_select_own ON public.jobs;
+DROP POLICY IF EXISTS jobs_insert_own ON public.jobs;
+DROP POLICY IF EXISTS jobs_update_own ON public.jobs;
+DROP POLICY IF EXISTS jobs_delete_own ON public.jobs;
+
+-- Create RLS policies for authenticated users to access only their own jobs
+
+-- SELECT: Users can view their own jobs
+CREATE POLICY jobs_select_own ON public.jobs
+  FOR SELECT TO authenticated 
+  USING (user_id = auth.uid());
+
+-- INSERT: Users can create jobs for themselves
+CREATE POLICY jobs_insert_own ON public.jobs
+  FOR INSERT TO authenticated 
+  WITH CHECK (user_id = auth.uid());
+
+-- UPDATE: Users can update their own jobs
+CREATE POLICY jobs_update_own ON public.jobs
+  FOR UPDATE TO authenticated 
+  USING (user_id = auth.uid()) 
+  WITH CHECK (user_id = auth.uid());
+
+-- DELETE: Users can delete their own jobs
+CREATE POLICY jobs_delete_own ON public.jobs
+  FOR DELETE TO authenticated 
+  USING (user_id = auth.uid());
+
+-- Add comment to document RLS setup
+COMMENT ON TABLE public.jobs IS 'Single source of truth for all background processing. RLS enabled: users can only access their own jobs. Service role bypasses RLS for system operations.';
+
+
+
+===== supabase/sql/44_remove_contact_id_from_raw_events.sql =====
+-- =========================
+-- 44_remove_contact_id_from_raw_events.sql
+-- Remove contact_id column from raw_events table
+-- Description: Contact linking now happens in the interactions table, not raw_events.
+-- Raw events are the lossless ingestion layer; contact association is a normalized concern.
+-- =========================
+
+-- Drop the contact_id column from raw_events
+ALTER TABLE public.raw_events
+  DROP COLUMN IF EXISTS contact_id CASCADE;
+
+-- Update table comment to clarify purpose
+COMMENT ON TABLE public.raw_events IS 'Lossless ingestion layer for external events. Stores complete original data from providers (Gmail, Calendar, Drive) before normalization. Contact linking happens in the interactions table.';
+
+
+
+===== supabase/sql/45_add_provider_enum.sql =====
+-- =========================
+-- 45_add_provider_enum.sql
+-- Create provider enum and convert raw_events.provider to use it
+-- Description: Adds type safety for provider values (gmail, calendar, drive, upload)
+-- =========================
+
+-- Step 1: Create the provider enum type
+CREATE TYPE public.provider_type AS ENUM (
+  'gmail',
+  'calendar', 
+  'drive',
+  'upload'
 );
 
+-- Step 2: Add a temporary column with the enum type
+ALTER TABLE public.raw_events
+  ADD COLUMN provider_enum public.provider_type;
+
+-- Step 3: Migrate existing data to the new enum column
+UPDATE public.raw_events
+SET provider_enum = provider::public.provider_type;
+
+-- Step 4: Drop the old text column
+ALTER TABLE public.raw_events
+  DROP COLUMN provider;
+
+-- Step 5: Rename the enum column to 'provider'
+ALTER TABLE public.raw_events
+  RENAME COLUMN provider_enum TO provider;
+
+-- Step 6: Make the column NOT NULL
+ALTER TABLE public.raw_events
+  ALTER COLUMN provider SET NOT NULL;
+
+-- Add comment
+COMMENT ON COLUMN public.raw_events.provider IS 'The external service or integration that this raw event was imported from (gmail, calendar, drive, upload)';
 
 
-===== src/app/api/storage/upload-url/route.ts =====
-import { handleAuth } from "@/lib/api";
-import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
-import {
-  UploadUrlRequestSchema,
-  UploadUrlResponseSchema,
-} from "@/server/db/business-schemas";
 
-export const POST = handleAuth(
-  UploadUrlRequestSchema,
-  UploadUrlResponseSchema,
-  async (data, _userId) => {
-    const { fileName, folderPath, bucket } = data;
+===== supabase/sql/046_add_contact_extraction_status.sql =====
+-- Migration 46: ADD contact_extraction_status TO raw_events
+-- Description: Adds the contact_extraction_status column to enable the efficient, multi-stage
+-- contact identification workflow. This column tracks the processing state of each raw event
+-- through the contact extraction pipeline.
 
-    const path = folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName;
+-- Step 1: Add the contact_extraction_status column
+ALTER TABLE public.raw_events
+  ADD COLUMN IF NOT EXISTS contact_extraction_status TEXT;
 
-    const client = supabaseServerAdmin ?? supabaseServerPublishable;
-    if (!client) {
-      throw new Error("Supabase server client not available");
-    }
+-- Step 2: Add a CHECK constraint to ensure only valid status values are used.
+-- This enforces the state machine we designed.
+ALTER TABLE public.raw_events
+  ADD CONSTRAINT contact_extraction_status_check
+  CHECK (contact_extraction_status IN (
+    'NO_IDENTIFIERS',    -- Processed: No potential contact info found.
+    'IDENTIFIERS_FOUND', -- Processed: Has potential contact info, needs matching.
+    'PENDING',           -- Processed: Blocked on user approval for a new contact.
+    'YES',               -- Processed: Matched to an existing contact.
+    'REJECTED'           -- Processed: User rejected the suggested contact.
+  ));
 
-    const { data: uploadData, error } = await client.storage.from(bucket).createSignedUploadUrl(path);
+-- Step 3: Create a highly efficient partial index for the triage job.
+-- The job to find new, unprocessed events will be extremely fast using this index.
+CREATE INDEX IF NOT EXISTS raw_events_pending_extraction_idx
+  ON public.raw_events (user_id, created_at)
+  WHERE (contact_extraction_status IS NULL);
 
-    if (error) {
-      throw new Error("Failed to create signed upload URL");
-    }
+-- Step 4: Create an index for finding events that have identifiers but need matching
+CREATE INDEX IF NOT EXISTS raw_events_identifiers_found_idx
+  ON public.raw_events (user_id, created_at)
+  WHERE (contact_extraction_status = 'IDENTIFIERS_FOUND');
 
-    return {
-      signedUrl: uploadData?.signedUrl ?? null,
-      path
-    };
-  }
+-- Step 5: Create an index for finding events that are pending user approval
+CREATE INDEX IF NOT EXISTS raw_events_pending_approval_idx
+  ON public.raw_events (user_id, created_at)
+  WHERE (contact_extraction_status = 'PENDING');
+
+-- Step 6: Create an index for finding events that are ready for interaction creation
+CREATE INDEX IF NOT EXISTS raw_events_ready_for_interactions_idx
+  ON public.raw_events (user_id, created_at)
+  WHERE (contact_extraction_status = 'YES');
+
+-- Add a comment to document the new column and workflow
+COMMENT ON COLUMN public.raw_events.contact_extraction_status IS 'Tracks the contact extraction workflow state: NULL (unprocessed), NO_IDENTIFIERS (no contacts found), IDENTIFIERS_FOUND (has contacts, needs matching), PENDING (awaiting user approval), YES (matched to contact), REJECTED (user rejected). Added Oct 7, 2025.';
+
+
+
+===== supabase/sql/047_create_ignored_identifiers_table.sql =====
+-- Migration 47: CREATE ignored_identifiers TABLE
+-- Description: Creates a table to store identifiers that the user has explicitly
+-- marked as irrelevant. This prevents the system from repeatedly creating
+-- 'contact_approval' tasks for the same non-contact identifiers (e.g., no-reply@ emails).
+
+-- Drop the table if it exists to ensure a clean slate
+DROP TABLE IF EXISTS public.ignored_identifiers CASCADE;
+
+-- Create the ignored_identifiers table
+CREATE TABLE public.ignored_identifiers (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  kind TEXT NOT NULL, -- 'email', 'phone', 'handle', etc.
+  value TEXT NOT NULL, -- The actual identifier, e.g., 'no-reply@company.com'
+  reason TEXT, -- Optional: why this was ignored (e.g., 'marketing email', 'system notification')
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT ignored_identifiers_pkey PRIMARY KEY (id),
+  CONSTRAINT ignored_identifiers_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  -- Ensure each user can only ignore an identifier once
+  CONSTRAINT ignored_identifiers_user_kind_value_unique UNIQUE (user_id, kind, value),
+  
+  -- Ensure kind matches the same values as contact_identities for consistency
+  CONSTRAINT ignored_identifiers_kind_check CHECK (
+    kind = ANY (ARRAY[
+      'email'::text,
+      'phone'::text,
+      'handle'::text,
+      'provider_id'::text
+    ])
+  )
 );
 
+-- Create indexes for efficient querying
+-- Index for fast lookup during contact extraction process
+CREATE INDEX IF NOT EXISTS ignored_identifiers_user_kind_value_idx
+  ON public.ignored_identifiers (user_id, kind, value);
 
+-- Index for user management UI (show all ignored identifiers for a user)
+CREATE INDEX IF NOT EXISTS ignored_identifiers_user_created_idx
+  ON public.ignored_identifiers (user_id, created_at DESC);
 
-===== packages/repo/src/onboarding.repo.ts =====
-// ===== packages/repo/src/onboarding.repo.ts =====
-import { eq, and } from "drizzle-orm";
-import { onboardingTokens, contacts, clientConsents } from "@/server/db/schema";
-import { getDb } from "@/server/db/client";
-import { ok, err, dbError, DbResult } from "@/lib/utils/result";
-import { sql } from "drizzle-orm";
-
-export type OnboardingToken = typeof onboardingTokens.$inferSelect;
-export type CreateOnboardingToken = typeof onboardingTokens.$inferInsert;
-
-export interface ClientData {
-  display_name: string;
-  primary_email: string;
-  primary_phone?: string | null;
-  date_of_birth?: string | null;
-  emergency_contact_name?: string | null;
-  emergency_contact_phone?: string | null;
-  referral_source?: string | null;
-  address?: Record<string, unknown> | null;
-  health_context?: Record<string, unknown> | null;
-  preferences?: Record<string, unknown> | null;
-}
-
-export interface ConsentData {
-  consent_type: "data_processing" | "marketing" | "hipaa" | "photography";
-  consent_text_version: string;
-  granted: boolean;
-  signature_svg?: string;
-  signature_image_url?: string;
-  ip_address: string;
-  user_agent: string;
-}
-
-export interface TokenValidationResult {
-  isValid: boolean;
-  token?: OnboardingToken;
-  error?: string;
-}
-
-export class OnboardingRepository {
-  /**
-   * Create a new onboarding token
-   */
-  static async createToken(
-    userId: string,
-    expiresAt: Date,
-    label?: string,
-    maxUses: number = 1,
-  ): Promise<DbResult<OnboardingToken>> {
-    try {
-      const db = await getDb();
-      const token = crypto.randomUUID() + "-" + Date.now().toString(36);
-
-      const [createdToken] = await db
-        .insert(onboardingTokens)
-        .values({
-          userId,
-          token,
-          expiresAt,
-          maxUses,
-          label,
-          createdBy: userId,
-        })
-        .returning();
-
-      if (!createdToken) {
-        return dbError("DB_INSERT_FAILED", "Failed to create token");
-      }
-
-      return ok(createdToken);
-    } catch (error) {
-      return dbError(
-        "DB_QUERY_FAILED",
-        error instanceof Error ? error.message : "Failed to create token",
-        error,
-      );
-    }
-  }
-
-  /**
-   * List tokens for a user with pagination
-   */
-  static async listTokens(
-    userId: string,
-    limit: number,
-    offset: number,
-  ): Promise<DbResult<OnboardingToken[]>> {
-    try {
-      const db = await getDb();
-      const tokens = await db
-        .select()
-        .from(onboardingTokens)
-        .where(eq(onboardingTokens.userId, userId))
-        .orderBy(onboardingTokens.createdAt)
-        .limit(limit)
-        .offset(offset);
-
-      return ok(tokens);
-    } catch (error) {
-      return dbError("DB_QUERY_FAILED", "Failed to list tokens", error);
-    }
-  }
-
-  /**
-   * Get single token by ID
-   */
-  static async getTokenById(
-    userId: string,
-    tokenId: string,
-  ): Promise<DbResult<OnboardingToken | null>> {
-    try {
-      const db = await getDb();
-      const [token] = await db
-        .select()
-        .from(onboardingTokens)
-        .where(and(eq(onboardingTokens.id, tokenId), eq(onboardingTokens.userId, userId)))
-        .limit(1);
-
-      return ok(token ?? null);
-    } catch (error) {
-      return dbError("DB_QUERY_FAILED", "Failed to get token", error);
-    }
-  }
-
-  /**
-   * Delete token by ID
-   */
-  static async deleteToken(userId: string, tokenId: string): Promise<DbResult<boolean>> {
-    try {
-      const db = await getDb();
-      const result = await db
-        .delete(onboardingTokens)
-        .where(and(eq(onboardingTokens.id, tokenId), eq(onboardingTokens.userId, userId)))
-        .returning();
-
-      return ok(result.length > 0);
-    } catch (error) {
-      return dbError("DB_DELETE_FAILED", "Failed to delete token", error);
-    }
-  }
-
-  /**
-   * Validate token and check if it can be used
-   */
-  static async validateToken(tokenValue: string): Promise<DbResult<TokenValidationResult>> {
-    try {
-      const db = await getDb();
-      const now = new Date();
-
-      const [token] = await db
-        .select()
-        .from(onboardingTokens)
-        .where(eq(onboardingTokens.token, tokenValue));
-
-      if (!token) {
-        return ok({ isValid: false, error: "Token not found" });
-      }
-
-      if (token.disabled) {
-        return ok({ isValid: false, error: "Token is disabled" });
-      }
-
-      if (token.expiresAt < now) {
-        return ok({ isValid: false, error: "Token has expired" });
-      }
-
-      if (token.maxUses !== null && token.usedCount !== null && token.usedCount >= token.maxUses) {
-        return ok({ isValid: false, error: "Token usage limit exceeded" });
-      }
-
-      return ok({ isValid: true, token });
-    } catch (error) {
-      return dbError("DB_QUERY_FAILED", "Failed to validate token", error);
-    }
-  }
-
-  /**
-   * Create contact with consent and photo in transaction
-   */
-  static async createContactWithConsent(
-    userId: string,
-    tokenValue: string,
-    clientData: ClientData,
-    consentData: ConsentData,
-    photoPath?: string,
-    photoSize?: number,
-  ): Promise<DbResult<string>> {
-    try {
-      const db = await getDb();
-
-      // Validate token first
-      const tokenResult = await this.validateToken(tokenValue);
-      if (!tokenResult.success) {
-        return err(tokenResult.error);
-      }
-
-      const validation = tokenResult.data;
-      if (!validation.isValid) {
-        return err({
-          code: "INVALID_TOKEN",
-          message: validation.error || "Invalid token",
-        });
-      }
-
-      // Transaction: create contact → create file record → update contact → create consent → increment token
-      const contactId = await db.transaction(async (trx) => {
-        // 1. Create contact
-        const [contact] = await trx
-          .insert(contacts)
-          .values({
-            userId,
-            displayName: clientData.display_name,
-            primaryEmail: clientData.primary_email,
-            primaryPhone: clientData.primary_phone,
-            dateOfBirth: clientData.date_of_birth,
-            emergencyContactName: clientData.emergency_contact_name,
-            emergencyContactPhone: clientData.emergency_contact_phone,
-            referralSource: clientData.referral_source,
-            address: clientData.address,
-            healthContext: clientData.health_context,
-            preferences: clientData.preferences,
-            source: "onboarding",
-            photoUrl: null,
-          })
-          .returning();
-
-        if (!contact) throw new Error("Failed to create contact");
-
-        // 2. If photo, create file record and update contact
-        if (photoPath) {
-          const { clientFiles } = await import("@/server/db/schema");
-
-          await trx.insert(clientFiles).values({
-            contactId: contact.id,
-            userId,
-            filePath: photoPath,
-            mimeType: "image/webp",
-            fileSize: photoSize ?? null,
-            fileType: "photo",
-          });
-
-          await trx
-            .update(contacts)
-            .set({ photoUrl: photoPath })
-            .where(eq(contacts.id, contact.id));
-        }
-
-        // 3. Create consent
-        await trx.insert(clientConsents).values({
-          contactId: contact.id,
-          userId,
-          consentType: consentData.consent_type,
-          consentTextVersion: consentData.consent_text_version,
-          granted: consentData.granted,
-          signatureSvg: consentData.signature_svg || null,
-          signatureImageUrl: consentData.signature_image_url || null,
-          ipAddress: consentData.ip_address,
-          userAgent: consentData.user_agent,
-        });
-
-        // 4. Increment token usage
-        await trx
-          .update(onboardingTokens)
-          .set({ usedCount: sql`coalesce(${onboardingTokens.usedCount}, 0) + 1` })
-          .where(eq(onboardingTokens.token, tokenValue));
-
-        return contact.id;
-      });
-
-      return ok(contactId);
-    } catch (error) {
-      return dbError(
-        "DB_TRANSACTION_FAILED",
-        error instanceof Error ? error.message : "Transaction failed",
-        error,
-      );
-    }
-  }
-}
-
-
-
-===== src/app/api/onboarding/admin/generate-tokens/route.ts =====
-import { handleAuth } from "@/lib/api";
-import { OnboardingTokenService } from "@/server/services/onboarding-token.service";
-import {
-  GenerateTokenRequestSchema,
-  GenerateTokenResponseSchema,
-} from "@/server/db/business-schemas";
-
-export const POST = handleAuth(
-  GenerateTokenRequestSchema,
-  GenerateTokenResponseSchema,
-  async (data, userId) => {
-    // Generate onboarding token using service
-    const tokenResponse = await OnboardingTokenService.generateOnboardingToken(
-      userId,
-      data,
-    );
-
-    return tokenResponse;
-  }
-);
-
-
-
-===== src/app/api/onboarding/admin/tokens/[tokenId]/route.ts =====
-import { OnboardingTokenService } from "@/server/services/onboarding-token.service";
-import {
-  DeleteTokenRequestSchema,
-  DeleteTokenResponseSchema,
-  TokenIdParamsSchema,
-  TokenInfoSchema,
-} from "@/server/db/business-schemas";
-
-// Custom handler that supports URL params
-function handleAuthWithParams<TIn, TOut>(
-  input: import("zod").ZodType<TIn>,
-  output: import("zod").ZodType<TOut>,
-  fn: (parsed: TIn, userId: string, params: { tokenId: string }) => Promise<TOut>,
-) {
-  return async (req: Request, context: { params: Record<string, string> }) => {
-    try {
-      const { getServerUserId } = await import("@/server/auth/user");
-      const userId = await getServerUserId();
-
-      let body = {};
-      const contentType = req.headers.get("content-type");
-      const contentLength = req.headers.get("content-length");
-
-      // Only parse body if there's actual JSON content
-      if (
-        contentType?.includes("application/json") &&
-        contentLength &&
-        parseInt(contentLength) > 0
-      ) {
-        body = await req.json();
-      }
-
-      // Parse and validate URL params
-      const validatedParams = TokenIdParamsSchema.parse(context.params);
-
-      const parsed = input.parse(body);
-      const result = await fn(parsed, userId, validatedParams);
-      const validated = output.parse(result);
-
-      return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
-        status: 200,
-      });
-    } catch (error) {
-      if (error instanceof import("zod").ZodError) {
-        return new Response(
-          JSON.stringify({
-            error: "Validation failed",
-            details: error.issues,
-          }),
-          {
-            headers: { "content-type": "application/json" },
-            status: 400,
-          },
-        );
-      }
-
-      if (error instanceof Error && "status" in error && error.status === 401) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          headers: { "content-type": "application/json" },
-          status: 401,
-        });
-      }
-
-      throw error;
-    }
-  };
-}
-
-export const GET = handleAuthWithParams(
-  TokenIdParamsSchema,
-  TokenInfoSchema,
-  async (_data, userId, params) => {
-    const { tokenId } = params;
-
-    // Get single token using service
-    const token = await OnboardingTokenService.getTokenById(userId, tokenId);
-
-    return token;
-  },
-);
-
-export const DELETE = handleAuthWithParams(
-  DeleteTokenRequestSchema,
-  DeleteTokenResponseSchema,
-  async (_data, userId, params) => {
-    const { tokenId } = params;
-
-    // Delete token using service
-    const result = await OnboardingTokenService.deleteUserToken(userId, tokenId);
-
-    return {
-      message: result.message,
-    };
-  },
-);
-
-
-
-===== src/app/api/onboarding/public/upload-photo/route.ts =====
-import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/database.types";
-import { optimizePhoto, validatePhotoFile, getOptimizedExtension } from "@/lib/utils/photo-optimization";
-import { OnboardingRepository } from "@repo";
-
-const MAX_FILE_SIZE = 512 * 1024; // 512KB
-
-function getRequiredEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Required environment variable ${key} is not set`);
-  }
-  return value;
-}
-
-/**
- * POST /api/onboarding/public/upload-photo
- *
- * Handles photo upload for onboarding form:
- * 1. Validates onboarding token
- * 2. Receives raw image file (up to 512KB)
- * 3. Optimizes to WebP (~10KB target)
- * 4. Uploads to Supabase Storage
- * 5. Returns file path for database storage
- */
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    // Parse multipart form data
-    const formData = await request.formData();
-    const token = formData.get("token") as string;
-    const file = formData.get("file") as File;
-
-    if (!token || !file) {
-      return NextResponse.json(
-        { error: "Missing token or file" },
-        { status: 400 }
-      );
-    }
-
-    // Validate token using repository
-    console.log("[upload-photo] Validating token:", token.substring(0, 10) + "...");
-    const tokenResult = await OnboardingRepository.validateToken(token);
-
-    console.log("[upload-photo] Token validation result:", {
-      success: tokenResult.success,
-      hasData: !!tokenResult.data,
-      error: tokenResult.error,
-    });
-
-    if (!tokenResult.success) {
-      console.error("[upload-photo] Token validation failed:", tokenResult.error);
-      return NextResponse.json(
-        { error: tokenResult.error?.message || "Invalid token" },
-        { status: 400 }
-      );
-    }
-
-    const validation = tokenResult.data;
-    console.log("[upload-photo] Validation data:", {
-      isValid: validation?.isValid,
-      hasUserId: !!validation?.token?.userId,
-      error: validation?.error,
-    });
-
-    if (!validation?.isValid || !validation.token?.userId) {
-      console.error("[upload-photo] Token not valid or missing userId:", validation);
-      return NextResponse.json(
-        { error: validation?.error || "Invalid token" },
-        { status: 400 }
-      );
-    }
-
-    const userId = validation.token.userId;
-
-    // Validate file type and size
-    const fileValidation = validatePhotoFile(file);
-    if (!fileValidation.valid) {
-      return NextResponse.json(
-        { error: fileValidation.error },
-        { status: 400 }
-      );
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: `File size exceeds ${MAX_FILE_SIZE / 1024}KB limit` },
-        { status: 400 }
-      );
-    }
-
-    // Convert File to ArrayBuffer for Sharp
-    const arrayBuffer = await file.arrayBuffer();
-
-    // Optimize photo to WebP (~10KB)
-    const optimizedBuffer = await optimizePhoto(arrayBuffer);
-
-    // Generate file path
-    const fileId = randomUUID();
-    const timestamp = Date.now();
-    const extension = getOptimizedExtension(file.type);
-    const filePath = `${userId}/${timestamp}-${fileId}.${extension}`;
-
-    // Upload to Supabase Storage
-    const supabase = createClient<Database>(
-      getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-      getRequiredEnv("SUPABASE_SECRET_KEY")
-    );
-
-    const { error: uploadError } = await supabase.storage
-      .from("client-photos")
-      .upload(filePath, optimizedBuffer, {
-        contentType: "image/webp",
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-      return NextResponse.json(
-        { error: "Failed to upload photo to storage" },
-        { status: 500 }
-      );
-    }
-
-    // Return the file path and metadata (will be saved to contacts.photo_url)
-    // Note: We return the FULL path including bucket name (client-photos/userId/file.webp)
-    // This is what gets stored in contacts.photo_url in the database
-    // The StorageService expects this format: bucket/path/to/file
-    return NextResponse.json({
-      success: true,
-      filePath: `client-photos/${filePath}`,
-      fileSize: optimizedBuffer.length,
-      originalSize: arrayBuffer.byteLength,
-      message: "Photo uploaded and optimized successfully",
-    });
-
-  } catch (error) {
-    console.error("Photo upload error:", error);
-    const message = error instanceof Error ? error.message : "Upload failed";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
-  }
-}
-
-
-
-===== src/app/api/onboarding/admin/tokens/route.ts =====
-import { handleGetWithQueryAuth } from "@/lib/api";
-import { OnboardingTokenService } from "@/server/services/onboarding-token.service";
-import {
-  ListTokensQuerySchema,
-  ListTokensResponseSchema,
-} from "@/server/db/business-schemas";
-
-export const GET = handleGetWithQueryAuth(
-  ListTokensQuerySchema,
-  ListTokensResponseSchema,
-  async (query, userId) => {
-    // Validate pagination options using service
-    const listOptions = OnboardingTokenService.validateListOptions(
-      query.limit,
-      query.offset
-    );
-
-    // Fetch tokens using service
-    const result = await OnboardingTokenService.listUserTokens(userId, listOptions);
-
-    return {
-      tokens: result.tokens,
-    };
-  }
-);
-
-
-
-===== src/app/api/onboarding/public/submit/route.ts =====
-import { handlePublic } from "@/lib/api-edge-cases";
-import { OnboardingService } from "@/server/services/onboarding.service";
-import {
-  OnboardingSubmitRequestSchema,
-  OnboardingSubmitResponseSchema,
-} from "@/server/db/business-schemas";
-import { z } from "zod";
-
-export const POST = handlePublic(
-  OnboardingSubmitRequestSchema,
-  OnboardingSubmitResponseSchema,
-  async (data, request): Promise<z.infer<typeof OnboardingSubmitResponseSchema>> => {
-    // Debug: Log received data
-    console.log("=== ONBOARDING SUBMISSION ===");
-    console.log("Received data:", JSON.stringify(data, null, 2));
-    
-    // Rate limiting
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    const realIp = request.headers.get("x-real-ip");
-    const clientId = forwardedFor ?? realIp ?? "unknown";
-
-    const { success } = await OnboardingService.checkRateLimit(clientId);
-    if (!success) {
-      const error = new Error("Too many requests");
-      // Type-safe extension of Error object
-      Object.defineProperty(error, "status", {
-        value: 429,
-        writable: false,
-        enumerable: true,
-        configurable: false,
-      });
-      throw error;
-    }
-
-    // Extract client IP and user agent for consent tracking
-    const clientIpData = OnboardingService.extractClientIpData({
-      "x-forwarded-for": forwardedFor,
-      "x-real-ip": realIp,
-      "user-agent": request.headers.get("user-agent"),
-    });
-
-    // Process the onboarding submission using service
-    const result = await OnboardingService.processOnboardingSubmission(data, clientIpData);
-
-    // Handle Result type
-    if (!result.success) {
-      throw new Error(result.error);
-    }
-
-    return {
-      success: true,
-      data: {
-        submissionId: result.data.contactId,
-        status: "completed",
-        message: result.data.message,
-      },
-    };
-  },
-);
+-- Index for kind-based queries (e.g., show all ignored emails)
+CREATE INDEX IF NOT EXISTS ignored_identifiers_user_kind_idx
+  ON public.ignored_identifiers (user_id, kind);
+
+-- Add comments to document the table purpose
+COMMENT ON TABLE public.ignored_identifiers IS 'A blocklist of identifiers (emails, phones, handles) that the user has marked as not belonging to a contact. The contact extraction process checks this table to avoid creating repeated suggestions for irrelevant identifiers like no-reply emails, system notifications, etc. Created Oct 7, 2025.';
+
+COMMENT ON COLUMN public.ignored_identifiers.kind IS 'The type of identifier: email, phone, handle, or provider_id. Must match contact_identities.kind values for consistency.';
+
+COMMENT ON COLUMN public.ignored_identifiers.value IS 'The actual identifier value that should be ignored, e.g., no-reply@company.com or +1-800-SPAM-CALL.';
+
+COMMENT ON COLUMN public.ignored_identifiers.reason IS 'Optional human-readable reason why this identifier was ignored, for user reference and debugging.';
+
+
+
+===== supabase/sql/048_add_contact_identities_descriptions.sql =====
+-- Migration 48: ADD COLUMN DESCRIPTIONS to contact_identities
+-- Description: Adds comprehensive column descriptions to the contact_identities table
+-- to document the purpose and usage of each field following industry standards.
+
+-- Add descriptions to all columns in contact_identities table
+COMMENT ON TABLE public.contact_identities IS 'Maps contact identifiers (emails, phones, handles) to contact records. This table serves as the bridge between raw data sources and verified contacts, enabling efficient contact matching and deduplication across multiple communication channels.';
+
+COMMENT ON COLUMN public.contact_identities.id IS 'Primary key: Unique identifier for each contact identity record.';
+
+COMMENT ON COLUMN public.contact_identities.user_id IS 'Foreign key: References the user who owns this contact identity mapping.';
+
+COMMENT ON COLUMN public.contact_identities.contact_id IS 'Foreign key: References the contact record this identifier belongs to. Multiple identifiers can map to the same contact (e.g., work email, personal email, phone).';
+
+COMMENT ON COLUMN public.contact_identities.kind IS 'Type of identifier found: "email" (email address), "phone" (phone number), "handle" (social media username), "provider_id" (platform-specific identifier like Google contact ID).';
+
+COMMENT ON COLUMN public.contact_identities.value IS 'The actual identifier value: email address (e.g., john@example.com), phone number (e.g., +1234567890), social media handle (e.g., @johndoe), or provider-specific ID. Stored in plain text following industry standards with application-level security.';
+
+COMMENT ON COLUMN public.contact_identities.provider IS 'Source system where this identifier was discovered: "gmail" (Gmail emails), "google_calendar" (Calendar events), "manual" (user input), "upload" (document upload), "session_attendance" (attendance list), "drive" (Google Drive document), or NULL for manually entered identifiers.';
+
+COMMENT ON COLUMN public.contact_identities.created_at IS 'Timestamp when this identity mapping was first created in the system.';
+
+
+
+===== supabase/sql/49_simplify_interactions_table.sql =====
+-- =========================
+-- 49_simplify_interactions_table.sql
+-- SIMPLIFY interactions table - remove redundant columns
+-- Description: Interactions must be linked to contacts. All provider-specific data
+-- goes into sourceMeta JSONB. Raw events remain the lossless ingestion layer.
+-- =========================
+
+-- Step 1: Make contactId NOT NULL after cleaning up
+-- First, delete any interactions without contacts (they shouldn't exist)
+DELETE FROM public.interactions WHERE contact_id IS NULL;
+
+-- Make contactId required
+ALTER TABLE public.interactions 
+  ALTER COLUMN contact_id SET NOT NULL;
+
+-- Step 2: Drop redundant columns (calendar data stays in sourceMeta)
+ALTER TABLE public.interactions
+  DROP COLUMN IF EXISTS start_time,
+  DROP COLUMN IF EXISTS end_time,
+  DROP COLUMN IF EXISTS location,
+  DROP COLUMN IF EXISTS attendees,
+  DROP COLUMN IF EXISTS event_status,
+  DROP COLUMN IF EXISTS time_zone,
+  DROP COLUMN IF EXISTS is_all_day,
+  DROP COLUMN IF EXISTS visibility,
+  DROP COLUMN IF EXISTS event_category,
+  DROP COLUMN IF EXISTS keywords,
+  DROP COLUMN IF EXISTS google_updated,
+  DROP COLUMN IF EXISTS last_synced,
+  DROP COLUMN IF EXISTS body_raw;
+
+-- Step 3: Drop calendar_events backup table (no longer needed)
+DROP TABLE IF EXISTS public.calendar_events_backup_20251006;
+
+-- Step 4: Add constraint comment
+COMMENT ON COLUMN public.interactions.contact_id IS 
+  'Required: Interactions must be linked to a contact. Unlinked events stay in raw_events.';
+
+-- Step 5: Update table comment
+COMMENT ON TABLE public.interactions IS 
+  'Normalized interactions (emails, calendar events, calls, meetings) that are linked to contacts. All provider-specific data stored in sourceMeta JSONB. Raw events table holds lossless ingestion data.';
+
+
+
+===== supabase/sql/050_refactor_raw_events_and_interactions.sql =====
+-- =========================
+-- 050_refactor_raw_events_and_interactions.sql
+-- REFACTOR raw_events and interactions tables for contact extraction workflow
+-- Description: 
+-- 1. Add extracted_at timestamp to raw_events
+-- 2. Make interactions.source_id NOT NULL for deduplication
+-- 3. Drop redundant columns from interactions (metadata, priority, status, tags)
+-- 4. Enforce contact_id NOT NULL with CASCADE delete in interactions
+-- 5. Drop obsolete indexes from interactions
+-- =========================
+
+-- ============================================================================
+-- PART 1: raw_events - Add extracted_at timestamp
+-- ============================================================================
+
+-- Add extracted_at column to track when contact extraction was completed
+ALTER TABLE public.raw_events
+  ADD COLUMN IF NOT EXISTS extracted_at TIMESTAMPTZ;
+
+-- Add comment to document the column
+COMMENT ON COLUMN public.raw_events.extracted_at IS 
+  'Timestamp when contact extraction was completed for this event. Used for auditing and analytics. Added Oct 7, 2025.';
+
+-- Update the table comment to reflect the complete workflow
+COMMENT ON TABLE public.raw_events IS 
+  'Refactored on Oct 7, 2025. This table is the immutable, unfiltered source of all ingested data. contact_extraction_status tracks the contact identification workflow: NULL (unprocessed), NO_IDENTIFIERS (no contacts found), IDENTIFIERS_FOUND (has contacts, needs matching), PENDING (awaiting user approval), YES (matched to contact), REJECTED (user rejected). extracted_at tracks when processing completed.';
+
+-- ============================================================================
+-- PART 2: interactions - Make source_id NOT NULL (for deduplication)
+-- ============================================================================
+
+-- First, delete any interactions without source_id (shouldn't exist, but safety first)
+DELETE FROM public.interactions WHERE source_id IS NULL;
+
+-- Make source_id NOT NULL to enforce deduplication
+ALTER TABLE public.interactions
+  ALTER COLUMN source_id SET NOT NULL;
+
+-- Add comment to document the requirement
+COMMENT ON COLUMN public.interactions.source_id IS 
+  'Required: Unique identifier from the source system (e.g., Gmail message ID, Calendar event ID). Used for deduplication. NOT NULL enforced Oct 7, 2025.';
+
+-- ============================================================================
+-- PART 3: interactions - Drop redundant columns
+-- ============================================================================
+
+-- Drop columns that are no longer needed (metadata moved to source_meta)
+ALTER TABLE public.interactions
+  DROP COLUMN IF EXISTS metadata,
+  DROP COLUMN IF EXISTS priority,
+  DROP COLUMN IF EXISTS status,
+  DROP COLUMN IF EXISTS tags;
+
+-- ============================================================================
+-- PART 4: interactions - Enforce contact_id NOT NULL with CASCADE
+-- ============================================================================
+
+-- First, ensure no orphaned interactions exist
+DELETE FROM public.interactions WHERE contact_id IS NULL;
+
+-- Drop the existing foreign key constraint
+ALTER TABLE public.interactions 
+  DROP CONSTRAINT IF EXISTS interactions_contact_fk;
+
+ALTER TABLE public.interactions 
+  DROP CONSTRAINT IF EXISTS interactions_contact_id_fkey;
+
+-- Make contact_id NOT NULL
+ALTER TABLE public.interactions 
+  ALTER COLUMN contact_id SET NOT NULL;
+
+-- Re-add the foreign key constraint with ON DELETE CASCADE
+-- If a contact is deleted, all their interactions are deleted too
+ALTER TABLE public.interactions
+  ADD CONSTRAINT interactions_contact_id_fkey
+  FOREIGN KEY (contact_id) 
+  REFERENCES public.contacts(id) 
+  ON DELETE CASCADE;
+
+-- Update comment to document the requirement
+COMMENT ON COLUMN public.interactions.contact_id IS 
+  'Required: Interactions must be linked to a contact. Unlinked events stay in raw_events. ON DELETE CASCADE enforced Oct 7, 2025.';
+
+-- ============================================================================
+-- PART 5: interactions - Drop obsolete indexes
+-- ============================================================================
+
+-- Drop indexes that are no longer valid or needed
+DROP INDEX IF EXISTS public.interactions_body_raw_gin;
+DROP INDEX IF EXISTS public.interactions_user_start_time_idx;
+DROP INDEX IF EXISTS public.interactions_attendees_gin;
+DROP INDEX IF EXISTS public.interactions_user_unlinked_idx;
+
+-- ============================================================================
+-- PART 6: Update table comments
+-- ============================================================================
+
+-- Update interactions table comment to reflect its new, focused purpose
+COMMENT ON TABLE public.interactions IS 
+  'Refactored on Oct 7, 2025. This table now ONLY stores verified interactions linked to a contact (contact_id is NOT NULL with CASCADE delete). All provider-specific metadata is stored in the source_meta JSONB field. source_id is NOT NULL for deduplication. Redundant columns (metadata, priority, status, tags) have been removed.';
+
+-- ============================================================================
+-- SUMMARY
+-- ============================================================================
+-- Changes applied:
+-- 1. ✅ Added extracted_at to raw_events for audit trail
+-- 2. ✅ Made interactions.source_id NOT NULL for deduplication
+-- 3. ✅ Dropped metadata, priority, status, tags from interactions
+-- 4. ✅ Enforced contact_id NOT NULL with CASCADE delete in interactions
+-- 5. ✅ Dropped obsolete indexes from interactions
+-- 6. ✅ Updated all relevant comments for documentation
+-- ============================================================================
+
+
+
+===== supabase/sql/051_add_rls_to_ignored_identifiers.sql =====
+-- =========================
+-- 051_add_rls_to_ignored_identifiers.sql
+-- ADD RLS policies to ignored_identifiers table
+-- Description: Enables Row Level Security and creates policies to ensure users
+-- can only access their own ignored identifiers.
+-- =========================
+
+-- Step 1: Enable Row Level Security
+ALTER TABLE public.ignored_identifiers ENABLE ROW LEVEL SECURITY;
+
+-- Step 2: Drop existing policies if any (for idempotency)
+DROP POLICY IF EXISTS "Users can view their own ignored identifiers" ON public.ignored_identifiers;
+DROP POLICY IF EXISTS "Users can insert their own ignored identifiers" ON public.ignored_identifiers;
+DROP POLICY IF EXISTS "Users can update their own ignored identifiers" ON public.ignored_identifiers;
+DROP POLICY IF EXISTS "Users can delete their own ignored identifiers" ON public.ignored_identifiers;
+DROP POLICY IF EXISTS "Service role has full access to ignored identifiers" ON public.ignored_identifiers;
+
+-- Step 3: Create RLS policies for authenticated users
+
+-- SELECT policy: Users can only view their own ignored identifiers
+CREATE POLICY "Users can view their own ignored identifiers"
+  ON public.ignored_identifiers
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- INSERT policy: Users can only create ignored identifiers for themselves
+CREATE POLICY "Users can insert their own ignored identifiers"
+  ON public.ignored_identifiers
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- UPDATE policy: Users can only update their own ignored identifiers
+CREATE POLICY "Users can update their own ignored identifiers"
+  ON public.ignored_identifiers
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- DELETE policy: Users can only delete their own ignored identifiers
+CREATE POLICY "Users can delete their own ignored identifiers"
+  ON public.ignored_identifiers
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Step 4: Create service role policy for backend operations
+-- The service role needs full access for system operations like bulk imports
+
+CREATE POLICY "Service role has full access to ignored identifiers"
+  ON public.ignored_identifiers
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+-- Step 5: Add comment to document the RLS setup
+COMMENT ON TABLE public.ignored_identifiers IS 
+  'A blocklist of identifiers (emails, phones, handles) that the user has marked as not belonging to a contact. The contact extraction process checks this table to avoid creating repeated suggestions for irrelevant identifiers like no-reply emails, system notifications, etc. Created Oct 7, 2025. RLS enabled Oct 7, 2025.';
+
+-- ============================================================================
+-- SUMMARY
+-- ============================================================================
+-- RLS Configuration for ignored_identifiers:
+-- 1. ✅ Row Level Security ENABLED
+-- 2. ✅ SELECT policy: Users can view only their own ignored identifiers
+-- 3. ✅ INSERT policy: Users can create only for themselves
+-- 4. ✅ UPDATE policy: Users can update only their own records
+-- 5. ✅ DELETE policy: Users can delete only their own records
+-- 6. ✅ Service role has full access for system operations
+-- ============================================================================
 
 
 

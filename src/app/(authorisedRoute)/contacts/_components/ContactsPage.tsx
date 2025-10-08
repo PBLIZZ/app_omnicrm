@@ -20,10 +20,8 @@ import {
   DialogTrigger,
   Label,
 } from "@/components/ui";
-import { Users, Brain, Sparkles, Plus, Calendar, Mail, X } from "lucide-react";
+import { Users, Sparkles, Plus, Calendar, Mail, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useStreamingEnrichment } from "@/hooks/use-streaming-enrichment";
-
 import { ContactsTable } from "./contacts-table";
 import { contactsColumns } from "./contacts-columns";
 
@@ -132,9 +130,6 @@ export function ContactsPage(): JSX.Element {
       router.replace(newUrl.pathname + newUrl.search);
     }
   }, [searchParams, router]);
-
-  // Streaming enrichment hook
-  const streamingEnrichment = useStreamingEnrichment();
 
   const createClientsMutation = useMutation({
     mutationFn: async (
@@ -268,18 +263,6 @@ export function ContactsPage(): JSX.Element {
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
-            onClick={() => streamingEnrichment.startEnrichment()}
-            disabled={streamingEnrichment.isRunning}
-            data-testid="enrich-contacts-button"
-          >
-            <Brain className="h-4 w-4 mr-2" />
-            {streamingEnrichment.isRunning
-              ? `Enriching... ${streamingEnrichment.enrichedCount}/${streamingEnrichment.totalContacts}`
-              : "AI Enrich All"}
-          </Button>
-
-          <Button
-            variant="outline"
             onClick={() => setShowSuggestions(!showSuggestions)}
             data-testid="smart-suggestions-button"
           >
@@ -287,31 +270,6 @@ export function ContactsPage(): JSX.Element {
             Smart Suggestions
           </Button>
         </div>
-
-        {/* Enrichment Progress */}
-        {streamingEnrichment.isRunning && (
-          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                Enriching Contacts with AI
-              </span>
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                {Math.round(streamingEnrichment.progress)}%
-              </span>
-            </div>
-            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 mb-2">
-              <div
-                className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${streamingEnrichment.progress}%` }}
-              />
-            </div>
-            {streamingEnrichment.currentContact && (
-              <p className="text-xs text-blue-600 dark:text-blue-400">
-                Currently enriching: {streamingEnrichment.currentContact}
-              </p>
-            )}
-          </div>
-        )}
 
         <Dialog open={isAddingContact} onOpenChange={setIsAddingContact}>
           <DialogTrigger asChild>
@@ -545,25 +503,24 @@ export function ContactsPage(): JSX.Element {
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                           <div className="flex items-center gap-1">
                             <Mail className="h-4 w-4" />
-                            <span className="truncate">{suggestion.primaryEmail}</span>
+                            <span className="truncate">{suggestion.email}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            <span>{suggestion.calendarEvents?.length ?? 0} events</span>
+                            <span>{suggestion.eventCount ?? 0} events</span>
                           </div>
                         </div>
 
-                        {suggestion.calendarEvents && suggestion.calendarEvents.length > 0 && (
+                        {suggestion.eventTitles && suggestion.eventTitles.length > 0 && (
                           <div className="text-xs text-muted-foreground">
                             <span>Recent events: </span>
                             <span>
-                              {suggestion.calendarEvents
+                              {suggestion.eventTitles
                                 .slice(0, 2)
-                                .map((e) => e.title)
                                 .join(", ")}
                             </span>
-                            {suggestion.calendarEvents.length > 2 && (
-                              <span> +{suggestion.calendarEvents.length - 2} more</span>
+                            {suggestion.eventTitles.length > 2 && (
+                              <span> +{suggestion.eventTitles.length - 2} more</span>
                             )}
                           </div>
                         )}

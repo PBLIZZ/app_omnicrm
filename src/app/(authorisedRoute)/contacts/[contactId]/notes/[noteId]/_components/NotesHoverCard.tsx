@@ -13,6 +13,11 @@ interface Note {
   updatedAt: string;
 }
 
+interface NotesResponse {
+  notes: Note[];
+  total: number;
+}
+
 interface NotesHoverCardProps {
   contactId: string;
   contactName: string;
@@ -39,8 +44,8 @@ export function NotesHoverCard({
     setHasFetched(true);
 
     try {
-      const data = await get<Note[]>(`/api/notes?contactId=${contactId}`);
-      setNotes(data || []);
+      const data = await get<NotesResponse>(`/api/notes?contactId=${contactId}`);
+      setNotes(data?.notes || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load notes");
     } finally {
@@ -75,7 +80,7 @@ export function NotesHoverCard({
 
           {!loading && !error && (
             <>
-              {notes.length > 0 ? (
+              {notes.length > 0 && notes[0] ? (
                 <div className="space-y-2">
                   <div className="text-xs text-muted-foreground">
                     <time dateTime={notes[0].createdAt}>

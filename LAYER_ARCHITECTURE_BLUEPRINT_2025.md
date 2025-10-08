@@ -45,7 +45,8 @@ HTTP Request
 │ - Pure database operations (CRUD)                      │
 │ - NO business logic, NO transforms                     │
 │ - Uses Drizzle ORM                                     │
-│ - Returns: DbResult<T>                                 │
+│ - Accepts DbClient from service layer                  │
+│ - Throws on failure; no DbResult wrapper               │
 └────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────┐
@@ -86,11 +87,12 @@ HTTP Request
 ## Error Flow
 
 ```bash
-Repository throws DbResult error
+Service acquires DbClient (getDb or transaction)
          ↓
-Service unwraps DbResult
-    if (err) → throw new AppError()
+Repository executes query and may throw
          ↓
+Service wraps database error with AppError
+    ↓
 Handler (handleAuth) catches
     → converts to HTTP response
          ↓
@@ -105,7 +107,7 @@ Client receives { error: "message", status: 400 }
 | ---------------------------- | -------------- | ---------------------- | ----------------- |
 | schema.ts                    | Drizzle tables | Contact, CreateContact | N/A               |
 | business-schemas/contacts.ts | API validation | Zod schemas            | N/A               |
-| contacts.repo.ts             | DB queries     | `DbResult<T>`          | Never throws      |
+| contacts.repo.ts             | DB queries     | `Promise<T>`           | Throws on failure |
 | contacts.service.ts          | Business logic | `Promise<T>`           | Throws AppError   |
 | api/contacts/route.ts        | HTTP endpoint  | Response               | Caught by handler |
 
@@ -113,7 +115,7 @@ Client receives { error: "message", status: 400 }
 
 | File                           | Purpose                 | Status                              |
 | ------------------------------ | ----------------------- | ----------------------------------- |
-| lib/utils/result.ts            | Result type definition  | KEEP - Used by repos                |
+| lib/utils/result.ts            | Legacy Result wrapper   | LEGACY - remove after full migration |
 | lib/errors/app-error.ts        | AppError class          | KEEP - Services throw this          |
 | lib/api/errors.ts              | ApiError class          | KEEP - HTTP error responses         |
 
@@ -128,7 +130,7 @@ Client receives { error: "message", status: 400 }
 
 | File                              | Purpose                           | Status                   |
 | --------------------------------- | --------------------------------- | ------------------------ |
-| lib/utils/type-guards/contacts.ts | isSuccessResult(), unwrapResult() | KEEP - Services use this |
+| lib/utils/type-guards/contacts.ts | Legacy DbResult helpers           | LEGACY - delete when unused |
 
 ### Client-Side API
 
@@ -186,13 +188,17 @@ export const ContactListResponseSchema = z.object({
 // ============================================================================
 // 3. REPOSITORY (contacts.repo.ts)
 // ============================================================================
-static async createContact(data: CreateContact): Promise<DbResult<Contact>> {
-  try {
-    const [contact] = await db.insert(contacts).values(data).returning();
-    return ok(contact);
-  } catch (error) {
-    return err({ code: "DB_INSERT_FAILED", message: String(error) });
+static async createContact(
+  db: DbClient,
+  data: CreateContact,
+): Promise<Contact> {
+  const [contact] = await db.insert(contacts).values(data).returning();
+
+  if (!contact) {
+    throw new Error("Insert returned no data");
   }
+
+  return contact;
 }
 
 ```
@@ -209,16 +215,14 @@ export async function createContactService(
 ): Promise<Contact> {
   // Business logic: sanitize input
   const sanitized = sanitizeContactInput(input);
-  
-  // Call repo
-  const result = await ContactsRepository.createContact({ ...sanitized, userId });
-  
-  // Unwrap or throw
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, 'database');
+
+  const db = await getDb();
+
+  try {
+    return await ContactsRepository.createContact(db, { ...sanitized, userId });
+  } catch (error) {
+    throw toDatabaseError("Failed to create contact", error);
   }
-  
-  return result.data;
 }
 
 ```

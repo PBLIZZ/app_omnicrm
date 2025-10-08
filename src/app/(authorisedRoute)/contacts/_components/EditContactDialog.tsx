@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import type { Contact, EditContactData, UpdateContactResponse } from "./types";
 import { UpdateContactBodySchema } from "@/server/db/business-schemas/contacts";
 import { z } from "zod";
@@ -85,9 +86,11 @@ export function EditContactDialog({
       const updatedContact = response.data;
       toast.success(`${updatedContact?.displayName ?? "Contact"} updated successfully`);
 
-      // Invalidate and refetch contact data
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/contacts/${contact?.id}`] });
+      // Invalidate and refetch contact data using centralized query keys
+      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+      if (contact?.id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.contacts.detail(contact.id) });
+      }
 
       // Close dialog
       onOpenChange(false);

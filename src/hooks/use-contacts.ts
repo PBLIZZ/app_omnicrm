@@ -11,11 +11,12 @@ import type {
 // Re-export types for components
 export type { Contact, ContactWithLastNote };
 
-// Define suggestion types locally since they're not in the schema
+// This matches the actual API response from /api/contacts/suggestions
+// which calls getContactSuggestions() from suggest-contacts.ts
 export interface ContactSuggestion {
   id: string;
   displayName: string;
-  primaryEmail: string;
+  email: string; // API returns 'email', not 'primaryEmail'
   source: string;
   confidence: string;
   eventCount: number;

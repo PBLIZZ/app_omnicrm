@@ -11,21 +11,21 @@ import { getDb } from "@/server/db/client";
 import {
   contacts,
   interactions,
-  aiInsights,
   threads,
   messages,
   toolInvocations,
   userSyncPrefs,
   syncAudit,
-  documents,
-  embeddings,
-  rawEvents,
   jobs,
   aiUsage,
   aiQuotas,
 } from "@/server/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { Result, ok, err } from "@/lib/utils/result";
+import { listAiInsightsService } from "@/server/services/ai-insights.service";
+import { listDocumentsService } from "@/server/services/documents.service";
+import { listEmbeddingsService } from "@/server/services/embeddings.service";
+import { listRawEventsService } from "@/server/services/raw-events.service";
 
 export class UserExportService {
   /**
@@ -37,108 +37,94 @@ export class UserExportService {
       const exportTimestamp = new Date().toISOString();
 
     // Export all user data tables with performance limits
-    const [
-      userContacts,
-      userInteractions,
-      userAiInsights,
-      userThreads,
-      userMessages,
-      userToolInvocations,
-      userSyncPreferences,
-      userSyncAudits,
-      userDocuments,
-      userEmbeddings,
-      userRawEvents,
-      userJobs,
-      userAiUsageRecords,
-      userAiQuotaInfo,
-    ] = await Promise.all([
-      // Contacts
-      db.select().from(contacts).where(eq(contacts.userId, userId)),
+    /* eslint-disable @typescript-eslint/no-unsafe-member-access */
+    const userContacts = await db.select().from(contacts).where(eq(contacts.userId, userId));
 
-      // Interactions (last 1000 for performance)
-      db
-        .select()
-        .from(interactions)
-        .where(eq(interactions.userId, userId))
-        .orderBy(desc(interactions.occurredAt))
-        .limit(1000),
+    const userInteractions = await db
+      .select()
+      .from(interactions)
+      .where(eq(interactions.userId, userId))
+      .orderBy(desc(interactions.occurredAt))
+      .limit(1000);
 
-      // AI Insights
-      db.select().from(aiInsights).where(eq(aiInsights.userId, userId)),
+    const userThreads = await db.select().from(threads).where(eq(threads.userId, userId));
 
-      // Chat threads
-      db.select().from(threads).where(eq(threads.userId, userId)),
+    const userMessages = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.userId, userId))
+      .orderBy(desc(messages.createdAt))
+      .limit(500);
 
-      // Chat messages (last 500 for performance)
-      db
-        .select()
-        .from(messages)
-        .where(eq(messages.userId, userId))
-        .orderBy(desc(messages.createdAt))
-        .limit(500),
+    const userToolInvocations = await db
+      .select()
+      .from(toolInvocations)
+      .where(eq(toolInvocations.userId, userId));
 
-      // Tool invocations
-      db.select().from(toolInvocations).where(eq(toolInvocations.userId, userId)),
+    const userSyncPreferences = await db
+      .select()
+      .from(userSyncPrefs)
+      .where(eq(userSyncPrefs.userId, userId));
 
-      // Sync preferences
-      db.select().from(userSyncPrefs).where(eq(userSyncPrefs.userId, userId)),
+    const userSyncAudits = await db
+      .select()
+      .from(syncAudit)
+      .where(eq(syncAudit.userId, userId))
+      .orderBy(desc(syncAudit.createdAt))
+      .limit(100);
 
-      // Sync audit logs (last 100 entries)
-      db
-        .select()
-        .from(syncAudit)
-        .where(eq(syncAudit.userId, userId))
-        .orderBy(desc(syncAudit.createdAt))
-        .limit(100),
+    const userJobs = await db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.userId, userId))
+      .orderBy(desc(jobs.createdAt))
+      .limit(100);
 
-      // Documents
-      db.select().from(documents).where(eq(documents.userId, userId)),
+    const userAiUsageRecords = await db
+      .select()
+      .from(aiUsage)
+      .where(eq(aiUsage.userId, userId))
+      .orderBy(desc(aiUsage.createdAt))
+      .limit(1000);
 
-      // Embeddings (metadata only, not vector data)
-      db
-        .select({
-          id: embeddings.id,
-          ownerType: embeddings.ownerType,
-          ownerId: embeddings.ownerId,
-          meta: embeddings.meta,
-          createdAt: embeddings.createdAt,
-        })
-        .from(embeddings)
-        .where(eq(embeddings.userId, userId)),
+    const userAiQuotaInfo = await db.select().from(aiQuotas).where(eq(aiQuotas.userId, userId));
+    /* eslint-enable @typescript-eslint/no-unsafe-member-access */
 
-      // Raw events (last 500 for performance)
-      db
-        .select()
-        .from(rawEvents)
-        .where(eq(rawEvents.userId, userId))
-        .orderBy(desc(rawEvents.createdAt))
-        .limit(500),
+    const aiInsightsResult = await listAiInsightsService(userId, {
+      page: 1,
+      pageSize: 1000,
+      order: "desc",
+    });
 
-      // Jobs (last 100 for performance)
-      db
-        .select()
-        .from(jobs)
-        .where(eq(jobs.userId, userId))
-        .orderBy(desc(jobs.createdAt))
-        .limit(100),
+    const documentsResult = await listDocumentsService(userId, {
+      includeUnassigned: true,
+      page: 1,
+      pageSize: 1000,
+      order: "desc",
+    });
 
-      // AI usage records (last 6 months)
-      db
-        .select()
-        .from(aiUsage)
-        .where(
-          and(
-            eq(aiUsage.userId, userId),
-            // Only last 6 months for performance
-          ),
-        )
-        .orderBy(desc(aiUsage.createdAt))
-        .limit(1000),
+    const embeddingsResult = await listEmbeddingsService(userId, {
+      page: 1,
+      pageSize: 1000,
+      order: "desc",
+    });
 
-      // AI quota information
-      db.select().from(aiQuotas).where(eq(aiQuotas.userId, userId)),
-    ]);
+    const rawEventsResult = await listRawEventsService(userId, {
+      page: 1,
+      pageSize: 500,
+      order: "desc",
+    });
+
+    const userAiInsights = aiInsightsResult.items;
+    const userDocuments = documentsResult.items;
+    const userEmbeddings = embeddingsResult.items.map((embedding) => ({
+      id: embedding.id,
+      ownerType: embedding.ownerType,
+      ownerId: embedding.ownerId,
+      meta: embedding.meta,
+      createdAt: embedding.createdAt,
+    }));
+    const userRawEvents = rawEventsResult.items;
 
     // Build comprehensive export payload
     const exportPayload: UserExportResult = {

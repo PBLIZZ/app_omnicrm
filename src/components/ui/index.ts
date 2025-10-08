@@ -104,7 +104,6 @@ export { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
 // Advanced components
 export { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 export { AvatarImage as CustomAvatarImage } from "./avatar-image";
-export { ImageUpload } from "./image-upload";
 export { ModeToggle } from "./theme-toggle";
 export { Toggle, toggleVariants } from "./toggle";
 export { ToggleGroup, ToggleGroupItem } from "./toggle-group";

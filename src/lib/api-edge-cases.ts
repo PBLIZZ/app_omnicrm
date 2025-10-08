@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import type { NextRequest } from "next/server";
+import { AppError } from "@/lib/errors/app-error";
 
 // ============================================================================
 // AUTH FLOW HANDLERS
@@ -204,7 +205,57 @@ export function handlePublic<TIn, TOut>(
         );
       }
 
-      throw error;
+      // Handle AppError
+      if (error instanceof AppError) {
+        const statusMap: Record<string, number> = {
+          validation: 400,
+          authentication: 401,
+          authorization: 403,
+          not_found: 404,
+          conflict: 409,
+          rate_limit: 429,
+          database: 500,
+          network: 502,
+          system: 500,
+        };
+
+        return new Response(
+          JSON.stringify({
+            error: error.message,
+            code: error.code,
+            category: error.category,
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: statusMap[error.category] || 500,
+          },
+        );
+      }
+
+      // Handle generic errors with status property
+      if (error instanceof Error && "status" in error) {
+        return new Response(
+          JSON.stringify({
+            error: error.message,
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: (error as Error & { status: number }).status,
+          },
+        );
+      }
+
+      // Generic error fallback
+      console.error("[handlePublic] Unhandled error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Internal server error",
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 500,
+        },
+      );
     }
   };
 }

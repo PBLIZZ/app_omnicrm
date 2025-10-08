@@ -1,20 +1,14 @@
-import { getDb } from "@/server/db/client";
-import { eq, inArray } from "drizzle-orm";
+import { getDb, type DbClient } from "@/server/db/client";
+import { count, eq, inArray } from "drizzle-orm";
 import type { PgTable, PgColumn } from "drizzle-orm/pg-core";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import * as schema from "@/server/db/schema";
 import {
   contacts,
   interactions,
-  aiInsights,
   threads,
   messages,
   toolInvocations,
   userSyncPrefs,
   syncAudit,
-  documents,
-  embeddings,
-  rawEvents,
   jobs,
   aiUsage,
   aiQuotas,
@@ -30,6 +24,10 @@ import {
   taskContactTags,
 } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
+import { deleteEmbeddingsForUserService } from "@/server/services/embeddings.service";
+import { deleteDocumentsForUserService } from "@/server/services/documents.service";
+import { deleteAiInsightsForUserService } from "@/server/services/ai-insights.service";
+import { deleteRawEventsForUserService } from "@/server/services/raw-events.service";
 
 interface DeletionRequest {
   confirmation: string;
@@ -59,6 +57,8 @@ export class UserDeletionService {
 
     // Start transaction for atomic deletion
     const deletionResults = await db.transaction(async (tx) => {
+      const txExecutor = tx as unknown as DbClient;
+      /* eslint-disable @typescript-eslint/no-unsafe-member-access */
       const results: Record<string, number> = {};
 
       // Delete in reverse dependency order to avoid foreign key constraints
@@ -128,16 +128,16 @@ export class UserDeletionService {
       results["threads"] = threadsResult.length;
 
       // 11. Delete embeddings (references documents/interactions)
-      const embeddingsResult = await tx.delete(embeddings).where(eq(embeddings.userId, userId));
-      results["embeddings"] = embeddingsResult.length;
+      const embeddingsDeleted = await deleteEmbeddingsForUserService(userId, txExecutor);
+      results["embeddings"] = embeddingsDeleted;
 
       // 12. Delete documents
-      const documentsResult = await tx.delete(documents).where(eq(documents.userId, userId));
-      results["documents"] = documentsResult.length;
+      const documentsDeleted = await deleteDocumentsForUserService(userId, txExecutor);
+      results["documents"] = documentsDeleted;
 
       // 13. Delete AI insights
-      const aiInsightsResult = await tx.delete(aiInsights).where(eq(aiInsights.userId, userId));
-      results["aiInsights"] = aiInsightsResult.length;
+      const aiInsightsDeleted = await deleteAiInsightsForUserService(userId, txExecutor);
+      results["aiInsights"] = aiInsightsDeleted;
 
       // 14. Delete interactions
       const interactionsResult = await tx
@@ -150,8 +150,8 @@ export class UserDeletionService {
       results["contacts"] = contactsResult.length;
 
       // 16. Delete raw events
-      const rawEventsResult = await tx.delete(rawEvents).where(eq(rawEvents.userId, userId));
-      results["rawEvents"] = rawEventsResult.length;
+      const rawEventsDeleted = await deleteRawEventsForUserService(userId, txExecutor);
+      results["rawEvents"] = rawEventsDeleted;
 
       // 17. Delete jobs
       const jobsResult = await tx.delete(jobs).where(eq(jobs.userId, userId));
@@ -179,6 +179,7 @@ export class UserDeletionService {
       // Note: We keep sync audit log for compliance (will be cleaned up by retention policy)
       // This is intentional - we keep the deletion audit trail for legal/regulatory purposes
 
+      /* eslint-enable @typescript-eslint/no-unsafe-member-access */
       return results;
     });
 
@@ -320,20 +321,15 @@ export class UserDeletionService {
    * Helper to count records in a table for a user
    */
   private static async countRecords(
-    db: PostgresJsDatabase<typeof schema>,
+    db: DbClient,
     table: PgTable & { userId: PgColumn },
     userId: string,
   ): Promise<number> {
-    try {
-      const result = await db
-        .select({ count: eq(table.userId, userId) })
-        .from(table)
-        .where(eq(table.userId, userId));
+    const rows = await db
+      .select({ value: count() })
+      .from(table)
+      .where(eq(table.userId, userId));
 
-      return result.length;
-    } catch {
-      // If table doesn't have userId column or other error, return 0
-      return 0;
-    }
+    return Number(rows[0]?.value ?? 0);
   }
 }

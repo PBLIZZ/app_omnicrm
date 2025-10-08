@@ -25,5 +25,6 @@
   "prettier.configPath": "prettier.config.cjs",
   "editor.formatOnPaste": true,
   "typescript.tsdk": "node_modules/typescript/lib",
-  "coderabbit.autoReviewMode": "auto"
+  "coderabbit.autoReviewMode": "auto",
+  "json.schemaDownload.enable": false
 }

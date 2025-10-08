@@ -9,7 +9,8 @@
 import { createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
-import { providerTypeEnum, rawEvents } from "@/server/db/schema";
+import { rawEvents } from "@/server/db/schema";
+import type { ProviderType } from "@repo";
 
 export type { RawEvent, CreateRawEvent, UpdateRawEvent } from "@/server/db/schema";
 
@@ -43,7 +44,8 @@ export type RawEventContactExtractionStatus = z.infer<
   typeof RawEventContactExtractionStatusSchema
 >;
 
-const ProviderTypeSchema = z.enum(providerTypeEnum.enumValues as [string, ...string[]]);
+// Use the ProviderType from @repo to ensure type consistency
+const ProviderTypeSchema = z.enum(["gmail", "calendar", "drive", "upload"] as const) satisfies z.ZodType<ProviderType>;
 
 // ============================================================================
 // BASE SCHEMAS
@@ -54,7 +56,7 @@ const BaseRawEventSchema = createSelectSchema(rawEvents);
 export const RawEventSchema = BaseRawEventSchema.extend({
   payload: z.unknown(),
   sourceMeta: z.unknown(),
-  processingStatus: RawEventProcessingStatusSchema,
+  processingStatus: RawEventProcessingStatusSchema.nullable().transform((val) => val ?? "pending"),
   contactExtractionStatus: RawEventContactExtractionStatusSchema.nullable(),
 });
 
@@ -139,3 +141,5 @@ export type RawEventListResponse = z.infer<typeof RawEventListResponseSchema>;
 export const RawEventResponseSchema = z.object({
   item: RawEventSchema,
 });
+
+export type RawEventResponse = z.infer<typeof RawEventResponseSchema>;

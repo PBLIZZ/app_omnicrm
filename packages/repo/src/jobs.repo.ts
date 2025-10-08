@@ -1,106 +1,65 @@
-import { eq, and, desc, inArray, count, sql } from "drizzle-orm";
-import { jobs } from "@/server/db/schema";
-import { getDb } from "@/server/db/client";
-import type { Job, CreateJob } from "@/server/db/schema";
-import { ok, err, DbResult } from "@/lib/utils/result";
+import { and, count, desc, eq, inArray, sql, type InferSelectModel } from "drizzle-orm";
 
-// Local type aliases for repository layer
-type JobDTO = Job;
+import { jobs, type CreateJob, type Job } from "@/server/db/schema";
+import type { DbClient } from "@/server/db/client";
+
+type JobRow = InferSelectModel<typeof jobs>;
 type CreateJobDTO = CreateJob;
 
 export class JobsRepository {
   /**
-   * Create a new job
+   * Create a single job for a user.
    */
-  static async createJob(data: CreateJobDTO & { userId: string }): Promise<DbResult<JobDTO>> {
-    try {
-      const db = await getDb();
+  static async createJob(
+    db: DbClient,
+    data: CreateJobDTO & { userId: string },
+  ): Promise<Job> {
+    if (!data.userId?.trim() || !data.kind?.trim()) {
+      throw new Error("userId and kind are required");
+    }
 
-      if (!data.userId || !data.kind) {
-        return err({
-          code: "VALIDATION_ERROR",
-          message: "Required fields missing: userId and kind are required",
-        });
-      }
-
-      const insertValues = {
+    const [created] = (await db
+      .insert(jobs)
+      .values({
         userId: data.userId,
         kind: data.kind,
         payload: data.payload,
         batchId: data.batchId ?? null,
-        status: "queued" as const,
-        attempts: 0,
-        lastError: null,
-      };
+        status: "queued",
+        attempts: data.attempts ?? 0,
+        lastError: data.lastError ?? null,
+      })
+      .returning()) as JobRow[];
 
-      const [newJob] = await db.insert(jobs).values(insertValues).returning({
-        id: jobs.id,
-        userId: jobs.userId,
-        kind: jobs.kind,
-        payload: jobs.payload,
-        status: jobs.status,
-        attempts: jobs.attempts,
-        batchId: jobs.batchId,
-        lastError: jobs.lastError,
-        createdAt: jobs.createdAt,
-        updatedAt: jobs.updatedAt,
-      });
-
-      if (!newJob) {
-        return err({
-          code: "DB_INSERT_FAILED",
-          message: "Failed to create job - no data returned",
-        });
-      }
-
-      return ok(newJob);
-    } catch (error) {
-      return err({
-        code: "DB_INSERT_FAILED",
-        message: error instanceof Error ? error.message : "Failed to create job",
-        details: error,
-      });
+    if (!created) {
+      throw new Error("Failed to create job");
     }
+
+    return created;
   }
 
   /**
-   * Get a job by ID
+   * Fetch a job by identifier.
    */
-  static async getJobById(userId: string, jobId: string): Promise<DbResult<JobDTO | null>> {
-    try {
-      const db = await getDb();
+  static async getJobById(
+    db: DbClient,
+    userId: string,
+    jobId: string,
+  ): Promise<Job | null> {
+    const rows = (await db
+      .select()
+      .from(jobs)
+      .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
+      .limit(1)) as JobRow[];
 
-      const rows = await db
-        .select({
-          id: jobs.id,
-          userId: jobs.userId,
-          kind: jobs.kind,
-          payload: jobs.payload,
-          status: jobs.status,
-          attempts: jobs.attempts,
-          batchId: jobs.batchId,
-          lastError: jobs.lastError,
-          createdAt: jobs.createdAt,
-          updatedAt: jobs.updatedAt,
-        })
-        .from(jobs)
-        .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
-        .limit(1);
-
-      return ok(rows.length === 0 ? null : (rows[0] ?? null));
-    } catch (error) {
-      return err({
-        code: "DB_QUERY_FAILED",
-        message: error instanceof Error ? error.message : "Failed to get job",
-        details: error,
-      });
-    }
+    return rows[0] ?? null;
   }
 
   /**
-   * List jobs for a user with optional filtering
+   * List jobs with optional filtering and pagination.
    */
   static async listJobs(
+    db: DbClient,
     userId: string,
     options: {
       status?: string[];
@@ -109,17 +68,16 @@ export class JobsRepository {
       limit?: number;
       offset?: number;
     } = {},
-  ): Promise<JobDTO[]> {
-    const db = await getDb();
+  ): Promise<Job[]> {
     const { status, kind, batchId, limit = 50, offset = 0 } = options;
 
     const conditions = [eq(jobs.userId, userId)];
 
-    if (status && status.length > 0) {
+    if (status?.length) {
       conditions.push(inArray(jobs.status, status));
     }
 
-    if (kind && kind.length > 0) {
+    if (kind?.length) {
       conditions.push(inArray(jobs.kind, kind));
     }
 
@@ -127,164 +85,156 @@ export class JobsRepository {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const rows = await db
-      .select({
-        id: jobs.id,
-        userId: jobs.userId,
-        kind: jobs.kind,
-        payload: jobs.payload,
-        status: jobs.status,
-        attempts: jobs.attempts,
-        batchId: jobs.batchId,
-        lastError: jobs.lastError,
-        createdAt: jobs.createdAt,
-        updatedAt: jobs.updatedAt,
-      })
+    const rows = (await db
+      .select()
       .from(jobs)
       .where(and(...conditions))
       .orderBy(desc(jobs.updatedAt))
       .limit(limit)
-      .offset(offset);
+      .offset(offset)) as JobRow[];
 
-    return rows.map((row) => row);
+    return rows;
   }
 
   /**
-   * Get job counts by status and kind
+   * Aggregate counts for dashboard summaries.
    */
   static async getJobCounts(
+    db: DbClient,
     userId: string,
     batchId?: string,
   ): Promise<{
     statusCounts: Record<string, number>;
     kindCounts: Record<string, number>;
   }> {
-    const db = await getDb();
-
     const conditions = [eq(jobs.userId, userId)];
+
     if (batchId) {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const jobCounts = await db
+    const rows = (await db
       .select({
         status: jobs.status,
         kind: jobs.kind,
-        count: count(),
+        value: count(),
       })
       .from(jobs)
       .where(and(...conditions))
-      .groupBy(jobs.status, jobs.kind);
+      .groupBy(jobs.status, jobs.kind)) as Array<{ status: string; kind: string; value: number | bigint }>;
 
-    const statusCounts = {
-      queued: 0,
-      processing: 0,
-      completed: 0,
-      failed: 0,
-      retrying: 0,
-    };
+    const statusCounts: Record<string, number> = {};
+    const kindCounts: Record<string, number> = {};
 
-    const kindCounts = {
-      normalize: 0,
-      embed: 0,
-      insight: 0,
-      sync_gmail: 0,
-      sync_calendar: 0,
-      google_gmail_sync: 0,
-    };
-
-    jobCounts.forEach(({ status, kind, count: jobCount }) => {
-      if (status && status in statusCounts) {
-        statusCounts[status as keyof typeof statusCounts] += jobCount;
-      }
-      if (kind in kindCounts) {
-        kindCounts[kind as keyof typeof kindCounts] += jobCount;
-      }
-    });
+    for (const row of rows) {
+      statusCounts[row.status] = (statusCounts[row.status] ?? 0) + Number(row.value ?? 0);
+      kindCounts[row.kind] = (kindCounts[row.kind] ?? 0) + Number(row.value ?? 0);
+    }
 
     return { statusCounts, kindCounts };
   }
 
   /**
-   * Get pending jobs (queued, processing, retrying)
+   * Retrieve jobs pending execution.
    */
   static async getPendingJobs(
+    db: DbClient,
     userId: string,
-    batchId?: string,
-    limit: number = 50,
-  ): Promise<JobDTO[]> {
-    const db = await getDb();
+    options: {
+      batchId?: string;
+      kinds?: string[];
+      statuses?: string[];
+      limit?: number;
+      orderBy?: "createdAt" | "updatedAt";
+      direction?: "asc" | "desc";
+    } = {},
+  ): Promise<Job[]> {
+    const {
+      batchId,
+      kinds,
+      statuses = ["queued", "retrying"],
+      limit = 50,
+      orderBy = "createdAt",
+      direction = "asc",
+    } = options;
 
-    const conditions = [
-      eq(jobs.userId, userId),
-      inArray(jobs.status, ["queued", "processing", "retrying"]),
-    ];
+    const conditions = [eq(jobs.userId, userId)];
+
+    if (statuses.length > 0) {
+      conditions.push(inArray(jobs.status, statuses));
+    }
 
     if (batchId) {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const rows = await db
-      .select({
-        id: jobs.id,
-        userId: jobs.userId,
-        kind: jobs.kind,
-        payload: jobs.payload,
-        status: jobs.status,
-        attempts: jobs.attempts,
-        batchId: jobs.batchId,
-        lastError: jobs.lastError,
-        createdAt: jobs.createdAt,
-        updatedAt: jobs.updatedAt,
-      })
+    if (kinds?.length) {
+      conditions.push(inArray(jobs.kind, kinds));
+    }
+
+    const orderColumn = orderBy === "updatedAt" ? jobs.updatedAt : jobs.createdAt;
+    const orderExpression = direction === "desc" ? desc(orderColumn) : orderColumn;
+
+    const rows = (await db
+      .select()
       .from(jobs)
       .where(and(...conditions))
-      .orderBy(jobs.createdAt)
-      .limit(limit);
+      .orderBy(orderExpression)
+      .limit(limit)) as JobRow[];
 
-    return rows.map((row) => row);
+    return rows;
   }
 
   /**
-   * Get recent jobs for history/monitoring
+   * Retrieve recently updated jobs.
    */
   static async getRecentJobs(
+    db: DbClient,
     userId: string,
-    batchId?: string,
+    batchId: string | undefined,
     limit: number = 20,
-  ): Promise<JobDTO[]> {
-    const db = await getDb();
-
+  ): Promise<Job[]> {
     const conditions = [eq(jobs.userId, userId)];
+
     if (batchId) {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const rows = await db
-      .select({
-        id: jobs.id,
-        userId: jobs.userId,
-        kind: jobs.kind,
-        payload: jobs.payload,
-        status: jobs.status,
-        attempts: jobs.attempts,
-        batchId: jobs.batchId,
-        lastError: jobs.lastError,
-        createdAt: jobs.createdAt,
-        updatedAt: jobs.updatedAt,
-      })
+    const rows = (await db
+      .select()
       .from(jobs)
       .where(and(...conditions))
       .orderBy(desc(jobs.updatedAt))
-      .limit(limit);
+      .limit(limit)) as JobRow[];
 
-    return rows.map((row) => row);
+    return rows;
   }
 
   /**
-   * Update job status and error information
+   * Fetch multiple jobs by identifiers.
+   */
+  static async getJobsByIds(
+    db: DbClient,
+    userId: string,
+    jobIds: string[],
+  ): Promise<Job[]> {
+    if (jobIds.length === 0) {
+      return [];
+    }
+
+    const rows = (await db
+      .select()
+      .from(jobs)
+      .where(and(eq(jobs.userId, userId), inArray(jobs.id, jobIds)))) as JobRow[];
+
+    return rows;
+  }
+
+  /**
+   * Update status metadata for a job.
    */
   static async updateJobStatus(
+    db: DbClient,
     userId: string,
     jobId: string,
     updates: {
@@ -292,144 +242,117 @@ export class JobsRepository {
       attempts?: number;
       lastError?: string | null;
     },
-  ): Promise<DbResult<JobDTO | null>> {
-    try {
-      const db = await getDb();
-
-      const updateValues = {
-        updatedAt: new Date(),
-        ...(updates.status !== undefined && { status: updates.status }),
-        ...(updates.attempts !== undefined && { attempts: updates.attempts }),
-        ...(updates.lastError !== undefined && { lastError: updates.lastError }),
-      };
-
-      const [updatedJob] = await db
-        .update(jobs)
-        .set(updateValues)
-        .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
-        .returning({
-          id: jobs.id,
-          userId: jobs.userId,
-          kind: jobs.kind,
-          payload: jobs.payload,
-          status: jobs.status,
-          attempts: jobs.attempts,
-          batchId: jobs.batchId,
-          lastError: jobs.lastError,
-          createdAt: jobs.createdAt,
-          updatedAt: jobs.updatedAt,
-        });
-
-      return ok(updatedJob || null);
-    } catch (error) {
-      return err({
-        code: "DB_UPDATE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to update job",
-        details: error,
-      });
+  ): Promise<Job | null> {
+    if (
+      updates.status === undefined &&
+      updates.attempts === undefined &&
+      updates.lastError === undefined
+    ) {
+      throw new Error("No job updates specified");
     }
+
+    const [updated] = (await db
+      .update(jobs)
+      .set({
+        updatedAt: new Date(),
+        ...(updates.status !== undefined ? { status: updates.status } : {}),
+        ...(updates.attempts !== undefined ? { attempts: updates.attempts } : {}),
+        ...(updates.lastError !== undefined ? { lastError: updates.lastError } : {}),
+      })
+      .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
+      .returning()) as JobRow[];
+
+    return updated ?? null;
   }
 
   /**
-   * Delete jobs by batch ID
+   * Delete jobs associated with a batch.
    */
-  static async deleteJobsByBatch(userId: string, batchId: string): Promise<number> {
-    const db = await getDb();
-
-    const result = await db
+  static async deleteJobsByBatch(
+    db: DbClient,
+    userId: string,
+    batchId: string,
+  ): Promise<number> {
+    const deleted = (await db
       .delete(jobs)
-      .where(and(eq(jobs.userId, userId), eq(jobs.batchId, batchId)));
+      .where(and(eq(jobs.userId, userId), eq(jobs.batchId, batchId)))
+      .returning({ id: jobs.id })) as Array<{ id: string }>;
 
-    return result.length;
+    return deleted.length;
   }
 
   /**
-   * Count total jobs for a user
+   * Count total jobs for a user (optionally scoped to a batch).
    */
-  static async countJobs(userId: string, batchId?: string): Promise<number> {
-    const db = await getDb();
-
+  static async countJobs(
+    db: DbClient,
+    userId: string,
+    batchId?: string,
+  ): Promise<number> {
     const conditions = [eq(jobs.userId, userId)];
+
     if (batchId) {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const result = await db
-      .select({ count: count() })
+    const [row] = (await db
+      .select({ value: count() })
       .from(jobs)
-      .where(and(...conditions));
+      .where(and(...conditions))) as Array<{ value: number | bigint }>;
 
-    return result[0]?.count ?? 0;
+    return Number(row?.value ?? 0);
   }
 
   /**
-   * Get jobs that have been processing for too long (stuck jobs)
+   * Find jobs that appear to be stuck in processing.
    */
-  static async getStuckJobs(userId: string, thresholdMinutes: number = 10): Promise<JobDTO[]> {
-    const db = await getDb();
+  static async getStuckJobs(
+    db: DbClient,
+    userId: string,
+    thresholdMinutes: number = 10,
+  ): Promise<Job[]> {
+    const threshold = new Date(Date.now() - thresholdMinutes * 60 * 1000);
 
-    const thresholdTime = new Date(Date.now() - thresholdMinutes * 60 * 1000);
-
-    const rows = await db
-      .select({
-        id: jobs.id,
-        userId: jobs.userId,
-        kind: jobs.kind,
-        payload: jobs.payload,
-        status: jobs.status,
-        attempts: jobs.attempts,
-        batchId: jobs.batchId,
-        lastError: jobs.lastError,
-        createdAt: jobs.createdAt,
-        updatedAt: jobs.updatedAt,
-      })
+    const rows = (await db
+      .select()
       .from(jobs)
       .where(
         and(
           eq(jobs.userId, userId),
           eq(jobs.status, "processing"),
-          sql`${jobs.updatedAt} < ${thresholdTime}`,
+          sql`${jobs.updatedAt} < ${threshold}`,
         ),
-      );
+      )) as JobRow[];
 
-    return rows.map((row) => row);
+    return rows;
   }
 
   /**
-   * Bulk create jobs for batch operations
+   * Bulk create jobs for batch operations.
    */
   static async createBulkJobs(
+    db: DbClient,
     jobsData: Array<CreateJobDTO & { userId: string }>,
-  ): Promise<JobDTO[]> {
+  ): Promise<Job[]> {
     if (jobsData.length === 0) {
       return [];
     }
 
-    const db = await getDb();
+    const rows = (await db
+      .insert(jobs)
+      .values(
+        jobsData.map((job) => ({
+          userId: job.userId,
+          kind: job.kind,
+          payload: job.payload,
+          batchId: job.batchId ?? null,
+          status: "queued",
+          attempts: job.attempts ?? 0,
+          lastError: job.lastError ?? null,
+        })),
+      )
+      .returning()) as JobRow[];
 
-    const insertValues = jobsData.map((job) => ({
-      userId: job.userId,
-      kind: job.kind,
-      payload: job.payload,
-      batchId: job.batchId ?? null,
-      status: "queued" as const,
-      attempts: 0,
-      lastError: null,
-    }));
-
-    const newJobs = await db.insert(jobs).values(insertValues).returning({
-      id: jobs.id,
-      userId: jobs.userId,
-      kind: jobs.kind,
-      payload: jobs.payload,
-      status: jobs.status,
-      attempts: jobs.attempts,
-      batchId: jobs.batchId,
-      lastError: jobs.lastError,
-      createdAt: jobs.createdAt,
-      updatedAt: jobs.updatedAt,
-    });
-
-    return newJobs.map((job) => job);
+    return rows;
   }
 }

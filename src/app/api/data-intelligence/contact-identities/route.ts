@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { handleAuth, handleGetWithQueryAuth } from "@/lib/api";
 import {
   ContactIdentityListResponseSchema,
@@ -19,10 +21,10 @@ export const GET = handleGetWithQueryAuth(
     const { page, pageSize, contactId, kind, provider, search } = query;
 
     const { items, total } = await listContactIdentitiesService(userId, {
-      contactId,
-      kinds: kind,
-      provider: provider?.[0],
-      search,
+      ...(contactId && { contactId }),
+      ...(kind && { kinds: kind }),
+      ...(provider?.[0] && { provider: provider[0] }),
+      ...(search && { search }),
       page,
       pageSize,
     });
@@ -37,8 +39,13 @@ export const GET = handleGetWithQueryAuth(
 export const POST = handleAuth(
   CreateContactIdentityBodySchema,
   ContactIdentityResponseSchema,
-  async (data, userId) => {
-    const item = await createContactIdentityService(userId, data);
+  async (data, userId): Promise<{ item: z.infer<typeof ContactIdentityResponseSchema>["item"] }> => {
+    const item = await createContactIdentityService(userId, {
+      contactId: data.contactId,
+      kind: data.kind as "email" | "phone" | "handle" | "provider_id",
+      value: data.value,
+      ...(data.provider && { provider: data.provider }),
+    });
     return { item };
   },
 );

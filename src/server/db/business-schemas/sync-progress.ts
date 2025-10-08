@@ -41,8 +41,8 @@ export const SyncProgressResponseSchema = z.object({
     completedAt: z.string().optional(),
     lastUpdate: z.string(),
   }),
-  errorDetails: z.record(z.unknown()).nullable(),
-  preferences: z.record(z.unknown()),
+  errorDetails: z.record(z.string(), z.unknown()).nullable(),
+  preferences: z.record(z.string(), z.unknown()),
 });
 
 /**
@@ -117,3 +117,18 @@ export const NewSyncSessionSchema = SyncSessionSchema.omit({
   updatedAt: true,
 });
 
+// ============================================================================
+// DRIVE PREFERENCES SCHEMA
+// ============================================================================
+
+/**
+ * Drive Preferences Schema - for Drive sync configuration
+ * Note: Drive integration is not yet implemented (scaffold only)
+ */
+export const DrivePreferencesSchema = z.object({
+  driveIngestionMode: z.enum(["none", "picker", "folders"]).default("none"),
+  driveFolderIds: z.array(z.string()).optional(),
+  driveMaxSizeMB: z.number().int().min(1).max(100).optional(),
+});
+
+export type DrivePreferences = z.infer<typeof DrivePreferencesSchema>;

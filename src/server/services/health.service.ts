@@ -4,10 +4,16 @@
  * Handles system health checks including database connectivity
  */
 
+import { HealthRepository } from "@repo";
 import { getDb } from "@/server/db/client";
-import { sql } from "drizzle-orm";
 import { ok, err, type Result } from "@/lib/utils/result";
 import type { HealthResponse } from "@/server/db/business-schemas";
+
+type HealthServiceError = {
+  code: string;
+  message: string;
+  details?: unknown;
+};
 
 export class HealthService {
   /**
@@ -52,7 +58,7 @@ export class HealthService {
 
     try {
       const db = await getDb();
-      const pingPromise = db.execute(sql`select 1`);
+      const pingPromise = HealthRepository.pingDatabase(db);
       let timer: NodeJS.Timeout | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("Database ping timeout")), 250);

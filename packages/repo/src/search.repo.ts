@@ -3,7 +3,6 @@ import {
   contacts,
   notes,
   interactions,
-  calendarEvents,
   tasks,
   embeddings,
 } from "@/server/db/schema";
@@ -166,42 +165,11 @@ export class SearchRepository {
         }
       }
 
-      // Search calendar events
+      // Search calendar events - DISABLED: calendar_events table removed
+      // Calendar data is now in raw_events with provider='calendar'
+      // TODO: Implement calendar search via raw_events/interactions when needed
       if (enabledTypes.includes("calendar_event")) {
-        const eventRows = await db
-          .select()
-          .from(calendarEvents)
-          .where(
-            and(
-              eq(calendarEvents.userId, userId),
-              or(
-                ilike(calendarEvents.title, searchTerm),
-                ilike(calendarEvents.description, searchTerm),
-                ilike(calendarEvents.location, searchTerm),
-              ),
-            ),
-          )
-          .limit(limitPerType);
-
-        for (const row of eventRows) {
-          results.push({
-            id: row.id,
-            type: "calendar_event",
-            title: row.title,
-            content: row.description || "",
-            metadata: {
-              startTime: row.startTime,
-              endTime: row.endTime,
-              location: row.location,
-              isAllDay: row.isAllDay,
-              eventType: row.eventType,
-            },
-            score: 1,
-            source: "traditional",
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt,
-          });
-        }
+        // Placeholder - calendar events search not yet implemented for new architecture
       }
 
       // Search tasks
@@ -420,29 +388,9 @@ export class SearchRepository {
         }
 
         case "calendar_event": {
-          const [event] = await db
-            .select()
-            .from(calendarEvents)
-            .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.id, ownerId)))
-            .limit(1);
-
-          if (!event) return ok(null);
-
-          return ok({
-            id: event.id,
-            type: "calendar_event",
-            title: event.title,
-            content: event.description || "",
-            metadata: {
-              startTime: event.startTime,
-              endTime: event.endTime,
-              location: event.location,
-              isAllDay: event.isAllDay,
-              eventType: event.eventType,
-            },
-            createdAt: event.createdAt,
-            updatedAt: event.updatedAt,
-          });
+          // Calendar events table removed - data is now in raw_events
+          // TODO: Implement calendar event retrieval via raw_events/interactions
+          return ok(null);
         }
 
         case "task": {

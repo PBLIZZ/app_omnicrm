@@ -1,51 +1,35 @@
 /**
  * Calendar API Business Schemas
  *
- * For base types, import from @/server/db/schema:
- * - CalendarEvent (select type)
- * - CreateCalendarEvent (insert type)
- * - UpdateCalendarEvent (partial insert type)
+ * Note: Calendar events are now stored as raw_events with provider='calendar'
+ * rather than in a dedicated calendar_events table.
  *
- * This file contains ONLY API-specific schemas and UI-enhanced versions.
+ * This file contains API-specific schemas for calendar sync, OAuth, and business intelligence.
  */
 
 import { z } from "zod";
-import { createSelectSchema } from "drizzle-zod";
-import { calendarEvents, type CalendarEvent } from "@/server/db/schema";
-
-// Re-export base types from schema for convenience
-export type { CalendarEvent, CreateCalendarEvent, UpdateCalendarEvent } from "@/server/db/schema";
 
 // ============================================================================
-// UI-ENHANCED CALENDAR EVENT SCHEMAS
+// CALENDAR EVENT TYPES (from raw_events)
 // ============================================================================
-
-// Create base schema from drizzle table for UI enhancements
-const selectCalendarEventSchema = createSelectSchema(calendarEvents);
 
 /**
- * UI-Enhanced Calendar Event Schema
- * Extends base CalendarEvent with computed fields for UI display
+ * Calendar Event type - represents calendar data from raw_events
+ * This is the shape returned by the calendar API endpoints
  */
-export const CalendarEventWithUISchema = selectCalendarEventSchema.transform((data) => ({
-  ...data,
-  // UI computed fields
-  duration: data.endTime.getTime() - data.startTime.getTime(),
-  isAllDay: data.startTime.toDateString() === data.endTime.toDateString(),
-  isToday: data.startTime.toDateString() === new Date().toDateString(),
-  isPast: data.endTime < new Date(),
-  isUpcoming: data.startTime > new Date(),
-  attendeeCount: Array.isArray(data.attendees) ? data.attendees.length : 0,
-})) satisfies z.ZodType<CalendarEvent & { 
-  duration: number; 
-  isAllDay: boolean; 
-  isToday: boolean; 
-  isPast: boolean; 
-  isUpcoming: boolean; 
-  attendeeCount: number; 
-}>;
-
-export type CalendarEventWithUI = z.infer<typeof CalendarEventWithUISchema>;
+export type CalendarEvent = {
+  id: string;
+  googleEventId: string;
+  title: string;
+  description: string | null;
+  startTime: string;
+  endTime: string;
+  attendees: Record<string, unknown> | null;
+  location: string | null;
+  status: string | null;
+  eventType: string | null;
+  businessCategory: string | null;
+};
 
 // ============================================================================
 // CALENDAR OAUTH SCHEMAS

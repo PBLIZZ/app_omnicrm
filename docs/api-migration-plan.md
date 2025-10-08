@@ -192,7 +192,14 @@ export const GooglePrefsSchema = z.object({
 
 ```typescript
 export const JobProcessRequestSchema = z.object({
-  jobType: z.enum(["normalize", "embed", "insight", "sync_gmail", "sync_calendar"]),
+  jobType: z.enum([
+    "normalize_google_email",
+    "normalize_google_event",
+    "embed",
+    "insight",
+    "google_gmail_sync",
+    "google_calendar_sync",
+  ]),
   batchId: z.string().uuid().optional(),
   maxJobs: z.number().int().min(1).max(100).default(10),
 });

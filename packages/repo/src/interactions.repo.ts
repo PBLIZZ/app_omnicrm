@@ -254,15 +254,15 @@ export class InteractionsRepository {
 
       const sanitized: Record<string, unknown> = {};
 
-      if (updates.contactId !== undefined) sanitized.contactId = updates.contactId;
-      if (updates.type !== undefined) sanitized.type = updates.type;
-      if (updates.subject !== undefined) sanitized.subject = updates.subject ?? null;
-      if (updates.bodyText !== undefined) sanitized.bodyText = updates.bodyText ?? null;
-      if (updates.occurredAt !== undefined) sanitized.occurredAt = updates.occurredAt;
-      if (updates.source !== undefined) sanitized.source = updates.source ?? null;
-      if (updates.sourceId !== undefined) sanitized.sourceId = updates.sourceId ?? null;
-      if (updates.sourceMeta !== undefined) sanitized.sourceMeta = updates.sourceMeta ?? null;
-      if (updates.batchId !== undefined) sanitized.batchId = updates.batchId ?? null;
+      if (updates.contactId !== undefined) sanitized["contactId"] = updates.contactId;
+      if (updates.type !== undefined) sanitized["type"] = updates.type;
+      if (updates.subject !== undefined) sanitized["subject"] = updates.subject ?? null;
+      if (updates.bodyText !== undefined) sanitized["bodyText"] = updates.bodyText ?? null;
+      if (updates.occurredAt !== undefined) sanitized["occurredAt"] = updates.occurredAt;
+      if (updates.source !== undefined) sanitized["source"] = updates.source ?? null;
+      if (updates.sourceId !== undefined) sanitized["sourceId"] = updates.sourceId ?? null;
+      if (updates.sourceMeta !== undefined) sanitized["sourceMeta"] = updates.sourceMeta ?? null;
+      if (updates.batchId !== undefined) sanitized["batchId"] = updates.batchId ?? null;
 
       if (Object.keys(sanitized).length === 0) {
         return dbError("DB_UPDATE_FAILED", "No fields provided for update");
@@ -287,10 +287,7 @@ export class InteractionsRepository {
   /**
    * Delete a single interaction by ID.
    */
-  static async deleteInteraction(
-    userId: string,
-    interactionId: string,
-  ): Promise<DbResult<number>> {
+  static async deleteInteraction(userId: string, interactionId: string): Promise<DbResult<number>> {
     try {
       const db = await getDb();
 

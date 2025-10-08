@@ -229,7 +229,7 @@ SUPABASE_SECRET_KEY=                   # Service role key
 - `normalize` - Data normalization
 - `embed` - Vector embeddings generation
 - `insight` - AI insights generation  
-- `sync_gmail` / `sync_calendar` - External API synchronization
+- `google_gmail_sync` / `google_calendar_sync` - External API synchronization
 
 ### Job Management
 - Database-backed job queue in `jobs` table

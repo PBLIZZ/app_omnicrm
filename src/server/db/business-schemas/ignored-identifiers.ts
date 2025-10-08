@@ -31,8 +31,10 @@ export type IgnoredIdentifierDTO = z.infer<typeof IgnoredIdentifierSchema>;
 // REQUEST SCHEMAS
 // ============================================================================
 
+const IdentifierKindSchema = z.enum(["email", "phone", "handle", "provider_id"]);
+
 export const CreateIgnoredIdentifierBodySchema = z.object({
-  kind: z.string().min(1, "kind is required"),
+  kind: IdentifierKindSchema,
   value: z.string().min(1, "value is required"),
   reason: z.string().optional(),
 });
@@ -85,3 +87,5 @@ export type IgnoredIdentifierListResponse = z.infer<typeof IgnoredIdentifierList
 export const IgnoredIdentifierResponseSchema = z.object({
   item: IgnoredIdentifierSchema,
 });
+
+export type IgnoredIdentifierResponse = z.infer<typeof IgnoredIdentifierResponseSchema>;

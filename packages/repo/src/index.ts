@@ -7,14 +7,20 @@ export { AuthUserRepository } from "./auth-user.repo";
 export { ContactsRepository } from "./contacts.repo";
 export { InteractionsRepository } from "./interactions.repo";
 export { NotesRepository } from "./notes.repo";
-export { IdentitiesRepository } from "./identities.repo";
 export { ContactIdentitiesRepository } from "./contact-identities.repo";
 export { SearchRepository } from "./search.repo";
+export { HealthRepository } from "./health.repo";
 export { MomentumRepository, momentumRepository } from "./momentum.repo";
 export { UserIntegrationsRepository } from "./user-integrations.repo";
-export { SyncSessionsRepository } from "./sync-sessions.repo";
+export type { UserIntegrationDTO } from "./user-integrations.repo";
 export { RawEventsRepository } from "./raw-events.repo";
-export type { RawEventListParams, RawEventListItem } from "./raw-events.repo";
+export type { 
+  RawEventListParams, 
+  RawEventListItem, 
+  ProviderType,
+  RawEventProcessingStatus,
+  RawEventContactExtractionStatus,
+} from "./raw-events.repo";
 export { AiInsightsRepository } from "./ai-insights.repo";
 export type { AiInsightListParams } from "./ai-insights.repo";
 export { EmbeddingsRepository } from "./embeddings.repo";

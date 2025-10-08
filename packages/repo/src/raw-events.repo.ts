@@ -20,7 +20,16 @@ import {
 } from "@/server/db/schema";
 import type { DbClient } from "@/server/db/client";
 
-type ProviderType = "gmail" | "calendar" | "drive" | "upload";
+export type ProviderType = "gmail" | "calendar" | "drive" | "upload";
+
+export type RawEventProcessingStatus = "pending" | "processing" | "completed" | "failed" | "skipped";
+
+export type RawEventContactExtractionStatus = 
+  | "NO_IDENTIFIERS" 
+  | "IDENTIFIERS_FOUND" 
+  | "PENDING" 
+  | "YES" 
+  | "REJECTED";
 
 export type RawEventListParams = {
   provider?: ProviderType[];
@@ -40,18 +49,18 @@ export type RawEventListParams = {
 export type RawEventListItem = {
   id: string;
   userId: string;
-  provider: string;
+  provider: ProviderType;
   payload: unknown;
   occurredAt: Date;
-  sourceId: string | null;
+  sourceId: string; // Non-null per database schema
   sourceMeta: unknown | null;
   batchId: string | null;
   createdAt: Date | null;
-  processingStatus: string;
+  processingStatus: RawEventProcessingStatus;
   processingAttempts: number;
   processingError: string | null;
   processedAt: Date | null;
-  contactExtractionStatus: string | null;
+  contactExtractionStatus: RawEventContactExtractionStatus | null;
   extractedAt: Date | null;
 };
 
@@ -66,18 +75,18 @@ function mapRowToListItem(row: RawEventRow): RawEventListItem {
   return {
     id: row.id,
     userId: row.userId,
-    provider: row.provider,
+    provider: row.provider as ProviderType,
     payload: row.payload,
     occurredAt: row.occurredAt,
     sourceId: row.sourceId,
     sourceMeta: row.sourceMeta,
     batchId: row.batchId,
     createdAt: row.createdAt,
-    processingStatus: row.processingStatus ?? "pending",
+    processingStatus: (row.processingStatus ?? "pending") as RawEventProcessingStatus,
     processingAttempts: row.processingAttempts ?? 0,
     processingError: row.processingError,
     processedAt: row.processedAt,
-    contactExtractionStatus: row.contactExtractionStatus,
+    contactExtractionStatus: row.contactExtractionStatus as RawEventContactExtractionStatus | null,
     extractedAt: row.extractedAt,
   };
 }

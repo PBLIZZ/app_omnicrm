@@ -7,21 +7,18 @@ import {
   threads,
   messages,
   toolInvocations,
-  userSyncPrefs,
-  syncAudit,
   jobs,
   aiUsage,
   aiQuotas,
   userIntegrations,
   notes,
-  calendarEvents,
-  contactTimeline,
   projects,
   tasks,
   goals,
   dailyPulseLogs,
   inboxItems,
   taskContactTags,
+  documents,
 } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
 import { deleteEmbeddingsForUserService } from "@/server/services/embeddings.service";
@@ -33,6 +30,15 @@ interface DeletionRequest {
   confirmation: string;
   acknowledgeIrreversible: boolean;
   ipAddress?: string;
+}
+
+interface DeletionResult {
+  deleted: boolean;
+  deletedAt: string;
+  deletionResults: Record<string, number>;
+  message: string;
+  auditTrail: string;
+  nextSteps: string[];
 }
 
 export class UserDeletionService {
@@ -58,7 +64,6 @@ export class UserDeletionService {
     // Start transaction for atomic deletion
     const deletionResults = await db.transaction(async (tx) => {
       const txExecutor = tx as unknown as DbClient;
-      /* eslint-disable @typescript-eslint/no-unsafe-member-access */
       const results: Record<string, number> = {};
 
       // Delete in reverse dependency order to avoid foreign key constraints
@@ -96,18 +101,6 @@ export class UserDeletionService {
       // 6. Delete inbox items
       const inboxItemsResult = await tx.delete(inboxItems).where(eq(inboxItems.userId, userId));
       results["inboxItems"] = inboxItemsResult.length;
-
-      // 5. Delete contact timeline (references contacts)
-      const contactTimelineResult = await tx
-        .delete(contactTimeline)
-        .where(eq(contactTimeline.userId, userId));
-      results["contactTimeline"] = contactTimelineResult.length;
-
-      // 6. Delete calendar events
-      const calendarEventsResult = await tx
-        .delete(calendarEvents)
-        .where(eq(calendarEvents.userId, userId));
-      results["calendarEvents"] = calendarEventsResult.length;
 
       // 7. Delete notes (references contacts)
       const notesResult = await tx.delete(notes).where(eq(notes.userId, userId));
@@ -170,16 +163,9 @@ export class UserDeletionService {
         .where(eq(userIntegrations.userId, userId));
       results["integrations"] = integrationsResult.length;
 
-      // 20. Delete sync preferences
-      const syncPrefsResult = await tx
-        .delete(userSyncPrefs)
-        .where(eq(userSyncPrefs.userId, userId));
-      results["syncPrefs"] = syncPrefsResult.length;
+      // Note: Detailed audit information is preserved via the observability pipeline
+      // rather than a dedicated sync audit table in the refactored schema.
 
-      // Note: We keep sync audit log for compliance (will be cleaned up by retention policy)
-      // This is intentional - we keep the deletion audit trail for legal/regulatory purposes
-
-      /* eslint-enable @typescript-eslint/no-unsafe-member-access */
       return results;
     });
 
@@ -223,7 +209,6 @@ export class UserDeletionService {
       notesCount,
       documentsCount,
       jobsCount,
-      calendarEventsCount,
       tasksCount,
       projectsCount,
       goalsCount,
@@ -234,7 +219,6 @@ export class UserDeletionService {
       this.countRecords(db, notes, userId),
       this.countRecords(db, documents, userId),
       this.countRecords(db, jobs, userId),
-      this.countRecords(db, calendarEvents, userId),
       this.countRecords(db, tasks, userId),
       this.countRecords(db, projects, userId),
       this.countRecords(db, goals, userId),
@@ -247,7 +231,6 @@ export class UserDeletionService {
       notes: notesCount,
       documents: documentsCount,
       jobs: jobsCount,
-      calendarEvents: calendarEventsCount,
       tasks: tasksCount,
       projects: projectsCount,
       goals: goalsCount,
@@ -283,13 +266,10 @@ export class UserDeletionService {
     request: DeletionRequest,
     timestamp: Date,
   ): Promise<void> {
-    const db = await getDb();
-
-    await db.insert(syncAudit).values({
-      userId,
-      provider: "system",
-      action: "account_deletion_requested",
-      payload: {
+    await logger.info("Account deletion requested", {
+      operation: "user_deletion_service.audit_requested",
+      additionalData: {
+        userId,
         confirmation: request.confirmation,
         acknowledgeIrreversible: request.acknowledgeIrreversible,
         deletionTimestamp: timestamp.toISOString(),
@@ -302,17 +282,14 @@ export class UserDeletionService {
    * Log deletion completion for audit trail
    */
   private static async logDeletionCompletion(userId: string, timestamp: Date): Promise<void> {
-    const db = await getDb();
-
-    await db.insert(syncAudit).values({
-      userId,
-      provider: "system",
-      action: "account_deletion_completed",
-      payload: {
+    await logger.info("Account deletion completed", {
+      operation: "user_deletion_service.audit_completed",
+      additionalData: {
+        userId,
         deletionTimestamp: timestamp.toISOString(),
         completedAt: new Date().toISOString(),
         retentionNote:
-          "This audit record will be retained for 30 days then purged per data retention policy",
+          "Audit entries are retained via centralized logging per data retention policy",
       },
     });
   }
@@ -325,10 +302,7 @@ export class UserDeletionService {
     table: PgTable & { userId: PgColumn },
     userId: string,
   ): Promise<number> {
-    const rows = await db
-      .select({ value: count() })
-      .from(table)
-      .where(eq(table.userId, userId));
+    const rows = await db.select({ value: count() }).from(table).where(eq(table.userId, userId));
 
     return Number(rows[0]?.value ?? 0);
   }

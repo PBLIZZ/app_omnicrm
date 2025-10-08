@@ -4,6 +4,7 @@ import { handleAuthWithParams } from "@/lib/api";
 import {
   IgnoredIdentifierResponseSchema,
   UpdateIgnoredIdentifierBodySchema,
+  type IgnoredIdentifierResponse,
 } from "@/server/db/business-schemas/ignored-identifiers";
 import {
   deleteIgnoredIdentifierService,
@@ -21,9 +22,14 @@ const DeleteResponseSchema = z.object({
 export const PATCH = handleAuthWithParams(
   UpdateIgnoredIdentifierBodySchema,
   IgnoredIdentifierResponseSchema,
-  async (data, userId, params) => {
+  async (data, userId, params): Promise<IgnoredIdentifierResponse> => {
     const { identifierId } = ParamsSchema.parse(params);
-    const item = await updateIgnoredIdentifierService(userId, identifierId, data);
+    
+    // Only pass defined properties (exactOptionalPropertyTypes requirement)
+    const input: Parameters<typeof updateIgnoredIdentifierService>[2] = {};
+    if (data.reason !== undefined) input.reason = data.reason;
+    
+    const item = await updateIgnoredIdentifierService(userId, identifierId, input);
     return { item };
   },
 );
@@ -31,7 +37,7 @@ export const PATCH = handleAuthWithParams(
 export const DELETE = handleAuthWithParams(
   z.void(),
   DeleteResponseSchema,
-  async (_voidInput, userId, params) => {
+  async (_voidInput, userId, params): Promise<{ deleted: number }> => {
     const { identifierId } = ParamsSchema.parse(params);
     return await deleteIgnoredIdentifierService(userId, identifierId);
   },

@@ -5,6 +5,7 @@ import {
   IgnoredIdentifierQuerySchema,
   IgnoredIdentifierResponseSchema,
   type IgnoredIdentifierListResponse,
+  type IgnoredIdentifierResponse,
 } from "@/server/db/business-schemas/ignored-identifiers";
 import {
   createIgnoredIdentifierService,
@@ -18,13 +19,17 @@ export const GET = handleGetWithQueryAuth(
   async (query, userId): Promise<IgnoredIdentifierListResponse> => {
     const { page, pageSize, kind, search, order } = query;
 
-    const { items, total } = await listIgnoredIdentifiersService(userId, {
-      kinds: kind,
-      search,
+    const params: Parameters<typeof listIgnoredIdentifiersService>[1] = {
       page,
       pageSize,
       order,
-    });
+    };
+
+    // Only add optional properties if defined (exactOptionalPropertyTypes requirement)
+    if (kind !== undefined) params.kinds = kind;
+    if (search !== undefined) params.search = search;
+
+    const { items, total } = await listIgnoredIdentifiersService(userId, params);
 
     return {
       items,
@@ -36,8 +41,13 @@ export const GET = handleGetWithQueryAuth(
 export const POST = handleAuth(
   CreateIgnoredIdentifierBodySchema,
   IgnoredIdentifierResponseSchema,
-  async (data, userId) => {
-    const item = await createIgnoredIdentifierService(userId, data);
+  async (data, userId): Promise<IgnoredIdentifierResponse> => {
+    const input = {
+      kind: data.kind,
+      value: data.value,
+      ...(data.reason !== undefined && { reason: data.reason }),
+    };
+    const item = await createIgnoredIdentifierService(userId, input);
     return { item };
   },
 );

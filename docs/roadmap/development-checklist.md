@@ -240,7 +240,7 @@ This checklist consolidates all tasks from the planning documents into a single,
 
 ### 3.1 Job Queue System
 
-- [x] [AGENT] Create job types at `src/server/jobs/types.ts`: "normalize" | "embed" | "insight"
+- [x] [AGENT] Create job types at `src/server/jobs/types.ts`: "normalize_google_email" | "normalize_google_event" | "embed" | "insight"
 - [x] [AGENT] Implement enqueue helper at `src/server/jobs/enqueue.ts`
 - [x] [AGENT] Create job runner API at `/api/jobs/runner`
 - [x] [AGENT] Add job status tracking and error handling

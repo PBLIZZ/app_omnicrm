@@ -682,7 +682,7 @@ fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
 - normalize - Data normalization
 - embed - Vector embeddings
 - insight - AI insights generation
-- sync_gmail / sync_calendar - External API sync
+- google_gmail_sync / google_calendar_sync - External API sync
 
   Component Architecture Patterns
 

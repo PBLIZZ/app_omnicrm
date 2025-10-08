@@ -29,18 +29,14 @@ export {
 } from "./tasks";
 
 // Calendar schemas
-// Base types (CalendarEvent, CreateCalendarEvent, UpdateCalendarEvent) are re-exported from schema.ts
+// Note: Calendar events are now stored in raw_events with provider='calendar'
 export {
-  CalendarEventWithUISchema,
   CalendarOAuthQuerySchema,
   CalendarItemSchema,
   ClientSchema,
   AppointmentSchema,
   WeeklyStatsSchema,
   type CalendarEvent,
-  type CreateCalendarEvent,
-  type UpdateCalendarEvent,
-  type CalendarEventWithUI,
   type CalendarOAuthQuery,
   type CalendarItem,
   type Client,
@@ -137,6 +133,8 @@ export {
   UserSyncPrefsUpdateSchema,
   SyncSessionSchema,
   NewSyncSessionSchema,
+  DrivePreferencesSchema,
+  type DrivePreferences,
 } from "./sync-progress";
 
 // Inbox Management
@@ -225,6 +223,7 @@ export {
 export {
   HealthResponseSchema,
   DbPingResponseSchema,
+  GoogleSignInQuerySchema,
   type HealthResponse,
   type DbPingResponse,
 } from "./health";

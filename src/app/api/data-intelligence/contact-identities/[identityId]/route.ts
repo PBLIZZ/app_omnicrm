@@ -8,6 +8,7 @@ import {
 import {
   deleteContactIdentityService,
   updateContactIdentityService,
+  type UpdateContactIdentityInput,
 } from "@/server/services/contact-identities.service";
 
 const ParamsSchema = z.object({
@@ -21,9 +22,13 @@ const DeleteResponseSchema = z.object({
 export const PATCH = handleAuthWithParams(
   UpdateContactIdentityBodySchema,
   ContactIdentityResponseSchema,
-  async (data, userId, params) => {
+  async (data, userId, params): Promise<{ item: z.infer<typeof ContactIdentityResponseSchema>["item"] }> => {
     const { identityId } = ParamsSchema.parse(params);
-    const item = await updateContactIdentityService(userId, identityId, data);
+    const updatePayload: UpdateContactIdentityInput = {};
+    if (data.kind !== undefined) updatePayload.kind = data.kind as "email" | "phone" | "handle" | "provider_id";
+    if (data.value !== undefined) updatePayload.value = data.value;
+    if (data.provider !== undefined) updatePayload.provider = data.provider ?? null;
+    const item = await updateContactIdentityService(userId, identityId, updatePayload);
     return { item };
   },
 );
@@ -31,7 +36,7 @@ export const PATCH = handleAuthWithParams(
 export const DELETE = handleAuthWithParams(
   z.void(),
   DeleteResponseSchema,
-  async (_voidInput, userId, params) => {
+  async (_voidInput, userId, params): Promise<{ deleted: number }> => {
     const { identityId } = ParamsSchema.parse(params);
     return await deleteContactIdentityService(userId, identityId);
   },

@@ -4,9 +4,8 @@
  * Service for creating background jobs from various data sources
  */
 
+import { JobsRepository, RawEventsRepository } from "@repo";
 import { getDb } from "@/server/db/client";
-import { rawEvents, jobs, calendarEvents } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
 import { logger } from "@/lib/observability/unified-logger";
 
 interface JobCreationResult {
@@ -21,15 +20,11 @@ export class JobCreationService {
    */
   static async createRawEventJobs(userId: string): Promise<JobCreationResult> {
     const db = await getDb();
+    const pendingEvents = await RawEventsRepository.findNextPendingEvents(db, userId, 50);
 
-    // Get unprocessed raw events for this user
-    const unprocessedEvents = await db
-      .select()
-      .from(rawEvents)
-      .where(eq(rawEvents.userId, userId))
-      .limit(50); // Process in batches
+    const gmailEvents = pendingEvents.filter((event) => event.provider === "gmail");
 
-    if (unprocessedEvents.length === 0) {
+    if (gmailEvents.length === 0) {
       return {
         message: "No raw events found to process",
         processed: 0,
@@ -37,57 +32,46 @@ export class JobCreationService {
       };
     }
 
-    // Create normalize jobs for Gmail events
-    const jobsToCreate = unprocessedEvents
-      .filter(event => event.provider === 'gmail')
-      .map(event => ({
-        id: crypto.randomUUID(),
-        user_id: userId,
-        kind: 'normalize_google_email' as const,
-        payload: {
-          rawEventId: event.id,
-          provider: 'gmail',
-        },
-        status: 'queued' as const,
-        attempts: 0,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }));
+    const jobsToCreate = gmailEvents.map((event) => ({
+      userId,
+      kind: "normalize_google_email" as const,
+      payload: {
+        rawEventId: event.id,
+        provider: event.provider,
+      },
+      batchId: event.batchId ?? null,
+    }));
 
     if (jobsToCreate.length > 0) {
-      await db.insert(jobs).values(jobsToCreate);
+      await JobsRepository.createBulkJobs(db, jobsToCreate);
     }
 
     await logger.info(`Created ${jobsToCreate.length} normalize jobs for raw events`, {
       operation: "manual_raw_events_processor",
       additionalData: {
         userId: userId,
-        totalRawEvents: unprocessedEvents.length,
+        totalRawEvents: pendingEvents.length,
         jobsCreated: jobsToCreate.length,
       },
     });
 
     return {
-      message: `Created ${jobsToCreate.length} normalize jobs from ${unprocessedEvents.length} raw events`,
+      message: `Created ${jobsToCreate.length} normalize jobs from ${pendingEvents.length} raw events`,
       processed: jobsToCreate.length,
-      totalItems: unprocessedEvents.length,
+      totalItems: pendingEvents.length,
     };
   }
 
   /**
-   * Create normalize jobs for calendar events
+   * Create normalize jobs for calendar events from raw events
    */
   static async createCalendarEventJobs(userId: string): Promise<JobCreationResult> {
     const db = await getDb();
+    const pendingEvents = await RawEventsRepository.findNextPendingEvents(db, userId, 50);
 
-    // Get calendar events for this user
-    const calendarEventsData = await db
-      .select()
-      .from(calendarEvents)
-      .where(eq(calendarEvents.userId, userId))
-      .limit(50); // Process in batches
+    const calendarEvents = pendingEvents.filter((event) => event.provider === "calendar");
 
-    if (calendarEventsData.length === 0) {
+    if (calendarEvents.length === 0) {
       return {
         message: "No calendar events found to process",
         processed: 0,
@@ -95,38 +79,33 @@ export class JobCreationService {
       };
     }
 
-    // Create normalize jobs for calendar events
-    const jobsToCreate = calendarEventsData.map(event => ({
-      id: crypto.randomUUID(),
-      user_id: userId,
-      kind: 'normalize_google_event' as const,
+    const jobsToCreate = calendarEvents.map((event) => ({
+      userId,
+      kind: "normalize_google_event" as const,
       payload: {
-        calendarEventId: event.id,
-        provider: 'calendar',
+        rawEventId: event.id,
+        provider: event.provider,
       },
-      status: 'queued' as const,
-      attempts: 0,
-      created_at: new Date(),
-      updated_at: new Date(),
+      batchId: event.batchId ?? null,
     }));
 
     if (jobsToCreate.length > 0) {
-      await db.insert(jobs).values(jobsToCreate);
+      await JobsRepository.createBulkJobs(db, jobsToCreate);
     }
 
     await logger.info(`Created ${jobsToCreate.length} normalize jobs for calendar events`, {
       operation: "manual_calendar_events_processor",
       additionalData: {
-        userId: userId,
-        totalCalendarEvents: calendarEventsData.length,
+        userId,
+        totalCalendarEvents: calendarEvents.length,
         jobsCreated: jobsToCreate.length,
       },
     });
 
     return {
-      message: `Created ${jobsToCreate.length} normalize jobs from ${calendarEventsData.length} calendar events`,
+      message: `Created ${jobsToCreate.length} normalize jobs from ${calendarEvents.length} calendar events`,
       processed: jobsToCreate.length,
-      totalItems: calendarEventsData.length,
+      totalItems: calendarEvents.length,
     };
   }
 }

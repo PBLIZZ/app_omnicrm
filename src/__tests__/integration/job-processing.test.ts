@@ -230,7 +230,7 @@ describe("Background Job Processing Integration Tests", () => {
         .insert(jobs)
         .values({
           userId: testUserId,
-          kind: "sync_gmail",
+          kind: "google_gmail_sync",
           payload: { syncType: "full" },
           status: "queued",
         })
@@ -338,7 +338,7 @@ describe("Background Job Processing Integration Tests", () => {
         .insert(jobs)
         .values({
           userId: testUserId,
-          kind: "normalize",
+          kind: "normalize_google_email",
           payload: { priority: "low", type: "cleanup" },
           status: "queued",
         })
@@ -417,7 +417,7 @@ describe("Background Job Processing Integration Tests", () => {
             .insert(jobs)
             .values({
               userId: testUserId,
-              kind: "normalize",
+              kind: "normalize_google_email",
               payload: { contactId: contact.id },
               status: "queued",
               batchId,
@@ -459,7 +459,7 @@ describe("Background Job Processing Integration Tests", () => {
             .values({
               userId: testUserId,
               kind: "insight",
-              payload: { contactId: contact.id, dependsOn: "normalize" },
+              payload: { contactId: contact.id, dependsOn: "normalize_google_email" },
               status: "queued",
               batchId,
             })
@@ -505,7 +505,7 @@ describe("Background Job Processing Integration Tests", () => {
       // Verify batch processing completed
       const allBatchJobs = await db.select().from(jobs).where(eq(jobs.batchId, batchId));
 
-      expect(allBatchJobs).toHaveLength(6); // 3 normalize + 3 insight jobs
+      expect(allBatchJobs).toHaveLength(6); // 3 normalize_google_email + 3 insight jobs
       expect(allBatchJobs.every((job) => job.status === "completed")).toBe(true);
 
       // Verify all contacts were processed
@@ -658,7 +658,7 @@ describe("Background Job Processing Integration Tests", () => {
           .insert(jobs)
           .values({
             userId: testUserId,
-            kind: "sync_gmail",
+            kind: "google_gmail_sync",
             payload: { syncType: "incremental", timeWindow: "7d" },
             status: "queued",
             batchId: syncBatchId,
@@ -668,7 +668,7 @@ describe("Background Job Processing Integration Tests", () => {
           .insert(jobs)
           .values({
             userId: testUserId,
-            kind: "sync_calendar",
+            kind: "google_calendar_sync",
             payload: { syncType: "incremental", timeWindow: "30d" },
             status: "queued",
             batchId: syncBatchId,
@@ -686,7 +686,7 @@ describe("Background Job Processing Integration Tests", () => {
           .where(eq(jobs.id, job[0]!.id));
 
         // Create simulated raw events
-        if (job[0]!.kind === "sync_gmail") {
+        if (job[0]!.kind === "google_gmail_sync") {
           const gmailEvents = await db
             .insert(rawEvents)
             .values([
@@ -722,7 +722,7 @@ describe("Background Job Processing Integration Tests", () => {
           gmailEvents.forEach((event) => trackForCleanup("rawEvents", event.id));
         }
 
-        if (job[0]!.kind === "sync_calendar") {
+        if (job[0]!.kind === "google_calendar_sync") {
           const calendarEvents = await db
             .insert(rawEvents)
             .values([
@@ -763,7 +763,7 @@ describe("Background Job Processing Integration Tests", () => {
             .insert(jobs)
             .values({
               userId: testUserId,
-              kind: "normalize",
+              kind: "normalize_google_email",
               payload: { rawEventId: event.id },
               status: "queued",
               batchId: syncBatchId,
@@ -835,7 +835,7 @@ describe("Background Job Processing Integration Tests", () => {
       // Create high volume of jobs
       const bulkJobs = Array.from({ length: jobCount }, (_, i) => ({
         userId: testUserId,
-        kind: "normalize" as const,
+        kind: "normalize_google_email" as const,
         payload: { index: i, type: "bulk_processing" },
         status: "queued" as const,
       }));
@@ -1105,7 +1105,7 @@ describe("Background Job Processing Integration Tests", () => {
           .insert(jobs)
           .values({
             userId: testUserId,
-            kind: "normalize",
+            kind: "normalize_google_email",
             payload: { type: "success", index: 1 },
             status: "queued",
             batchId,
@@ -1115,7 +1115,7 @@ describe("Background Job Processing Integration Tests", () => {
           .insert(jobs)
           .values({
             userId: testUserId,
-            kind: "normalize",
+            kind: "normalize_google_email",
             payload: { type: "failure", index: 2 },
             status: "queued",
             batchId,
@@ -1125,7 +1125,7 @@ describe("Background Job Processing Integration Tests", () => {
           .insert(jobs)
           .values({
             userId: testUserId,
-            kind: "normalize",
+            kind: "normalize_google_email",
             payload: { type: "success", index: 3 },
             status: "queued",
             batchId,

@@ -3,7 +3,6 @@ import { productivityService } from "@/server/services/productivity.service";
 import { TaskFiltersSchema, TaskSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 import { NextRequest } from "next/server";
-import { isErr } from "@/lib/utils/result";
 
 /**
  * Project Tasks API Route
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     z.array(TaskSchema),
     async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
       const result = await productivityService.getProjectTasks(params.projectId, userId, filters);
-      if (isErr(result)) {
+      if (!result.success) {
         throw new Error(result.error.message);
       }
       return result.data;

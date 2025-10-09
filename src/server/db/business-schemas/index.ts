@@ -7,26 +7,36 @@
 // Task schemas
 // Base types (Task, CreateTask, UpdateTask) are re-exported from schema.ts
 export {
+  TaskSchema,
+  CreateTaskSchema,
+  UpdateTaskSchema,
   TaskWithUISchema,
   TaskFiltersSchema,
   type Task,
   type CreateTask,
   type UpdateTask,
+  type CreateTaskInput,
+  type UpdateTaskInput,
   type TaskWithUI,
   type TaskFilters,
-} from "./tasks";
+} from "./productivity";
 
 // Project schemas
 // Base types (Project, CreateProject, UpdateProject) are re-exported from schema.ts
 export {
+  ProjectSchema,
+  CreateProjectSchema,
+  UpdateProjectSchema,
   ProjectWithUISchema,
   ProjectFiltersSchema,
   type Project,
   type CreateProject,
   type UpdateProject,
+  type CreateProjectInput,
+  type UpdateProjectInput,
   type ProjectWithUI,
   type ProjectFilters,
-} from "./tasks";
+} from "./productivity";
 
 // Calendar schemas
 // Note: Calendar events are now stored in raw_events with provider='calendar'
@@ -139,20 +149,20 @@ export {
 
 // Inbox Management
 // Base types (InboxItem, CreateInboxItem, UpdateInboxItem) are re-exported from schema.ts
-export * from "./tasks";
+export * from "./productivity";
 
 // Re-export specific types for convenience
 export type {
   InboxProcessingResultDTO,
   InboxProcessingContext,
   ProcessInboxItemDTO,
-} from "./tasks";
+} from "./productivity";
 
 // Search Functionality - DEPRECATED - Moved to deprecated-search-files/
 // Will be reimplemented as Spotlight-style global search
 
 // Zones Management
-export * from "./tasks";
+export * from "./productivity";
 
 // User Management & Admin
 export {
@@ -217,7 +227,7 @@ export {
   type ZoneWithStats,
   type ZonesListResponse,
   type ZonesWithStatsResponse,
-} from "./tasks";
+} from "./productivity";
 
 // Health & System Monitoring
 export {

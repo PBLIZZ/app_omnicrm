@@ -93,7 +93,7 @@ When user lands on Connect page, show high-level overview without overwhelming d
 
 #### Template Library View (!!!!!!!!!)
 
-```
+```bash
 ┌─────────────────────────────────────────────────────┐
 │ Wellness Email Templates                             │
 ├─────────────────────────────────────────────────────┤
@@ -119,7 +119,7 @@ Template Preview Panel (appears on selection)
 
 #### Semantic Search Interface (!!!)
 
-```
+```bash
 Header: [🔍 Advanced Search] [💾 Save Search] [📊 Search Analytics]
 
 ┌─────────────────────────────────────────────────────┐
@@ -150,7 +150,7 @@ Search Results (appears below)
 
 #### Weekly Digests View (!!!)
 
-```
+```bash
 Header: [📅 This Week] [📊 Analytics] [⚙️ Customize] [📱 Mobile View]
 
 ┌─────────────────────────────────────────────────────┐
@@ -183,7 +183,7 @@ Expandable Section (on click)
 
 #### AI Categorization Dashboard (!!!)
 
-```
+```bash
 Header: [🔄 Process Now] [⚙️ Rules] [📊 Accuracy] [🎯 Train AI]
 
 ┌─────────────────────────────────────────────────────┐
@@ -229,7 +229,7 @@ Review Queue (expandable)
 
 ### Mobile-Specific Features
 
-```
+```bash
 ┌─────────────────────────────────┐
 │ ☰ Connect    🔍 📝 ⚙️         │ ← Header (tools)
 ├─────────────────────────────────┤
@@ -364,7 +364,7 @@ Usage tracking and effectiveness metrics
 Simple customization interface
 Mobile-optimized editing
 
-3. Business Intelligence Dashboard
+1. Business Intelligence Dashboard
 javascript// Realistic metrics from available data
 function generateEmailIntelligence(emailEvents, timeframe) {
   return {

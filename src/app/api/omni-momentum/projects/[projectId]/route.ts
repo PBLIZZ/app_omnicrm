@@ -1,14 +1,12 @@
 import { handleAuth } from "@/lib/api";
+import { ApiError } from "@/lib/api/errors";
 import { productivityService } from "@/server/services/productivity.service";
-import { 
-  UpdateProjectSchema, 
+import {
+  UpdateProjectSchema,
   ProjectSchema,
-  type UpdateProject,
-  type Project as ProjectType 
+  type UpdateProjectInput,
 } from "@/server/db/business-schemas";
 import { z } from "zod";
-import { isErr } from "@/lib/utils/result";
-import { ApiError } from "@/lib/api/errors";
 
 /**
  * Individual Project Management API Routes
@@ -29,6 +27,7 @@ const SuccessResponseSchema = z.object({
   success: z.boolean(),
 });
 
+type ProjectResponse = z.infer<typeof ProjectSchema>;
 type SuccessResponse = z.infer<typeof SuccessResponseSchema>;
 
 /**
@@ -36,23 +35,28 @@ type SuccessResponse = z.infer<typeof SuccessResponseSchema>;
  */
 export async function GET(request: Request, context: RouteParams): Promise<Response> {
   // Use an empty schema for GET since we only need the URL parameter
-  const handler = handleAuth(z.object({}), ProjectSchema, async (_, userId): Promise<ProjectType> => {
-    const params = await context.params;
-    const result = await productivityService.getProject(params.projectId, userId);
+  const handler = handleAuth(
+    z.void(),
+    ProjectSchema,
+    async (_: void, userId): Promise<ProjectResponse> => {
+      const params = await context.params;
+      const result = await productivityService.getProject(params.projectId, userId);
 
-    if (isErr(result)) {
-      const errorMessage = typeof result.error === 'object' && result.error !== null && 'message' in result.error 
-        ? String(result.error.message) 
-        : 'Failed to get project';
-      throw new ApiError(errorMessage, 500);
-    }
+      if (!result.success) {
+        const errorMessage =
+          typeof result.error === "object" && result.error !== null && "message" in result.error
+            ? String(result.error.message)
+            : "Failed to get project";
+        throw new ApiError(errorMessage, 500);
+      }
 
-    if (!result.data) {
-      throw new ApiError("Project not found", 404);
-    }
+      if (!result.data) {
+        throw ApiError.notFound("Project not found");
+      }
 
-    return result.data;
-  });
+      return result.data;
+    },
+  );
 
   return handler(request);
 }
@@ -61,23 +65,28 @@ export async function GET(request: Request, context: RouteParams): Promise<Respo
  * PUT /api/omni-momentum/projects/[projectId] - Update project
  */
 export async function PUT(request: Request, context: RouteParams): Promise<Response> {
-  const handler = handleAuth(UpdateProjectSchema, ProjectSchema, async (data: UpdateProject, userId): Promise<ProjectType> => {
-    const params = await context.params;
-    const result = await productivityService.updateProject(params.projectId, userId, data);
+  const handler = handleAuth(
+    UpdateProjectSchema,
+    ProjectSchema,
+    async (data: UpdateProjectInput, userId): Promise<ProjectResponse> => {
+      const params = await context.params;
+      const result = await productivityService.updateProject(params.projectId, userId, data);
 
-    if (isErr(result)) {
-      const errorMessage = typeof result.error === 'object' && result.error !== null && 'message' in result.error 
-        ? String(result.error.message) 
-        : 'Failed to update project';
-      throw new ApiError(errorMessage, 500);
-    }
+      if (!result.success) {
+        const errorMessage =
+          typeof result.error === "object" && result.error !== null && "message" in result.error
+            ? String(result.error.message)
+            : "Failed to update project";
+        throw new ApiError(errorMessage, 500);
+      }
 
-    if (!result.data) {
-      throw new ApiError("Project not found", 404);
-    }
+      if (!result.data) {
+        throw ApiError.notFound("Project not found");
+      }
 
-    return result.data;
-  });
+      return result.data;
+    },
+  );
 
   return handler(request);
 }
@@ -86,19 +95,24 @@ export async function PUT(request: Request, context: RouteParams): Promise<Respo
  * DELETE /api/omni-momentum/projects/[projectId] - Delete project
  */
 export async function DELETE(request: Request, context: RouteParams): Promise<Response> {
-  const handler = handleAuth(z.object({}), SuccessResponseSchema, async (_, userId): Promise<SuccessResponse> => {
-    const params = await context.params;
-    const result = await productivityService.deleteProject(params.projectId, userId);
+  const handler = handleAuth(
+    z.void(),
+    SuccessResponseSchema,
+    async (_, userId): Promise<SuccessResponse> => {
+      const params = await context.params;
+      const result = await productivityService.deleteProject(params.projectId, userId);
 
-    if (isErr(result)) {
-      const errorMessage = typeof result.error === 'object' && result.error !== null && 'message' in result.error 
-        ? String(result.error.message) 
-        : 'Failed to delete project';
-      throw new ApiError(errorMessage, 500);
-    }
+      if (!result.success) {
+        const errorMessage =
+          typeof result.error === "object" && result.error !== null && "message" in result.error
+            ? String(result.error.message)
+            : "Failed to delete project";
+        throw ApiError.internalServerError(errorMessage, result.error.details);
+      }
 
-    return { success: true };
-  });
+      return { success: true };
+    },
+  );
 
   return handler(request);
 }

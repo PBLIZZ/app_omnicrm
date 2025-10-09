@@ -1,3 +1,4 @@
+```typescript
 // ──────────────────────────────────────────────────────────────────────────────
 // Client Onboarding Form — Architecture & Starter Code
 // Stack: Next.js 15 (App Router), TypeScript, Zod, Supabase (Auth, DB, Storage),
@@ -540,3 +541,4 @@ export default function OnboardForm({ token }: { token: string }) {
 // - Localize consent text for ES/en.
 // - Add i18n, accessible labels, and better mobile inputs (tel/email/date).
 // ──────────────────────────────────────────────────────────────────────────────
+```

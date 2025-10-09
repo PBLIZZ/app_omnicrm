@@ -6,7 +6,6 @@ import {
   ProjectSchema,
 } from "@/server/db/business-schemas";
 import { z } from "zod";
-import { isErr } from "@/lib/utils/result";
 
 /**
  * API Routes for Momentum Projects (Pathways)
@@ -25,7 +24,7 @@ export const GET = handleGetWithQueryAuth(
   z.array(ProjectSchema),
   async (filters, userId): Promise<z.infer<typeof ProjectSchema>[]> => {
     const result = await productivityService.getProjects(userId, filters);
-    if (isErr(result)) {
+    if (!result.success) {
       throw new Error(result.error.message);
     }
     return result.data;
@@ -40,9 +39,10 @@ export const POST = handleAuth(
   ProjectSchema,
   async (data, userId): Promise<z.infer<typeof ProjectSchema>> => {
     const result = await productivityService.createProject(userId, data);
-    if (isErr(result)) {
+    if (!result.success) {
       throw new Error(result.error.message);
     }
+
     return result.data;
   },
 );

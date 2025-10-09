@@ -3,7 +3,6 @@ import { productivityService } from "@/server/services/productivity.service";
 import { CreateTaskSchema, TaskSchema, TaskFiltersSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 import { NextRequest } from "next/server";
-import { isErr } from "@/lib/utils/result";
 
 /**
  * Subtasks Management API Route
@@ -30,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
       const result = await productivityService.getSubtasksWithValidation(params.taskId, userId);
 
-      if (isErr(result)) {
+      if (!result.success) {
         throw new Error(result.error.message);
       }
 
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         data,
       );
 
-      if (isErr(result)) {
+      if (!result.success) {
         throw new Error(result.error.message);
       }
 

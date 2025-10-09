@@ -1,11 +1,13 @@
-import { handleAuth } from "@/lib/api";
-import { InboxService } from "@/server/services/inbox.service";
-import { z } from "zod";
 import {
   InboxItemResponseSchema,
   InboxUpdateRequestSchema,
   SuccessResponseSchema,
 } from "@/server/db/business-schemas";
+import { handleAuth } from "@/lib/api";
+import { ApiError } from "@/lib/api/errors";
+import { InboxService } from "@/server/services/inbox.service";
+import { z } from "zod";
+import type { UpdateInboxItem } from "@/server/db/business-schemas";
 import { NextRequest } from "next/server";
 
 /**
@@ -40,13 +42,16 @@ export async function GET(request: NextRequest, context: RouteParams) {
     async (_: void, userId: string) => {
       const itemId = await getItemId(context);
 
-      const item = await InboxService.getInboxItem(userId, itemId);
-
-      if (!item) {
-        throw new Error("Inbox item not found");
+      const result = await InboxService.getInboxItem(userId, itemId);
+      if (!result.success) {
+        throw ApiError.internalServerError(result.error.message, result.error.details);
       }
 
-      return { item };
+      if (!result.data) {
+        throw ApiError.notFound("Inbox item not found");
+      }
+
+      return { item: result.data };
     },
   );
 
@@ -63,26 +68,57 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
 
       switch (action) {
         case "update_status": {
-          const item = await InboxService.updateInboxItem(userId, itemId, data);
+          const updatePayload: UpdateInboxItem = {};
 
-          if (!item) {
-            throw new Error("Inbox item not found");
+          if (data.status !== undefined) {
+            updatePayload.status = data.status;
           }
 
-          return { item };
+          if (data.rawText !== undefined) {
+            updatePayload.rawText = data.rawText;
+          }
+
+          if (data.createdTaskId !== undefined) {
+            updatePayload.createdTaskId = data.createdTaskId ?? null;
+          }
+
+          const result = await InboxService.updateInboxItem(userId, itemId, updatePayload);
+
+          if (!result.success) {
+            throw ApiError.internalServerError(result.error.message, result.error.details);
+          }
+
+          if (!result.data) {
+            throw ApiError.notFound("Inbox item not found");
+          }
+
+          return { item: result.data };
         }
 
         case "mark_processed": {
-          const success = await InboxService.markAsProcessed(userId, itemId);
+          const createdTaskId = data?.createdTaskId ?? undefined;
+          const markResult = await InboxService.markAsProcessed(userId, itemId, createdTaskId);
 
-          if (!success) {
-            throw new Error("Failed to mark item as processed");
+          if (!markResult.success) {
+            throw ApiError.internalServerError(
+              markResult.error.message,
+              markResult.error.details,
+            );
           }
 
-          const item = await InboxService.getInboxItem(userId, itemId);
+          const refreshed = await InboxService.getInboxItem(userId, itemId);
+
+          if (!refreshed.success) {
+            throw ApiError.internalServerError(
+              refreshed.error.message,
+              refreshed.error.details,
+            );
+          }
+
+          const item = refreshed.data ?? markResult.data;
 
           if (!item) {
-            throw new Error("Inbox item not found after processing");
+            throw ApiError.notFound("Inbox item not found after processing");
           }
 
           return { item };
@@ -101,10 +137,14 @@ export async function DELETE(request: NextRequest, context: RouteParams) {
   const handler = handleAuth(z.void(), SuccessResponseSchema, async (_: void, userId: string) => {
     const itemId = await getItemId(context);
 
-    const success = await InboxService.deleteInboxItem(userId, itemId);
+    const result = await InboxService.deleteInboxItem(userId, itemId);
 
-    if (!success) {
-      throw new Error("Failed to delete inbox item");
+    if (!result.success) {
+      throw ApiError.internalServerError(result.error.message, result.error.details);
+    }
+
+    if (!result.data) {
+      throw ApiError.notFound("Inbox item not found");
     }
 
     return { success: true };

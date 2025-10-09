@@ -1,4 +1,5 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
+import { ApiError } from "@/lib/api/errors";
 import { InboxService } from "@/server/services/inbox.service";
 import {
   GetInboxQuerySchema,
@@ -8,7 +9,6 @@ import {
   InboxItemResponseSchema,
   InboxProcessResultResponseSchema,
 } from "@/server/db/business-schemas";
-import { isErr } from "@/lib/utils/result";
 
 /**
  * Inbox API - Quick capture and list inbox items
@@ -24,29 +24,29 @@ export const GET = handleGetWithQueryAuth(
     const wantsStats = query.stats ?? false;
 
     if (wantsStats) {
-      // Return inbox statistics
-      const stats = await InboxService.getInboxStats(userId);
-      return { stats };
-    } else {
-      // Return inbox items with filtering
-      const filterParams = InboxService.extractFilterParams(query);
-      const result = await InboxService.listInboxItems(userId, filterParams);
-
-      if (isErr(result)) {
-        throw new Error(result.error.message || "Failed to list inbox items");
+      const statsResult = await InboxService.getInboxStats(userId);
+      if (!statsResult.success) {
+        throw ApiError.internalServerError(
+          statsResult.error.message,
+          statsResult.error.details,
+        );
       }
 
-      // Type guard ensures result.data is available
-      if (!result.ok) {
-        throw new Error("Failed to list inbox items");
-      }
-
-      const items = result.data;
-      return {
-        items,
-        total: items.length,
-      };
+      return { stats: statsResult.data };
     }
+
+    const filterParams = InboxService.extractFilterParams(query);
+    const listResult = await InboxService.listInboxItems(userId, filterParams);
+
+    if (!listResult.success) {
+      throw ApiError.internalServerError(listResult.error.message, listResult.error.details);
+    }
+
+    const items = listResult.data;
+    return {
+      items,
+      total: items.length,
+    };
   },
 );
 
@@ -58,18 +58,27 @@ export const POST = handleAuth(
 
     switch (type) {
       case "quick_capture": {
-        const item = await InboxService.quickCapture(userId, data);
-        return { item };
+        const result = await InboxService.quickCapture(userId, data);
+        if (!result.success) {
+          throw ApiError.internalServerError(result.error.message, result.error.details);
+        }
+        return { item: result.data };
       }
 
       case "voice_capture": {
-        const item = await InboxService.voiceCapture(userId, data);
-        return { item };
+        const result = await InboxService.voiceCapture(userId, data);
+        if (!result.success) {
+          throw ApiError.internalServerError(result.error.message, result.error.details);
+        }
+        return { item: result.data };
       }
 
       case "bulk_process": {
         const result = await InboxService.bulkProcessInbox(userId, data);
-        return { result };
+        if (!result.success) {
+          throw ApiError.internalServerError(result.error.message, result.error.details);
+        }
+        return { result: result.data };
       }
 
       default: {

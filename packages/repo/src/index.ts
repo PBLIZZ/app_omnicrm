@@ -10,7 +10,7 @@ export { NotesRepository } from "./notes.repo";
 export { ContactIdentitiesRepository } from "./contact-identities.repo";
 export { SearchRepository } from "./search.repo";
 export { HealthRepository } from "./health.repo";
-export { MomentumRepository, momentumRepository } from "./momentum.repo";
+export { ProductivityRepository, createProductivityRepository } from "./productivity.repo";
 export { UserIntegrationsRepository } from "./user-integrations.repo";
 export type { UserIntegrationDTO } from "./user-integrations.repo";
 export { RawEventsRepository } from "./raw-events.repo";
@@ -48,6 +48,7 @@ export type { SearchResultDTO, TraditionalSearchParams, SemanticSearchParams } f
 
 // OmniMomentum Repository classes
 export { InboxRepository } from "./inbox.repo";
+export type { InboxFilters } from "./inbox.repo";
 export { ZonesRepository } from "./zones.repo";
 
 // Re-export database schema types for convenience

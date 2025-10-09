@@ -26,7 +26,7 @@ This document outlines the implementation plan for enhancing the contact managem
 
 ### Data Flow Architecture
 
-```
+```bash
 User Input → interactions table → AI Processing Jobs → ai_insights table → UI Display
 ```
 

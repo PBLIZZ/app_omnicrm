@@ -22,11 +22,11 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
 };
 import type {
   Project,
-  CreateProject,
-  UpdateProject,
+  CreateProjectInput,
+  UpdateProjectInput,
   Task,
-  CreateTask,
-  UpdateTask,
+  CreateTaskInput,
+  UpdateTaskInput,
 } from "@/server/db/business-schemas";
 
 // ============================================================================
@@ -64,14 +64,14 @@ interface UseMomentumReturn {
   tasksError: unknown;
 
   // Project actions
-  createProject: (data: CreateProject) => void;
-  updateProject: (projectId: string, data: UpdateProject) => void;
+  createProject: (data: CreateProjectInput) => void;
+  updateProject: (projectId: string, data: UpdateProjectInput) => void;
   deleteProject: (projectId: string) => void;
 
   // Task actions
-  createTask: (data: CreateTask) => void;
-  createSubtask: (parentTaskId: string, data: CreateTask) => void;
-  updateTask: (taskId: string, data: UpdateTask) => void;
+  createTask: (data: CreateTaskInput) => void;
+  createSubtask: (parentTaskId: string, data: CreateTaskInput) => void;
+  updateTask: (taskId: string, data: UpdateTaskInput) => void;
   deleteTask: (taskId: string) => void;
   approveTask: (taskId: string) => void;
   rejectTask: (taskId: string, deleteTask?: boolean, reason?: string) => void;
@@ -185,7 +185,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   // ============================================================================
 
   const createProjectMutation = useMutation({
-    mutationFn: async (data: CreateProject): Promise<Project> => {
+    mutationFn: async (data: CreateProjectInput): Promise<Project> => {
       const result = await apiClient.post<Result<Project, { message: string; code: string }>>(
         "/api/omni-momentum/projects",
         data,
@@ -223,7 +223,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       data,
     }: {
       projectId: string;
-      data: UpdateProject;
+      data: UpdateProjectInput;
     }): Promise<Project> => {
       return await apiClient.put<Project>(`/api/omni-momentum/projects/${projectId}`, data);
     },
@@ -277,7 +277,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   // ============================================================================
 
   const createTaskMutation = useMutation({
-    mutationFn: async (data: CreateTask): Promise<Task> => {
+    mutationFn: async (data: CreateTaskInput): Promise<Task> => {
       const result = await apiClient.post<Result<Task, { message: string; code: string }>>(
         "/api/omni-momentum/tasks",
         data,
@@ -316,7 +316,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       data,
     }: {
       parentTaskId: string;
-      data: CreateTask;
+      data: CreateTaskInput;
     }): Promise<Task> => {
       return await apiClient.post<Task>(`/api/omni-momentum/tasks/${parentTaskId}/subtasks`, data);
     },
@@ -340,7 +340,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: async ({ taskId, data }: { taskId: string; data: UpdateTask }): Promise<Task> => {
+    mutationFn: async ({ taskId, data }: { taskId: string; data: UpdateTaskInput }): Promise<Task> => {
       return await apiClient.put<Task>(`/api/omni-momentum/tasks/${taskId}`, data);
     },
     onSuccess: (updatedTask) => {
@@ -473,15 +473,15 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
 
     // Project actions
     createProject: createProjectMutation.mutate,
-    updateProject: (projectId: string, data: UpdateProject) =>
+    updateProject: (projectId: string, data: UpdateProjectInput) =>
       updateProjectMutation.mutate({ projectId, data }),
     deleteProject: deleteProjectMutation.mutate,
 
     // Task actions
     createTask: createTaskMutation.mutate,
-    createSubtask: (parentTaskId: string, data: CreateTask) =>
+    createSubtask: (parentTaskId: string, data: CreateTaskInput) =>
       createSubtaskMutation.mutate({ parentTaskId, data }),
-    updateTask: (taskId: string, data: UpdateTask) =>
+    updateTask: (taskId: string, data: UpdateTaskInput) =>
       updateTaskMutation.mutate({ taskId, data }),
     deleteTask: deleteTaskMutation.mutate,
     approveTask: approveTaskMutation.mutate,

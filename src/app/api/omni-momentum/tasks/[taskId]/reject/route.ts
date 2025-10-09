@@ -1,18 +1,10 @@
 import { handleAuth } from "@/lib/api";
-import { momentumRepository } from "@repo";
+import { ApiError } from "@/lib/api/errors";
 import { TaskSchema } from "@/server/db/business-schemas";
+import { productivityService } from "@/server/services/productivity.service";
 import { z } from "zod";
 
-/**
- * Task Rejection API Route
- *
- * POST /api/omni-momentum/tasks/[taskId]/reject
- * Rejects an AI-generated task, changing its status from pending_approval to rejected
- * Rejected tasks can be optionally deleted or kept for AI learning purposes
- */
-
 const TaskRejectionInputSchema = z.object({
-  taskId: z.string().uuid(),
   deleteTask: z.boolean().optional().default(false),
   reason: z.string().optional(),
 });
@@ -25,33 +17,78 @@ const TaskRejectionResponseSchema = z.union([
   }),
 ]);
 
-export const POST = handleAuth(
-  TaskRejectionInputSchema,
-  TaskRejectionResponseSchema,
-  async (data, userId): Promise<z.infer<typeof TaskRejectionResponseSchema>> => {
-    // Get the task to ensure it exists and belongs to the user
-    const task = await momentumRepository.getTask(data.taskId, userId);
-    if (!task) {
-      throw new Error("Task not found");
-    }
+const TaskIdParamsSchema = z.object({
+  taskId: z.string().uuid(),
+});
 
-    if (data.deleteTask) {
-      // Delete the task entirely
-      await momentumRepository.deleteTask(data.taskId, userId);
-      return { success: true, deleted: true };
-    } else {
-      // Update task to rejected status (keep for AI learning)
-      await momentumRepository.updateTask(data.taskId, userId, {
-        status: "canceled", // Move to cancelled status
-      });
+interface RouteParams {
+  params: { taskId: string };
+}
 
-      // Get the updated task to return
-      const updatedTask = await momentumRepository.getTask(data.taskId, userId);
-      if (!updatedTask) {
-        throw new Error("Failed to reject task");
+export async function POST(request: Request, context: RouteParams): Promise<Response> {
+  const handler = handleAuth(
+    TaskRejectionInputSchema,
+    TaskRejectionResponseSchema,
+    async (data, userId) => {
+      const { taskId } = TaskIdParamsSchema.parse(context.params);
+
+      const existingTask = await productivityService.getTask(taskId, userId);
+      if (!existingTask.success) {
+        throw ApiError.internalServerError(
+          existingTask.error.message,
+          existingTask.error.details,
+        );
       }
 
-      return updatedTask;
-    }
-  }
-);
+      if (!existingTask.data) {
+        throw ApiError.notFound("Task not found");
+      }
+
+      if (data.deleteTask) {
+        const deleteResult = await productivityService.deleteTask(taskId, userId);
+        if (!deleteResult.success) {
+          throw ApiError.internalServerError(
+            deleteResult.error.message,
+            deleteResult.error.details,
+          );
+        }
+
+        return { success: true, deleted: true } as const;
+      }
+
+      const baseDetails =
+        existingTask.data.details && typeof existingTask.data.details === "object"
+          ? existingTask.data.details
+          : {};
+
+      const updatedDetails =
+        data.reason && data.reason.length > 0
+          ? {
+              ...baseDetails,
+              rejectionReason: data.reason,
+              rejectedAt: new Date().toISOString(),
+            }
+          : baseDetails;
+
+      const updateResult = await productivityService.updateTask(taskId, userId, {
+        status: "canceled",
+        details: updatedDetails,
+      });
+
+      if (!updateResult.success) {
+        throw ApiError.internalServerError(
+          updateResult.error.message,
+          updateResult.error.details,
+        );
+      }
+
+      if (!updateResult.data) {
+        throw ApiError.notFound("Failed to reject task");
+      }
+
+      return updateResult.data;
+    },
+  );
+
+  return handler(request);
+}

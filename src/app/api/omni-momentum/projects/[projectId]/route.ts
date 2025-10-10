@@ -1,6 +1,10 @@
 import { handleAuth } from "@/lib/api";
 import { ApiError } from "@/lib/api/errors";
-import { productivityService } from "@/server/services/productivity.service";
+import {
+  getProjectService,
+  updateProjectService,
+  deleteProjectService,
+} from "@/server/services/productivity.service";
 import {
   UpdateProjectSchema,
   ProjectSchema,
@@ -40,21 +44,13 @@ export async function GET(request: Request, context: RouteParams): Promise<Respo
     ProjectSchema,
     async (_: void, userId): Promise<ProjectResponse> => {
       const params = await context.params;
-      const result = await productivityService.getProject(params.projectId, userId);
+      const project = await getProjectService(params.projectId, userId);
 
-      if (!result.success) {
-        const errorMessage =
-          typeof result.error === "object" && result.error !== null && "message" in result.error
-            ? String(result.error.message)
-            : "Failed to get project";
-        throw new ApiError(errorMessage, 500);
+      if (!project) {
+        throw new ApiError("Project not found", "PROJECT_NOT_FOUND", "validation", false);
       }
 
-      if (!result.data) {
-        throw ApiError.notFound("Project not found");
-      }
-
-      return result.data;
+      return project;
     },
   );
 
@@ -70,21 +66,13 @@ export async function PUT(request: Request, context: RouteParams): Promise<Respo
     ProjectSchema,
     async (data: UpdateProjectInput, userId): Promise<ProjectResponse> => {
       const params = await context.params;
-      const result = await productivityService.updateProject(params.projectId, userId, data);
+      const project = await updateProjectService(params.projectId, userId, data);
 
-      if (!result.success) {
-        const errorMessage =
-          typeof result.error === "object" && result.error !== null && "message" in result.error
-            ? String(result.error.message)
-            : "Failed to update project";
-        throw new ApiError(errorMessage, 500);
+      if (!project) {
+        throw new ApiError("Project not found", "PROJECT_NOT_FOUND", "validation", false);
       }
 
-      if (!result.data) {
-        throw ApiError.notFound("Project not found");
-      }
-
-      return result.data;
+      return project;
     },
   );
 
@@ -100,16 +88,7 @@ export async function DELETE(request: Request, context: RouteParams): Promise<Re
     SuccessResponseSchema,
     async (_, userId): Promise<SuccessResponse> => {
       const params = await context.params;
-      const result = await productivityService.deleteProject(params.projectId, userId);
-
-      if (!result.success) {
-        const errorMessage =
-          typeof result.error === "object" && result.error !== null && "message" in result.error
-            ? String(result.error.message)
-            : "Failed to delete project";
-        throw ApiError.internalServerError(errorMessage, result.error.details);
-      }
-
+      await deleteProjectService(params.projectId, userId);
       return { success: true };
     },
   );

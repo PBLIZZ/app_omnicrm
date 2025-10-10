@@ -1,7 +1,11 @@
 import { handleAuth } from "@/lib/api";
 import { ApiError } from "@/lib/api/errors";
 import { TaskSchema } from "@/server/db/business-schemas";
-import { productivityService } from "@/server/services/productivity.service";
+import {
+  getTaskService,
+  deleteTaskService,
+  updateTaskService,
+} from "@/server/services/productivity.service";
 import { z } from "zod";
 
 const TaskRejectionInputSchema = z.object({
@@ -29,36 +33,22 @@ export async function POST(request: Request, context: RouteParams): Promise<Resp
   const handler = handleAuth(
     TaskRejectionInputSchema,
     TaskRejectionResponseSchema,
-    async (data, userId) => {
+    async (data, userId): Promise<z.infer<typeof TaskRejectionResponseSchema>> => {
       const { taskId } = TaskIdParamsSchema.parse(context.params);
 
-      const existingTask = await productivityService.getTask(taskId, userId);
-      if (!existingTask.success) {
-        throw ApiError.internalServerError(
-          existingTask.error.message,
-          existingTask.error.details,
-        );
-      }
-
-      if (!existingTask.data) {
+      const existingTask = await getTaskService(userId, taskId);
+      if (!existingTask) {
         throw ApiError.notFound("Task not found");
       }
 
       if (data.deleteTask) {
-        const deleteResult = await productivityService.deleteTask(taskId, userId);
-        if (!deleteResult.success) {
-          throw ApiError.internalServerError(
-            deleteResult.error.message,
-            deleteResult.error.details,
-          );
-        }
-
+        await deleteTaskService(userId, taskId);
         return { success: true, deleted: true } as const;
       }
 
       const baseDetails =
-        existingTask.data.details && typeof existingTask.data.details === "object"
-          ? existingTask.data.details
+        existingTask.details && typeof existingTask.details === "object"
+          ? existingTask.details
           : {};
 
       const updatedDetails =
@@ -70,23 +60,16 @@ export async function POST(request: Request, context: RouteParams): Promise<Resp
             }
           : baseDetails;
 
-      const updateResult = await productivityService.updateTask(taskId, userId, {
+      const updatedTask = await updateTaskService(userId, taskId, {
         status: "canceled",
         details: updatedDetails,
       });
 
-      if (!updateResult.success) {
-        throw ApiError.internalServerError(
-          updateResult.error.message,
-          updateResult.error.details,
-        );
-      }
-
-      if (!updateResult.data) {
+      if (!updatedTask) {
         throw ApiError.notFound("Failed to reject task");
       }
 
-      return updateResult.data;
+      return updatedTask;
     },
   );
 

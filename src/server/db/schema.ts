@@ -622,5 +622,19 @@ export type IntelligenceDocument = typeof documents.$inferSelect;
 export type CreateIntelligenceDocument = typeof documents.$inferInsert;
 export type UpdateIntelligenceDocument = Partial<CreateIntelligenceDocument>;
 
+export type Thread = typeof threads.$inferSelect;
+export type CreateThread = typeof threads.$inferInsert;
+export type UpdateThread = Partial<CreateThread>;
+
+export type Message = typeof messages.$inferSelect;
+export type CreateMessage = typeof messages.$inferInsert;
+export type UpdateMessage = Partial<CreateMessage>;
+
+export type ToolInvocation = typeof toolInvocations.$inferSelect;
+export type CreateToolInvocation = typeof toolInvocations.$inferInsert;
+export type UpdateToolInvocation = Partial<CreateToolInvocation>;
+
 // Extended types for common patterns
 export type ContactWithNotes = Contact & { notes: Note[] };
+export type ThreadWithMessages = Thread & { messages: Message[] };
+export type MessageWithTools = Message & { toolInvocations: ToolInvocation[] };

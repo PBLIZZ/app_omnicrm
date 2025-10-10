@@ -4,19 +4,21 @@ export type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 // Repository classes
 export { AuthUserRepository } from "./auth-user.repo";
-export { ContactsRepository } from "./contacts.repo";
-export { InteractionsRepository } from "./interactions.repo";
-export { NotesRepository } from "./notes.repo";
+export { ContactsRepository, createContactsRepository } from "./contacts.repo";
+export { InteractionsRepository, createInteractionsRepository } from "./interactions.repo";
+export type { InteractionListParams } from "./interactions.repo";
+export { NotesRepository, createNotesRepository } from "./notes.repo";
 export { ContactIdentitiesRepository } from "./contact-identities.repo";
 export { SearchRepository } from "./search.repo";
 export { HealthRepository } from "./health.repo";
 export { ProductivityRepository, createProductivityRepository } from "./productivity.repo";
 export { UserIntegrationsRepository } from "./user-integrations.repo";
+export { ChatRepository, createChatRepository } from "./chat.repo";
 export type { UserIntegrationDTO } from "./user-integrations.repo";
 export { RawEventsRepository } from "./raw-events.repo";
-export type { 
-  RawEventListParams, 
-  RawEventListItem, 
+export type {
+  RawEventListParams,
+  RawEventListItem,
   ProviderType,
   RawEventProcessingStatus,
   RawEventContactExtractionStatus,
@@ -31,7 +33,7 @@ export { IgnoredIdentifiersRepository } from "./ignored-identifiers.repo";
 export type { IgnoredIdentifierListParams } from "./ignored-identifiers.repo";
 export type { ContactIdentityListParams } from "./contact-identities.repo";
 export { JobsRepository } from "./jobs.repo";
-export { OnboardingRepository } from "./onboarding.repo";
+export { OnboardingRepository, createOnboardingRepository } from "./onboarding.repo";
 export type {
   OnboardingToken,
   CreateOnboardingToken,
@@ -49,7 +51,7 @@ export type { SearchResultDTO, TraditionalSearchParams, SemanticSearchParams } f
 // OmniMomentum Repository classes
 export { InboxRepository } from "./inbox.repo";
 export type { InboxFilters } from "./inbox.repo";
-export { ZonesRepository } from "./zones.repo";
+export { ZonesRepository, createZonesRepository } from "./zones.repo";
 
 // Re-export database schema types for convenience
 export * from "@/server/db/schema";

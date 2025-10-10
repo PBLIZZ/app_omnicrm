@@ -1,7 +1,7 @@
 import { handleAuth } from "@/lib/api";
 import { ApiError } from "@/lib/api/errors";
 import { TaskSchema } from "@/server/db/business-schemas";
-import { productivityService } from "@/server/services/productivity.service";
+import { approveTaskService } from "@/server/services/productivity.service";
 import { z } from "zod";
 
 const TaskIdParamsSchema = z.object({
@@ -16,11 +16,11 @@ export async function POST(request: Request, context: RouteParams): Promise<Resp
   const handler = handleAuth(
     z.void(),
     TaskSchema,
-    async (_: void, userId) => {
+    async (_: void, userId): Promise<z.infer<typeof TaskSchema>> => {
       const { taskId } = TaskIdParamsSchema.parse(context.params);
 
       try {
-        const approvedTask = await productivityService.approveTask(taskId, userId);
+        const approvedTask = await approveTaskService(userId, taskId);
 
         if (!approvedTask) {
           throw ApiError.notFound("Task not found");

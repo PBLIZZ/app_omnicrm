@@ -4,6 +4,8 @@
  * Base drizzle types are re-exported for convenience:
  * - RawEvent (select type)
  * - CreateRawEvent (insert type)
+ *
+ * Per architecture blueprint: Validated JSONB schemas, no transforms.
  */
 
 import { createSelectSchema } from "drizzle-zod";
@@ -11,6 +13,8 @@ import { z } from "zod";
 
 import { rawEvents } from "@/server/db/schema";
 import type { ProviderType } from "@repo";
+import { RawEventPayloadSchema, SourceMetaSchema } from "@/lib/validation/jsonb";
+import { PaginationQuerySchema, createPaginatedResponseSchema } from "@/lib/validation/common";
 
 export type { RawEvent, CreateRawEvent, UpdateRawEvent } from "@/server/db/schema";
 
@@ -53,10 +57,14 @@ const ProviderTypeSchema = z.enum(["gmail", "calendar", "drive", "upload"] as co
 
 const BaseRawEventSchema = createSelectSchema(rawEvents);
 
+/**
+ * Raw Event schema with validated JSONB fields
+ * Note: Transform removed per architecture blueprint - default value handled in service layer
+ */
 export const RawEventSchema = BaseRawEventSchema.extend({
-  payload: z.unknown(),
-  sourceMeta: z.unknown(),
-  processingStatus: RawEventProcessingStatusSchema.nullable().transform((val) => val ?? "pending"),
+  payload: RawEventPayloadSchema,
+  sourceMeta: SourceMetaSchema.optional(),
+  processingStatus: RawEventProcessingStatusSchema.nullable(),
   contactExtractionStatus: RawEventContactExtractionStatusSchema.nullable(),
 });
 
@@ -68,10 +76,10 @@ export type RawEventDTO = z.infer<typeof RawEventSchema>;
 
 const BaseRawEventPayloadSchema = z.object({
   provider: ProviderTypeSchema,
-  payload: z.unknown(),
+  payload: RawEventPayloadSchema,
   occurredAt: z.coerce.date(),
   sourceId: z.string().min(1, "sourceId is required"),
-  sourceMeta: z.unknown().optional(),
+  sourceMeta: SourceMetaSchema.optional(),
   batchId: z.string().uuid().optional(),
   processingStatus: RawEventProcessingStatusSchema.optional(),
   processingAttempts: z.coerce.number().int().min(0).optional(),
@@ -98,24 +106,15 @@ export const UpdateRawEventBodySchema = BaseRawEventPayloadSchema.partial().supe
 
 export type UpdateRawEventBody = z.infer<typeof UpdateRawEventBodySchema>;
 
-export const RawEventQuerySchema = z.object({
+export const RawEventQuerySchema = PaginationQuerySchema.extend({
+  pageSize: z.coerce.number().int().min(1).max(200).default(50), // Override defaults
+  sort: z.enum(["createdAt", "occurredAt"]).default("createdAt"),
   provider: z.array(ProviderTypeSchema).optional(),
   processingStatus: z.array(RawEventProcessingStatusSchema).optional(),
-  contactExtractionStatus: z
-    .array(RawEventContactExtractionStatusSchema)
-    .optional(),
+  contactExtractionStatus: z.array(RawEventContactExtractionStatusSchema).optional(),
   batchId: z.string().uuid().optional(),
   createdAfter: z.coerce.date().optional(),
   createdBefore: z.coerce.date().optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(200)
-    .default(50),
-  order: z.enum(["asc", "desc"]).default("desc"),
-  sort: z.enum(["createdAt", "occurredAt"]).default("createdAt"),
 });
 
 export type RawEventQuery = z.infer<typeof RawEventQuerySchema>;
@@ -124,17 +123,11 @@ export type RawEventQuery = z.infer<typeof RawEventQuerySchema>;
 // RESPONSE SCHEMAS
 // ============================================================================
 
-export const RawEventListResponseSchema = z.object({
-  items: z.array(RawEventSchema),
-  pagination: z.object({
-    page: z.number(),
-    pageSize: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-    hasNext: z.boolean(),
-    hasPrev: z.boolean(),
-  }),
-});
+/**
+ * Raw Event List Response Schema
+ * Uses shared pagination helper
+ */
+export const RawEventListResponseSchema = createPaginatedResponseSchema(RawEventSchema);
 
 export type RawEventListResponse = z.infer<typeof RawEventListResponseSchema>;
 

@@ -73,7 +73,7 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
   }
 
   const queryString = queryParams.toString();
-  const apiUrl = `/api/zones${queryString ? `?${queryString}` : ""}`;
+  const apiUrl = `/api/omni-momentum/zones${queryString ? `?${queryString}` : ""}`;
 
   // Fetch zones
   const zonesQuery = useQuery({
@@ -87,11 +87,14 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
         if (isErr(result)) {
           throw new Error(result.error.message);
         }
+        if (!result.success) {
+          throw new Error("Invalid result state");
+        }
         return result.data.items ?? [];
       } else {
         const result =
           await apiClient.get<Result<ZonesResponse, { message: string; code: string }>>(apiUrl);
-        if (isErr(result)) {
+        if (!result.success) {
           throw new Error(result.error.message);
         }
         return result.data.items ?? [];
@@ -161,7 +164,7 @@ export function useZoneOptions() {
     value: zone.id.toString(),
     label: zone.name,
     color: zone.color,
-    icon: zone.icon,
+    icon: zone.iconName,
   }));
 
   return {
@@ -208,5 +211,5 @@ export function getZoneColor(zones: Zone[], zoneName: string): string {
  */
 export function getZoneIcon(zones: Zone[], zoneName: string): string {
   const zone = zones.find((z) => z.name === zoneName);
-  return zone?.icon ?? "circle"; // Default circle icon
+  return zone?.iconName ?? "circle"; // Default circle icon
 }

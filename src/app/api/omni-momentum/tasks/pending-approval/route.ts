@@ -1,6 +1,5 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { ApiError } from "@/lib/api/errors";
-import { productivityService } from "@/server/services/productivity.service";
+import { getPendingApprovalTasksService } from "@/server/services/productivity.service";
 import { z } from "zod";
 
 /**
@@ -31,12 +30,7 @@ export const GET = handleGetWithQueryAuth(
   z.object({}), // No query parameters needed
   PendingTasksResponseSchema,
   async (_query, userId): Promise<z.infer<typeof PendingTasksResponseSchema>> => {
-    const result = await productivityService.getPendingApprovalTasks(userId);
-
-    if (!result.success) {
-      throw ApiError.internalServerError(result.error.message, result.error.details);
-    }
-
-    return PendingTasksResponseSchema.parse(result.data);
+    const data = await getPendingApprovalTasksService(userId);
+    return PendingTasksResponseSchema.parse(data);
   },
 );

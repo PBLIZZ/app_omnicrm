@@ -2,7 +2,7 @@
 const PRIMARY_KEY = process.env["OPENROUTER_API_KEY"];
 const BACKUP_KEYS = (process.env["OPENROUTER_BACKUP_KEYS"] ?? "").split(",").filter(Boolean);
 
-interface ApiKeyStatus {
+interface _ApiKeyStatus {
   key: string;
   isHealthy: boolean;
   lastChecked: Date;

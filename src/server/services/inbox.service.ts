@@ -19,10 +19,8 @@ import type {
   ProcessInboxItemDTO,
   UpdateInboxItem,
   VoiceInboxCaptureDTO,
-  InboxItemWithUI,
-  ZoneWithUI,
 } from "@/server/db/business-schemas/productivity";
-import { InboxItemWithUISchema, ZoneWithUISchema } from "@/server/db/business-schemas/productivity";
+import type { InboxItem, Zone } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
 import { categorizeInboxItem } from "@/server/ai/connect/categorize-inbox-item";
 import type { InboxProcessingContext } from "@/server/db/business-schemas";
@@ -38,29 +36,59 @@ type QuickCaptureInput = {
   createdTaskId?: string | null | undefined;
 };
 
+/**
+ * Map InboxItem with default values for required UI fields
+ */
+function mapToInboxItem(rawItem: RepoInboxItem): InboxItem {
+  return {
+    id: rawItem.id,
+    userId: rawItem.userId,
+    rawText: rawItem.rawText,
+    status: rawItem.status ?? "unprocessed",
+    createdTaskId: rawItem.createdTaskId,
+    processedAt: rawItem.processedAt,
+    createdAt: rawItem.createdAt ?? new Date(),
+    updatedAt: rawItem.updatedAt ?? new Date(),
+  };
+}
+
+/**
+ * Map Zone with UI enrichment (icon, displayName, flags)
+ */
+function mapToZoneWithUI(zone: RepoZone): Zone & {
+  icon: string | null;
+  displayName: string;
+  hasIcon: boolean;
+  hasColor: boolean;
+} {
+  return {
+    ...zone,
+    icon: zone.iconName ?? null,
+    displayName: zone.name,
+    hasIcon: Boolean(zone.iconName),
+    hasColor: Boolean(zone.color),
+  };
+}
+
+/**
+ * Build processing context for AI categorization
+ */
+function buildProcessingContext(
+  zones: Array<
+    Zone & { icon: string | null; displayName: string; hasIcon: boolean; hasColor: boolean }
+  >,
+): InboxProcessingContext {
+  return {
+    zones,
+  };
+}
+
 export class InboxService {
-  private static transformInboxItem(rawItem: RepoInboxItem): InboxItemWithUI {
-    return InboxItemWithUISchema.parse({
-      id: rawItem.id,
-      userId: rawItem.userId,
-      rawText: rawItem.rawText,
-      status: rawItem.status ?? "unprocessed",
-      createdTaskId: rawItem.createdTaskId,
-      processedAt: rawItem.processedAt,
-      createdAt: rawItem.createdAt ?? new Date(),
-      updatedAt: rawItem.updatedAt ?? new Date(),
-    });
-  }
-
+  private static transformInboxItem = mapToInboxItem;
   private static transformZoneData(rawZones: RepoZone[]): ZoneWithUI[] {
-    return rawZones.map((zone) => ZoneWithUISchema.parse(zone));
+    return rawZones.map(mapToZoneWithUI);
   }
-
-  private static buildProcessingContext(zones: ZoneWithUI[]): InboxProcessingContext {
-    return {
-      zones,
-    };
-  }
+  private static buildProcessingContext = buildProcessingContext;
 
   /**
    * Quick capture - Create a new inbox item
@@ -185,9 +213,7 @@ export class InboxService {
   /**
    * Get inbox statistics including recent activity count
    */
-  static async getInboxStats(
-    userId: string,
-  ): Promise<
+  static async getInboxStats(userId: string): Promise<
     DbResult<{
       unprocessed: number;
       processed: number;
@@ -379,7 +405,12 @@ export class InboxService {
       }
 
       if (data.action === "archive") {
-        const updated = await InboxRepository.bulkUpdateStatus(db, userId, data.itemIds, "archived");
+        const updated = await InboxRepository.bulkUpdateStatus(
+          db,
+          userId,
+          data.itemIds,
+          "archived",
+        );
         return ok({ processed: updated.map((item) => this.transformInboxItem(item)) });
       }
 

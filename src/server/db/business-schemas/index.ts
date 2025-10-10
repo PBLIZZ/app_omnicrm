@@ -6,35 +6,33 @@
 
 // Task schemas
 // Base types (Task, CreateTask, UpdateTask) are re-exported from schema.ts
+// Note: TaskWithUI removed - UI enrichment handled in service layer
 export {
   TaskSchema,
   CreateTaskSchema,
   UpdateTaskSchema,
-  TaskWithUISchema,
   TaskFiltersSchema,
   type Task,
   type CreateTask,
   type UpdateTask,
   type CreateTaskInput,
   type UpdateTaskInput,
-  type TaskWithUI,
   type TaskFilters,
 } from "./productivity";
 
 // Project schemas
 // Base types (Project, CreateProject, UpdateProject) are re-exported from schema.ts
+// Note: ProjectWithUI removed - UI enrichment handled in service layer
 export {
   ProjectSchema,
   CreateProjectSchema,
   UpdateProjectSchema,
-  ProjectWithUISchema,
   ProjectFiltersSchema,
   type Project,
   type CreateProject,
   type UpdateProject,
   type CreateProjectInput,
   type UpdateProjectInput,
-  type ProjectWithUI,
   type ProjectFilters,
 } from "./productivity";
 
@@ -212,9 +210,8 @@ export {
 
 // Zone schemas
 // Base types (Zone, CreateZone, UpdateZone) are re-exported from schema.ts
+// Note: ZoneWithUI and ZoneWithStats removed - UI enrichment handled in service layer
 export {
-  ZoneWithUISchema,
-  ZoneWithStatsSchema,
   ZonesQuerySchema,
   ZoneFiltersSchema,
   ZonesListResponseSchema,
@@ -223,8 +220,6 @@ export {
   type Zone,
   type CreateZone,
   type UpdateZone,
-  type ZoneWithUI,
-  type ZoneWithStats,
   type ZonesListResponse,
   type ZonesWithStatsResponse,
 } from "./productivity";

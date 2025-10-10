@@ -1,5 +1,5 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { productivityService } from "@/server/services/productivity.service";
+import { getSubtasksService, createTaskService } from "@/server/services/productivity.service";
 import { CreateTaskSchema, TaskSchema, TaskFiltersSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 import { NextRequest } from "next/server";
@@ -26,20 +26,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const handler = handleGetWithQueryAuth(
     TaskFiltersSchema,
     z.array(TaskSchema),
-    async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
-      const result = await productivityService.getSubtasksWithValidation(params.taskId, userId);
+    async (_, userId): Promise<z.infer<typeof TaskSchema>[]> => {
+      const result = await getSubtasksService(userId, params.taskId);
 
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-
-      const { subtasks, parentTask } = result.data;
-
-      if (!parentTask) {
-        throw new Error("Parent task not found");
-      }
-
-      return subtasks;
+      return result.subtasks;
     },
   );
 
@@ -54,25 +44,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     CreateTaskSchema,
     TaskSchema,
     async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
-      const result = await productivityService.createSubtaskWithValidation(
-        params.taskId,
-        userId,
-        data,
-      );
-
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-
-      const { subtask, parentTask } = result.data;
-
-      if (!parentTask) {
-        throw new Error("Parent task not found");
-      }
-
-      if (!subtask) {
-        throw new Error("Failed to create subtask");
-      }
+      const subtask = await createTaskService(userId, {
+        ...data,
+        parentTaskId: params.taskId,
+      });
 
       return subtask;
     },

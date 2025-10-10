@@ -1,25 +1,22 @@
 /**
  * Gmail-specific schemas
  *
- * All Gmail API route validation schemas and types
+ * All Gmail API route validation schemas and types.
+ * OAuth callback schemas imported from centralized google-auth module.
  */
 
 import { z } from "zod";
 
+// Re-export OAuth schemas from centralized source
+export {
+  GmailOAuthCallbackQuerySchema,
+  type GmailOAuthCallbackQuery,
+  GmailStatusQuerySchema,
+} from "./google-auth";
+
 // ============================================================================
 // GMAIL-SPECIFIC SCHEMAS
 // ============================================================================
-
-/**
- * Gmail OAuth Callback Query Schema
- */
-export const GmailOAuthCallbackQuerySchema = z.object({
-  code: z.string().optional(),
-  state: z.string().optional(),
-  error: z.string().optional(),
-});
-
-export type GmailOAuthCallbackQuery = z.infer<typeof GmailOAuthCallbackQuerySchema>;
 
 /**
  * Gmail OAuth Start Response Schema

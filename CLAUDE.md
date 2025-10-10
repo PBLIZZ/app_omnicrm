@@ -63,6 +63,113 @@ The table will reset to default column visibility with Notes column enabled.
 
 ## Architecture Overview
 
+### Layered Architecture Refactor (October 2025)
+
+The codebase is currently undergoing a complete refactor to implement a strict layered architecture pattern. See `LAYER_ARCHITECTURE_BLUEPRINT_2025.md` for the complete blueprint.
+
+### Current Refactor Status
+
+**✅ Completed Domains (DbClient Pattern):**
+
+- **Productivity Suite**: tasks, projects, goals, zones, inbox, daily pulse logs
+  - Repository: `ProductivityRepository` (class with constructor injection)
+  - Business schemas: `src/server/db/business-schemas/productivity.ts`
+  - Type exports: Full coverage in schema.ts
+
+- **Chat/AI**: threads, messages, tool_invocations
+  - Repository: `ChatRepository` (class with constructor injection)
+  - Business schemas: `src/server/db/business-schemas/chat.ts`
+  - Type exports: Full coverage in schema.ts
+
+- **Admin**: jobs, user_integrations, ai_quotas, ai_usage
+  - Repositories: `JobsRepository`, `UserIntegrationsRepository` (static methods pattern)
+  - Business schemas: `src/server/db/business-schemas/admin.ts`
+  - Type exports: Full coverage in schema.ts
+
+**🚧 In Progress (Legacy DbResult Pattern - To Be Migrated):**
+
+- **CRM Core**: contacts, notes, onboarding, storage
+  - Currently use: `await getDb()` + `DbResult<T>` wrapper
+  - Need migration to: Constructor injection + direct throws
+
+**📋 Data Intelligence Domain (Status Unknown):**
+
+- contact_identities, ignored_identifiers, embeddings, documents
+- ai_insights, interactions, raw_events
+- Need assessment: Check if using DbClient or legacy pattern
+
+### Layered Architecture Pattern
+
+**Current Standard (October 2025):**
+
+```typescript
+// 1. REPOSITORY LAYER (packages/repo/src/*.repo.ts)
+export class ContactsRepository {
+  constructor(private readonly db: DbClient) {}
+
+  async createContact(userId: string, data: CreateContact): Promise<Contact> {
+    const [contact] = await this.db.insert(contacts).values(data).returning();
+    if (!contact) throw new Error("Insert returned no data");
+    return contact;
+  }
+}
+
+// 2. SERVICE LAYER (src/server/services/*.service.ts)
+export async function createContactService(userId: string, input: CreateContactBody): Promise<Contact> {
+  const db = await getDb();
+  const repo = new ContactsRepository(db);
+
+  try {
+    return await repo.createContact(userId, { ...input, userId });
+  } catch (error) {
+    throw new AppError("Failed to create contact", "DB_ERROR", "database", false);
+  }
+}
+
+// 3. ROUTE HANDLER (src/app/api/contacts/route.ts)
+export const POST = handleAuth(
+  CreateContactBodySchema,
+  ContactSchema,
+  async (data, userId) => {
+    return await createContactService(userId, data);
+  }
+);
+```
+
+**Key Architectural Principles:**
+
+1. **Repositories**: Accept `DbClient` via constructor, throw on errors (no `DbResult` wrapper)
+2. **Services**: Call `getDb()` to acquire client, instantiate repos, catch and wrap errors as `AppError`
+3. **Handlers**: Use `handleAuth()` or `handleGetWithQueryAuth()`, catch `AppError` and convert to HTTP responses
+4. **Business Schemas**: Pure Zod validation schemas in `src/server/db/business-schemas/`, no transforms
+5. **Database Types**: Single source of truth in `src/server/db/schema.ts`, generated from Drizzle with `$inferSelect` and `$inferInsert`
+
+**Migration Patterns:**
+
+OLD (Deprecated):
+
+```typescript
+// ❌ OLD - DbResult wrapper pattern
+static async createContact(data: CreateContact): Promise<DbResult<Contact>> {
+  const db = await getDb();
+  const result = await db.insert(contacts).values(data).returning();
+  return ok(result[0]);
+}
+```
+
+NEW (Current Standard):
+
+```typescript
+// ✅ NEW - Direct throw pattern with DbClient injection
+constructor(private readonly db: DbClient) {}
+
+async createContact(userId: string, data: CreateContact): Promise<Contact> {
+  const [contact] = await this.db.insert(contacts).values(data).returning();
+  if (!contact) throw new Error("Insert returned no data");
+  return contact;
+}
+```
+
 ### Tech Stack
 
 - **Framework**: Next.js 15 with App Router

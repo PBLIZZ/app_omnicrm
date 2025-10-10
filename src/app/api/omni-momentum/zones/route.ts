@@ -1,5 +1,5 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { ZonesService } from "@/server/services/productivity.service";
+import { listZonesService, getZonesWithStatsService } from "@/server/services/zones.service";
 import {
   ZonesQuerySchema,
   ZonesListResponseSchema,
@@ -26,21 +26,9 @@ export const GET = handleGetWithQueryAuth(
     const { withStats } = query;
 
     if (withStats) {
-      const result = await ZonesService.getZonesWithStats();
-
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-
-      return result.data;
+      return await getZonesWithStatsService();
     } else {
-      const result = await ZonesService.listZones();
-
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-
-      return result.data;
+      return await listZonesService();
     }
   },
 );

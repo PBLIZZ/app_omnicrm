@@ -5,6 +5,7 @@ import {
 import { handleAuth } from "@/lib/api";
 import { ApiError } from "@/lib/api/errors";
 import { InboxService } from "@/server/services/inbox.service";
+import { z } from "zod";
 
 /**
  * Inbox Processing API - AI-powered categorization of inbox items
@@ -17,7 +18,7 @@ import { InboxService } from "@/server/services/inbox.service";
 export const POST = handleAuth(
   ProcessInboxItemSchema,
   InboxProcessResultResponseSchema,
-  async (processData, userId) => {
+  async (processData, userId): Promise<z.infer<typeof InboxProcessResultResponseSchema>> => {
     const result = await InboxService.processInboxItem(userId, processData);
 
     if (!result.success) {
@@ -37,5 +38,5 @@ export const POST = handleAuth(
     }
 
     return { result: result.data };
-  }
+  },
 );

@@ -8,10 +8,11 @@
  * - Business rule enforcement
  */
 
-import { NotesRepository } from "@repo";
+import { createNotesRepository } from "@repo";
 import type { Note } from "@/server/db/schema";
 import { AppError } from "@/lib/errors/app-error";
 import { redactPII } from "@/server/lib/pii-detector";
+import { getDb } from "@/server/db/client";
 
 // ============================================================================
 // SERVICE LAYER TYPES
@@ -47,35 +48,51 @@ export async function listNotesService(
   userId: string,
   params: ListNotesParams = {},
 ): Promise<Note[]> {
+  const db = await getDb();
+  const repo = createNotesRepository(db);
   const { contactId, search } = params;
 
-  // Use search if provided, otherwise list by contactId
-  const result = search
-    ? await NotesRepository.searchNotes(userId, search)
-    : await NotesRepository.listNotes(userId, contactId);
+  try {
+    // Use search if provided, otherwise list by contactId
+    const notes = search
+      ? await repo.searchNotes(userId, search)
+      : await repo.listNotes(userId, contactId);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+    return notes;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to list notes",
+      "DB_ERROR",
+      "database",
+      false
+    );
   }
-
-  return result.data;
 }
 
 /**
  * Get a single note by ID
  */
 export async function getNoteByIdService(userId: string, noteId: string): Promise<Note> {
-  const result = await NotesRepository.getNoteById(userId, noteId);
+  const db = await getDb();
+  const repo = createNotesRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+  try {
+    const note = await repo.getNoteById(userId, noteId);
+
+    if (!note) {
+      throw new AppError("Note not found", "NOTE_NOT_FOUND", "validation", false);
+    }
+
+    return note;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get note",
+      "DB_ERROR",
+      "database",
+      false
+    );
   }
-
-  if (!result.data) {
-    throw new AppError("Note not found", "NOTE_NOT_FOUND", "validation", false);
-  }
-
-  return result.data;
 }
 
 /**
@@ -85,13 +102,20 @@ export async function getNotesByContactIdService(
   userId: string,
   contactId: string,
 ): Promise<Note[]> {
-  const result = await NotesRepository.getNotesByContactId(userId, contactId);
+  const db = await getDb();
+  const repo = createNotesRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+  try {
+    const notes = await repo.getNotesByContactId(userId, contactId);
+    return notes;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get notes by contact",
+      "DB_ERROR",
+      "database",
+      false
+    );
   }
-
-  return result.data;
 }
 
 // ============================================================================
@@ -107,6 +131,9 @@ export async function getNotesByContactIdService(
  * - Validates required fields
  */
 export async function createNoteService(userId: string, input: CreateNoteInput): Promise<Note> {
+  const db = await getDb();
+  const repo = createNotesRepository(db);
+
   // Validate required fields
   if (!input.contentPlain || input.contentPlain.trim().length === 0) {
     throw new AppError("Note content is required", "VALIDATION_ERROR", "validation", false);
@@ -119,22 +146,27 @@ export async function createNoteService(userId: string, input: CreateNoteInput):
     throw new AppError("PII detected in note content", "VALIDATION_ERROR", "validation", false);
   }
 
-  // Call repository with sanitized data
-  const result = await NotesRepository.createNote({
-    userId,
-    contactId: input.contactId ?? null,
-    contentPlain: redactionResult.sanitizedText,
-    contentRich: input.contentRich ?? {},
-    tags: input.tags ?? [],
-    piiEntities: redactionResult.entities,
-    sourceType: input.sourceType ?? "typed",
-  });
+  try {
+    // Call repository with sanitized data
+    const note = await repo.createNote({
+      userId,
+      contactId: input.contactId ?? null,
+      contentPlain: redactionResult.sanitizedText,
+      contentRich: input.contentRich ?? {},
+      tags: input.tags ?? [],
+      piiEntities: redactionResult.entities,
+      sourceType: input.sourceType ?? "typed",
+    });
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+    return note;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to create note",
+      "DB_ERROR",
+      "database",
+      false
+    );
   }
-
-  return result.data;
 }
 
 // ============================================================================
@@ -196,18 +228,27 @@ export async function updateNoteService(
     updateData.tags = input.tags;
   }
 
-  // Call repository
-  const result = await NotesRepository.updateNote(userId, noteId, updateData);
+  const db = await getDb();
+  const repo = createNotesRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+  try {
+    // Call repository
+    const note = await repo.updateNote(userId, noteId, updateData);
+
+    if (!note) {
+      throw new AppError("Note not found", "NOTE_NOT_FOUND", "validation", false);
+    }
+
+    return note;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to update note",
+      "DB_ERROR",
+      "database",
+      false
+    );
   }
-
-  if (!result.data) {
-    throw new AppError("Note not found", "NOTE_NOT_FOUND", "validation", false);
-  }
-
-  return result.data;
 }
 
 // ============================================================================
@@ -218,13 +259,22 @@ export async function updateNoteService(
  * Delete a note
  */
 export async function deleteNoteService(userId: string, noteId: string): Promise<void> {
-  const result = await NotesRepository.deleteNote(userId, noteId);
+  const db = await getDb();
+  const repo = createNotesRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
-  }
+  try {
+    const deleted = await repo.deleteNote(userId, noteId);
 
-  if (!result.data) {
-    throw new AppError("Note not found", "NOTE_NOT_FOUND", "validation", false);
+    if (!deleted) {
+      throw new AppError("Note not found", "NOTE_NOT_FOUND", "validation", false);
+    }
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to delete note",
+      "DB_ERROR",
+      "database",
+      false
+    );
   }
 }

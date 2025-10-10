@@ -15,11 +15,13 @@ type ZoneWithStatsDTO = Zone & {
 };
 
 export class ZonesRepository {
+  constructor(private readonly db: DbClient) {}
+
   /**
    * List all zones ordered by name
    */
-  static async listZones(db: DbClient): Promise<ZoneDTO[]> {
-    const rows = await db
+  async listZones(): Promise<ZoneDTO[]> {
+    const rows = await this.db
       .select({
         id: zones.id,
         name: zones.name,
@@ -29,15 +31,14 @@ export class ZonesRepository {
       .from(zones)
       .orderBy(asc(zones.name));
 
-    return rows.map(row => row);
+    return rows;
   }
 
   /**
    * Get a single zone by ID
    */
-  static async getZoneById(db: DbClient, zoneId: number): Promise<ZoneDTO | null> {
-
-    const rows = await db
+  async getZoneById(zoneId: number): Promise<ZoneDTO | null> {
+    const rows = await this.db
       .select({
         id: zones.id,
         name: zones.name,
@@ -58,9 +59,8 @@ export class ZonesRepository {
   /**
    * Get a single zone by name
    */
-  static async getZoneByName(db: DbClient, name: string): Promise<ZoneDTO | null> {
-
-    const rows = await db
+  async getZoneByName(name: string): Promise<ZoneDTO | null> {
+    const rows = await this.db
       .select({
         id: zones.id,
         name: zones.name,
@@ -81,7 +81,7 @@ export class ZonesRepository {
   /**
    * Create a new zone (admin function)
    */
-  static async createZone(db: DbClient, data: CreateZoneDTO): Promise<ZoneDTO> {
+  async createZone(data: CreateZoneDTO): Promise<ZoneDTO> {
     const insertValues = {
       id: data.id ?? undefined,
       name: data.name,
@@ -89,15 +89,12 @@ export class ZonesRepository {
       iconName: data.iconName ?? null,
     };
 
-    const [newZone] = await db
-      .insert(zones)
-      .values(insertValues)
-      .returning({
-        id: zones.id,
-        name: zones.name,
-        color: zones.color,
-        iconName: zones.iconName,
-      });
+    const [newZone] = await this.db.insert(zones).values(insertValues).returning({
+      id: zones.id,
+      name: zones.name,
+      color: zones.color,
+      iconName: zones.iconName,
+    });
 
     if (!newZone) {
       throw new Error("Failed to create zone - no data returned");
@@ -109,19 +106,14 @@ export class ZonesRepository {
   /**
    * Update an existing zone (admin function)
    */
-  static async updateZone(
-    db: DbClient,
-    zoneId: number,
-    data: UpdateZoneDTO,
-  ): Promise<ZoneDTO | null> {
-
+  async updateZone(zoneId: number, data: UpdateZoneDTO): Promise<ZoneDTO | null> {
     const updateValues = {
       ...(data.name !== undefined && { name: data.name }),
       ...(data.color !== undefined && { color: data.color ?? null }),
       ...(data.iconName !== undefined && { iconName: data.iconName ?? null }),
     };
 
-    const [updatedZone] = await db
+    const [updatedZone] = await this.db
       .update(zones)
       .set(updateValues)
       .where(eq(zones.id, zoneId))
@@ -142,9 +134,11 @@ export class ZonesRepository {
   /**
    * Delete a zone (admin function)
    */
-  static async deleteZone(db: DbClient, zoneId: number): Promise<boolean> {
-
-    const result = await db.delete(zones).where(eq(zones.id, zoneId)).returning({ id: zones.id });
+  async deleteZone(zoneId: number): Promise<boolean> {
+    const result = await this.db
+      .delete(zones)
+      .where(eq(zones.id, zoneId))
+      .returning({ id: zones.id });
 
     return result.length > 0;
   }
@@ -152,8 +146,8 @@ export class ZonesRepository {
   /**
    * Get zones with usage statistics
    */
-  static async getZonesWithStats(db: DbClient): Promise<ZoneWithStatsDTO[]> {
-    const rows = await db
+  async getZonesWithStats(): Promise<ZoneWithStatsDTO[]> {
+    const rows = await this.db
       .select({
         id: zones.id,
         name: zones.name,
@@ -163,11 +157,15 @@ export class ZonesRepository {
       .from(zones)
       .orderBy(asc(zones.name));
 
-    return rows.map(row => ({
+    return rows.map((row) => ({
       ...row,
       projectCount: 0,
       taskCount: 0,
       activeTaskCount: 0,
     }));
   }
+}
+
+export function createZonesRepository(db: DbClient): ZonesRepository {
+  return new ZonesRepository(db);
 }

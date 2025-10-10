@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { handleAuth } from "@/lib/api";
-import { productivityService } from "@/server/services/productivity.service";
+import {
+  getTaskService,
+  updateTaskService,
+  deleteTaskService,
+} from "@/server/services/productivity.service";
 import { UpdateTaskSchema, TaskSchema } from "@/server/db/business-schemas";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -28,17 +32,13 @@ export async function GET(request: NextRequest, context: RouteParams) {
     TaskSchema,
     async (_, userId): Promise<z.infer<typeof TaskSchema>> => {
       const params = await context.params;
-      const result = await productivityService.getTask(params.taskId, userId);
+      const task = await getTaskService(userId, params.taskId);
 
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-
-      if (!result.data) {
+      if (!task) {
         notFound();
       }
 
-      return result.data;
+      return task;
     },
   );
 
@@ -54,17 +54,7 @@ export async function PUT(request: NextRequest, context: RouteParams) {
     TaskSchema,
     async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
       const params = await context.params;
-      const result = await productivityService.updateTask(params.taskId, userId, data);
-
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-
-      if (!result.data) {
-        notFound();
-      }
-
-      return result.data;
+      return await updateTaskService(params.taskId, userId, data);
     },
   );
 
@@ -80,12 +70,7 @@ export async function DELETE(request: NextRequest, context: RouteParams) {
     z.object({ success: z.boolean() }),
     async (_, userId) => {
       const params = await context.params;
-      const result = await productivityService.deleteTask(params.taskId, userId);
-
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-
+      await deleteTaskService(userId, params.taskId);
       return { success: true };
     },
   );

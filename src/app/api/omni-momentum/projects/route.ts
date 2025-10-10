@@ -1,5 +1,5 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { productivityService } from "@/server/services/productivity.service";
+import { listProjectsService, createProjectService } from "@/server/services/productivity.service";
 import {
   CreateProjectSchema,
   ProjectFiltersSchema,
@@ -23,11 +23,7 @@ export const GET = handleGetWithQueryAuth(
   ProjectFiltersSchema,
   z.array(ProjectSchema),
   async (filters, userId): Promise<z.infer<typeof ProjectSchema>[]> => {
-    const result = await productivityService.getProjects(userId, filters);
-    if (!result.success) {
-      throw new Error(result.error.message);
-    }
-    return result.data;
+    return await listProjectsService(userId, filters);
   },
 );
 
@@ -38,11 +34,6 @@ export const POST = handleAuth(
   CreateProjectSchema,
   ProjectSchema,
   async (data, userId): Promise<z.infer<typeof ProjectSchema>> => {
-    const result = await productivityService.createProject(userId, data);
-    if (!result.success) {
-      throw new Error(result.error.message);
-    }
-
-    return result.data;
+    return await createProjectService(userId, data);
   },
 );

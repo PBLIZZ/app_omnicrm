@@ -11,8 +11,9 @@ import {
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
 } from "@/server/db/business-schemas/onboarding";
-import { OnboardingRepository, type ClientData, type ConsentData } from "@repo";
+import { createOnboardingRepository, type ClientData, type ConsentData } from "@repo";
 import { AppError } from "@/lib/errors/app-error";
+import { getDb } from "@/server/db/client";
 import z from "zod";
 
 const ratelimit = new Ratelimit({
@@ -103,48 +104,54 @@ export class OnboardingService {
     },
     clientIpData: ClientIpData,
   ): Promise<{ contactId: string; message: string }> {
-    // Validate token and get userId
-    const tokenResult = await OnboardingRepository.validateToken(submissionData.token);
-    if (!tokenResult.success) {
-      throw new AppError("Failed to validate token", "VALIDATION_ERROR", "database", false);
-    }
+    const db = await getDb();
+    const repo = createOnboardingRepository(db);
 
-    if (!tokenResult.data.isValid || !tokenResult.data.token) {
+    try {
+      // Validate token and get userId
+      const tokenValidation = await repo.validateToken(submissionData.token);
+
+      if (!tokenValidation.isValid || !tokenValidation.token) {
+        throw new AppError(
+          tokenValidation.error || "Invalid token",
+          "INVALID_TOKEN",
+          "validation",
+          false,
+        );
+      }
+
+      const userId = tokenValidation.token.userId;
+
+      // Prepare consent with IP tracking
+      const consentData: ConsentData = {
+        ...submissionData.consent,
+        ip_address: clientIpData.ip,
+        user_agent: clientIpData.userAgent,
+      };
+
+      // Submit to database
+      const contactId = await repo.createContactWithConsent(
+        userId,
+        submissionData.token,
+        submissionData.client,
+        consentData,
+        submissionData.photo_path ?? null,
+        submissionData.photo_size ?? null,
+      );
+
+      return {
+        contactId,
+        message: "Onboarding completed successfully",
+      };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
       throw new AppError(
-        tokenResult.data.error || "Invalid token",
-        "INVALID_TOKEN",
-        "validation",
-        false,
+        error instanceof Error ? error.message : "Failed to submit onboarding",
+        "DB_ERROR",
+        "database",
+        false
       );
     }
-
-    const userId = tokenResult.data.token.userId;
-
-    // Prepare consent with IP tracking
-    const consentData: ConsentData = {
-      ...submissionData.consent,
-      ip_address: clientIpData.ip,
-      user_agent: clientIpData.userAgent,
-    };
-
-    // Submit to database
-    const result = await OnboardingRepository.createContactWithConsent(
-      userId,
-      submissionData.token,
-      submissionData.client,
-      consentData,
-      submissionData.photo_path,
-      submissionData.photo_size,
-    );
-
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
-    }
-
-    return {
-      contactId: result.data,
-      message: "Onboarding completed successfully",
-    };
   }
 
   /**
@@ -174,13 +181,11 @@ export class OnboardingPhotoService {
     originalSize: number;
     message: string;
   }> {
-    // 1. Validate token
-    const tokenResult = await OnboardingRepository.validateToken(data.token);
-    if (!tokenResult.success) {
-      throw new AppError(tokenResult.error.message, "INVALID_TOKEN", "validation", false);
-    }
+    const db = await getDb();
+    const repo = createOnboardingRepository(db);
 
-    const validation = tokenResult.data;
+    // 1. Validate token
+    const validation = await repo.validateToken(data.token);
     if (!validation.isValid || !validation.token?.userId) {
       throw new AppError(validation.error || "Invalid token", "INVALID_TOKEN", "validation", false);
     }
@@ -264,27 +269,34 @@ export class OnboardingTokenService {
     publicUrl: string;
     message: string;
   }> {
+    const db = await getDb();
+    const repo = createOnboardingRepository(db);
+
     // Calculate expiry
     const expiresAt = new Date(Date.now() + hoursValid * 3600 * 1000);
 
-    // Create token
-    const result = await OnboardingRepository.createToken(userId, expiresAt, label);
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
+    try {
+      // Create token
+      const token = await repo.createToken(userId, expiresAt, label);
+      const baseUrl = process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000";
+      const publicUrl = `${baseUrl}/onboard/${token.token}`;
+
+      return {
+        success: true,
+        token: token.token,
+        expiresAt: token.expiresAt.toISOString(),
+        ...(token.label && { label: token.label }),
+        publicUrl,
+        message: "Token created successfully",
+      };
+    } catch (error) {
+      throw new AppError(
+        error instanceof Error ? error.message : "Failed to generate token",
+        "DB_ERROR",
+        "database",
+        false
+      );
     }
-
-    const token = result.data;
-    const baseUrl = process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000";
-    const publicUrl = `${baseUrl}/onboard/${token.token}`;
-
-    return {
-      success: true,
-      token: token.token,
-      expiresAt: token.expiresAt.toISOString(),
-      ...(token.label && { label: token.label }),
-      publicUrl,
-      message: "Token created successfully",
-    };
   }
 
   /**
@@ -304,22 +316,31 @@ export class OnboardingTokenService {
       usageCount: number;
     }>
   > {
-    const result = await OnboardingRepository.listTokens(userId, options.limit, options.offset);
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
-    }
+    const db = await getDb();
+    const repo = createOnboardingRepository(db);
 
-    const now = new Date().toISOString();
-    return result.data.map((token) => ({
-      id: token.id,
-      token: token.token,
-      ...(token.label && { label: token.label }),
-      expiresAt: token.expiresAt.toISOString(),
-      createdAt: token.createdAt.toISOString(),
-      isActive:
-        !token.disabled && token.expiresAt.toISOString() > now && token.usedCount < token.maxUses,
-      usageCount: token.usedCount,
-    }));
+    try {
+      const tokens = await repo.listTokens(userId, options.limit, options.offset);
+      const now = new Date().toISOString();
+
+      return tokens.map((token) => ({
+        id: token.id,
+        token: token.token,
+        ...(token.label && { label: token.label }),
+        expiresAt: token.expiresAt.toISOString(),
+        createdAt: token.createdAt.toISOString(),
+        isActive:
+          !token.disabled && token.expiresAt.toISOString() > now && token.usedCount < token.maxUses,
+        usageCount: token.usedCount,
+      }));
+    } catch (error) {
+      throw new AppError(
+        error instanceof Error ? error.message : "Failed to list tokens",
+        "DB_ERROR",
+        "database",
+        false
+      );
+    }
   }
 
   /**
@@ -337,28 +358,37 @@ export class OnboardingTokenService {
     isActive: boolean;
     usageCount: number;
   }> {
-    const result = await OnboardingRepository.getTokenById(userId, tokenId);
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
+    const db = await getDb();
+    const repo = createOnboardingRepository(db);
+
+    try {
+      const token = await repo.getTokenById(userId, tokenId);
+
+      if (!token) {
+        throw new AppError("Token not found", "TOKEN_NOT_FOUND", "validation", false);
+      }
+
+      const now = new Date().toISOString();
+
+      return {
+        id: token.id,
+        token: token.token,
+        ...(token.label && { label: token.label }),
+        expiresAt: token.expiresAt.toISOString(),
+        createdAt: token.createdAt.toISOString(),
+        isActive:
+          !token.disabled && token.expiresAt.toISOString() > now && token.usedCount < token.maxUses,
+        usageCount: token.usedCount,
+      };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        error instanceof Error ? error.message : "Failed to get token",
+        "DB_ERROR",
+        "database",
+        false
+      );
     }
-
-    if (!result.data) {
-      throw new AppError("Token not found", "TOKEN_NOT_FOUND", "validation", false);
-    }
-
-    const token = result.data;
-    const now = new Date().toISOString();
-
-    return {
-      id: token.id,
-      token: token.token,
-      ...(token.label && { label: token.label }),
-      expiresAt: token.expiresAt.toISOString(),
-      createdAt: token.createdAt.toISOString(),
-      isActive:
-        !token.disabled && token.expiresAt.toISOString() > now && token.usedCount < token.maxUses,
-      usageCount: token.usedCount,
-    };
   }
 
   /**
@@ -368,16 +398,26 @@ export class OnboardingTokenService {
     userId: string,
     tokenId: string,
   ): Promise<{ success: boolean; message: string }> {
-    const result = await OnboardingRepository.deleteToken(userId, tokenId);
-    if (!result.success) {
-      throw new AppError(result.error.message, result.error.code, "database", false);
-    }
+    const db = await getDb();
+    const repo = createOnboardingRepository(db);
 
-    if (!result.data) {
-      throw new AppError("Token not found", "TOKEN_NOT_FOUND", "validation", false);
-    }
+    try {
+      const deleted = await repo.deleteToken(userId, tokenId);
 
-    return { success: true, message: "Token deleted successfully" };
+      if (!deleted) {
+        throw new AppError("Token not found", "TOKEN_NOT_FOUND", "validation", false);
+      }
+
+      return { success: true, message: "Token deleted successfully" };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        error instanceof Error ? error.message : "Failed to delete token",
+        "DB_ERROR",
+        "database",
+        false
+      );
+    }
   }
 
   /**

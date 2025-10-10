@@ -9,11 +9,19 @@
  * Generated from Drizzle schema using drizzle-zod.
  *
  * This file contains ONLY API-specific schemas and business logic validations.
+ * Per architecture blueprint: JSONB fields use validated schemas from @/lib/validation/jsonb
  */
 
 import { z } from "zod";
 import { createSelectSchema } from "drizzle-zod";
 import { contacts } from "@/server/db/schema";
+import {
+  ContactAddressSchema,
+  ContactHealthContextSchema,
+  ContactPreferencesSchema,
+  ContactTagsSchema,
+} from "@/lib/validation/jsonb";
+import { PaginationQuerySchema } from "@/lib/validation/common";
 
 // Re-export base types from schema for convenience
 export type { Contact, CreateContact, UpdateContact } from "@/server/db/schema";
@@ -21,13 +29,15 @@ export type { Contact, CreateContact, UpdateContact } from "@/server/db/schema";
 // Create Zod schemas from Drizzle table for API validation
 const ContactDataSchema = createSelectSchema(contacts);
 
-// Export base schema for single contact responses
-// Override JSONB fields to use unknown (matches Drizzle's Contact type)
+/**
+ * Export base schema for single contact responses
+ * JSONB fields use validated schemas instead of z.unknown()
+ */
 export const ContactSchema = ContactDataSchema.extend({
-  address: z.unknown(),
-  healthContext: z.unknown(),
-  preferences: z.unknown(),
-  tags: z.unknown(),
+  address: ContactAddressSchema,
+  healthContext: ContactHealthContextSchema,
+  preferences: ContactPreferencesSchema,
+  tags: ContactTagsSchema,
 });
 
 // ============================================================================
@@ -45,16 +55,16 @@ export const CreateContactBodySchema = z.object({
   photoUrl: z.string().optional(),
   source: z.string().optional(),
   lifecycleStage: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  tags: ContactTagsSchema,
   confidenceScore: z.string().optional(),
   dateOfBirth: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
   clientStatus: z.string().optional(),
   referralSource: z.string().optional(),
-  address: z.unknown().optional(),
-  healthContext: z.unknown().optional(),
-  preferences: z.unknown().optional(),
+  address: ContactAddressSchema,
+  healthContext: ContactHealthContextSchema,
+  preferences: ContactPreferencesSchema,
 });
 
 export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
@@ -71,16 +81,16 @@ export const UpdateContactBodySchema = z
     photoUrl: z.string().nullish(),
     source: z.string().nullish(),
     lifecycleStage: z.string().nullish(),
-    tags: z.array(z.string()).nullish(),
+    tags: ContactTagsSchema.nullish(),
     confidenceScore: z.string().nullish(),
     dateOfBirth: z.string().nullish(),
     emergencyContactName: z.string().nullish(),
     emergencyContactPhone: z.string().nullish(),
     clientStatus: z.string().nullish(),
     referralSource: z.string().nullish(),
-    address: z.unknown().nullish(),
-    healthContext: z.unknown().nullish(),
-    preferences: z.unknown().nullish(),
+    address: ContactAddressSchema.nullish(),
+    healthContext: ContactHealthContextSchema.nullish(),
+    preferences: ContactPreferencesSchema.nullish(),
   })
   .partial();
 
@@ -89,11 +99,9 @@ export type UpdateContactBody = z.infer<typeof UpdateContactBodySchema>;
 /**
  * GET /api/contacts - Query parameters
  */
-export const GetContactsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(3000).default(20),
+export const GetContactsQuerySchema = PaginationQuerySchema.extend({
+  pageSize: z.coerce.number().int().min(1).max(3000).default(20), // Override max for contacts
   sort: z.enum(["displayName", "createdAt", "updatedAt"]).default("createdAt"),
-  order: z.enum(["asc", "desc"]).default("desc"),
   search: z.string().optional(),
   lifecycleStage: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
@@ -112,16 +120,15 @@ export type GetContactsQuery = z.infer<typeof GetContactsQuerySchema>;
 
 /**
  * Contact with last note preview (service layer enrichment)
- * Note: JSONB fields (address, healthContext, preferences, tags) are typed as unknown
- * to match the Contact type from Drizzle schema
+ * Note: JSONB fields use validated schemas for type safety
  */
 export const ContactWithLastNoteSchema = ContactDataSchema.extend({
   lastNote: z.string().nullable(),
-  // Override JSONB fields to accept unknown (matches Contact type from Drizzle)
-  address: z.unknown(),
-  healthContext: z.unknown(),
-  preferences: z.unknown(),
-  tags: z.unknown(),
+  // Use validated JSONB schemas
+  address: ContactAddressSchema,
+  healthContext: ContactHealthContextSchema,
+  preferences: ContactPreferencesSchema,
+  tags: ContactTagsSchema,
 });
 
 /**
@@ -158,8 +165,13 @@ export const DeleteContactResponseSchema = z.object({
 // BULK OPERATIONS
 // ============================================================================
 
+/**
+ * Bulk Delete Body Schema
+ * Note: Max 100 IDs per request to prevent resource exhaustion
+ * Handler must also enforce authorization and audit logging
+ */
 export const BulkDeleteBodySchema = z.object({
-  ids: z.array(z.string().uuid()).min(1),
+  ids: z.array(z.string().uuid()).min(1).max(100),
 });
 
 export type BulkDeleteBody = z.infer<typeof BulkDeleteBodySchema>;

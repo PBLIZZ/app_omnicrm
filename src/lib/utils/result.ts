@@ -1,4 +1,22 @@
 /**
+ * @deprecated This Result pattern is being phased out.
+ * New code should throw AppError directly.
+ * See LAYER_ARCHITECTURE_BLUEPRINT_2025.md
+ *
+ * DO NOT USE:
+ * - DbResult<T>
+ * - ok() / dbError()
+ * - Result<T, E>
+ *
+ * INSTEAD:
+ * - Throw AppError from services
+ * - Throw Error from repositories
+ * - Let handlers catch and convert to HTTP responses
+ *
+ * This file will be removed after migration is complete.
+ */
+
+/**
  * Result Type Pattern
  *
  * Replaces error-throwing functions with proper Result<T, E> types
@@ -6,6 +24,7 @@
  */
 
 /**
+ * @deprecated Use direct throws
  * Result type for functions that can succeed or fail
  */
 export type Result<T, E = Error> =
@@ -19,6 +38,7 @@ export type Result<T, E = Error> =
     };
 
 /**
+ * @deprecated Use direct throws
  * Success result constructor
  */
 export function ok<T>(data: T): Result<T, never> {
@@ -26,6 +46,7 @@ export function ok<T>(data: T): Result<T, never> {
 }
 
 /**
+ * @deprecated Use direct throws
  * Error result constructor
  */
 export function err<E>(error: E): Result<never, E> {
@@ -195,6 +216,7 @@ export function any<T, E>(results: Result<T, E>[]): Result<T, E[]> {
 }
 
 /**
+ * @deprecated Use direct throws
  * Database operation result types
  */
 export type DbResult<T> = Result<
@@ -232,6 +254,7 @@ export type ValidationResult<T> = Result<
 >;
 
 /**
+ * @deprecated Use direct throws
  * Helper to create database error
  */
 export function dbError(code: string, message: string, details?: unknown): DbResult<never> {

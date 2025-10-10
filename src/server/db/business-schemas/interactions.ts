@@ -5,72 +5,37 @@
  * - Interaction (select type)
  * - CreateInteraction (insert type)
  * - UpdateInteraction (partial insert type)
+ *
+ * Per architecture blueprint: JSONB fields use validated schemas from @/lib/validation/jsonb
  */
 
 import { createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
 import { interactions } from "@/server/db/schema";
-
-export type { Interaction, CreateInteraction, UpdateInteraction } from "@/server/db/schema";
-
-// ============================================================================
-// SOURCE METADATA SCHEMAS
-// ============================================================================
-
-export const GmailSourceMetaSchema = z.object({
-  from: z.string().optional(),
-  to: z.array(z.string()).optional(),
-  cc: z.array(z.string()).optional(),
-  bcc: z.array(z.string()).optional(),
-  subject: z.string().optional(),
-  threadId: z.string().optional(),
-  messageId: z.string().optional(),
-  labelIds: z.array(z.string()).optional(),
-  fetchedAt: z.string().optional(),
-  matchedQuery: z.string().optional(),
-});
-
-export const CalendarSourceMetaSchema = z.object({
-  attendees: z
-    .array(
-      z.object({
-        email: z.string(),
-        name: z.string().optional(),
-        responseStatus: z.string().optional(),
-      }),
-    )
-    .optional(),
-  organizer: z
-    .object({
-      email: z.string(),
-      name: z.string().optional(),
-    })
-    .optional(),
-  eventId: z.string().optional(),
-  calendarId: z.string().optional(),
-  summary: z.string().optional(),
-  description: z.string().optional(),
-  location: z.string().optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
-  isAllDay: z.boolean().optional(),
-  recurring: z.boolean().optional(),
-  status: z.string().optional(),
-  fetchedAt: z.string().optional(),
-});
-
-export const GenericSourceMetaSchema = z.record(z.string(), z.unknown());
-
-export const SourceMetaSchema = z.union([
+import {
+  SourceMetaSchema,
   GmailSourceMetaSchema,
   CalendarSourceMetaSchema,
   GenericSourceMetaSchema,
-]);
+  type SourceMeta,
+  type GmailSourceMeta,
+  type CalendarSourceMeta,
+} from "@/lib/validation/jsonb";
+import { PaginationQuerySchema, createPaginatedResponseSchema } from "@/lib/validation/common";
 
-export type GmailSourceMeta = z.infer<typeof GmailSourceMetaSchema>;
-export type CalendarSourceMeta = z.infer<typeof CalendarSourceMetaSchema>;
-export type SourceMeta = z.infer<typeof SourceMetaSchema>;
+export type { Interaction, CreateInteraction, UpdateInteraction } from "@/server/db/schema";
+
+// Re-export source metadata schemas
+export {
+  SourceMetaSchema,
+  GmailSourceMetaSchema,
+  CalendarSourceMetaSchema,
+  GenericSourceMetaSchema,
+  type SourceMeta,
+  type GmailSourceMeta,
+  type CalendarSourceMeta,
+};
 
 // ============================================================================
 // BASE SCHEMAS
@@ -78,8 +43,11 @@ export type SourceMeta = z.infer<typeof SourceMetaSchema>;
 
 const BaseInteractionSchema = createSelectSchema(interactions);
 
+/**
+ * Interaction schema with validated JSONB field
+ */
 export const InteractionSchema = BaseInteractionSchema.extend({
-  sourceMeta: z.unknown(),
+  sourceMeta: SourceMetaSchema.optional(),
 });
 
 export type InteractionDTO = z.infer<typeof InteractionSchema>;
@@ -130,16 +98,9 @@ export const UpdateInteractionBodySchema = z
 
 export type UpdateInteractionBody = z.infer<typeof UpdateInteractionBodySchema>;
 
-export const GetInteractionsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100)
-    .default(20),
+export const GetInteractionsQuerySchema = PaginationQuerySchema.extend({
+  pageSize: z.coerce.number().int().min(1).max(100).default(20), // Override max for interactions
   sort: z.enum(["occurredAt", "createdAt"]).default("occurredAt"),
-  order: z.enum(["asc", "desc"]).default("desc"),
   contactId: z.string().uuid().optional(),
   type: z.array(z.string()).optional(),
   source: z.array(z.string()).optional(),
@@ -152,44 +113,12 @@ export type GetInteractionsQuery = z.infer<typeof GetInteractionsQuerySchema>;
 // RESPONSE SCHEMAS
 // ============================================================================
 
-export const InteractionWithUISchema = InteractionSchema.transform((data) => ({
-  ...data,
-  hasContent: Boolean(data.bodyText || data.subject),
-  contentPreview: data.bodyText
-    ? data.bodyText.slice(0, 150) + (data.bodyText.length > 150 ? "..." : "")
-    : data.subject || "No content",
-  isEmail: data.type === "email",
-  isCall: data.type === "call",
-  isMeeting: data.type === "meeting",
-  isCalendarEvent: data.type === "calendar_event",
-})) satisfies z.ZodType<
-  InteractionDTO & {
-    hasContent: boolean;
-    contentPreview: string;
-    isEmail: boolean;
-    isCall: boolean;
-    isMeeting: boolean;
-    isCalendarEvent: boolean;
-  }
->;
-
-export type InteractionWithUI = z.infer<typeof InteractionWithUISchema>;
-
-// ============================================================================
-// RESPONSE SCHEMAS
-// ============================================================================
-
-export const InteractionListResponseSchema = z.object({
-  items: z.array(InteractionWithUISchema),
-  pagination: z.object({
-    page: z.number(),
-    pageSize: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-    hasNext: z.boolean(),
-    hasPrev: z.boolean(),
-  }),
-});
+/**
+ * Interaction List Response Schema
+ * Note: Per architecture blueprint, transforms removed. UI enrichment should happen
+ * in service layer mappers (e.g., `mapToInteractionWithUI()` helper function).
+ */
+export const InteractionListResponseSchema = createPaginatedResponseSchema(InteractionSchema);
 
 export type InteractionListResponse = z.infer<typeof InteractionListResponseSchema>;
 

@@ -9,6 +9,7 @@ import {
   InboxItemResponseSchema,
   InboxProcessResultResponseSchema,
 } from "@/server/db/business-schemas";
+import { z } from "zod";
 
 /**
  * Inbox API - Quick capture and list inbox items
@@ -20,16 +21,18 @@ import {
 export const GET = handleGetWithQueryAuth(
   GetInboxQuerySchema,
   InboxListResponseSchema.or(InboxStatsResponseSchema),
-  async (query, userId) => {
+  async (
+    query,
+    userId,
+  ): Promise<
+    z.infer<typeof InboxListResponseSchema> | z.infer<typeof InboxStatsResponseSchema>
+  > => {
     const wantsStats = query.stats ?? false;
 
     if (wantsStats) {
       const statsResult = await InboxService.getInboxStats(userId);
       if (!statsResult.success) {
-        throw ApiError.internalServerError(
-          statsResult.error.message,
-          statsResult.error.details,
-        );
+        throw ApiError.internalServerError(statsResult.error.message, statsResult.error.details);
       }
 
       return { stats: statsResult.data };
@@ -53,7 +56,12 @@ export const GET = handleGetWithQueryAuth(
 export const POST = handleAuth(
   InboxPostRequestSchema,
   InboxItemResponseSchema.or(InboxProcessResultResponseSchema),
-  async (requestData, userId) => {
+  async (
+    requestData,
+    userId,
+  ): Promise<
+    z.infer<typeof InboxItemResponseSchema> | z.infer<typeof InboxProcessResultResponseSchema>
+  > => {
     const { type, data } = requestData;
 
     switch (type) {

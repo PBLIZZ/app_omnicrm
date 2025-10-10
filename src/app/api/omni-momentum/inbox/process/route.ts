@@ -3,8 +3,7 @@ import {
   InboxProcessResultResponseSchema,
 } from "@/server/db/business-schemas";
 import { handleAuth } from "@/lib/api";
-import { ApiError } from "@/lib/api/errors";
-import { InboxService } from "@/server/services/inbox.service";
+import { processInboxItemService } from "@/server/services/inbox.service";
 import { z } from "zod";
 
 /**
@@ -19,24 +18,7 @@ export const POST = handleAuth(
   ProcessInboxItemSchema,
   InboxProcessResultResponseSchema,
   async (processData, userId): Promise<z.infer<typeof InboxProcessResultResponseSchema>> => {
-    const result = await InboxService.processInboxItem(userId, processData);
-
-    if (!result.success) {
-      if (result.error.code === "INBOX_ITEM_NOT_FOUND") {
-        throw ApiError.notFound(result.error.message, result.error.details);
-      }
-
-      if (result.error.message.includes("OpenRouter not configured")) {
-        throw new ApiError("AI processing is not available", 503, result.error.details);
-      }
-
-      if (result.error.code === "INBOX_PROCESS_ERROR") {
-        throw new ApiError("AI processing temporarily unavailable", 503, result.error.details);
-      }
-
-      throw ApiError.internalServerError(result.error.message, result.error.details);
-    }
-
-    return { result: result.data };
+    const result = await processInboxItemService(userId, processData);
+    return { result };
   },
 );

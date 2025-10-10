@@ -1,6 +1,12 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { ApiError } from "@/lib/api/errors";
-import { InboxService } from "@/server/services/inbox.service";
+import {
+  getInboxStatsService,
+  extractFilterParams,
+  listInboxItemsService,
+  quickCaptureService,
+  voiceCaptureService,
+  bulkProcessInboxService,
+} from "@/server/services/inbox.service";
 import {
   GetInboxQuerySchema,
   InboxListResponseSchema,
@@ -18,6 +24,32 @@ import { z } from "zod";
  * can quickly capture thoughts/tasks for AI processing later.
  */
 
+/**
+ * Transform URL query strings to typed parameters
+ * Business logic: Convert string dates and booleans to proper types
+ */
+function transformQueryParams(query: z.infer<typeof GetInboxQuerySchema>): {
+  status?: ("unprocessed" | "processed" | "archived")[] | undefined;
+  search?: string | undefined;
+  createdAfter?: Date | undefined;
+  createdBefore?: Date | undefined;
+  hasAiSuggestions?: boolean | undefined;
+  stats?: boolean | undefined;
+} {
+  return {
+    ...query,
+    createdAfter: query.createdAfter ? new Date(query.createdAfter) : undefined,
+    createdBefore: query.createdBefore ? new Date(query.createdBefore) : undefined,
+    hasAiSuggestions:
+      query.hasAiSuggestions === "true"
+        ? true
+        : query.hasAiSuggestions === "false"
+          ? false
+          : undefined,
+    stats: query.stats === "true" ? true : query.stats === "false" ? false : undefined,
+  };
+}
+
 export const GET = handleGetWithQueryAuth(
   GetInboxQuerySchema,
   InboxListResponseSchema.or(InboxStatsResponseSchema),
@@ -27,25 +59,16 @@ export const GET = handleGetWithQueryAuth(
   ): Promise<
     z.infer<typeof InboxListResponseSchema> | z.infer<typeof InboxStatsResponseSchema>
   > => {
-    const wantsStats = query.stats ?? false;
+    const wantsStats = query.stats === "true"; // Check string directly
 
     if (wantsStats) {
-      const statsResult = await InboxService.getInboxStats(userId);
-      if (!statsResult.success) {
-        throw ApiError.internalServerError(statsResult.error.message, statsResult.error.details);
-      }
-
-      return { stats: statsResult.data };
+      const stats = await getInboxStatsService(userId);
+      return { stats };
     }
 
-    const filterParams = InboxService.extractFilterParams(query);
-    const listResult = await InboxService.listInboxItems(userId, filterParams);
-
-    if (!listResult.success) {
-      throw ApiError.internalServerError(listResult.error.message, listResult.error.details);
-    }
-
-    const items = listResult.data;
+    const transformedQuery = transformQueryParams(query);
+    const filterParams = extractFilterParams(transformedQuery);
+    const items = await listInboxItemsService(userId, filterParams);
     return {
       items,
       total: items.length,
@@ -66,27 +89,18 @@ export const POST = handleAuth(
 
     switch (type) {
       case "quick_capture": {
-        const result = await InboxService.quickCapture(userId, data);
-        if (!result.success) {
-          throw ApiError.internalServerError(result.error.message, result.error.details);
-        }
-        return { item: result.data };
+        const item = await quickCaptureService(userId, data);
+        return { item };
       }
 
       case "voice_capture": {
-        const result = await InboxService.voiceCapture(userId, data);
-        if (!result.success) {
-          throw ApiError.internalServerError(result.error.message, result.error.details);
-        }
-        return { item: result.data };
+        const item = await voiceCaptureService(userId, data);
+        return { item };
       }
 
       case "bulk_process": {
-        const result = await InboxService.bulkProcessInbox(userId, data);
-        if (!result.success) {
-          throw ApiError.internalServerError(result.error.message, result.error.details);
-        }
-        return { result: result.data };
+        const result = await bulkProcessInboxService(userId, data);
+        return { result };
       }
 
       default: {

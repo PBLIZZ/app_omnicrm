@@ -1,5 +1,21 @@
-import { and, asc, count, desc, eq, ilike, inArray, isNotNull, or, type InferSelectModel } from "drizzle-orm";
-import { documents, type CreateIntelligenceDocument, type IntelligenceDocument, type UpdateIntelligenceDocument } from "@/server/db/schema";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  or,
+  type InferSelectModel,
+} from "drizzle-orm";
+import {
+  documents,
+  type CreateIntelligenceDocument,
+  type IntelligenceDocument,
+  type UpdateIntelligenceDocument,
+} from "@/server/db/schema";
 import type { DbClient } from "@/server/db/client";
 
 export type DocumentListParams = {
@@ -16,8 +32,9 @@ const sortColumn = documents.createdAt;
 type IntelligenceDocumentRow = InferSelectModel<typeof documents>;
 
 export class DocumentsRepository {
-  static async listDocuments(
-    db: DbClient,
+  constructor(private readonly db: DbClient) {}
+
+  async listDocuments(
     userId: string,
     params: DocumentListParams = {},
   ): Promise<{ items: IntelligenceDocument[]; total: number }> {
@@ -48,7 +65,7 @@ export class DocumentsRepository {
     const whereClause = and(...conditions);
     const orderFn = params.order === "asc" ? asc : desc;
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(documents)
       .where(whereClause)
@@ -56,7 +73,7 @@ export class DocumentsRepository {
       .limit(pageSize)
       .offset(offset)) as IntelligenceDocumentRow[];
 
-    const totalRow = (await db
+    const totalRow = (await this.db
       .select({ value: count() })
       .from(documents)
       .where(whereClause)) as Array<{ value: number | bigint }>;
@@ -67,12 +84,8 @@ export class DocumentsRepository {
     };
   }
 
-  static async getDocumentById(
-    db: DbClient,
-    userId: string,
-    documentId: string,
-  ): Promise<IntelligenceDocument | null> {
-    const rows = (await db
+  async getDocumentById(userId: string, documentId: string): Promise<IntelligenceDocument | null> {
+    const rows = (await this.db
       .select()
       .from(documents)
       .where(and(eq(documents.userId, userId), eq(documents.id, documentId)))
@@ -81,11 +94,13 @@ export class DocumentsRepository {
     return rows[0] ?? null;
   }
 
-  static async createDocument(
-    db: DbClient,
+  async createDocument(
     data: CreateIntelligenceDocument & { userId: string },
   ): Promise<IntelligenceDocument> {
-    const [created] = (await db.insert(documents).values(data).returning()) as IntelligenceDocumentRow[];
+    const [created] = (await this.db
+      .insert(documents)
+      .values(data)
+      .returning()) as IntelligenceDocumentRow[];
 
     if (!created) {
       throw new Error("Insert returned no data");
@@ -94,8 +109,7 @@ export class DocumentsRepository {
     return created;
   }
 
-  static async updateDocument(
-    db: DbClient,
+  async updateDocument(
     userId: string,
     documentId: string,
     updates: UpdateIntelligenceDocument,
@@ -104,7 +118,7 @@ export class DocumentsRepository {
       throw new Error("No fields provided for update");
     }
 
-    const [updated] = (await db
+    const [updated] = (await this.db
       .update(documents)
       .set(updates)
       .where(and(eq(documents.userId, userId), eq(documents.id, documentId)))
@@ -113,12 +127,8 @@ export class DocumentsRepository {
     return updated ?? null;
   }
 
-  static async deleteDocument(
-    db: DbClient,
-    userId: string,
-    documentId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteDocument(userId: string, documentId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(documents)
       .where(and(eq(documents.userId, userId), eq(documents.id, documentId)))
       .returning({ id: documents.id })) as Array<{ id: string }>;
@@ -126,15 +136,16 @@ export class DocumentsRepository {
     return deleted.length;
   }
 
-  static async deleteDocumentsForUser(
-    db: DbClient,
-    userId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteDocumentsForUser(userId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(documents)
       .where(eq(documents.userId, userId))
       .returning({ id: documents.id })) as Array<{ id: string }>;
 
     return deleted.length;
   }
+}
+
+export function createDocumentsRepository(db: DbClient): DocumentsRepository {
+  return new DocumentsRepository(db);
 }

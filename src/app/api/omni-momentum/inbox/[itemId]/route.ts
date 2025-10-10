@@ -4,8 +4,13 @@ import {
   SuccessResponseSchema,
 } from "@/server/db/business-schemas";
 import { handleAuth } from "@/lib/api";
-import { ApiError } from "@/lib/api/errors";
-import { InboxService } from "@/server/services/inbox.service";
+import { AppError } from "@/lib/errors/app-error";
+import {
+  getInboxItemService,
+  updateInboxItemService,
+  markAsProcessedService,
+  deleteInboxItemService,
+} from "@/server/services/inbox.service";
 import { z } from "zod";
 import type { UpdateInboxItem } from "@/server/db/business-schemas";
 import { NextRequest } from "next/server";
@@ -42,16 +47,12 @@ export async function GET(request: NextRequest, context: RouteParams) {
     async (_: void, userId: string) => {
       const itemId = await getItemId(context);
 
-      const result = await InboxService.getInboxItem(userId, itemId);
-      if (!result.success) {
-        throw ApiError.internalServerError(result.error.message, result.error.details);
+      const item = await getInboxItemService(userId, itemId);
+      if (!item) {
+        throw new AppError("Inbox item not found", "NOT_FOUND", "validation", false, 404);
       }
 
-      if (!result.data) {
-        throw ApiError.notFound("Inbox item not found");
-      }
-
-      return { item: result.data };
+      return { item };
     },
   );
 
@@ -82,43 +83,26 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
             updatePayload.createdTaskId = data.createdTaskId ?? null;
           }
 
-          const result = await InboxService.updateInboxItem(userId, itemId, updatePayload);
-
-          if (!result.success) {
-            throw ApiError.internalServerError(result.error.message, result.error.details);
+          const item = await updateInboxItemService(userId, itemId, updatePayload);
+          if (!item) {
+            throw new AppError("Inbox item not found", "NOT_FOUND", "validation", false, 404);
           }
 
-          if (!result.data) {
-            throw ApiError.notFound("Inbox item not found");
-          }
-
-          return { item: result.data };
+          return { item };
         }
 
         case "mark_processed": {
           const createdTaskId = data?.createdTaskId ?? undefined;
-          const markResult = await InboxService.markAsProcessed(userId, itemId, createdTaskId);
-
-          if (!markResult.success) {
-            throw ApiError.internalServerError(
-              markResult.error.message,
-              markResult.error.details,
-            );
-          }
-
-          const refreshed = await InboxService.getInboxItem(userId, itemId);
-
-          if (!refreshed.success) {
-            throw ApiError.internalServerError(
-              refreshed.error.message,
-              refreshed.error.details,
-            );
-          }
-
-          const item = refreshed.data ?? markResult.data;
-
+          await markAsProcessedService(userId, itemId, createdTaskId);
+          const item = await getInboxItemService(userId, itemId);
           if (!item) {
-            throw ApiError.notFound("Inbox item not found after processing");
+            throw new AppError(
+              "Inbox item not found after processing",
+              "NOT_FOUND",
+              "validation",
+              false,
+              404,
+            );
           }
 
           return { item };
@@ -137,15 +121,7 @@ export async function DELETE(request: NextRequest, context: RouteParams) {
   const handler = handleAuth(z.void(), SuccessResponseSchema, async (_: void, userId: string) => {
     const itemId = await getItemId(context);
 
-    const result = await InboxService.deleteInboxItem(userId, itemId);
-
-    if (!result.success) {
-      throw ApiError.internalServerError(result.error.message, result.error.details);
-    }
-
-    if (!result.data) {
-      throw ApiError.notFound("Inbox item not found");
-    }
+    await deleteInboxItemService(userId, itemId);
 
     return { success: true };
   });

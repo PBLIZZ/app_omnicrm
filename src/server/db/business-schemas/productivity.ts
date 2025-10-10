@@ -261,7 +261,7 @@ export const InboxItemResponseSchema = z.object({
   item: z.unknown(), // Will be validated as InboxItem at runtime
 });
 
-/** 
+/**
  * Inbox Post Request Schema (Discriminated Union)
  */
 export const InboxPostRequestSchema = z.discriminatedUnion("type", [
@@ -343,11 +343,6 @@ export const InboxProcessingContextSchema = z.object({
       name: z.string(),
       color: z.string().nullable(),
       iconName: z.string().nullable(),
-      // UI computed fields from Zone transform
-      icon: z.string().nullable(),
-      displayName: z.string(),
-      hasIcon: z.boolean(),
-      hasColor: z.boolean(),
     }),
   ),
 });

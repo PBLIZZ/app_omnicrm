@@ -1,7 +1,24 @@
-import { and, asc, count, desc, eq, gte, inArray, isNull, isNotNull, lte, type InferSelectModel } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  isNotNull,
+  lte,
+  type InferSelectModel,
+} from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
-import { embeddings, type CreateEmbedding, type Embedding, type UpdateEmbedding } from "@/server/db/schema";
+import {
+  embeddings,
+  type CreateEmbedding,
+  type Embedding,
+  type UpdateEmbedding,
+} from "@/server/db/schema";
 import type { DbClient } from "@/server/db/client";
 
 export type EmbeddingListParams = {
@@ -19,8 +36,9 @@ const sortColumn = embeddings.createdAt;
 type EmbeddingRow = InferSelectModel<typeof embeddings>;
 
 export class EmbeddingsRepository {
-  static async listEmbeddings(
-    db: DbClient,
+  constructor(private readonly db: DbClient) {}
+
+  async listEmbeddings(
     userId: string,
     params: EmbeddingListParams = {},
   ): Promise<{ items: Embedding[]; total: number }> {
@@ -55,7 +73,7 @@ export class EmbeddingsRepository {
     const whereClause = and(...conditions);
     const orderFn = params.order === "asc" ? asc : desc;
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(embeddings)
       .where(whereClause)
@@ -63,7 +81,7 @@ export class EmbeddingsRepository {
       .limit(pageSize)
       .offset(offset)) as EmbeddingRow[];
 
-    const totalRow = (await db
+    const totalRow = (await this.db
       .select({ value: count() })
       .from(embeddings)
       .where(whereClause)) as Array<{ value: number | bigint }>;
@@ -74,25 +92,26 @@ export class EmbeddingsRepository {
     };
   }
 
-  static async listEmbeddingsForOwner(
-    db: DbClient,
+  async listEmbeddingsForOwner(
     userId: string,
     ownerType: string,
     ownerId: string,
   ): Promise<Embedding[]> {
-    return (await db
+    return (await this.db
       .select()
       .from(embeddings)
-      .where(and(eq(embeddings.userId, userId), eq(embeddings.ownerType, ownerType), eq(embeddings.ownerId, ownerId)))
+      .where(
+        and(
+          eq(embeddings.userId, userId),
+          eq(embeddings.ownerType, ownerType),
+          eq(embeddings.ownerId, ownerId),
+        ),
+      )
       .orderBy(asc(embeddings.chunkIndex ?? embeddings.createdAt))) as EmbeddingRow[];
   }
 
-  static async findByContentHash(
-    db: DbClient,
-    userId: string,
-    hash: string,
-  ): Promise<Embedding | null> {
-    const rows = (await db
+  async findByContentHash(userId: string, hash: string): Promise<Embedding | null> {
+    const rows = (await this.db
       .select()
       .from(embeddings)
       .where(and(eq(embeddings.userId, userId), eq(embeddings.contentHash, hash)))
@@ -101,30 +120,25 @@ export class EmbeddingsRepository {
     return rows[0] ?? null;
   }
 
-  static async createEmbedding(
-    db: DbClient,
-    data: CreateEmbedding & { userId: string },
-  ): Promise<Embedding> {
-    const [created] = (await db.insert(embeddings).values(data).returning()) as EmbeddingRow[];
+  async createEmbedding(data: CreateEmbedding & { userId: string }): Promise<Embedding> {
+    const [created] = (await this.db.insert(embeddings).values(data).returning()) as EmbeddingRow[];
     if (!created) {
       throw new Error("Insert returned no data");
     }
     return created;
   }
 
-  static async createEmbeddingsBulk(
-    db: DbClient,
+  async createEmbeddingsBulk(
     items: Array<CreateEmbedding & { userId: string }>,
   ): Promise<Embedding[]> {
     if (items.length === 0) {
       return [];
     }
 
-    return (await db.insert(embeddings).values(items).returning()) as EmbeddingRow[];
+    return (await this.db.insert(embeddings).values(items).returning()) as EmbeddingRow[];
   }
 
-  static async updateEmbedding(
-    db: DbClient,
+  async updateEmbedding(
     userId: string,
     embeddingId: string,
     updates: UpdateEmbedding,
@@ -133,7 +147,7 @@ export class EmbeddingsRepository {
       throw new Error("No fields provided for update");
     }
 
-    const [updated] = (await db
+    const [updated] = (await this.db
       .update(embeddings)
       .set(updates)
       .where(and(eq(embeddings.userId, userId), eq(embeddings.id, embeddingId)))
@@ -142,25 +156,27 @@ export class EmbeddingsRepository {
     return updated ?? null;
   }
 
-  static async deleteEmbeddingsForOwner(
-    db: DbClient,
+  async deleteEmbeddingsForOwner(
     userId: string,
     ownerType: string,
     ownerId: string,
   ): Promise<number> {
-    const deleted = (await db
+    const deleted = (await this.db
       .delete(embeddings)
-      .where(and(eq(embeddings.userId, userId), eq(embeddings.ownerType, ownerType), eq(embeddings.ownerId, ownerId)))
+      .where(
+        and(
+          eq(embeddings.userId, userId),
+          eq(embeddings.ownerType, ownerType),
+          eq(embeddings.ownerId, ownerId),
+        ),
+      )
       .returning({ id: embeddings.id })) as Array<{ id: string }>;
 
     return deleted.length;
   }
 
-  static async deleteEmbeddingsForUser(
-    db: DbClient,
-    userId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteEmbeddingsForUser(userId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(embeddings)
       .where(eq(embeddings.userId, userId))
       .returning({ id: embeddings.id })) as Array<{ id: string }>;
@@ -168,16 +184,16 @@ export class EmbeddingsRepository {
     return deleted.length;
   }
 
-  static async deleteEmbeddingById(
-    db: DbClient,
-    userId: string,
-    embeddingId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteEmbeddingById(userId: string, embeddingId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(embeddings)
       .where(and(eq(embeddings.userId, userId), eq(embeddings.id, embeddingId)))
       .returning({ id: embeddings.id })) as Array<{ id: string }>;
 
     return deleted.length;
   }
+}
+
+export function createEmbeddingsRepository(db: DbClient): EmbeddingsRepository {
+  return new EmbeddingsRepository(db);
 }

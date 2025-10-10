@@ -19,8 +19,10 @@ function toDto(row: IntegrationRow): UserIntegrationDTO {
 }
 
 export class UserIntegrationsRepository {
-  static async listUserIntegrations(db: DbClient, userId: string): Promise<UserIntegrationDTO[]> {
-    const rows = (await db
+  constructor(private readonly db: DbClient) {}
+
+  async listUserIntegrations(userId: string): Promise<UserIntegrationDTO[]> {
+    const rows = (await this.db
       .select()
       .from(userIntegrations)
       .where(eq(userIntegrations.userId, userId))) as IntegrationRow[];
@@ -28,13 +30,12 @@ export class UserIntegrationsRepository {
     return rows.map(toDto);
   }
 
-  static async getUserIntegration(
-    db: DbClient,
+  async getUserIntegration(
     userId: string,
     provider: string,
     service: string,
   ): Promise<UserIntegrationDTO | null> {
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(userIntegrations)
       .where(
@@ -50,25 +51,25 @@ export class UserIntegrationsRepository {
     return row ? toDto(row) : null;
   }
 
-  static async getUserIntegrationsByProvider(
-    db: DbClient,
+  async getUserIntegrationsByProvider(
     userId: string,
     provider: string,
   ): Promise<UserIntegrationDTO[]> {
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(userIntegrations)
-      .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)))) as IntegrationRow[];
+      .where(
+        and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)),
+      )) as IntegrationRow[];
 
     return rows.map(toDto);
   }
 
-  static async upsertUserIntegration(
-    db: DbClient,
+  async upsertUserIntegration(
     userId: string,
     data: CreateUserIntegrationDTO,
   ): Promise<UserIntegrationDTO> {
-    const [row] = (await db
+    const [row] = (await this.db
       .insert(userIntegrations)
       .values({
         userId,
@@ -98,8 +99,7 @@ export class UserIntegrationsRepository {
     return toDto(row);
   }
 
-  static async updateUserIntegration(
-    db: DbClient,
+  async updateUserIntegration(
     userId: string,
     provider: string,
     service: string,
@@ -120,7 +120,7 @@ export class UserIntegrationsRepository {
     if (data.expiryDate !== undefined) updatePayload["expiryDate"] = data.expiryDate ?? null;
     if (data.config !== undefined) updatePayload["config"] = data.config ?? null;
 
-    const [updated] = (await db
+    const [updated] = (await this.db
       .update(userIntegrations)
       .set(updatePayload)
       .where(
@@ -135,13 +135,8 @@ export class UserIntegrationsRepository {
     return updated ? toDto(updated) : null;
   }
 
-  static async deleteUserIntegration(
-    db: DbClient,
-    userId: string,
-    provider: string,
-    service: string,
-  ): Promise<boolean> {
-    const deleted = (await db
+  async deleteUserIntegration(userId: string, provider: string, service: string): Promise<boolean> {
+    const deleted = (await this.db
       .delete(userIntegrations)
       .where(
         and(
@@ -155,12 +150,8 @@ export class UserIntegrationsRepository {
     return deleted.length > 0;
   }
 
-  static async deleteUserIntegrationsByProvider(
-    db: DbClient,
-    userId: string,
-    provider: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteUserIntegrationsByProvider(userId: string, provider: string): Promise<number> {
+    const deleted = (await this.db
       .delete(userIntegrations)
       .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)))
       .returning({ id: userIntegrations.userId })) as Array<{ id: string }>;
@@ -168,13 +159,8 @@ export class UserIntegrationsRepository {
     return deleted.length;
   }
 
-  static async hasActiveIntegration(
-    db: DbClient,
-    userId: string,
-    provider: string,
-    service: string,
-  ): Promise<boolean> {
-    const integration = await this.getUserIntegration(db, userId, provider, service);
+  async hasActiveIntegration(userId: string, provider: string, service: string): Promise<boolean> {
+    const integration = await this.getUserIntegration(userId, provider, service);
     if (!integration) {
       return false;
     }
@@ -184,14 +170,11 @@ export class UserIntegrationsRepository {
       : Date.now() < new Date(integration.expiryDate).getTime();
   }
 
-  static async getExpiringIntegrations(
-    db: DbClient,
-    userId: string,
-  ): Promise<UserIntegrationDTO[]> {
+  async getExpiringIntegrations(userId: string): Promise<UserIntegrationDTO[]> {
     const now = new Date();
     const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(userIntegrations)
       .where(
@@ -205,8 +188,7 @@ export class UserIntegrationsRepository {
     return rows.map(toDto);
   }
 
-  static async getRawIntegrationData(
-    db: DbClient,
+  async getRawIntegrationData(
     userId: string,
     provider: string,
   ): Promise<
@@ -221,16 +203,17 @@ export class UserIntegrationsRepository {
       updatedAt: Date | null;
     }>
   > {
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(userIntegrations)
-      .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)))) as IntegrationRow[];
+      .where(
+        and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)),
+      )) as IntegrationRow[];
 
     return rows;
   }
 
-  static async updateRawTokens(
-    db: DbClient,
+  async updateRawTokens(
     userId: string,
     provider: string,
     service: string,
@@ -248,11 +231,13 @@ export class UserIntegrationsRepository {
       return;
     }
 
-    await db
+    await this.db
       .update(userIntegrations)
       .set({
         ...(updates.accessToken !== undefined ? { accessToken: updates.accessToken } : {}),
-        ...(updates.refreshToken !== undefined ? { refreshToken: updates.refreshToken ?? null } : {}),
+        ...(updates.refreshToken !== undefined
+          ? { refreshToken: updates.refreshToken ?? null }
+          : {}),
         ...(updates.expiryDate !== undefined ? { expiryDate: updates.expiryDate ?? null } : {}),
         updatedAt: new Date(),
       })
@@ -264,4 +249,8 @@ export class UserIntegrationsRepository {
         ),
       );
   }
+}
+
+export function createUserIntegrationsRepository(db: DbClient): UserIntegrationsRepository {
+  return new UserIntegrationsRepository(db);
 }

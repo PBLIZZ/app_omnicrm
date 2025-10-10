@@ -1,5 +1,10 @@
 import { and, asc, count, desc, eq, ilike, inArray, type InferSelectModel } from "drizzle-orm";
-import { aiInsights, type AiInsight, type CreateAiInsight, type UpdateAiInsight } from "@/server/db/schema";
+import {
+  aiInsights,
+  type AiInsight,
+  type CreateAiInsight,
+  type UpdateAiInsight,
+} from "@/server/db/schema";
 import type { DbClient } from "@/server/db/client";
 
 export type AiInsightListParams = {
@@ -16,8 +21,9 @@ const sortColumn = aiInsights.createdAt;
 type AiInsightRow = InferSelectModel<typeof aiInsights>;
 
 export class AiInsightsRepository {
-  static async listAiInsights(
-    db: DbClient,
+  constructor(private readonly db: DbClient) {}
+
+  async listAiInsights(
     userId: string,
     params: AiInsightListParams = {},
   ): Promise<{ items: AiInsight[]; total: number }> {
@@ -47,7 +53,7 @@ export class AiInsightsRepository {
     const whereClause = and(...conditions);
     const orderFn = params.order === "asc" ? asc : desc;
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(aiInsights)
       .where(whereClause)
@@ -55,7 +61,7 @@ export class AiInsightsRepository {
       .limit(pageSize)
       .offset(offset)) as AiInsightRow[];
 
-    const totalRow = (await db
+    const totalRow = (await this.db
       .select({ value: count() })
       .from(aiInsights)
       .where(whereClause)) as Array<{ value: number | bigint }>;
@@ -66,12 +72,8 @@ export class AiInsightsRepository {
     };
   }
 
-  static async getAiInsightById(
-    db: DbClient,
-    userId: string,
-    aiInsightId: string,
-  ): Promise<AiInsight | null> {
-    const rows = (await db
+  async getAiInsightById(userId: string, aiInsightId: string): Promise<AiInsight | null> {
+    const rows = (await this.db
       .select()
       .from(aiInsights)
       .where(and(eq(aiInsights.userId, userId), eq(aiInsights.id, aiInsightId)))
@@ -80,12 +82,8 @@ export class AiInsightsRepository {
     return rows[0] ?? null;
   }
 
-  static async findByFingerprint(
-    db: DbClient,
-    userId: string,
-    fingerprint: string,
-  ): Promise<AiInsight | null> {
-    const rows = (await db
+  async findByFingerprint(userId: string, fingerprint: string): Promise<AiInsight | null> {
+    const rows = (await this.db
       .select()
       .from(aiInsights)
       .where(and(eq(aiInsights.userId, userId), eq(aiInsights.fingerprint, fingerprint)))
@@ -94,19 +92,15 @@ export class AiInsightsRepository {
     return rows[0] ?? null;
   }
 
-  static async createAiInsight(
-    db: DbClient,
-    data: CreateAiInsight & { userId: string },
-  ): Promise<AiInsight> {
-    const [created] = (await db.insert(aiInsights).values(data).returning()) as AiInsightRow[];
+  async createAiInsight(data: CreateAiInsight & { userId: string }): Promise<AiInsight> {
+    const [created] = (await this.db.insert(aiInsights).values(data).returning()) as AiInsightRow[];
     if (!created) {
       throw new Error("Insert returned no data");
     }
     return created;
   }
 
-  static async updateAiInsight(
-    db: DbClient,
+  async updateAiInsight(
     userId: string,
     aiInsightId: string,
     updates: UpdateAiInsight,
@@ -115,7 +109,7 @@ export class AiInsightsRepository {
       throw new Error("No fields provided for update");
     }
 
-    const [updated] = (await db
+    const [updated] = (await this.db
       .update(aiInsights)
       .set(updates)
       .where(and(eq(aiInsights.userId, userId), eq(aiInsights.id, aiInsightId)))
@@ -124,12 +118,8 @@ export class AiInsightsRepository {
     return updated ?? null;
   }
 
-  static async deleteAiInsight(
-    db: DbClient,
-    userId: string,
-    aiInsightId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteAiInsight(userId: string, aiInsightId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(aiInsights)
       .where(and(eq(aiInsights.userId, userId), eq(aiInsights.id, aiInsightId)))
       .returning({ id: aiInsights.id })) as Array<{ id: string }>;
@@ -137,11 +127,8 @@ export class AiInsightsRepository {
     return deleted.length;
   }
 
-  static async deleteAiInsightsForUser(
-    db: DbClient,
-    userId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteAiInsightsForUser(userId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(aiInsights)
       .where(eq(aiInsights.userId, userId))
       .returning({ id: aiInsights.id })) as Array<{ id: string }>;
@@ -149,8 +136,7 @@ export class AiInsightsRepository {
     return deleted.length;
   }
 
-  static async findBySubjectIds(
-    db: DbClient,
+  async findBySubjectIds(
     userId: string,
     subjectIds: string[],
     options: { subjectType?: string; kind?: string } = {},
@@ -159,10 +145,7 @@ export class AiInsightsRepository {
       return [];
     }
 
-    const conditions = [
-      eq(aiInsights.userId, userId),
-      inArray(aiInsights.subjectId, subjectIds),
-    ];
+    const conditions = [eq(aiInsights.userId, userId), inArray(aiInsights.subjectId, subjectIds)];
 
     if (options.subjectType) {
       conditions.push(eq(aiInsights.subjectType, options.subjectType));
@@ -172,11 +155,15 @@ export class AiInsightsRepository {
       conditions.push(eq(aiInsights.kind, options.kind));
     }
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(aiInsights)
       .where(and(...conditions))) as AiInsightRow[];
 
     return rows;
   }
+}
+
+export function createAiInsightsRepository(db: DbClient): AiInsightsRepository {
+  return new AiInsightsRepository(db);
 }

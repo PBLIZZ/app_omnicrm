@@ -7,18 +7,17 @@ type JobRow = InferSelectModel<typeof jobs>;
 type CreateJobDTO = CreateJob;
 
 export class JobsRepository {
+  constructor(private readonly db: DbClient) {}
+
   /**
    * Create a single job for a user.
    */
-  static async createJob(
-    db: DbClient,
-    data: CreateJobDTO & { userId: string },
-  ): Promise<Job> {
+  async createJob(data: CreateJobDTO & { userId: string }): Promise<Job> {
     if (!data.userId?.trim() || !data.kind?.trim()) {
       throw new Error("userId and kind are required");
     }
 
-    const [created] = (await db
+    const [created] = (await this.db
       .insert(jobs)
       .values({
         userId: data.userId,
@@ -41,12 +40,8 @@ export class JobsRepository {
   /**
    * Fetch a job by identifier.
    */
-  static async getJobById(
-    db: DbClient,
-    userId: string,
-    jobId: string,
-  ): Promise<Job | null> {
-    const rows = (await db
+  async getJobById(userId: string, jobId: string): Promise<Job | null> {
+    const rows = (await this.db
       .select()
       .from(jobs)
       .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
@@ -58,8 +53,7 @@ export class JobsRepository {
   /**
    * List jobs with optional filtering and pagination.
    */
-  static async listJobs(
-    db: DbClient,
+  async listJobs(
     userId: string,
     options: {
       status?: string[];
@@ -85,7 +79,7 @@ export class JobsRepository {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(jobs)
       .where(and(...conditions))
@@ -99,8 +93,7 @@ export class JobsRepository {
   /**
    * Aggregate counts for dashboard summaries.
    */
-  static async getJobCounts(
-    db: DbClient,
+  async getJobCounts(
     userId: string,
     batchId?: string,
   ): Promise<{
@@ -113,7 +106,7 @@ export class JobsRepository {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const rows = (await db
+    const rows = (await this.db
       .select({
         status: jobs.status,
         kind: jobs.kind,
@@ -121,7 +114,11 @@ export class JobsRepository {
       })
       .from(jobs)
       .where(and(...conditions))
-      .groupBy(jobs.status, jobs.kind)) as Array<{ status: string; kind: string; value: number | bigint }>;
+      .groupBy(jobs.status, jobs.kind)) as Array<{
+      status: string;
+      kind: string;
+      value: number | bigint;
+    }>;
 
     const statusCounts: Record<string, number> = {};
     const kindCounts: Record<string, number> = {};
@@ -137,8 +134,7 @@ export class JobsRepository {
   /**
    * Retrieve jobs pending execution.
    */
-  static async getPendingJobs(
-    db: DbClient,
+  async getPendingJobs(
     userId: string,
     options: {
       batchId?: string;
@@ -175,7 +171,7 @@ export class JobsRepository {
     const orderColumn = orderBy === "updatedAt" ? jobs.updatedAt : jobs.createdAt;
     const orderExpression = direction === "desc" ? desc(orderColumn) : orderColumn;
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(jobs)
       .where(and(...conditions))
@@ -188,8 +184,7 @@ export class JobsRepository {
   /**
    * Retrieve recently updated jobs.
    */
-  static async getRecentJobs(
-    db: DbClient,
+  async getRecentJobs(
     userId: string,
     batchId: string | undefined,
     limit: number = 20,
@@ -200,7 +195,7 @@ export class JobsRepository {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(jobs)
       .where(and(...conditions))
@@ -213,16 +208,12 @@ export class JobsRepository {
   /**
    * Fetch multiple jobs by identifiers.
    */
-  static async getJobsByIds(
-    db: DbClient,
-    userId: string,
-    jobIds: string[],
-  ): Promise<Job[]> {
+  async getJobsByIds(userId: string, jobIds: string[]): Promise<Job[]> {
     if (jobIds.length === 0) {
       return [];
     }
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(jobs)
       .where(and(eq(jobs.userId, userId), inArray(jobs.id, jobIds)))) as JobRow[];
@@ -233,8 +224,7 @@ export class JobsRepository {
   /**
    * Update status metadata for a job.
    */
-  static async updateJobStatus(
-    db: DbClient,
+  async updateJobStatus(
     userId: string,
     jobId: string,
     updates: {
@@ -251,7 +241,7 @@ export class JobsRepository {
       throw new Error("No job updates specified");
     }
 
-    const [updated] = (await db
+    const [updated] = (await this.db
       .update(jobs)
       .set({
         updatedAt: new Date(),
@@ -268,12 +258,8 @@ export class JobsRepository {
   /**
    * Delete jobs associated with a batch.
    */
-  static async deleteJobsByBatch(
-    db: DbClient,
-    userId: string,
-    batchId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteJobsByBatch(userId: string, batchId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(jobs)
       .where(and(eq(jobs.userId, userId), eq(jobs.batchId, batchId)))
       .returning({ id: jobs.id })) as Array<{ id: string }>;
@@ -284,18 +270,14 @@ export class JobsRepository {
   /**
    * Count total jobs for a user (optionally scoped to a batch).
    */
-  static async countJobs(
-    db: DbClient,
-    userId: string,
-    batchId?: string,
-  ): Promise<number> {
+  async countJobs(userId: string, batchId?: string): Promise<number> {
     const conditions = [eq(jobs.userId, userId)];
 
     if (batchId) {
       conditions.push(eq(jobs.batchId, batchId));
     }
 
-    const [row] = (await db
+    const [row] = (await this.db
       .select({ value: count() })
       .from(jobs)
       .where(and(...conditions))) as Array<{ value: number | bigint }>;
@@ -306,14 +288,10 @@ export class JobsRepository {
   /**
    * Find jobs that appear to be stuck in processing.
    */
-  static async getStuckJobs(
-    db: DbClient,
-    userId: string,
-    thresholdMinutes: number = 10,
-  ): Promise<Job[]> {
+  async getStuckJobs(userId: string, thresholdMinutes: number = 10): Promise<Job[]> {
     const threshold = new Date(Date.now() - thresholdMinutes * 60 * 1000);
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(jobs)
       .where(
@@ -330,15 +308,12 @@ export class JobsRepository {
   /**
    * Bulk create jobs for batch operations.
    */
-  static async createBulkJobs(
-    db: DbClient,
-    jobsData: Array<CreateJobDTO & { userId: string }>,
-  ): Promise<Job[]> {
+  async createBulkJobs(jobsData: Array<CreateJobDTO & { userId: string }>): Promise<Job[]> {
     if (jobsData.length === 0) {
       return [];
     }
 
-    const rows = (await db
+    const rows = (await this.db
       .insert(jobs)
       .values(
         jobsData.map((job) => ({
@@ -355,4 +330,8 @@ export class JobsRepository {
 
     return rows;
   }
+}
+
+export function createJobsRepository(db: DbClient): JobsRepository {
+  return new JobsRepository(db);
 }

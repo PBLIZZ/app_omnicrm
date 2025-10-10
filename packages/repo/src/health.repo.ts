@@ -7,13 +7,18 @@ import type { DbClient } from "@/server/db/client";
  * Lightweight data-access helpers for infrastructure health checks.
  */
 export class HealthRepository {
+  constructor(private readonly db: DbClient) {}
+
   /**
    * Execute a simple database ping to verify connectivity.
    *
    * Throws if the query fails or times out at the connection layer.
    */
-  static async pingDatabase(db: DbClient): Promise<void> {
-    await db.execute(sql`select 1`);
+  async pingDatabase(): Promise<void> {
+    await this.db.execute(sql`select 1`);
   }
 }
 
+export function createHealthRepository(db: DbClient): HealthRepository {
+  return new HealthRepository(db);
+}

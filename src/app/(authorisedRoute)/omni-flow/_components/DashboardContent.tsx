@@ -8,10 +8,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
+import { apiClient } from "@/lib/api/client";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetchContacts } from "@/lib/api/contacts-api";
-import { type Contact } from "@/server/db/business-schemas/contacts";
-import { getSyncStatus } from "@/lib/api/sync.api";
+import { type Contact, type ContactListResponse } from "@/server/db/business-schemas/contacts";
+import { useSyncStatus } from "@/hooks/use-sync-status";
 
 import {
   Alert,
@@ -44,7 +44,15 @@ export default function DashboardContent(): JSX.Element {
   // Fetch contacts data (recent first)
   const { data, isLoading, error } = useQuery({
     queryKey: ["contacts", "dashboard", "recent"],
-    queryFn: () => apiFetchContacts({ page: 1, pageSize: 50, sort: "createdAt", order: "desc" }),
+    queryFn: async (): Promise<ContactListResponse> => {
+      const params = new URLSearchParams({
+        page: "1",
+        pageSize: "50",
+        sort: "createdAt",
+        order: "desc",
+      });
+      return apiClient.get<ContactListResponse>(`/api/contacts?${params.toString()}`);
+    },
     staleTime: 30_000,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
@@ -59,11 +67,7 @@ export default function DashboardContent(): JSX.Element {
     isLoading: syncLoading,
     refetch: refetchSync,
     isFetching: syncFetching,
-  } = useQuery({
-    queryKey: ["sync", "status"],
-    queryFn: getSyncStatus,
-    staleTime: 15_000,
-  });
+  } = useSyncStatus();
 
   // Debug: Log the sync data
   console.log("[Dashboard] Sync status data:", sync);

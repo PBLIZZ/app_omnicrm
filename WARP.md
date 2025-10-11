@@ -25,11 +25,6 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ### Database Management
 - `pnpm supabase:types` - Generate TypeScript types from Supabase database
-- `pnpm types:local` - Generate types from local Supabase instance
-- `npx drizzle-kit pull` - Pull current database schema to schema.ts (RECOMMENDED)
-- `npx drizzle-kit generate` - Generate migration files
-- `npx drizzle-kit migrate` - Apply migrations to database
-- `npx drizzle-kit studio` - Launch Drizzle Studio
 
 ### CI Commands
 - `pnpm ci:typecheck` - Build types + typecheck

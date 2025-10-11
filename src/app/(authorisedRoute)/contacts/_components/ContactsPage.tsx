@@ -20,10 +20,8 @@ import {
   DialogTrigger,
   Label,
 } from "@/components/ui";
-import { Users, Brain, Sparkles, Plus, Calendar, Mail, X } from "lucide-react";
+import { Users, Sparkles, Plus, Calendar, Mail, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useStreamingEnrichment } from "@/hooks/use-streaming-enrichment";
-
 import { ContactsTable } from "./contacts-table";
 import { contactsColumns } from "./contacts-columns";
 
@@ -31,7 +29,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
 import { useContacts, useContactSuggestions } from "@/hooks/use-contacts";
-import type { ContactWithNotes, ContactQuickAddData } from "./types";
+import type { ContactWithLastNote, ContactQuickAddData } from "./types";
+import { CreateContactBodySchema } from "@/server/db/business-schemas/contacts";
+import { z } from "zod";
+
+// Form validation schema - inline, simple
+const formSchema = CreateContactBodySchema.extend({
+  confirmEmail: z.string().email().optional(),
+}).refine(
+  (data) => {
+    if (data.confirmEmail && data.primaryEmail) {
+      return data.confirmEmail === data.primaryEmail;
+    }
+    return true;
+  },
+  { message: "Email addresses must match", path: ["confirmEmail"] },
+);
 
 /**
  * ContactsPage - Main Contact Component
@@ -51,6 +64,7 @@ export function ContactsPage(): JSX.Element {
     primaryPhone: "",
     source: "manual",
   });
+  const [confirmEmail, setConfirmEmail] = useState("");
   const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
 
   const { toast } = useToast();
@@ -63,13 +77,13 @@ export function ContactsPage(): JSX.Element {
   // Uses smart caching (30min staleTime) to minimize API calls
   const { data: contactsData, isLoading } = useContacts(searchQuery, 1, 3000);
 
-  // API already returns ContactWithNotes with lastNote field populated
-  const contacts: ContactWithNotes[] = useMemo(
-    (): ContactWithNotes[] => contactsData?.items ?? [],
+  // API returns ContactWithLastNote (has lastNote preview, not full notes array)
+  const contacts: ContactWithLastNote[] = useMemo(
+    (): ContactWithLastNote[] => contactsData?.items ?? [],
     [contactsData?.items],
   );
 
-  const filteredContacts = useMemo((): ContactWithNotes[] => {
+  const filteredContacts = useMemo((): ContactWithLastNote[] => {
     if (!searchQuery.trim()) return contacts;
     const query = searchQuery.toLowerCase();
     return contacts.filter(
@@ -117,9 +131,6 @@ export function ContactsPage(): JSX.Element {
     }
   }, [searchParams, router]);
 
-  // Streaming enrichment hook
-  const streamingEnrichment = useStreamingEnrichment();
-
   const createClientsMutation = useMutation({
     mutationFn: async (
       suggestionIds: string[],
@@ -159,47 +170,46 @@ export function ContactsPage(): JSX.Element {
 
   // Enhanced System Handlers
   const handleAddContact = async (): Promise<void> => {
-    // Simple validation without complex error mapping
-    if (!newContact.displayName.trim()) {
-      setFormErrors({ displayName: ["Name is required"] });
+    // Validate form data
+    const validation = formSchema.safeParse({
+      displayName: newContact.displayName,
+      primaryEmail: newContact.primaryEmail || null,
+      primaryPhone: newContact.primaryPhone || null,
+      source: newContact.source || "manual",
+      confirmEmail: confirmEmail || undefined,
+    });
+
+    if (!validation.success) {
+      // Map errors
+      const errors: Record<string, string[]> = {};
+      validation.error.issues.forEach((err) => {
+        const field = err.path.join(".");
+        if (!errors[field]) errors[field] = [];
+        errors[field].push(err.message);
+      });
+      setFormErrors(errors);
+
       toast({
         title: "Validation Error",
-        description: "Please enter a contact name",
+        description: validation.error.issues[0]?.message ?? "Validation failed",
         variant: "destructive",
       });
       return;
     }
 
-    if (
-      newContact.primaryEmail &&
-      newContact.primaryEmail.trim() &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newContact.primaryEmail.trim())
-    ) {
-      setFormErrors({ primaryEmail: ["Please enter a valid email address"] });
-      toast({
-        title: "Validation Error",
-        description: "Please enter a valid email address",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Clear any previous errors
     setFormErrors({});
 
     try {
-      const contactData = {
-        displayName: newContact.displayName.trim(),
-        primaryEmail: newContact.primaryEmail?.trim() || null,
-        primaryPhone: newContact.primaryPhone?.trim() || null,
-      };
+      // Extract only API fields (no confirmEmail)
+      const { confirmEmail: _unused, ...apiData } = validation.data;
 
-      await apiClient.post("/api/contacts", contactData);
-
-      // Invalidate all contacts queries to refetch with new contact
+      await apiClient.post("/api/contacts", apiData);
       await queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+
       setIsAddingContact(false);
       setNewContact({ displayName: "", primaryEmail: "", primaryPhone: "", source: "manual" });
+      setConfirmEmail("");
+
       toast({
         title: "Success",
         description: "Contact created successfully",
@@ -253,18 +263,6 @@ export function ContactsPage(): JSX.Element {
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
-            onClick={() => streamingEnrichment.startEnrichment()}
-            disabled={streamingEnrichment.isRunning}
-            data-testid="enrich-contacts-button"
-          >
-            <Brain className="h-4 w-4 mr-2" />
-            {streamingEnrichment.isRunning
-              ? `Enriching... ${streamingEnrichment.enrichedCount}/${streamingEnrichment.totalContacts}`
-              : "AI Enrich All"}
-          </Button>
-
-          <Button
-            variant="outline"
             onClick={() => setShowSuggestions(!showSuggestions)}
             data-testid="smart-suggestions-button"
           >
@@ -272,31 +270,6 @@ export function ContactsPage(): JSX.Element {
             Smart Suggestions
           </Button>
         </div>
-
-        {/* Enrichment Progress */}
-        {streamingEnrichment.isRunning && (
-          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                Enriching Contacts with AI
-              </span>
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                {Math.round(streamingEnrichment.progress)}%
-              </span>
-            </div>
-            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 mb-2">
-              <div
-                className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${streamingEnrichment.progress}%` }}
-              />
-            </div>
-            {streamingEnrichment.currentContact && (
-              <p className="text-xs text-blue-600 dark:text-blue-400">
-                Currently enriching: {streamingEnrichment.currentContact}
-              </p>
-            )}
-          </div>
-        )}
 
         <Dialog open={isAddingContact} onOpenChange={setIsAddingContact}>
           <DialogTrigger asChild>
@@ -378,6 +351,30 @@ export function ContactsPage(): JSX.Element {
                 />
                 {formErrors["primaryPhone"] && (
                   <p className="text-sm text-red-500">{formErrors["primaryPhone"][0]}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmEmail">Confirm Email</Label>
+                <Input
+                  id="confirmEmail"
+                  type="email"
+                  placeholder="Re-enter email address"
+                  value={confirmEmail}
+                  onChange={(e) => {
+                    setConfirmEmail(e.target.value);
+                    // Clear field error when user starts typing
+                    if (formErrors["confirmEmail"]) {
+                      setFormErrors((prev) => {
+                        const { confirmEmail: _confirmEmail, ...rest } = prev;
+                        return rest;
+                      });
+                    }
+                  }}
+                  data-testid="contact-confirm-email-input"
+                  className={formErrors["confirmEmail"] ? "border-red-500" : ""}
+                />
+                {formErrors["confirmEmail"] && (
+                  <p className="text-sm text-red-500">{formErrors["confirmEmail"][0]}</p>
                 )}
               </div>
               <div className="flex justify-end gap-2">
@@ -506,25 +503,24 @@ export function ContactsPage(): JSX.Element {
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                           <div className="flex items-center gap-1">
                             <Mail className="h-4 w-4" />
-                            <span className="truncate">{suggestion.primaryEmail}</span>
+                            <span className="truncate">{suggestion.email}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            <span>{suggestion.calendarEvents?.length ?? 0} events</span>
+                            <span>{suggestion.eventCount ?? 0} events</span>
                           </div>
                         </div>
 
-                        {suggestion.calendarEvents && suggestion.calendarEvents.length > 0 && (
+                        {suggestion.eventTitles && suggestion.eventTitles.length > 0 && (
                           <div className="text-xs text-muted-foreground">
                             <span>Recent events: </span>
                             <span>
-                              {suggestion.calendarEvents
+                              {suggestion.eventTitles
                                 .slice(0, 2)
-                                .map((e) => e.title)
                                 .join(", ")}
                             </span>
-                            {suggestion.calendarEvents.length > 2 && (
-                              <span> +{suggestion.calendarEvents.length - 2} more</span>
+                            {suggestion.eventTitles.length > 2 && (
+                              <span> +{suggestion.eventTitles.length - 2} more</span>
                             )}
                           </div>
                         )}

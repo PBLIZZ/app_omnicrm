@@ -2,12 +2,13 @@
 // Processes raw Gmail events to extract business intelligence and insights
 
 import { getDb } from "@/server/db/client";
-import { rawEvents, aiInsights } from "@/server/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
 import { processEmailIntelligence } from "@/server/ai/connect/process-email";
 import { storeEmailIntelligence } from "@/server/ai/connect/store-intelligence";
+import { listRawEventsService } from "@/server/services/raw-events.service";
+import { findAiInsightsBySubjectIdsService } from "@/server/services/ai-insights.service";
 
 /**
  * Process email intelligence for a single raw Gmail event
@@ -84,50 +85,36 @@ export async function runEmailIntelligenceBatch(
       },
     });
 
-    const db = await getDb();
+    const { items: candidateEvents } = await listRawEventsService(job.userId, {
+      provider: ["gmail"],
+      processingStatus: ["pending"],
+      batchId: batchId ?? undefined,
+      sort: "createdAt",
+      order: "asc",
+      page: 1,
+      pageSize: maxItems,
+    });
 
-    // Find unprocessed Gmail raw events
-    const rawEventQuery = db
-      .select({
-        id: rawEvents.id,
-        payload: rawEvents.payload,
-        occurredAt: rawEvents.occurredAt,
-      })
-      .from(rawEvents)
-      .where(
-        and(
-          eq(rawEvents.userId, job.userId),
-          eq(rawEvents.provider, "gmail"),
-          ...(batchId ? [eq(rawEvents.batchId, batchId)] : []),
-        ),
-      )
-      .limit(maxItems);
+    const processedEventIds = new Set<string>();
 
-    // Filter out events that already have email intelligence insights
-    const unprocessedEvents = await rawEventQuery;
-    const processedEventIds = new Set();
+    if (candidateEvents.length > 0) {
+      const existingInsights = await findAiInsightsBySubjectIdsService(
+        job.userId,
+        candidateEvents.map((event) => event.id),
+        {
+          subjectType: "inbox",
+          kind: "email_intelligence",
+        },
+      );
 
-    if (unprocessedEvents.length > 0) {
-      const eventIds = unprocessedEvents.map((e) => e.id);
-      const existingInsights = await db
-        .select({ subjectId: aiInsights.subjectId })
-        .from(aiInsights)
-        .where(
-          and(
-            eq(aiInsights.userId, job.userId),
-            eq(aiInsights.kind, "email_intelligence"),
-            sql`${aiInsights.subjectId} = ANY(${eventIds})`,
-          ),
-        );
-
-      existingInsights.forEach((insight) => {
+      for (const insight of existingInsights) {
         if (insight.subjectId) {
           processedEventIds.add(insight.subjectId);
         }
-      });
+      }
     }
 
-    const eventsToProcess = unprocessedEvents.filter((event) => !processedEventIds.has(event.id));
+    const eventsToProcess = candidateEvents.filter((event) => !processedEventIds.has(event.id));
 
     if (eventsToProcess.length === 0) {
       await logger.info("No unprocessed email events found for intelligence extraction", {
@@ -135,7 +122,7 @@ export async function runEmailIntelligenceBatch(
         additionalData: {
           userId: job.userId,
           batchId,
-          totalFound: unprocessedEvents.length,
+          totalFound: candidateEvents.length,
         },
       });
       return;

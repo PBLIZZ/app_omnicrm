@@ -9,6 +9,14 @@ import { z } from "zod";
 import { Result, ok, err } from "./result";
 
 /**
+ * Date range type
+ */
+export interface DateRange {
+  start: Date;
+  end: Date;
+}
+
+/**
  * Convert Date to PostgreSQL timestamptz string
  */
 export function dateToTimestamptz(date: Date): string {
@@ -25,7 +33,7 @@ export function timestamptzToDate(timestamp: string): Result<Date, string> {
       return err(`Invalid timestamp: ${timestamp}`);
     }
     return ok(date);
-  } catch (error) {
+  } catch {
     return err(`Failed to parse timestamp: ${timestamp}`);
   }
 }
@@ -52,7 +60,7 @@ export function parseDate(input: unknown): Result<Date, string> {
         return err(`Invalid timestamp number: ${input}`);
       }
       return ok(date);
-    } catch (error) {
+    } catch {
       return err(`Failed to parse timestamp number: ${input}`);
     }
   }
@@ -180,7 +188,8 @@ export function formatDateSafe(
 
   try {
     return dateObj.toLocaleDateString(undefined, options);
-  } catch (error) {
+  } catch {
+    // Catch invalid options or environment issues (e.g., missing locale data)
     return "Invalid Date";
   }
 }

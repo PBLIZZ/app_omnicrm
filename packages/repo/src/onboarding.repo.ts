@@ -1,7 +1,9 @@
-import { eq, and, gt, sql } from "drizzle-orm";
-import { onboardingTokens, contacts, clientConsents, type CreateContact } from "@/server/db/schema";
+// ===== packages/repo/src/onboarding.repo.ts =====
+import { eq, and } from "drizzle-orm";
+import { onboardingTokens, contacts, clientConsents } from "@/server/db/schema";
 import { getDb } from "@/server/db/client";
-import { ok, err, DbResult, dbError } from "@/lib/utils/result";
+import { ok, err, dbError, DbResult } from "@/lib/utils/result";
+import { sql } from "drizzle-orm";
 
 export type OnboardingToken = typeof onboardingTokens.$inferSelect;
 export type CreateOnboardingToken = typeof onboardingTokens.$inferInsert;
@@ -9,22 +11,22 @@ export type CreateOnboardingToken = typeof onboardingTokens.$inferInsert;
 export interface ClientData {
   display_name: string;
   primary_email: string;
-  primary_phone?: string | null;
-  date_of_birth?: string | null;
-  emergency_contact_name?: string | null;
-  emergency_contact_phone?: string | null;
-  referral_source?: string | null;
-  address?: Record<string, unknown> | null;
-  health_context?: Record<string, unknown> | null;
-  preferences?: Record<string, unknown> | null;
+  primary_phone?: string | null | undefined;
+  date_of_birth?: string | null | undefined;
+  emergency_contact_name?: string | null | undefined;
+  emergency_contact_phone?: string | null | undefined;
+  referral_source?: string | null | undefined;
+  address?: Record<string, unknown> | null | undefined;
+  health_context?: Record<string, unknown> | null | undefined;
+  preferences?: Record<string, unknown> | null | undefined;
 }
 
 export interface ConsentData {
   consent_type: "data_processing" | "marketing" | "hipaa" | "photography";
   consent_text_version: string;
   granted: boolean;
-  signature_svg?: string;
-  signature_image_url?: string;
+  signature_svg?: string | null | undefined;
+  signature_image_url?: string | null | undefined;
   ip_address: string;
   user_agent: string;
 }
@@ -47,68 +49,98 @@ export class OnboardingRepository {
   ): Promise<DbResult<OnboardingToken>> {
     try {
       const db = await getDb();
-
-      // Generate a secure token
       const token = crypto.randomUUID() + "-" + Date.now().toString(36);
 
-      const tokenData: CreateOnboardingToken = {
-        userId,
-        token,
-        expiresAt: expiresAt,
-        maxUses,
-        label,
-        createdBy: userId,
-      };
-
-      const [createdToken] = await db.insert(onboardingTokens).values(tokenData).returning();
+      const [createdToken] = await db
+        .insert(onboardingTokens)
+        .values({
+          userId,
+          token,
+          expiresAt,
+          maxUses,
+          label,
+          createdBy: userId,
+        })
+        .returning();
 
       if (!createdToken) {
-        return dbError("DB_INSERT_FAILED", "Failed to create onboarding token");
+        return dbError("DB_INSERT_FAILED", "Failed to create token");
       }
 
       return ok(createdToken);
     } catch (error) {
-      console.error("Error creating onboarding token:", error);
       return dbError(
         "DB_QUERY_FAILED",
-        error instanceof Error ? error.message : "Failed to create onboarding token",
+        error instanceof Error ? error.message : "Failed to create token",
         error,
       );
     }
   }
 
   /**
-   * Get active tokens for a user
+   * List tokens for a user with pagination
    */
-  static async getActiveTokens(userId: string): Promise<DbResult<OnboardingToken[]>> {
+  static async listTokens(
+    userId: string,
+    limit: number,
+    offset: number,
+  ): Promise<DbResult<OnboardingToken[]>> {
     try {
       const db = await getDb();
-      const now = new Date();
-
       const tokens = await db
         .select()
         .from(onboardingTokens)
-        .where(
-          and(
-            eq(onboardingTokens.userId, userId),
-            eq(onboardingTokens.disabled, false),
-            gt(onboardingTokens.expiresAt, now),
-          ),
-        );
+        .where(eq(onboardingTokens.userId, userId))
+        .orderBy(onboardingTokens.createdAt)
+        .limit(limit)
+        .offset(offset);
 
       return ok(tokens);
     } catch (error) {
-      console.error("Error getting active tokens:", error);
-      return err({
-        code: "DB_QUERY_FAILED",
-        message: error instanceof Error ? error.message : "Failed to get active tokens",
-        details: error,
-      });
+      return dbError("DB_QUERY_FAILED", "Failed to list tokens", error);
     }
   }
 
   /**
-   * Validate a token and check if it can be used
+   * Get single token by ID
+   */
+  static async getTokenById(
+    userId: string,
+    tokenId: string,
+  ): Promise<DbResult<OnboardingToken | null>> {
+    try {
+      const db = await getDb();
+      const [token] = await db
+        .select()
+        .from(onboardingTokens)
+        .where(and(eq(onboardingTokens.id, tokenId), eq(onboardingTokens.userId, userId)))
+        .limit(1);
+
+      return ok(token ?? null);
+    } catch (error) {
+      return dbError("DB_QUERY_FAILED", "Failed to get token", error);
+    }
+  }
+
+  /**
+   * Delete token by ID
+   */
+  static async deleteToken(userId: string, tokenId: string): Promise<DbResult<boolean>> {
+    try {
+      const db = await getDb();
+      const result = await db
+        .delete(onboardingTokens)
+        .where(and(eq(onboardingTokens.id, tokenId), eq(onboardingTokens.userId, userId)))
+        .returning();
+
+      return ok(result.length > 0);
+    } catch (error) {
+      return dbError("DB_DELETE_FAILED", "Failed to delete token", error);
+    }
+  }
+
+  /**
+   * Validate token and check if it can be used
    */
   static async validateToken(tokenValue: string): Promise<DbResult<TokenValidationResult>> {
     try {
@@ -138,93 +170,20 @@ export class OnboardingRepository {
 
       return ok({ isValid: true, token });
     } catch (error) {
-      console.error("Error validating token:", error);
-      return err({
-        code: "DB_QUERY_FAILED",
-        message: error instanceof Error ? error.message : "Failed to validate token",
-        details: error,
-      });
+      return dbError("DB_QUERY_FAILED", "Failed to validate token", error);
     }
   }
 
   /**
-   * Increment token usage count
-   */
-  static async incrementTokenUsage(tokenValue: string): Promise<DbResult<void>> {
-    try {
-      const db = await getDb();
-
-      await db
-        .update(onboardingTokens)
-        .set({
-          usedCount: sql`coalesce(${onboardingTokens.usedCount}, 0) + 1`,
-        })
-        .where(eq(onboardingTokens.token, tokenValue));
-
-      return ok(undefined);
-    } catch (error) {
-      console.error("Error incrementing token usage:", error);
-      return err({
-        code: "DB_UPDATE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to increment token usage",
-        details: error,
-      });
-    }
-  }
-
-  /**
-   * Update token last accessed timestamp (if that field exists)
-   */
-  static async updateTokenAccess(_tokenValue: string): Promise<DbResult<void>> {
-    try {
-      // Note: The schema doesn't show last_accessed_at field, but the service references it
-      // If this field exists in the database but not in the schema, it should be added to schema
-      // For now, this is a no-op that succeeds
-      return ok(undefined);
-    } catch (error) {
-      console.error("Error updating token access:", error);
-      return err({
-        code: "DB_UPDATE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to update token access",
-        details: error,
-      });
-    }
-  }
-
-  /**
-   * Disable a token
-   */
-  static async disableToken(tokenId: string, userId: string): Promise<DbResult<void>> {
-    try {
-      const db = await getDb();
-
-      await db
-        .update(onboardingTokens)
-        .set({ disabled: true })
-        .where(and(eq(onboardingTokens.id, tokenId), eq(onboardingTokens.userId, userId)));
-
-      return ok(undefined);
-    } catch (error) {
-      console.error("Error disabling token:", error);
-      return err({
-        code: "DB_UPDATE_FAILED",
-        message: error instanceof Error ? error.message : "Failed to disable token",
-        details: error,
-      });
-    }
-  }
-
-  /**
-   * Create contact and consent record within a transaction
-   * This replaces the RPC call pattern
+   * Create contact with consent and photo in transaction
    */
   static async createContactWithConsent(
     userId: string,
     tokenValue: string,
     clientData: ClientData,
     consentData: ConsentData,
-    photoPath?: string,
-    photoSize?: number,
+    photoPath?: string | null | undefined,
+    photoSize?: number | null | undefined,
   ): Promise<DbResult<string>> {
     try {
       const db = await getDb();
@@ -240,57 +199,53 @@ export class OnboardingRepository {
         return err({
           code: "INVALID_TOKEN",
           message: validation.error || "Invalid token",
-          details: validation,
         });
       }
 
-      // Wrap all operations in a transaction
-      const result = await db.transaction(async (trx) => {
-        // Create contact without photoUrl initially
-        const contactData: CreateContact = {
-          userId,
-          displayName: clientData.display_name,
-          primaryEmail: clientData.primary_email,
-          primaryPhone: clientData.primary_phone,
-          dateOfBirth: clientData.date_of_birth,
-          emergencyContactName: clientData.emergency_contact_name,
-          emergencyContactPhone: clientData.emergency_contact_phone,
-          referralSource: clientData.referral_source,
-          address: clientData.address,
-          healthContext: clientData.health_context,
-          preferences: clientData.preferences,
-          source: "onboarding",
-          photoUrl: null, // Will be set after creating client_files record
-        };
+      // Transaction: create contact → create file record → update contact → create consent → increment token
+      const contactId = await db.transaction(async (trx) => {
+        // 1. Create contact
+        const [contact] = await trx
+          .insert(contacts)
+          .values({
+            userId,
+            displayName: clientData.display_name,
+            primaryEmail: clientData.primary_email,
+            primaryPhone: clientData.primary_phone || null,
+            dateOfBirth: clientData.date_of_birth && clientData.date_of_birth.trim() !== "" ? clientData.date_of_birth : null,
+            emergencyContactName: clientData.emergency_contact_name || null,
+            emergencyContactPhone: clientData.emergency_contact_phone || null,
+            referralSource: clientData.referral_source || null,
+            address: clientData.address,
+            healthContext: clientData.health_context,
+            preferences: clientData.preferences,
+            source: "onboarding",
+            photoUrl: null,
+          })
+          .returning();
 
-        const [contact] = await trx.insert(contacts).values(contactData).returning();
+        if (!contact) throw new Error("Failed to create contact");
 
-        if (!contact) {
-          throw new Error("CONTACT_CREATION_FAILED");
-        }
-
-        // If there's a photo, create client_files record and update contact
+        // 2. If photo, create file record and update contact
         if (photoPath) {
           const { clientFiles } = await import("@/server/db/schema");
 
-          // Create client_files record
           await trx.insert(clientFiles).values({
             contactId: contact.id,
             userId,
             filePath: photoPath,
-            mimeType: "image/webp", // Photos are optimized to webp
-            fileSize: photoSize ?? null, // Optimized file size from upload
+            mimeType: "image/webp",
+            fileSize: photoSize ?? null,
             fileType: "photo",
           });
 
-          // Update contact with photo URL (using the file path as the URL)
           await trx
             .update(contacts)
             .set({ photoUrl: photoPath })
             .where(eq(contacts.id, contact.id));
         }
 
-        // Create consent record
+        // 3. Create consent
         await trx.insert(clientConsents).values({
           contactId: contact.id,
           userId,
@@ -303,25 +258,22 @@ export class OnboardingRepository {
           userAgent: consentData.user_agent,
         });
 
-        // Increment token usage within the same transaction
+        // 4. Increment token usage
         await trx
           .update(onboardingTokens)
-          .set({
-            usedCount: sql`coalesce(${onboardingTokens.usedCount}, 0) + 1`,
-          })
+          .set({ usedCount: sql`coalesce(${onboardingTokens.usedCount}, 0) + 1` })
           .where(eq(onboardingTokens.token, tokenValue));
 
         return contact.id;
       });
 
-      return ok(result);
+      return ok(contactId);
     } catch (error) {
-      console.error("Error creating contact with consent:", error);
-      return err({
-        code: "DB_TRANSACTION_FAILED",
-        message: error instanceof Error ? error.message : "Failed to create contact with consent",
-        details: error,
-      });
+      return dbError(
+        "DB_TRANSACTION_FAILED",
+        error instanceof Error ? error.message : "Transaction failed",
+        error,
+      );
     }
   }
 }

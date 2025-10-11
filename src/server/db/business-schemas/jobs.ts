@@ -54,6 +54,17 @@ export const JobProcessingResultSchema = z.object({
   errors: z.array(z.string()).optional(),
 });
 
+/**
+ * Job Status Data Schema
+ * Individual job status information returned in API responses
+ */
+export const JobStatusDataSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  status: z.enum(["queued", "processing", "done", "error"]),
+  createdAt: z.string(),
+});
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -62,4 +73,5 @@ export type CronJobInput = z.infer<typeof CronJobInputSchema>;
 export type CronJobResult = z.infer<typeof CronJobResultSchema>;
 export type SimpleJobProcess = z.infer<typeof SimpleJobProcessSchema>;
 export type JobProcessingResult = z.infer<typeof JobProcessingResultSchema>;
+export type JobStatusData = z.infer<typeof JobStatusDataSchema>;
 

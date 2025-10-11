@@ -1,37 +1,40 @@
-import { eq, and, desc, asc, gte, lte, inArray, count, sql, type SQL } from "drizzle-orm";
-import { getDb } from "@/server/db/client";
 import {
-  RawEvent,
-  CreateRawEvent,
-  RawEventError,
-  CreateRawEventError,
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lte,
+  sql,
+  type InferSelectModel,
+} from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+
+import {
   rawEvents,
-  rawEventErrors,
+  type CreateRawEvent,
+  type RawEvent,
+  type UpdateRawEvent,
 } from "@/server/db/schema";
-import { ok, err, DbResult } from "@/lib/utils/result";
+import type { DbClient } from "@/server/db/client";
 
-// Local type aliases for repository layer
-type RawEventDTO = RawEvent;
-type CreateRawEventDTO = CreateRawEvent;
-type RawEventErrorDTO = RawEventError;
-type CreateRawEventErrorDTO = CreateRawEventError;
-
-interface RawEventFilters {
-  provider?: string[];
-  contactId?: string;
-  batchId?: string;
-  sourceId?: string;
-  occurredAfter?: Date;
-  occurredBefore?: Date;
-}
+type ProviderType = "gmail" | "calendar" | "drive" | "upload";
 
 export type RawEventListParams = {
-  provider?: string; // e.g. 'gmail'
-  sort?: "occurredAt" | "createdAt";
+  provider?: ProviderType[];
+  processingStatus?: string[];
+  contactExtractionStatus?: string[];
+  occurredAfter?: Date;
+  occurredBefore?: Date;
+  createdAfter?: Date;
+  createdBefore?: Date;
+  sort?: "createdAt" | "occurredAt";
   order?: "asc" | "desc";
-  page: number;
-  pageSize: number;
-  dateRange?: { from?: Date; to?: Date }; // applied to occurredAt
+  page?: number;
+  pageSize?: number;
+  batchId?: string;
 };
 
 export type RawEventListItem = {
@@ -39,449 +42,318 @@ export type RawEventListItem = {
   userId: string;
   provider: string;
   payload: unknown;
-  contactId: string | null;
   occurredAt: Date;
+  sourceId: string | null;
   sourceMeta: unknown | null;
   batchId: string | null;
-  sourceId: string | null;
   createdAt: Date | null;
+  processingStatus: string;
+  processingAttempts: number;
+  processingError: string | null;
+  processedAt: Date | null;
+  contactExtractionStatus: string | null;
+  extractedAt: Date | null;
 };
 
+const sortColumnMap = {
+  createdAt: rawEvents.createdAt,
+  occurredAt: rawEvents.occurredAt,
+} as const;
+
+type RawEventRow = InferSelectModel<typeof rawEvents>;
+
+function mapRowToListItem(row: RawEventRow): RawEventListItem {
+  return {
+    id: row.id,
+    userId: row.userId,
+    provider: row.provider,
+    payload: row.payload,
+    occurredAt: row.occurredAt,
+    sourceId: row.sourceId,
+    sourceMeta: row.sourceMeta,
+    batchId: row.batchId,
+    createdAt: row.createdAt,
+    processingStatus: row.processingStatus ?? "pending",
+    processingAttempts: row.processingAttempts ?? 0,
+    processingError: row.processingError,
+    processedAt: row.processedAt,
+    contactExtractionStatus: row.contactExtractionStatus,
+    extractedAt: row.extractedAt,
+  };
+}
+
 export class RawEventsRepository {
-  /**
-   * Create a new raw event
-   */
-  static async createRawEvent(
-    data: CreateRawEventDTO & { userId: string },
-  ): Promise<DbResult<RawEventDTO>> {
-    try {
-      const db = await getDb();
+  static async listRawEvents(
+    db: DbClient,
+    userId: string,
+    params: RawEventListParams = {},
+  ): Promise<{ items: RawEventListItem[]; total: number }> {
+    const page = Math.max(params.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), 200);
+    const offset = (page - 1) * pageSize;
 
-      const insertValues = {
-        userId: data.userId,
-        provider: data.provider,
-        payload: data.payload,
-        contactId: data.contactId ?? null,
-        occurredAt: data.occurredAt,
-        sourceMeta: data.sourceMeta ?? null,
-        batchId: data.batchId ?? null,
-        sourceId: data.sourceId ?? null,
-      };
+    const conditions: SQL<unknown>[] = [eq(rawEvents.userId, userId)];
 
-      const [newRawEvent] = await db.insert(rawEvents).values(insertValues).returning({
-        id: rawEvents.id,
-        userId: rawEvents.userId,
-        provider: rawEvents.provider,
-        payload: rawEvents.payload,
-        contactId: rawEvents.contactId,
-        occurredAt: rawEvents.occurredAt,
-        sourceMeta: rawEvents.sourceMeta,
-        batchId: rawEvents.batchId,
-        sourceId: rawEvents.sourceId,
-        createdAt: rawEvents.createdAt,
-      });
-
-      if (!newRawEvent) {
-        return err({
-          code: "DB_INSERT_FAILED",
-          message: "Failed to create raw event - no data returned",
-        });
-      }
-
-      return ok(newRawEvent);
-    } catch (error) {
-      return err({
-        code: "DB_INSERT_FAILED",
-        message: error instanceof Error ? error.message : "Failed to create raw event",
-        details: error,
-      });
+    if (params.provider && params.provider.length > 0) {
+      conditions.push(inArray(rawEvents.provider, params.provider));
     }
+
+    if (params.processingStatus && params.processingStatus.length > 0) {
+      conditions.push(inArray(rawEvents.processingStatus, params.processingStatus));
+    }
+
+    if (params.contactExtractionStatus && params.contactExtractionStatus.length > 0) {
+      conditions.push(inArray(rawEvents.contactExtractionStatus, params.contactExtractionStatus));
+    }
+
+    if (params.occurredAfter) {
+      conditions.push(gte(rawEvents.occurredAt, params.occurredAfter));
+    }
+
+    if (params.occurredBefore) {
+      conditions.push(lte(rawEvents.occurredAt, params.occurredBefore));
+    }
+
+    if (params.createdAfter) {
+      conditions.push(gte(rawEvents.createdAt, params.createdAfter));
+    }
+
+    if (params.createdBefore) {
+      conditions.push(lte(rawEvents.createdAt, params.createdBefore));
+    }
+
+    if (params.batchId) {
+      conditions.push(eq(rawEvents.batchId, params.batchId));
+    }
+
+    const whereClause = and(...conditions);
+    const sortKey = params.sort ?? "createdAt";
+    const orderByColumn = sortColumnMap[sortKey];
+    const orderDirection = params.order === "asc" ? asc : desc;
+
+    const rows = (await db
+      .select()
+      .from(rawEvents)
+      .where(whereClause)
+      .orderBy(orderDirection(orderByColumn))
+      .limit(pageSize)
+      .offset(offset)) as RawEventRow[];
+
+    const totalRows = (await db
+      .select({ value: count() })
+      .from(rawEvents)
+      .where(whereClause)) as Array<{ value: number | bigint }>;
+
+    return {
+      items: rows.map((row) => mapRowToListItem(row)),
+      total: Number(totalRows[0]?.value ?? 0),
+    };
   }
 
-  /**
-   * Bulk create raw events for batch ingestion
-   */
-  static async createBulkRawEvents(
-    events: Array<CreateRawEventDTO & { userId: string }>,
-  ): Promise<RawEventDTO[]> {
+  static async getRawEventById(
+    db: DbClient,
+    userId: string,
+    rawEventId: string,
+  ): Promise<RawEvent | null> {
+    const rows = (await db
+      .select()
+      .from(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, rawEventId)))
+      .limit(1)) as RawEventRow[];
+
+    return rows[0] ?? null;
+  }
+
+  static async createRawEvent(
+    db: DbClient,
+    data: CreateRawEvent & { userId: string },
+  ): Promise<RawEvent> {
+    const insertValues: CreateRawEvent & { userId: string } = {
+      userId: data.userId,
+      provider: data.provider,
+      payload: data.payload,
+      occurredAt: data.occurredAt,
+      sourceId: data.sourceId ?? null,
+      sourceMeta: data.sourceMeta ?? null,
+      batchId: data.batchId ?? null,
+      processingStatus: data.processingStatus ?? "pending",
+      processingAttempts: data.processingAttempts ?? 0,
+      processingError: data.processingError ?? null,
+      processedAt: data.processedAt ?? null,
+      contactExtractionStatus: data.contactExtractionStatus ?? null,
+      extractedAt: data.extractedAt ?? null,
+      createdAt: data.createdAt,
+    };
+
+    const [created] = (await db
+      .insert(rawEvents)
+      .values(insertValues)
+      .returning()) as RawEventRow[];
+
+    if (!created) {
+      throw new Error("Insert returned no data");
+    }
+
+    return created;
+  }
+
+  static async createRawEventsBulk(
+    db: DbClient,
+    events: Array<CreateRawEvent & { userId: string }>,
+  ): Promise<RawEvent[]> {
     if (events.length === 0) {
       return [];
     }
 
-    const db = await getDb();
-
-    const insertValues = events.map((event) => ({
+    const values = events.map((event) => ({
       userId: event.userId,
       provider: event.provider,
       payload: event.payload,
-      contactId: event.contactId ?? null,
       occurredAt: event.occurredAt,
+      sourceId: event.sourceId ?? null,
       sourceMeta: event.sourceMeta ?? null,
       batchId: event.batchId ?? null,
-      sourceId: event.sourceId ?? null,
+      processingStatus: event.processingStatus ?? "pending",
+      processingAttempts: event.processingAttempts ?? 0,
+      processingError: event.processingError ?? null,
+      processedAt: event.processedAt ?? null,
+      contactExtractionStatus: event.contactExtractionStatus ?? null,
+      extractedAt: event.extractedAt ?? null,
+      createdAt: event.createdAt,
     }));
 
-    const newRawEvents = await db.insert(rawEvents).values(insertValues).returning({
-      id: rawEvents.id,
-      userId: rawEvents.userId,
-      provider: rawEvents.provider,
-      payload: rawEvents.payload,
-      contactId: rawEvents.contactId,
-      occurredAt: rawEvents.occurredAt,
-      sourceMeta: rawEvents.sourceMeta,
-      batchId: rawEvents.batchId,
-      sourceId: rawEvents.sourceId,
-      createdAt: rawEvents.createdAt,
-    });
-
-    return newRawEvents.map((event) => event);
+    return (await db.insert(rawEvents).values(values).returning()) as RawEventRow[];
   }
 
-  /**
-   * Get raw events for a user with optional filtering
-   */
-  static async listRawEvents(
+  static async updateRawEvent(
+    db: DbClient,
     userId: string,
-    filters?: RawEventFilters,
-    limit: number = 100,
-  ): Promise<RawEventDTO[]> {
-    const db = await getDb();
+    rawEventId: string,
+    updates: UpdateRawEvent,
+  ): Promise<RawEvent | null> {
+    const sanitized: Record<string, unknown> = {};
 
-    const conditions = [eq(rawEvents.userId, userId)];
+    if (updates.provider !== undefined) sanitized["provider"] = updates.provider;
+    if (updates.payload !== undefined) sanitized["payload"] = updates.payload;
+    if (updates.occurredAt !== undefined) sanitized["occurredAt"] = updates.occurredAt;
+    if (updates.sourceId !== undefined) sanitized["sourceId"] = updates.sourceId ?? null;
+    if (updates.sourceMeta !== undefined) sanitized["sourceMeta"] = updates.sourceMeta ?? null;
+    if (updates.batchId !== undefined) sanitized["batchId"] = updates.batchId ?? null;
+    if (updates.processingStatus !== undefined)
+      sanitized["processingStatus"] = updates.processingStatus ?? "pending";
+    if (updates.processingAttempts !== undefined)
+      sanitized["processingAttempts"] = updates.processingAttempts ?? 0;
+    if (updates.processingError !== undefined)
+      sanitized["processingError"] = updates.processingError ?? null;
+    if (updates.processedAt !== undefined) sanitized["processedAt"] = updates.processedAt ?? null;
+    if (updates.contactExtractionStatus !== undefined)
+      sanitized["contactExtractionStatus"] = updates.contactExtractionStatus ?? null;
+    if (updates.extractedAt !== undefined) sanitized["extractedAt"] = updates.extractedAt ?? null;
 
-    if (filters?.provider && filters.provider.length > 0) {
-      conditions.push(inArray(rawEvents.provider, filters.provider));
+    if (Object.keys(sanitized).length === 0) {
+      throw new Error("No fields provided for update");
     }
 
-    if (filters?.contactId) {
-      conditions.push(eq(rawEvents.contactId, filters.contactId));
-    }
+    const [updated] = (await db
+      .update(rawEvents)
+      .set(sanitized)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, rawEventId)))
+      .returning()) as RawEventRow[];
 
-    if (filters?.batchId) {
-      conditions.push(eq(rawEvents.batchId, filters.batchId));
-    }
-
-    if (filters?.sourceId) {
-      conditions.push(eq(rawEvents.sourceId, filters.sourceId));
-    }
-
-    if (filters?.occurredAfter) {
-      conditions.push(gte(rawEvents.occurredAt, filters.occurredAfter));
-    }
-
-    if (filters?.occurredBefore) {
-      conditions.push(lte(rawEvents.occurredAt, filters.occurredBefore));
-    }
-
-    const rows = await db
-      .select({
-        id: rawEvents.id,
-        userId: rawEvents.userId,
-        provider: rawEvents.provider,
-        payload: rawEvents.payload,
-        contactId: rawEvents.contactId,
-        occurredAt: rawEvents.occurredAt,
-        sourceMeta: rawEvents.sourceMeta,
-        batchId: rawEvents.batchId,
-        sourceId: rawEvents.sourceId,
-        createdAt: rawEvents.createdAt,
-      })
-      .from(rawEvents)
-      .where(and(...conditions))
-      .orderBy(desc(rawEvents.occurredAt))
-      .limit(limit);
-
-    return rows.map((row) => row);
+    return updated ?? null;
   }
 
-  /**
-   * List raw events with pagination and advanced filtering (matches server version API)
-   */
-  static async listRawEventsPaginated(
-    userId: string,
-    params: RawEventListParams,
-  ): Promise<DbResult<{ items: RawEventListItem[]; total: number }>> {
-    try {
-      const db = await getDb();
+  static async updateProcessingState(
+    db: DbClient,
+    params: {
+      userId: string;
+      rawEventId: string;
+      processingStatus: string;
+      processingError?: string | null;
+      processedAt?: Date | null;
+      contactExtractionStatus?: string | null;
+      extractedAt?: Date | null;
+      incrementAttempts?: boolean;
+    },
+  ): Promise<RawEvent | null> {
+    const {
+      userId,
+      rawEventId,
+      processingStatus,
+      processingError,
+      processedAt,
+      contactExtractionStatus,
+      extractedAt,
+      incrementAttempts,
+    } = params;
 
-      let whereExpr: SQL<unknown> = eq(rawEvents.userId, userId);
-      if (params.provider) {
-        whereExpr = and(whereExpr, eq(rawEvents.provider, params.provider)) as SQL<unknown>;
-      }
-      if (params.dateRange?.from)
-        whereExpr = and(
-          whereExpr,
-          gte(rawEvents.occurredAt, params.dateRange.from as Date),
-        ) as SQL<unknown>;
-      if (params.dateRange?.to)
-        whereExpr = and(
-          whereExpr,
-          lte(rawEvents.occurredAt, params.dateRange.to as Date),
-        ) as SQL<unknown>;
-
-      const sortKey = params.sort ?? "occurredAt";
-      const sortDir = params.order === "desc" ? "desc" : "asc";
-      const orderExpr =
-        sortKey === "createdAt"
-          ? sortDir === "desc"
-            ? desc(rawEvents.createdAt)
-            : asc(rawEvents.createdAt)
-          : sortDir === "desc"
-            ? desc(rawEvents.occurredAt)
-            : asc(rawEvents.occurredAt);
-
-      const page = params.page;
-      const pageSize = params.pageSize;
-
-      const [items, totalRow] = await Promise.all([
-        db
-          .select({
-            id: rawEvents.id,
-            userId: rawEvents.userId,
-            provider: rawEvents.provider,
-            payload: rawEvents.payload,
-            contactId: rawEvents.contactId,
-            occurredAt: rawEvents.occurredAt,
-            sourceMeta: rawEvents.sourceMeta,
-            batchId: rawEvents.batchId,
-            sourceId: rawEvents.sourceId,
-            createdAt: rawEvents.createdAt,
-          })
-          .from(rawEvents)
-          .where(whereExpr)
-          .orderBy(orderExpr)
-          .limit(pageSize)
-          .offset((page - 1) * pageSize),
-        db
-          .select({ n: sql<number>`count(*)` })
-          .from(rawEvents)
-          .where(whereExpr)
-          .limit(1),
-      ]);
-
-      return ok({
-        items: items.map((r) => ({
-          id: r.id,
-          userId: r.userId,
-          provider: r.provider,
-          payload: r.payload,
-          contactId: r.contactId ?? null,
-          occurredAt: r.occurredAt,
-          sourceMeta: r.sourceMeta ?? null,
-          batchId: r.batchId ?? null,
-          sourceId: r.sourceId ?? null,
-          createdAt: r.createdAt,
-        })),
-        total: Number(totalRow[0]?.n) || 0,
-      });
-    } catch (error) {
-      return err({
-        code: "DB_QUERY_FAILED",
-        message: error instanceof Error ? error.message : "Failed to list raw events",
-        details: error,
-      });
-    }
-  }
-
-  /**
-   * Get a single raw event by ID
-   */
-  static async getRawEventById(userId: string, eventId: string): Promise<RawEventDTO | null> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: rawEvents.id,
-        userId: rawEvents.userId,
-        provider: rawEvents.provider,
-        payload: rawEvents.payload,
-        contactId: rawEvents.contactId,
-        occurredAt: rawEvents.occurredAt,
-        sourceMeta: rawEvents.sourceMeta,
-        batchId: rawEvents.batchId,
-        sourceId: rawEvents.sourceId,
-        createdAt: rawEvents.createdAt,
-      })
-      .from(rawEvents)
-      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, eventId)))
-      .limit(1);
-
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return rows[0]!;
-  }
-
-  /**
-   * Count raw events for a user with optional filtering
-   */
-  static async countRawEvents(userId: string, filters?: RawEventFilters): Promise<number> {
-    const db = await getDb();
-
-    const conditions = [eq(rawEvents.userId, userId)];
-
-    if (filters?.provider && filters.provider.length > 0) {
-      conditions.push(inArray(rawEvents.provider, filters.provider));
-    }
-
-    if (filters?.contactId) {
-      conditions.push(eq(rawEvents.contactId, filters.contactId));
-    }
-
-    if (filters?.batchId) {
-      conditions.push(eq(rawEvents.batchId, filters.batchId));
-    }
-
-    if (filters?.sourceId) {
-      conditions.push(eq(rawEvents.sourceId, filters.sourceId));
-    }
-
-    const result = await db
-      .select({ count: count() })
-      .from(rawEvents)
-      .where(and(...conditions));
-
-    return result[0]?.count ?? 0;
-  }
-
-  /**
-   * Delete raw events by batch ID
-   */
-  static async deleteRawEventsByBatch(userId: string, batchId: string): Promise<number> {
-    const db = await getDb();
-
-    const result = await db
-      .delete(rawEvents)
-      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.batchId, batchId)));
-
-    return result.length;
-  }
-
-  /**
-   * Create a raw event error
-   */
-  static async createRawEventError(
-    data: CreateRawEventErrorDTO & { userId: string },
-  ): Promise<RawEventErrorDTO> {
-    const db = await getDb();
-
-    const insertValues = {
-      rawEventId: data.rawEventId ?? null,
-      userId: data.userId,
-      provider: data.provider,
-      errorAt: new Date(),
-      stage: data.stage,
-      error: data.error,
-      context: data.context ?? null,
+    const updates: Record<string, unknown> = {
+      processingStatus,
     };
 
-    const [newError] = await db.insert(rawEventErrors).values(insertValues).returning({
-      id: rawEventErrors.id,
-      rawEventId: rawEventErrors.rawEventId,
-      userId: rawEventErrors.userId,
-      provider: rawEventErrors.provider,
-      errorAt: rawEventErrors.errorAt,
-      stage: rawEventErrors.stage,
-      error: rawEventErrors.error,
-      context: rawEventErrors.context,
-    });
-
-    if (!newError) {
-      throw new Error("Failed to create raw event error");
+    if (processingError !== undefined) {
+      updates["processingError"] = processingError;
     }
 
-    return newError;
+    if (processedAt !== undefined) {
+      updates["processedAt"] = processedAt;
+    }
+
+    if (contactExtractionStatus !== undefined) {
+      updates["contactExtractionStatus"] = contactExtractionStatus;
+    }
+
+    if (extractedAt !== undefined) {
+      updates["extractedAt"] = extractedAt;
+    }
+
+    if (incrementAttempts) {
+      updates["processingAttempts"] = sql`${rawEvents.processingAttempts} + 1`;
+    }
+
+    const [updated] = (await db
+      .update(rawEvents)
+      .set(updates)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, rawEventId)))
+      .returning()) as RawEventRow[];
+
+    return updated ?? null;
   }
 
-  /**
-   * Get raw event errors for a user
-   */
-  static async listRawEventErrors(userId: string, limit: number = 50): Promise<RawEventErrorDTO[]> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: rawEventErrors.id,
-        rawEventId: rawEventErrors.rawEventId,
-        userId: rawEventErrors.userId,
-        provider: rawEventErrors.provider,
-        errorAt: rawEventErrors.errorAt,
-        stage: rawEventErrors.stage,
-        error: rawEventErrors.error,
-        context: rawEventErrors.context,
-      })
-      .from(rawEventErrors)
-      .where(eq(rawEventErrors.userId, userId))
-      .orderBy(desc(rawEventErrors.errorAt))
-      .limit(limit);
-
-    return rows.map((row) => row);
-  }
-
-  /**
-   * Check if raw event exists by source ID and provider
-   */
-  static async findRawEventBySourceId(
+  static async deleteRawEventsByBatch(
+    db: DbClient,
     userId: string,
-    provider: string,
-    sourceId: string,
-  ): Promise<RawEventDTO | null> {
-    const db = await getDb();
+    batchId: string,
+  ): Promise<number> {
+    const deleted = (await db
+      .delete(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.batchId, batchId)))
+      .returning({ id: rawEvents.id })) as Array<{ id: string }>;
 
-    const rows = await db
-      .select({
-        id: rawEvents.id,
-        userId: rawEvents.userId,
-        provider: rawEvents.provider,
-        payload: rawEvents.payload,
-        contactId: rawEvents.contactId,
-        occurredAt: rawEvents.occurredAt,
-        sourceMeta: rawEvents.sourceMeta,
-        batchId: rawEvents.batchId,
-        sourceId: rawEvents.sourceId,
-        createdAt: rawEvents.createdAt,
-      })
-      .from(rawEvents)
-      .where(
-        and(
-          eq(rawEvents.userId, userId),
-          eq(rawEvents.provider, provider),
-          eq(rawEvents.sourceId, sourceId),
-        ),
-      )
-      .limit(1);
-
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return rows[0]!;
+    return deleted.length;
   }
 
-  /**
-   * Get events by batch ID
-   */
-  static async getRawEventsByBatch(userId: string, batchId: string): Promise<RawEventDTO[]> {
-    const db = await getDb();
+  static async deleteRawEventsForUser(db: DbClient, userId: string): Promise<number> {
+    const deleted = (await db
+      .delete(rawEvents)
+      .where(eq(rawEvents.userId, userId))
+      .returning({ id: rawEvents.id })) as Array<{ id: string }>;
 
-    const rows = await db
-      .select({
-        id: rawEvents.id,
-        userId: rawEvents.userId,
-        provider: rawEvents.provider,
-        payload: rawEvents.payload,
-        contactId: rawEvents.contactId,
-        occurredAt: rawEvents.occurredAt,
-        sourceMeta: rawEvents.sourceMeta,
-        batchId: rawEvents.batchId,
-        sourceId: rawEvents.sourceId,
-        createdAt: rawEvents.createdAt,
-      })
+    return deleted.length;
+  }
+
+  static async findNextPendingEvents(
+    db: DbClient,
+    userId: string,
+    limit: number,
+  ): Promise<RawEventListItem[]> {
+    const rows = (await db
+      .select()
       .from(rawEvents)
-      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.batchId, batchId)))
-      .orderBy(desc(rawEvents.occurredAt));
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.processingStatus, "pending")))
+      .orderBy(asc(rawEvents.createdAt))
+      .limit(limit)) as RawEventRow[];
 
-    return rows.map((row) => row);
+    return rows.map((row) => mapRowToListItem(row));
   }
 }

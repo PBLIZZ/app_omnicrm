@@ -5,14 +5,14 @@
  */
 
 // Task schemas
+// Base types (Task, CreateTask, UpdateTask) are re-exported from schema.ts
 export {
-  TaskSchema,
-  CreateTaskSchema,
-  UpdateTaskSchema,
+  TaskWithUISchema,
   TaskFiltersSchema,
   type Task,
   type CreateTask,
   type UpdateTask,
+  type TaskWithUI,
   type TaskFilters,
 } from "./tasks";
 
@@ -26,7 +26,7 @@ export {
   type UpdateProject,
   type ProjectWithUI,
   type ProjectFilters,
-} from "./projects";
+} from "./tasks";
 
 // Calendar schemas
 // Base types (CalendarEvent, CreateCalendarEvent, UpdateCalendarEvent) are re-exported from schema.ts
@@ -85,25 +85,14 @@ export * from "./contacts";
 // Note schemas
 export * from "./notes";
 
-// Interaction schemas
-// Base types (Interaction, CreateInteraction, UpdateInteraction) are re-exported from schema.ts
-export {
-  InteractionWithUISchema,
-  type Interaction,
-  type CreateInteraction,
-  type UpdateInteraction,
-  type InteractionWithUI,
-} from "./interactions";
-
-// AI Insights schemas
-// Base types (AiInsight, CreateAiInsight, UpdateAiInsight) are re-exported from schema.ts
-export {
-  AiInsightWithUISchema,
-  type AiInsight,
-  type CreateAiInsight,
-  type UpdateAiInsight,
-  type AiInsightWithUI,
-} from "./ai-insights";
+// Data Intelligence schemas
+export * from "./ai-insights";
+export * from "./contact-identities";
+export * from "./documents";
+export * from "./embeddings";
+export * from "./ignored-identifiers";
+export * from "./interactions";
+export * from "./raw-events";
 
 // Gmail schemas
 export * from "./gmail";
@@ -116,7 +105,7 @@ export {
   ConnectDashboardStateSchema,
   SearchResultSchema,
   ContactDataSchema,
-  EmailInsightsSchema
+  EmailInsightsSchema,
 } from "./gmail";
 export type {
   EmailClassification,
@@ -126,7 +115,7 @@ export type {
   Job,
   ConnectDashboardState,
   SearchResult,
-  EmailInsights
+  EmailInsights,
 } from "./gmail";
 
 // Job Processing & Background Tasks
@@ -151,20 +140,21 @@ export {
 } from "./sync-progress";
 
 // Inbox Management
-export * from "./inbox";
+// Base types (InboxItem, CreateInboxItem, UpdateInboxItem) are re-exported from schema.ts
+export * from "./tasks";
 
 // Re-export specific types for convenience
 export type {
   InboxProcessingResultDTO,
   InboxProcessingContext,
   ProcessInboxItemDTO,
-} from "./inbox";
+} from "./tasks";
 
 // Search Functionality - DEPRECATED - Moved to deprecated-search-files/
 // Will be reimplemented as Spotlight-style global search
 
 // Zones Management
-export * from "./zones";
+export * from "./tasks";
 
 // User Management & Admin
 export {
@@ -182,20 +172,15 @@ export {
   ListTokensResponseSchema,
   TokenIdParamsSchema,
   TokenInfoSchema,
-  DeleteTokenRequestSchema,
   DeleteTokenResponseSchema,
   TrackAccessRequestSchema,
   TrackAccessResponseSchema,
-  SignedUploadRequestSchema,
-  SignedUploadResponseSchema,
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
 } from "./onboarding";
 
 // Storage Management
 export {
-  UploadUrlRequestSchema,
-  UploadUrlResponseSchema,
   FileUrlQuerySchema,
   FileUrlResponseSchema,
   BatchFileUrlRequestSchema,
@@ -217,26 +202,29 @@ export {
   type DashboardResponse,
 } from "./admin";
 
-// Chat & AI Features
+// Zone schemas
+// Base types (Zone, CreateZone, UpdateZone) are re-exported from schema.ts
 export {
-  ChatRequestSchema,
-  ChatResponseSchema,
-  GmailSearchRequestSchema,
-  GmailSearchResponseSchema,
-  GmailInsightsQuerySchema,
-  GmailInsightsResponseSchema,
-  GmailIngestTestInputSchema,
-  type ChatResponse,
-  type GmailSearchResponse,
-  type GmailInsightsResponse,
-  type GmailIngestTestInput,
-} from "./chat";
+  ZoneWithUISchema,
+  ZoneWithStatsSchema,
+  ZonesQuerySchema,
+  ZoneFiltersSchema,
+  ZonesListResponseSchema,
+  ZonesWithStatsResponseSchema,
+  ZoneDetailsResponseSchema,
+  type Zone,
+  type CreateZone,
+  type UpdateZone,
+  type ZoneWithUI,
+  type ZoneWithStats,
+  type ZonesListResponse,
+  type ZonesWithStatsResponse,
+} from "./tasks";
 
 // Health & System Monitoring
 export {
   HealthResponseSchema,
   DbPingResponseSchema,
-  GoogleSignInQuerySchema,
   type HealthResponse,
   type DbPingResponse,
 } from "./health";

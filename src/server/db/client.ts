@@ -16,6 +16,8 @@ interface TestOverrides {
 
 let testOverrides: TestOverrides = {};
 
+export type DbClient = PostgresJsDatabase<typeof schema>;
+
 export function __setDbDriversForTest(overrides: TestOverrides): void {
   testOverrides = overrides;
   dbInstance = null;

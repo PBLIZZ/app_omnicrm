@@ -1,9 +1,20 @@
-// Refactored from contact-suggestion.service.ts with AI integration
+/**
+ * Contact Suggestions from Calendar Events
+ * 
+ * Refactored to use calendar_events table instead of parsing raw_events.
+ * This is more efficient and leverages already-normalized data.
+ * 
+ * Data flow:
+ * 1. Query calendar_events table (last 6 months)
+ * 2. Extract attendees from JSONB field
+ * 3. Filter out existing contacts and system emails
+ * 4. Aggregate by email to count interactions
+ * 5. Return suggestions sorted by interaction count
+ */
 
 import { getDb } from "@/server/db/client";
-import { contacts, rawEvents } from "@/server/db/schema";
+import { contacts, calendarEvents } from "@/server/db/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
-import { parseRawEvent, type ParsedEvent } from "./parse-raw-event";
 import crypto from "crypto";
 
 export interface ContactSuggestion {
@@ -17,6 +28,13 @@ export interface ContactSuggestion {
   source: "calendar_attendee" | "email";
 }
 
+// Google Calendar attendee structure
+interface CalendarAttendee {
+  email: string;
+  displayName?: string;
+  responseStatus?: string;
+}
+
 export async function getContactSuggestions(
   userId: string,
   maxSuggestions: number = 20,
@@ -25,43 +43,56 @@ export async function getContactSuggestions(
   const limit = Math.max(1, Math.min(maxSuggestions, 100));
 
   const existingEmails = await getExistingEmails(userId);
-  const recentEvents = await getRecentRawEvents(userId);
+  const recentEvents = await getRecentCalendarEvents(userId);
 
-  const suggestions = [];
+  // Build map of email -> {displayName, events[]}
+  const attendeeMap = new Map<string, { displayName: string; events: Array<{ title: string; date: Date }> }>();
 
   for (const event of recentEvents) {
-    try {
-      const parsed: ParsedEvent = await parseRawEvent(userId, event.type, event.content);
+    if (!event.attendees) continue;
 
-      // Process attendees
-      for (const attendee of parsed.attendees) {
-        if (
-          attendee.email &&
-          !existingEmails.includes(attendee.email) &&
-          !isSystemEmail(attendee.email) &&
-          attendee.displayName
-        ) {
-          suggestions.push(createSuggestionFromAttendee(attendee, event));
-        }
+    const attendees = event.attendees as CalendarAttendee[];
+    
+    for (const attendee of attendees) {
+      if (
+        !attendee.email ||
+        existingEmails.includes(attendee.email) ||
+        isSystemEmail(attendee.email)
+      ) {
+        continue;
       }
-    } catch (error) {
-      // Log error but continue processing other events
-      console.error(`Failed to parse event ${event.id}:`, error);
+
+      const displayName = attendee.displayName ?? attendee.email.split('@')[0] ?? 'Unknown';
+      
+      if (!attendeeMap.has(attendee.email)) {
+        attendeeMap.set(attendee.email, { displayName, events: [] });
+      }
+      
+      attendeeMap.get(attendee.email)!.events.push({
+        title: event.title,
+        date: event.startTime,
+      });
     }
   }
 
-  // Dedupe and process suggestions
-  const deduplicatedSuggestions = deduplicateSuggestions(suggestions);
-
-  // Process wiki for each suggestion if needed
-  const processedSuggestions = await Promise.all(
-    deduplicatedSuggestions.map(async (suggestion) => {
-      // Add wiki processing logic here if needed
-      return suggestion;
-    }),
+  // Convert map to suggestions
+  const suggestions: ContactSuggestion[] = Array.from(attendeeMap.entries()).map(
+    ([email, data]) => ({
+      id: generateSuggestionId(email),
+      displayName: data.displayName,
+      email,
+      eventCount: data.events.length,
+      lastEventDate: data.events[0]?.date.toISOString() ?? new Date().toISOString(),
+      eventTitles: data.events.map(e => e.title),
+      confidence: calculateConfidence(data.events.length),
+      source: "calendar_attendee" as const,
+    })
   );
 
-  return processedSuggestions.slice(0, limit);
+  // Sort by event count (most interactions first)
+  suggestions.sort((a, b) => b.eventCount - a.eventCount);
+
+  return suggestions.slice(0, limit);
 }
 
 // Helpers (extracted)
@@ -74,49 +105,36 @@ async function getExistingEmails(userId: string): Promise<string[]> {
   return existing.map((c) => c.email).filter(Boolean) as string[];
 }
 
-async function getRecentRawEvents(
-  userId: string,
-): Promise<{ id: string; type: "calendar" | "gmail"; content: string; occurredAt: Date }[]> {
+async function getRecentCalendarEvents(userId: string): Promise<Array<{
+  id: string;
+  title: string;
+  startTime: Date;
+  attendees: unknown;
+}>> {
   const db = await getDb();
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  return (await db
+  
+  return await db
     .select({
-      id: rawEvents.id,
-      type: rawEvents.provider,
-      content: rawEvents.payload,
-      occurredAt: rawEvents.occurredAt,
+      id: calendarEvents.id,
+      title: calendarEvents.title,
+      startTime: calendarEvents.startTime,
+      attendees: calendarEvents.attendees,
     })
-    .from(rawEvents)
-    .where(and(eq(rawEvents.userId, userId), gte(rawEvents.occurredAt, sixMonthsAgo)))
-    .orderBy(desc(rawEvents.occurredAt))) as {
-    id: string;
-    type: "calendar" | "gmail";
-    content: string;
-    occurredAt: Date;
-  }[];
+    .from(calendarEvents)
+    .where(and(
+      eq(calendarEvents.userId, userId),
+      gte(calendarEvents.startTime, sixMonthsAgo)
+    ))
+    .orderBy(desc(calendarEvents.startTime));
 }
 
-function createSuggestionFromAttendee(
-  attendee: { email: string; displayName: string },
-  event: { occurredAt: Date; title?: string | null },
-): ContactSuggestion {
-  // Build suggestion object
-  return {
-    id: generateSuggestionId(attendee.email),
-    displayName: attendee.displayName,
-    email: attendee.email,
-    eventCount: 1,
-    lastEventDate: event.occurredAt
-      ? new Date(event.occurredAt).toISOString()
-      : new Date().toISOString(),
-    eventTitles: [typeof event.title === "string" ? event.title : "Unknown"],
-    confidence: "medium",
-    source: "calendar_attendee",
-  };
+function calculateConfidence(eventCount: number): "high" | "medium" | "low" {
+  if (eventCount >= 5) return "high";
+  if (eventCount >= 2) return "medium";
+  return "low";
 }
-
-// Other helpers like isSystemEmail, calculateConfidence, generateSuggestionId remain similar, can be in utils/
 
 function isSystemEmail(email: string): boolean {
   if (!email || typeof email !== "string") return false;
@@ -158,17 +176,3 @@ function generateSuggestionId(email: string): string {
   return `sug-${hash}`;
 }
 
-function deduplicateSuggestions(suggestions: ContactSuggestion[]): ContactSuggestion[] {
-  const seen = new Set<string>();
-  const deduplicated: ContactSuggestion[] = [];
-
-  for (const suggestion of suggestions) {
-    const key = suggestion.email.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      deduplicated.push(suggestion);
-    }
-  }
-
-  return deduplicated;
-}

@@ -82,17 +82,6 @@ export type Interaction = {
 
 export type NewInteraction = Omit<Interaction, "id" | "createdAt">;
 
-  contactId?: string | null;
-  type: string;
-  subject?: string | null;
-  bodyText?: string | null;
-  bodyRaw?: unknown;
-  occurredAt: string;
-  source: string;
-  sourceId?: string;
-  sourceMeta?: unknown;
-  batchId?: string | null;
-};
 
 export type NoteDTO = {
   id: string;
@@ -107,33 +96,6 @@ export type CreateNoteInput = {
   content: string;
 };
 
-export type ChatMessage = {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string;
-};
-
-export type ChatRequest = {
-  model: string;
-  messages: ChatMessage[];
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-};
-
-export type ChatResponse = {
-  id: string;
-  model: string;
-  message: ChatMessage;
-  usage?: {
-    input_tokens: number;
-    output_tokens: number;
-  };
-};
-
-export type SimpleChatRequest = {
-  prompt: string;
-};
-
 export type CreateTaskInput = {
   title: string;
   description?: string;
@@ -141,35 +103,6 @@ export type CreateTaskInput = {
   estimatedMinutes?: number;
 };
 
-  summary: string;
-  score?: number;
-  confidence: number;
-  tags: string[];
-  priority: "low" | "medium" | "high" | "critical";
-  references?: Array<{
-    table: string;
-    id: string;
-  }>;
-  props?: Record<string, unknown>;
-  actions?: Array<{
-    type: string;
-    label: string;
-    payload: Record<string, unknown>;
-  }>;
-  ttlHours?: number;
-  expiresAt?: string;
-  status: "new" | "viewed" | "dismissed" | "applied";
-};
-
-  userId: string;
-  subjectType: string;
-  subjectId: string | null;
-  kind: string;
-  content: InsightContent;
-  model: string | null;
-  createdAt: string;
-  fingerprint?: string;
-};
 
 // Utility to convert empty strings to null (matches app behavior)
 function emptyToNull(value: string | undefined | null): string | null {
@@ -435,24 +368,6 @@ export function makeNewInteraction(overrides: Partial<NewInteraction> = {}): New
   return newInteraction;
 }
 
-export function makeNormalizedInteraction(
-  overrides: Partial<NormalizedInteraction> = {},
-): NormalizedInteraction {
-  return {
-    userId: faker.string.uuid(),
-    contactId: faker.string.uuid(),
-    type: faker.helpers.arrayElement(INTERACTION_TYPES),
-    subject: faker.lorem.sentence(),
-    bodyText: faker.lorem.paragraphs(2),
-    bodyRaw: { html: faker.lorem.paragraphs(2) },
-    occurredAt: faker.date.recent().toISOString(),
-    source: faker.helpers.arrayElement(CONTACT_SOURCES),
-    sourceId: faker.string.alphanumeric(12),
-    sourceMeta: { provider: "gmail" },
-    batchId: faker.string.uuid(),
-    ...overrides,
-  };
-}
 
 // =============================================================================
 // NOTES FACTORIES
@@ -478,54 +393,6 @@ export function makeCreateNoteInput(overrides: Partial<CreateNoteInput> = {}): C
 }
 
 // =============================================================================
-// CHAT FACTORIES
-// =============================================================================
-
-export function makeChatMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
-  return {
-    role: faker.helpers.arrayElement(["system", "user", "assistant", "tool"]),
-    content: faker.lorem.sentence(),
-    ...overrides,
-  };
-}
-
-export function makeChatRequest(overrides: Partial<ChatRequest> = {}): ChatRequest {
-  return {
-    model: faker.helpers.arrayElement(["gpt-4", "gpt-3.5-turbo", "claude-3-sonnet"]),
-    messages: [
-      makeChatMessage({ role: "user", content: faker.lorem.sentence() }),
-      makeChatMessage({ role: "assistant", content: faker.lorem.paragraph() }),
-    ],
-    temperature: faker.number.float({ min: 0, max: 2, fractionDigits: 1 }),
-    max_tokens: faker.number.int({ min: 100, max: 4000 }),
-    stream: faker.datatype.boolean(),
-    ...overrides,
-  };
-}
-
-export function makeChatResponse(overrides: Partial<ChatResponse> = {}): ChatResponse {
-  return {
-    id: faker.string.uuid(),
-    model: faker.helpers.arrayElement(["gpt-4", "gpt-3.5-turbo", "claude-3-sonnet"]),
-    message: makeChatMessage({ role: "assistant" }),
-    usage: {
-      input_tokens: faker.number.int({ min: 10, max: 1000 }),
-      output_tokens: faker.number.int({ min: 10, max: 1000 }),
-    },
-    ...overrides,
-  };
-}
-
-export function makeSimpleChatRequest(
-  overrides: Partial<SimpleChatRequest> = {},
-): SimpleChatRequest {
-  return {
-    prompt: faker.lorem.sentence(),
-    ...overrides,
-  };
-}
-
-// =============================================================================
 // TASK FACTORIES
 // =============================================================================
 
@@ -543,107 +410,6 @@ export function makeCreateTaskInput(overrides: Partial<CreateTaskInput> = {}): C
 // AI INSIGHTS FACTORIES
 // =============================================================================
 
-type InsightSubjectType = "contact" | "thread" | "account" | "project" | "task" | "email" | "meeting" | "campaign" | "pipeline" | "segment";
-type InsightKind = "thread_summary" | "meeting_summary" | "account_summary" | "weekly_digest" | "next_best_action" | "reply_draft" | "subject_line_suggestions" | "playbook_recommendation" | "lead_score" | "health_score" | "upsell_score" | "churn_risk" | "smart_segment_definition" | "cluster_assignment" | "entity_enrichment" | "title_inference" | "company_match" | "pii_detected" | "policy_flag" | "anomaly_detected" | "duplicate_contact_suspected" | "campaign_driver_analysis" | "cohort_insight" | "topic_trend";
-
-const INSIGHT_SUBJECTS: InsightSubjectType[] = [
-  "contact",
-  "thread",
-  "account",
-  "project",
-  "task",
-  "email",
-  "meeting",
-  "campaign",
-  "pipeline",
-  "segment",
-];
-
-const INSIGHT_KINDS: InsightKind[] = [
-  "thread_summary",
-  "meeting_summary",
-  "account_summary",
-  "weekly_digest",
-  "next_best_action",
-  "reply_draft",
-  "subject_line_suggestions",
-  "playbook_recommendation",
-  "lead_score",
-  "health_score",
-  "upsell_score",
-  "churn_risk",
-  "smart_segment_definition",
-  "cluster_assignment",
-  "entity_enrichment",
-  "title_inference",
-  "company_match",
-  "pii_detected",
-  "policy_flag",
-  "anomaly_detected",
-  "duplicate_contact_suspected",
-  "campaign_driver_analysis",
-  "cohort_insight",
-  "topic_trend",
-];
-
-export function makeInsightContent(overrides: Partial<InsightContent> = {}): InsightContent {
-  return {
-    title: faker.lorem.words(5),
-    summary: faker.lorem.paragraph(),
-    score: faker.number.float({ min: 0, max: 1, fractionDigits: 2 }),
-    confidence: faker.number.float({ min: 0.1, max: 1.0, fractionDigits: 2 }),
-    tags: faker.helpers.arrayElements(WELLNESS_TAGS, {
-      min: 1,
-      max: 3,
-    }),
-    priority: faker.helpers.arrayElement(["low", "medium", "high", "critical"]),
-    references: [
-      {
-        table: "contacts",
-        id: faker.string.uuid(),
-      },
-    ],
-    props: {
-      score0To100: faker.number.int({ min: 0, max: 100 }),
-      reasons: faker.helpers.arrayElements(
-        ["High engagement", "Regular attendance", "Positive feedback", "Referral activity"],
-        { min: 1, max: 3 },
-      ),
-    },
-    actions: [
-      {
-        type: "send_email",
-        label: "Send Follow-up Email",
-        payload: { template: "follow_up" },
-      },
-    ],
-    ttlHours: faker.number.int({ min: 24, max: 168 }), // 1 day to 1 week
-    expiresAt: faker.date.future().toISOString(),
-    status: faker.helpers.arrayElement(["new", "viewed", "dismissed", "applied"]),
-    ...overrides,
-  };
-}
-
-export function makeAIInsight(overrides: Partial<AIInsight> = {}): AIInsight {
-  return {
-    id: faker.string.uuid(),
-    userId: faker.string.uuid(),
-    subjectType: faker.helpers.arrayElement(INSIGHT_SUBJECTS),
-    subjectId: faker.string.uuid(),
-    kind: faker.helpers.arrayElement(INSIGHT_KINDS),
-    content: makeInsightContent(),
-    model: faker.helpers.arrayElement(["gpt-4", "claude-3-sonnet", "gpt-3.5-turbo"]),
-    createdAt: faker.date.recent().toISOString(),
-    fingerprint: faker.string.alphanumeric(32),
-    ...overrides,
-  };
-}
-
-export function makeNewAIInsight(overrides: Partial<NewAIInsight> = {}): NewAIInsight {
-  const insight = makeAIInsight(overrides);
-  const { id, createdAt, fingerprint, ...newInsight } = insight;
-  return newInsight;
-}
 
 // =============================================================================
 // BATCH FACTORY HELPERS

@@ -58,9 +58,9 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   const notesQuery = useQuery({
     queryKey: ["/api/notes", contactId],
     queryFn: async (): Promise<Note[]> => {
-      // apiClient automatically unwraps { success: true, data: T } → returns T
-      const notes = await apiClient.get<Note[]>(`/api/notes?contactId=${contactId}`);
-      return notes ?? [];
+      // API returns { notes: Note[], total: number }
+      const response = await apiClient.get<{ notes: Note[]; total: number }>(`/api/notes?contactId=${contactId}`);
+      return response?.notes ?? [];
     },
     enabled: !!contactId,
     retry: (failureCount, error) => shouldRetry(error, failureCount),

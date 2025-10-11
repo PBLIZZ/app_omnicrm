@@ -5,6 +5,8 @@
  * when dealing with unknown data from APIs, user input, or external sources.
  */
 
+import type { JobStatusData } from "@/server/db/business-schemas/jobs";
+
 // ============================================================================
 // BASIC TYPE GUARDS
 // ============================================================================
@@ -105,13 +107,6 @@ export function getStringArray(obj: unknown, key: string): string[] | undefined 
 }
 
 // ============================================================================
-// API RESPONSE VALIDATION
-// ============================================================================
-
-// ApiEnvelope pattern has been replaced with Result<T, E> pattern
-// Use isOk, isErr from "@/lib/utils/result" for API response validation
-
-// ============================================================================
 // ERROR HANDLING UTILITIES
 // ============================================================================
 
@@ -145,29 +140,6 @@ export function validationError<T>(errors: string[]): ValidationResult<T> {
 // ============================================================================
 // DOMAIN-SPECIFIC TYPE GUARDS
 // ============================================================================
-
-/**
- * Type guard for Contact Insights data
- */
-
-export function isContactInsights(value: unknown): value is ContactInsightsData {
-  if (!isObject(value)) return false;
-
-  const summary = getString(value, "summary");
-  const tags = getStringArray(value, "tags");
-  const stage = getString(value, "stage");
-  const confidenceScore = getNumber(value, "confidenceScore");
-  const lastUpdated = getString(value, "lastUpdated");
-  const insights = getArray(value, "insights");
-
-  return !!(summary && tags && stage &&
-           typeof confidenceScore === "number" &&
-           lastUpdated && insights &&
-           insights.every(insight => isObject(insight) &&
-             getString(insight, "type") &&
-             getString(insight, "content") &&
-             typeof getNumber(insight, "confidence") === "number"));
-}
 
 /**
  * Type guard for sync session progress data
@@ -209,15 +181,19 @@ export function isSyncProgress(value: unknown): value is SyncProgressData {
   const processedItems = getNumber(progress, "processedItems");
   const failedItems = getNumber(progress, "failedItems");
 
-  return !!(typeof percentage === "number" && currentStep &&
-           typeof totalItems === "number" && typeof importedItems === "number" &&
-           typeof processedItems === "number" && typeof failedItems === "number");
+  return !!(
+    typeof percentage === "number" &&
+    currentStep &&
+    typeof totalItems === "number" &&
+    typeof importedItems === "number" &&
+    typeof processedItems === "number" &&
+    typeof failedItems === "number"
+  );
 }
 
 /**
  * Type guard for job status data
  */
-
 export function isJobStatus(value: unknown): value is JobStatusData {
   if (!isObject(value)) return false;
 
@@ -238,4 +214,3 @@ export function isJobStatus(value: unknown): value is JobStatusData {
 export function isJobStatusArray(value: unknown): value is JobStatusData[] {
   return isArray(value) && value.every(isJobStatus);
 }
-

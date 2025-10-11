@@ -28,7 +28,7 @@ import type {
   ProcessInboxItemDTO,
   BulkProcessInboxDTO,
   VoiceInboxCaptureDTO,
-} from "@/server/db/business-schemas/inbox";
+} from "@/server/db/business-schemas/tasks";
 import type { InboxFilters } from "@/server/services/inbox.service";
 
 // ============================================================================

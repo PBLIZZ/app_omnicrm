@@ -1,58 +1,42 @@
+// ===== src/app/api/onboarding/public/submit/route.ts =====
 import { handlePublic } from "@/lib/api-edge-cases";
 import { OnboardingService } from "@/server/services/onboarding.service";
 import {
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
-} from "@/server/db/business-schemas";
-import { z } from "zod";
+  type OnboardingSubmitResponse,
+} from "@/server/db/business-schemas/onboarding";
 
 export const POST = handlePublic(
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
-  async (data, request): Promise<z.infer<typeof OnboardingSubmitResponseSchema>> => {
-    // Debug: Log received data
-    console.log("=== ONBOARDING SUBMISSION ===");
-    console.log("Received data:", JSON.stringify(data, null, 2));
-    
+  async (data, request): Promise<OnboardingSubmitResponse> => {
     // Rate limiting
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    const realIp = request.headers.get("x-real-ip");
-    const clientId = forwardedFor ?? realIp ?? "unknown";
+    const clientId =
+      request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
 
-    const { success } = await OnboardingService.checkRateLimit(clientId);
-    if (!success) {
+    const allowed = await OnboardingService.checkRateLimit(clientId);
+    if (!allowed) {
       const error = new Error("Too many requests");
-      // Type-safe extension of Error object
-      Object.defineProperty(error, "status", {
-        value: 429,
-        writable: false,
-        enumerable: true,
-        configurable: false,
-      });
+      Object.defineProperty(error, "status", { value: 429 });
       throw error;
     }
 
-    // Extract client IP and user agent for consent tracking
+    // Extract client IP data
     const clientIpData = OnboardingService.extractClientIpData({
-      "x-forwarded-for": forwardedFor,
-      "x-real-ip": realIp,
+      "x-forwarded-for": request.headers.get("x-forwarded-for"),
+      "x-real-ip": request.headers.get("x-real-ip"),
       "user-agent": request.headers.get("user-agent"),
     });
 
-    // Process the onboarding submission using service
-    const result = await OnboardingService.processOnboardingSubmission(data, clientIpData);
-
-    // Handle Result type
-    if (!result.success) {
-      throw new Error(result.error);
-    }
+    // Process submission
+    const result = await OnboardingService.processSubmission(data, clientIpData);
 
     return {
       success: true,
       data: {
-        submissionId: result.data.contactId,
-        status: "completed",
-        message: result.data.message,
+        contactId: result.contactId,
+        message: result.message,
       },
     };
   },

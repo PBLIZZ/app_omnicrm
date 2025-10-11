@@ -123,75 +123,6 @@ export type Database = {
         }
         Relationships: []
       }
-      calendar_events: {
-        Row: {
-          attendees: Json | null
-          business_category: string | null
-          created_at: string
-          description: string | null
-          end_time: string
-          event_type: string | null
-          google_event_id: string
-          google_updated: string | null
-          id: string
-          is_all_day: boolean | null
-          keywords: Json | null
-          last_synced: string | null
-          location: string | null
-          start_time: string
-          status: string | null
-          time_zone: string | null
-          title: string
-          updated_at: string
-          user_id: string
-          visibility: string | null
-        }
-        Insert: {
-          attendees?: Json | null
-          business_category?: string | null
-          created_at?: string
-          description?: string | null
-          end_time: string
-          event_type?: string | null
-          google_event_id: string
-          google_updated?: string | null
-          id?: string
-          is_all_day?: boolean | null
-          keywords?: Json | null
-          last_synced?: string | null
-          location?: string | null
-          start_time: string
-          status?: string | null
-          time_zone?: string | null
-          title: string
-          updated_at?: string
-          user_id: string
-          visibility?: string | null
-        }
-        Update: {
-          attendees?: Json | null
-          business_category?: string | null
-          created_at?: string
-          description?: string | null
-          end_time?: string
-          event_type?: string | null
-          google_event_id?: string
-          google_updated?: string | null
-          id?: string
-          is_all_day?: boolean | null
-          keywords?: Json | null
-          last_synced?: string | null
-          location?: string | null
-          start_time?: string
-          status?: string | null
-          time_zone?: string | null
-          title?: string
-          updated_at?: string
-          user_id?: string
-          visibility?: string | null
-        }
-        Relationships: []
-      }
       client_consents: {
         Row: {
           consent_text_version: string
@@ -320,50 +251,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "contact_identities_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      contact_timeline: {
-        Row: {
-          contact_id: string
-          created_at: string
-          description: string | null
-          event_data: Json | null
-          event_type: string
-          id: string
-          occurred_at: string
-          title: string
-          user_id: string
-        }
-        Insert: {
-          contact_id: string
-          created_at?: string
-          description?: string | null
-          event_data?: Json | null
-          event_type: string
-          id?: string
-          occurred_at: string
-          title: string
-          user_id: string
-        }
-        Update: {
-          contact_id?: string
-          created_at?: string
-          description?: string | null
-          event_data?: Json | null
-          event_type?: string
-          id?: string
-          occurred_at?: string
-          title?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contact_timeline_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
@@ -583,6 +470,33 @@ export type Database = {
           },
         ]
       }
+      ignored_identifiers: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          reason: string | null
+          user_id: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          reason?: string | null
+          user_id: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          reason?: string | null
+          user_id?: string
+          value?: string
+        }
+        Relationships: []
+      }
       inbox_items: {
         Row: {
           created_at: string
@@ -619,14 +533,13 @@ export type Database = {
       interactions: {
         Row: {
           batch_id: string | null
-          body_raw: Json | null
           body_text: string | null
-          contact_id: string | null
+          contact_id: string
           created_at: string
           id: string
           occurred_at: string
           source: string | null
-          source_id: string | null
+          source_id: string
           source_meta: Json | null
           subject: string | null
           type: string
@@ -634,14 +547,13 @@ export type Database = {
         }
         Insert: {
           batch_id?: string | null
-          body_raw?: Json | null
           body_text?: string | null
-          contact_id?: string | null
+          contact_id: string
           created_at?: string
           id?: string
           occurred_at: string
           source?: string | null
-          source_id?: string | null
+          source_id: string
           source_meta?: Json | null
           subject?: string | null
           type: string
@@ -649,14 +561,13 @@ export type Database = {
         }
         Update: {
           batch_id?: string | null
-          body_raw?: Json | null
           body_text?: string | null
-          contact_id?: string | null
+          contact_id?: string
           created_at?: string
           id?: string
           occurred_at?: string
           source?: string | null
-          source_id?: string | null
+          source_id?: string
           source_meta?: Json | null
           subject?: string | null
           type?: string
@@ -664,7 +575,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "interactions_contact_fk"
+            foreignKeyName: "interactions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
@@ -680,7 +591,8 @@ export type Database = {
           id: string
           kind: string
           last_error: string | null
-          payload: Json
+          payload: Json | null
+          result: Json | null
           status: string
           updated_at: string
           user_id: string
@@ -692,7 +604,8 @@ export type Database = {
           id?: string
           kind: string
           last_error?: string | null
-          payload: Json
+          payload?: Json | null
+          result?: Json | null
           status?: string
           updated_at?: string
           user_id: string
@@ -704,7 +617,8 @@ export type Database = {
           id?: string
           kind?: string
           last_error?: string | null
-          payload?: Json
+          payload?: Json | null
+          result?: Json | null
           status?: string
           updated_at?: string
           user_id?: string
@@ -939,168 +853,56 @@ export type Database = {
           },
         ]
       }
-      raw_event_errors: {
-        Row: {
-          context: Json | null
-          error: string
-          error_at: string
-          id: string
-          provider: string
-          raw_event_id: string | null
-          stage: string
-          user_id: string
-        }
-        Insert: {
-          context?: Json | null
-          error: string
-          error_at?: string
-          id?: string
-          provider: string
-          raw_event_id?: string | null
-          stage: string
-          user_id: string
-        }
-        Update: {
-          context?: Json | null
-          error?: string
-          error_at?: string
-          id?: string
-          provider?: string
-          raw_event_id?: string | null
-          stage?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "raw_event_errors_raw_event_id_fkey"
-            columns: ["raw_event_id"]
-            isOneToOne: false
-            referencedRelation: "raw_events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       raw_events: {
         Row: {
           batch_id: string | null
-          contact_id: string | null
+          contact_extraction_status: string | null
           created_at: string
+          extracted_at: string | null
           id: string
           occurred_at: string
           payload: Json
-          provider: string
-          source_id: string | null
+          processed_at: string | null
+          processing_attempts: number | null
+          processing_error: string | null
+          processing_status: string | null
+          provider: Database["public"]["Enums"]["provider_type"]
+          source_id: string
           source_meta: Json | null
           user_id: string
         }
         Insert: {
           batch_id?: string | null
-          contact_id?: string | null
+          contact_extraction_status?: string | null
           created_at?: string
+          extracted_at?: string | null
           id?: string
           occurred_at: string
           payload: Json
-          provider: string
-          source_id?: string | null
+          processed_at?: string | null
+          processing_attempts?: number | null
+          processing_error?: string | null
+          processing_status?: string | null
+          provider: Database["public"]["Enums"]["provider_type"]
+          source_id: string
           source_meta?: Json | null
           user_id: string
         }
         Update: {
           batch_id?: string | null
-          contact_id?: string | null
+          contact_extraction_status?: string | null
           created_at?: string
+          extracted_at?: string | null
           id?: string
           occurred_at?: string
           payload?: Json
-          provider?: string
-          source_id?: string | null
+          processed_at?: string | null
+          processing_attempts?: number | null
+          processing_error?: string | null
+          processing_status?: string | null
+          provider?: Database["public"]["Enums"]["provider_type"]
+          source_id?: string
           source_meta?: Json | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "raw_events_contact_fk"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sync_audit: {
-        Row: {
-          action: string
-          created_at: string
-          id: string
-          payload: Json | null
-          provider: string
-          user_id: string
-        }
-        Insert: {
-          action: string
-          created_at?: string
-          id?: string
-          payload?: Json | null
-          provider: string
-          user_id: string
-        }
-        Update: {
-          action?: string
-          created_at?: string
-          id?: string
-          payload?: Json | null
-          provider?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      sync_sessions: {
-        Row: {
-          completed_at: string | null
-          current_step: string | null
-          error_details: Json | null
-          failed_items: number | null
-          id: string
-          imported_items: number | null
-          preferences: Json | null
-          processed_items: number | null
-          progress_percentage: number | null
-          service: string
-          started_at: string | null
-          status: string
-          total_items: number | null
-          user_id: string
-        }
-        Insert: {
-          completed_at?: string | null
-          current_step?: string | null
-          error_details?: Json | null
-          failed_items?: number | null
-          id?: string
-          imported_items?: number | null
-          preferences?: Json | null
-          processed_items?: number | null
-          progress_percentage?: number | null
-          service: string
-          started_at?: string | null
-          status?: string
-          total_items?: number | null
-          user_id: string
-        }
-        Update: {
-          completed_at?: string | null
-          current_step?: string | null
-          error_details?: Json | null
-          failed_items?: number | null
-          id?: string
-          imported_items?: number | null
-          preferences?: Json | null
-          processed_items?: number | null
-          progress_percentage?: number | null
-          service?: string
-          started_at?: string | null
-          status?: string
-          total_items?: number | null
           user_id?: string
         }
         Relationships: []
@@ -1263,6 +1065,7 @@ export type Database = {
       user_integrations: {
         Row: {
           access_token: string
+          config: Json | null
           created_at: string
           expiry_date: string | null
           provider: string
@@ -1273,6 +1076,7 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          config?: Json | null
           created_at?: string
           expiry_date?: string | null
           provider: string
@@ -1283,62 +1087,12 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          config?: Json | null
           created_at?: string
           expiry_date?: string | null
           provider?: string
           refresh_token?: string | null
           service?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_sync_prefs: {
-        Row: {
-          calendar_future_days: number | null
-          calendar_ids: string[] | null
-          calendar_include_organizer_self: boolean
-          calendar_include_private: boolean
-          calendar_time_window_days: number
-          created_at: string
-          drive_folder_ids: string[]
-          drive_ingestion_mode: string
-          drive_max_size_mb: number | null
-          gmail_time_range_days: number | null
-          initial_sync_completed: boolean
-          initial_sync_date: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          calendar_future_days?: number | null
-          calendar_ids?: string[] | null
-          calendar_include_organizer_self?: boolean
-          calendar_include_private?: boolean
-          calendar_time_window_days?: number
-          created_at?: string
-          drive_folder_ids?: string[]
-          drive_ingestion_mode?: string
-          drive_max_size_mb?: number | null
-          gmail_time_range_days?: number | null
-          initial_sync_completed?: boolean
-          initial_sync_date?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          calendar_future_days?: number | null
-          calendar_ids?: string[] | null
-          calendar_include_organizer_self?: boolean
-          calendar_include_private?: boolean
-          calendar_time_window_days?: number
-          created_at?: string
-          drive_folder_ids?: string[]
-          drive_ingestion_mode?: string
-          drive_max_size_mb?: number | null
-          gmail_time_range_days?: number | null
-          initial_sync_completed?: boolean
-          initial_sync_date?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -1439,6 +1193,7 @@ export type Database = {
       inbox_item_status: "unprocessed" | "processed" | "archived"
       note_source_type: "typed" | "voice" | "upload"
       project_status: "active" | "on_hold" | "completed" | "archived"
+      provider_type: "gmail" | "calendar" | "drive" | "upload"
       task_priority: "low" | "medium" | "high" | "urgent"
       task_status: "todo" | "in_progress" | "done" | "canceled"
     }
@@ -1582,6 +1337,7 @@ export const Constants = {
       inbox_item_status: ["unprocessed", "processed", "archived"],
       note_source_type: ["typed", "voice", "upload"],
       project_status: ["active", "on_hold", "completed", "archived"],
+      provider_type: ["gmail", "calendar", "drive", "upload"],
       task_priority: ["low", "medium", "high", "urgent"],
       task_status: ["todo", "in_progress", "done", "canceled"],
     },

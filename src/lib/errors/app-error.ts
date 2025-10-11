@@ -4,7 +4,8 @@
  * Replaces complex error classification with minimal complexity approach.
  */
 
-import { err, type Result } from "../utils/result";
+import { err, type Result } from "@/lib/utils/result";
+import { ErrorCategory } from "@/lib/constants/errorCategories";
 
 export class AppError extends Error {
   public readonly code: string;
@@ -70,7 +71,7 @@ export class ErrorHandler {
    * Create auth-specific error
    */
   static authError(message: string, code = "AUTH_ERROR"): AppError {
-    return new AppError(message, code, "auth", true);
+    return new AppError(message, code, "authentication", true);
   }
 
   /**

@@ -1,22 +1,17 @@
+// ===== src/app/api/storage/file-url/route.ts =====
 import { handleGetWithQueryAuth } from "@/lib/api";
 import { StorageService } from "@/server/services/storage.service";
 import {
   FileUrlQuerySchema,
   FileUrlResponseSchema,
-} from "@/server/db/business-schemas";
+  type FileUrlResponse,
+} from "@/server/db/business-schemas/storage";
 
 export const GET = handleGetWithQueryAuth(
   FileUrlQuerySchema,
   FileUrlResponseSchema,
-  async (query, _userId) => {
-    const { filePath } = query;
-
-    const result = await StorageService.getFileSignedUrl(filePath);
-
-    if (result.error) {
-      throw new Error(result.error);
-    }
-
+  async (query): Promise<FileUrlResponse> => {
+    const result = await StorageService.getFileSignedUrl(query.filePath);
     return { signedUrl: result.signedUrl };
-  }
+  },
 );

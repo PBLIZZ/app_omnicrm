@@ -3,7 +3,6 @@
  *
  * Provides comprehensive testing utilities for the OmniCRM application including:
  * - Factory functions for realistic test data generation
- * - Repository fakes with vi.fn() mocks
  * - Test setup utilities and common scenarios
  */
 
@@ -13,76 +12,28 @@
 
 export {
   // Contact factories
-  makeOmniClient,
-  makeOmniClientWithNotes,
-  makeCreateOmniClientInput,
-  makeUpdateOmniClientInput,
   makeContactDTO,
   makeCreateContactInput,
   makeUpdateContactInput,
   makeClientSuggestion,
   makeClientAIInsightsResponse,
-  makeClientEmailSuggestion,
-  makeClientNoteSuggestion,
 
   // Interaction factories
   makeInteraction,
   makeNewInteraction,
-  makeNormalizedInteraction,
 
   // Notes factories
   makeNoteDTO,
   makeCreateNoteInput,
 
-  // Chat factories
-  makeChatMessage,
-  makeChatRequest,
-  makeChatResponse,
-  makeSimpleChatRequest,
-
   // Task factories
   makeCreateTaskInput,
-  makeEmailSuggestionInput,
-
-  // AI Insights factories
-  makeInsightContent,
-  makeAIInsight,
-  makeNewAIInsight,
 
   // Batch utilities
   makeBatch,
   makeContactWithRelations,
   makePaginatedResponse,
 } from "./factories";
-
-// =============================================================================
-// FAKE EXPORTS
-// =============================================================================
-
-export {
-  // Individual repo fakes
-  createContactsRepoFakes,
-  createInteractionsRepoFakes,
-  createAuthUserRepoFakes,
-  createIdentitiesRepoFakes,
-  createRawEventsRepoFakes,
-
-  // Combined repo fakes
-  createAllRepoFakes,
-
-  // Utility functions
-  setupRepoMocks,
-  resetRepoMocks,
-  configureCommonScenarios,
-
-  // Types
-  type ContactsRepoFakes,
-  type InteractionsRepoFakes,
-  type AuthUserRepoFakes,
-  type IdentitiesRepoFakes,
-  type RawEventsRepoFakes,
-  type AllRepoFakes,
-} from "./fakes";
 
 // =============================================================================
 // CONVENIENCE RE-EXPORTS
@@ -203,68 +154,6 @@ export const testUtils = {
     };
   },
 };
-
-// =============================================================================
-// EXAMPLE USAGE
-// =============================================================================
-
-/**
- * Example test setup showing how to use the testing package
- *
- * ```typescript
- * import { describe, it, expect, beforeEach } from 'vitest';
- * import {
- *   setupRepoMocks,
- *   resetRepoMocks,
- *   configureCommonScenarios,
- *   makeOmniClientWithNotes,
- *   testUtils,
- * } from '@packages/testing';
- *
- * describe('ContactService', () => {
- *   const fakes = setupRepoMocks();
- *   const scenarios = configureCommonScenarios(fakes);
- *
- *   beforeEach(() => {
- *     resetRepoMocks(fakes);
- *   });
- *
- *   it('should list contacts', async () => {
- *     // Arrange
- *     const userId = testUtils.defaultUserId;
- *     const params = testUtils.createPaginationParams({ pageSize: 5 });
- *
- *     scenarios.richContactData(userId);
- *
- *     // Act
- *     const result = await contactService.listContacts(userId, params);
- *
- *     // Assert
- *     expect(result.items).toHaveLength(1);
- *     expect(fakes.contacts.listContacts).toHaveBeenCalledWith(userId, params);
- *   });
- *
- *   it('should handle empty database', async () => {
- *     // Arrange
- *     scenarios.emptyDatabase();
- *
- *     // Act & Assert
- *     const result = await contactService.listContacts(testUtils.defaultUserId, testUtils.createPaginationParams());
- *     expect(result.items).toHaveLength(0);
- *   });
- *
- *   it('should handle database errors', async () => {
- *     // Arrange
- *     scenarios.databaseError();
- *
- *     // Act & Assert
- *     await expect(
- *       contactService.listContacts(testUtils.defaultUserId, testUtils.createPaginationParams())
- *     ).rejects.toThrow('Database connection error');
- *   });
- * });
- * ```
- */
 
 // Re-export vi for convenience
 export { vi } from "vitest";

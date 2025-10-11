@@ -1,26 +1,23 @@
 // New file for storing email intelligence
 
-import { getDb } from "@/server/db/client";
-import { aiInsights } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
 import { EmailIntelligence } from "@/server/ai/types/connect-types";
 import { createHash } from "crypto";
+import { createAiInsightService } from "@/server/services/ai-insights.service";
+import { AppError } from "@/lib/errors/app-error";
 
 export async function storeEmailIntelligence(
   userId: string,
   rawEventId: string,
   intelligence: EmailIntelligence,
 ): Promise<void> {
-  const db = await getDb();
-
   // Generate deterministic hash fingerprint
   const normalizedEventId = String(rawEventId || "");
   const hashInput = `email_intel_${normalizedEventId}`;
   const fingerprint = createHash("sha256").update(hashInput).digest("hex").substring(0, 16);
 
   try {
-    await db.insert(aiInsights).values({
-      userId,
+    await createAiInsightService(userId, {
       subjectType: "inbox",
       subjectId: rawEventId,
       kind: "email_intelligence",
@@ -29,6 +26,19 @@ export async function storeEmailIntelligence(
       fingerprint,
     });
   } catch (error) {
+    if (error instanceof AppError && error.code === "AI_INSIGHT_DUPLICATE") {
+      await logger.info("Email intelligence already stored, skipping duplicate", {
+        operation: "llm_call",
+        additionalData: {
+          op: "email_intelligence.duplicate",
+          userId,
+          rawEventId,
+          model: intelligence.processingMeta.model,
+        },
+      });
+      return;
+    }
+
     await logger.error("Failed to store email intelligence", {
       operation: "llm_call",
       additionalData: {

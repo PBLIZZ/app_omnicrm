@@ -85,7 +85,7 @@ export function extractProperty<T>(
   }
 
   const value = (obj as Record<string, unknown>)[key];
-  return parseWithError(schema, value, `Invalid ${key}: expected ${schema._def.typeName}`);
+  return parseWithError(schema, value, `Invalid property '${key}'`);
 }
 
 /**

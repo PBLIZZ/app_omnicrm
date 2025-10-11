@@ -85,6 +85,11 @@ export function sanitizeContactInput<
 export const CONTACT_SOURCES = ["manual", "onboarding", "gmail_import", "calendar_import"] as const;
 
 /**
+ * Contact source type derived from CONTACT_SOURCES
+ */
+export type ContactSource = typeof CONTACT_SOURCES[number];
+
+/**
  * Validates if a string is a valid contact source
  */
 export function isValidContactSource(source: string): source is ContactSource {

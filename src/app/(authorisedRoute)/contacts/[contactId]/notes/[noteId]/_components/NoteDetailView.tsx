@@ -9,17 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, User, AlertTriangle } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
+import { useContact } from "@/hooks/use-contacts";
 import type { Note } from "@/server/db/schema";
 
 interface NoteDetailViewProps {
   contactId: string;
   noteId: string;
-}
-
-interface ContactBasic {
-  id: string;
-  displayName: string;
-  photoUrl: string | null;
 }
 
 function isPIIEntitiesArray(value: unknown): value is Array<unknown> {
@@ -33,21 +28,14 @@ export function NoteDetailView({ contactId, noteId }: NoteDetailViewProps): JSX.
   const { data: note, isLoading: noteLoading, error: noteError } = useQuery({
     queryKey: [`/api/notes/${noteId}`],
     queryFn: async (): Promise<Note> => {
-      const response = await apiClient.get<{ data: Note }>(`/api/notes/${noteId}`);
-      return response.data;
+      // apiClient.get unwraps { success: true, data: T } to just T
+      const note = await apiClient.get<Note>(`/api/notes/${noteId}`);
+      return note;
     },
   });
 
-  // Fetch contact basic info
-  const { data: contact } = useQuery({
-    queryKey: [`/api/contacts/${contactId}`],
-    queryFn: async (): Promise<ContactBasic> => {
-      const response = await apiClient.get<{ item: ContactBasic }>(
-        `/api/contacts/${contactId}`,
-      );
-      return response.item;
-    },
-  });
+  // Fetch contact basic info using centralized hook
+  const { data: contact } = useContact(contactId);
 
   if (noteLoading) {
     return (
@@ -130,21 +118,26 @@ export function NoteDetailView({ contactId, noteId }: NoteDetailViewProps): JSX.
         </CardHeader>
         <CardContent className="space-y-4">
           {/* PII Warning if redactions occurred */}
-          {note.piiEntities && isPIIEntitiesArray(note.piiEntities) && note.piiEntities.length > 0 && (
-            <div className="border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 rounded">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="font-medium text-amber-900 dark:text-amber-200">
-                    Sensitive information was redacted
-                  </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                    {note.piiEntities.length} item(s) automatically removed for privacy compliance
-                  </p>
+          {(() => {
+            const piiEntities = note.piiEntities;
+            if (!isPIIEntitiesArray(piiEntities) || piiEntities.length === 0) return null;
+            
+            return (
+              <div className="border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 rounded">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-amber-900 dark:text-amber-200">
+                      Sensitive information was redacted
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      {piiEntities.length} item(s) automatically removed for privacy compliance
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Note Content */}
           <div className="prose prose-sm max-w-none">

@@ -1,84 +1,62 @@
 /**
- * Simplified Contacts Service
+ * Contacts Service Layer
+ *
+ * Business logic and orchestration.
+ * - Unwraps DbResult from repos → throws AppError
+ * - Data enrichment (add computed fields)
+ * - Business rule validation
  */
 
-import { ContactsRepository } from "@repo";
-import type { Contact, CreateContact, CreateContactInput } from "@/server/db/business-schemas";
+import { ContactsRepository, NotesRepository } from "@repo";
+import type { Contact } from "@/server/db/schema";
+import { AppError } from "@/lib/errors/app-error";
+import { logger } from "@/lib/observability";
+import { StorageService } from "@/server/services/storage.service";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
-import { isErr, DbResult, ok, err, isOk } from "@/lib/utils/result";
-import { logger } from "@/lib/observability";
-import {
-  unwrapResult,
-  isSuccessResult,
-  validateNotesQueryRows,
-} from "@/lib/utils/type-guards/contacts";
-import { StorageService } from "@/server/services/storage.service";
+import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
+import type { ContactWithLastNote as ContactWithLastNoteType } from "@/server/db/business-schemas/contacts";
+import { getContactSuggestions } from "../ai/contacts/suggest-contacts";
 
 // ============================================================================
-// TYPES & INTERFACES
+// SERVICE LAYER TYPES (Data enrichment)
 // ============================================================================
+
+/**
+ * Contact enriched with last note preview
+ * Used by list endpoint to show note snippets
+ * Re-exported from business schemas for consistency
+ */
+export type ContactWithLastNote = ContactWithLastNoteType;
+
+/**
+ * Contact with full notes array
+ * Used by detail view
+ */
+export type ContactWithNotes = Contact & {
+  notes: Array<{
+    id: string;
+    userId: string;
+    contactId: string | null;
+    contentRich: unknown;
+    contentPlain: string;
+    piiEntities: unknown;
+    tags: string[];
+    sourceType: "typed" | "voice" | "upload";
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+};
 
 export type ContactListParams = {
-  search?: string;
-  sort?: "displayName" | "createdAt" | "updatedAt";
-  order?: "asc" | "desc";
+  search?: string | undefined;
+  sort?: "displayName" | "createdAt" | "updatedAt" | undefined;
+  order?: "asc" | "desc" | undefined;
   page: number;
   pageSize: number;
-  dateRange?: { from?: Date; to?: Date };
+  dateRange?: { from?: Date; to?: Date } | undefined;
 };
 
-export type ContactListItem = Contact & {
-  lastNote: string | null;
-};
-
-interface ContactSuggestion {
-  id: string;
-  displayName: string;
-  primaryEmail: string | null;
-  primaryPhone: string | null;
-  source: string | null;
-  confidenceScore: number;
-  reason: string;
-}
-
-// Removed unused interfaces
-
-// Notes types
-
-export interface NoteResponse {
-  id: string;
-  content: string;
-  createdAt: Date;
-  updatedAt: Date;
-  userId: string;
-  contactId: string | null;
-}
-
-export interface NotesListResponse {
-  notes: NoteResponse[];
-}
-
-// Validation types
-export interface LifecycleStageValidationResult {
-  isValid: boolean;
-  normalizedStage: string | null;
-  error?: string;
-}
-
-// Avatar types
-export interface AvatarData {
-  url: string;
-  fileName: string;
-}
-
-export interface AvatarResult {
-  success: boolean;
-  url?: string;
-  error?: string;
-}
-
-// Bulk delete types
 export interface BulkDeleteRequest {
   ids: string[];
 }
@@ -88,84 +66,69 @@ export interface BulkDeleteResponse {
   errors: { id: string; error: string }[];
 }
 
-// Database query types for AI assistant
-export interface ContactSuggestionsData {
-  suggestions: ContactSuggestion[];
+// ============================================================================
+// PUBLIC API - CONTACT SUGGESTIONS
+// ============================================================================
+
+/**
+ * Get contact suggestions from calendar events
+ * Note: Requires calendar sync to be active
+ */
+export async function getContactSuggestionsService(
+  userId: string,
+): Promise<Array<unknown>> {
+  // Call AI suggestion logic directly (it returns the array, not a Result)
+  const suggestions = await getContactSuggestions(userId);
+  return suggestions;
 }
 
-export interface ContactsCreationData {
-  created: number;
-  contacts: Contact[];
+/**
+ * Create contacts from approved suggestion IDs
+ * 
+ * Implementation:
+ * 1. Get all suggestions from calendar
+ * 2. Filter by provided IDs
+ * 3. Transform to contact data
+ * 4. Batch create contacts
+ */
+export async function createContactsFromSuggestionsService(
+  userId: string,
+  suggestionIds: string[],
+): Promise<{ createdCount: number; contacts: Contact[] }> {
+  // 1. Get all suggestions
+  const allSuggestions = await getContactSuggestions(userId);
+  
+  // 2. Filter to only requested IDs
+  const selectedSuggestions = allSuggestions.filter((s) => suggestionIds.includes(s.id));
+  
+  if (selectedSuggestions.length === 0) {
+    return { createdCount: 0, contacts: [] };
+  }
+  
+  // 3. Transform suggestions to contact data
+  const contactsData = selectedSuggestions.map((suggestion) => ({
+    displayName: suggestion.displayName,
+    primaryEmail: suggestion.email,
+    source: suggestion.source,
+    lifecycleStage: "Prospect",
+    tags: ["calendar_import"],
+  }));
+  
+  // 4. Batch create contacts
+  const batchResult = await createContactsBatchService(userId, contactsData);
+  
+  return {
+    createdCount: batchResult.created.length,
+    contacts: batchResult.created,
+  };
 }
-
-export interface ContactCountData {
-  count: number;
-}
-
-export interface ContactsSummaryData {
-  totalContacts: number;
-  byStage: Record<string, number>;
-  bySource: Record<string, number>;
-  recentContacts: Contact[];
-}
-
-export interface SearchContactsData {
-  results: Contact[];
-  total: number;
-}
-
-export interface NotesInfoData {
-  totalNotes: number;
-  recentNotes: NoteResponse[];
-}
-
-export interface FilterContactsData {
-  contacts: Contact[];
-  total: number;
-}
-
-export interface ContactNamesData {
-  contacts: Array<{ id: string; displayName: string }>;
-}
-
-export interface ContactDetailsData {
-  contact: Contact;
-  notes: NoteResponse[];
-  interactions: unknown[];
-}
-
-export interface DatabaseQueryData {
-  result: unknown;
-}
-
-// Union type for all possible data types
-
-// Service operation result types
-export type ContactsServiceResult<T> = DbResult<T>;
-export type QueryResult<T> = DbResult<T>;
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
-function emptyToNull(value: string | undefined | null): string | undefined {
-  if (value === undefined || value === null || value.trim() === "") {
-    return undefined;
-  }
-  return value;
-}
-
-function unwrapDbResult<T>(result: DbResult<T>): T {
-  return unwrapResult(result);
-}
-
-// ============================================================================
-// NOTES HELPER FUNCTIONS
-// ============================================================================
-
 /**
  * Get last note preview (first 500 chars) for each contact
- * Returns Map of contactId -> last note preview (or null if no notes)
  */
 async function getLastNotePreviewForContacts(
   userId: string,
@@ -176,7 +139,6 @@ async function getLastNotePreviewForContacts(
   }
 
   const db = await getDb();
-
   const uuidArray = sql`ARRAY[${sql.join(
     contactIds.map((id) => sql`${id}`),
     sql`, `,
@@ -209,145 +171,28 @@ async function getLastNotePreviewForContacts(
     result.set(contactId, null);
   }
 
-  // Validate and process database rows with type guard
+  // Validate and process database rows
   const validatedRows = validateNotesQueryRows(notesData);
-
   for (const row of validatedRows) {
-    const contactId = row.contact_id;
-    const preview: string | null =
-      typeof row.last_note_preview === "string" ? row.last_note_preview : null;
-    result.set(contactId, preview);
+    const preview = typeof row.last_note_preview === "string" ? row.last_note_preview : null;
+    result.set(row.contact_id, preview);
   }
 
   return result;
 }
 
-// Legacy formatNoteResponse removed - notes now use schema types directly
-
 // ============================================================================
-// CORE CONTACT OPERATIONS (Single source of truth)
+// CONTACT CRUD OPERATIONS
 // ============================================================================
 
 /**
- * Create a contact in the database
- */
-async function createContactInDB(
-  userId: string,
-  input: CreateContactInput,
-): Promise<ContactListItem | null> {
-  const createData: CreateContact = {
-    userId,
-    displayName: input.displayName,
-    primaryEmail: emptyToNull(input.primaryEmail),
-    primaryPhone: emptyToNull(input.primaryPhone),
-    source: input.source,
-    lifecycleStage: input.lifecycleStage ?? undefined,
-    tags: input.tags ?? undefined,
-    confidenceScore: input.confidenceScore ?? undefined,
-    dateOfBirth: input.dateOfBirth ?? undefined,
-    emergencyContactName: input.emergencyContactName ?? undefined,
-    emergencyContactPhone: input.emergencyContactPhone ?? undefined,
-    clientStatus: input.clientStatus ?? undefined,
-    referralSource: input.referralSource ?? undefined,
-    address: input.address ?? undefined,
-    healthContext: input.healthContext ?? undefined,
-    preferences: input.preferences ?? undefined,
-    photoUrl: input.photoUrl ?? undefined,
-  };
-
-  const contactResult = await ContactsRepository.createContact({ ...createData, userId });
-  const contact = unwrapDbResult(contactResult);
-
-  return {
-    ...contact,
-    createdAt: contact.createdAt || new Date(),
-    updatedAt: contact.updatedAt || new Date(),
-    tags: Array.isArray(contact.tags) ? contact.tags : null,
-    lastNote: null,
-  };
-}
-
-/**
- * Get a contact from the database
- */
-async function getContactFromDB(userId: string, contactId: string): Promise<Contact | null> {
-  const result = await ContactsRepository.getContactById(userId, contactId);
-
-  if (isErr(result)) {
-    return null;
-  }
-
-  if (!isSuccessResult(result)) {
-    return null;
-  }
-
-  const contact = result.data;
-
-  if (!contact) {
-    return null;
-  }
-
-  return {
-    ...contact,
-    createdAt: contact.createdAt || new Date(),
-    updatedAt: contact.updatedAt || new Date(),
-    tags: Array.isArray(contact.tags) ? contact.tags : null,
-  };
-}
-
-/**
- * Update a contact in the database
- */
-async function updateContactInDB(
-  userId: string,
-  contactId: string,
-  updateData: Partial<CreateContactInput>,
-): Promise<Contact | null> {
-  await ContactsRepository.updateContact(userId, contactId, updateData);
-
-  const contact = await ContactsRepository.getContactById(userId, contactId);
-
-  if (!contact) {
-    return null;
-  }
-
-  return {
-    ...contact,
-    createdAt: contact.createdAt || new Date(),
-    updatedAt: contact.updatedAt || new Date(),
-    tags: Array.isArray(contact.tags) ? contact.tags : null,
-  };
-}
-
-/**
- * Delete a contact from the database
- */
-async function deleteContactFromDB(userId: string, contactId: string): Promise<boolean> {
-  const result = await ContactsRepository.deleteContact(userId, contactId);
-
-  if (isErr(result)) {
-    return false;
-  }
-
-  if (!isSuccessResult(result)) {
-    return false;
-  }
-
-  return result.data;
-}
-
-// ============================================================================
-// PUBLIC API - CONTACT OPERATIONS
-// ============================================================================
-
-/**
- * List contacts with optional search filtering
+ * List contacts with pagination and enrichment
  */
 export async function listContactsService(
   userId: string,
   params: ContactListParams,
 ): Promise<{
-  items: ContactListItem[];
+  items: ContactWithLastNote[];
   pagination: {
     page: number;
     pageSize: number;
@@ -357,72 +202,53 @@ export async function listContactsService(
     hasPrev: boolean;
   };
 }> {
-  const repoParams: Parameters<typeof ContactsRepository.listContacts>[1] = {
+  // 1. Get contacts from repo
+  const repoResult = await ContactsRepository.listContacts(userId, {
     page: params.page,
     pageSize: params.pageSize,
-  };
-  if (params.search !== undefined) repoParams.search = params.search;
-  if (params.sort !== undefined) repoParams.sort = params.sort;
-  if (params.order !== undefined) repoParams.order = params.order;
+    ...(params.search !== undefined && { search: params.search }),
+    ...(params.sort !== undefined && { sort: params.sort }),
+    ...(params.order !== undefined && { order: params.order }),
+  });
 
-  const repoResult = await ContactsRepository.listContacts(userId, repoParams);
-
-  if (isErr(repoResult)) {
-    throw new Error(repoResult.error.message || "Failed to list contacts");
+  if (!repoResult.success) {
+    throw new AppError(repoResult.error.message, repoResult.error.code, "database", false);
   }
 
-  if (!isOk(repoResult)) {
-    throw new Error("Invalid result state");
-  }
-  const data = repoResult.data;
+  const { items: contacts, total } = repoResult.data;
 
-  const contactItems: Contact[] = Array.isArray(data.items)
-    ? data.items.map((contact) => ({
-        ...contact,
-        createdAt: contact.createdAt ?? new Date(),
-        updatedAt: contact.updatedAt ?? new Date(),
-        tags: Array.isArray(contact.tags) ? contact.tags : null,
-      }))
-    : [];
-  const total: number = typeof data.total === "number" ? data.total : 0;
-
-  const contactIds = contactItems.map((c) => c.id);
+  // 2. Enrich with last notes
+  const contactIds = contacts.map((c) => c.id);
   const lastNotePreviews = await getLastNotePreviewForContacts(userId, contactIds);
 
-  // Batch generate signed URLs for all photos in this page
-  const photoPaths = contactItems.filter((c) => c.photoUrl).map((c) => c.photoUrl as string);
+  // 3. Batch generate signed URLs for photos
+  const photoPaths = contacts.filter((c) => c.photoUrl).map((c) => c.photoUrl as string);
 
   let photoUrls: Record<string, string | null> = {};
   if (photoPaths.length > 0) {
     const batchResult = await StorageService.getBatchSignedUrls(photoPaths, 14400); // 4 hours
     photoUrls = batchResult.urls;
 
-    // Log photo access for HIPAA/GDPR compliance (best-effort, doesn't block request)
-    const contactPhotos = contactItems
+    // Log photo access for HIPAA/GDPR compliance (best-effort)
+    const contactPhotos = contacts
       .filter((c) => c.photoUrl)
       .map((c) => ({ contactId: c.id, photoPath: c.photoUrl as string }));
 
     await StorageService.logBatchPhotoAccess(userId, contactPhotos);
   }
 
-  const transformedItems: ContactListItem[] = contactItems.map((contact) => {
-    const lastNote = lastNotePreviews.get(contact.id) ?? null;
+  // 4. Transform with enrichments
+  const itemsWithEnrichments: ContactWithLastNote[] = contacts.map((contact) => ({
+    ...contact,
+    lastNote: lastNotePreviews.get(contact.id) ?? null,
+    photoUrl: contact.photoUrl ? (photoUrls[contact.photoUrl] ?? contact.photoUrl) : null,
+  }));
 
-    return {
-      ...contact,
-      createdAt: contact.createdAt ?? new Date(),
-      updatedAt: contact.updatedAt ?? new Date(),
-      tags: Array.isArray(contact.tags) ? contact.tags : null,
-      // Replace photoUrl with signed URL if available
-      photoUrl: contact.photoUrl ? (photoUrls[contact.photoUrl] ?? contact.photoUrl) : null,
-      lastNote,
-    };
-  });
-
+  // 5. Calculate pagination
   const totalPages = Math.ceil(total / params.pageSize);
 
   return {
-    items: transformedItems,
+    items: itemsWithEnrichments,
     pagination: {
       page: params.page,
       pageSize: params.pageSize,
@@ -435,53 +261,134 @@ export async function listContactsService(
 }
 
 /**
- * Create a new contact
+ * Get single contact by ID
  */
-export async function createContactService(
-  userId: string,
-  input: CreateContactInput,
-): Promise<ContactsServiceResult<ContactListItem>> {
-  try {
-    const contact = await createContactInDB(userId, input);
-    if (!contact) {
-      return err({
-        code: "CONTACT_CREATE_FAILED",
-        message: "Failed to create contact",
-      });
-    }
-    return ok(contact);
-  } catch (error) {
-    return err({
-      code: "CONTACT_CREATE_ERROR",
-      message: "Error creating contact",
-      details: error,
-    });
+export async function getContactByIdService(userId: string, contactId: string): Promise<Contact> {
+  const result = await ContactsRepository.getContactById(userId, contactId);
+
+  if (!result.success) {
+    throw new AppError(result.error.message, result.error.code, "database", false);
   }
+
+  if (!result.data) {
+    throw new AppError("contact not found", "CONTACT_NOT_FOUND", "validation", false);
+  }
+
+  return normalizeContactNulls(result.data);
 }
 
 /**
- * Get contact by ID
+ * Get contact with all notes
+ * Replaces repo.getContactWithNotes - composed from two repo calls
  */
-export async function getContactByIdService(
+export async function getContactWithNotesService(
   userId: string,
   contactId: string,
-): Promise<ContactsServiceResult<Contact>> {
-  try {
-    const contact = await getContactFromDB(userId, contactId);
-    if (!contact) {
-      return err({
-        code: "CONTACT_NOT_FOUND",
-        message: "Contact not found",
-      });
-    }
-    return ok(contact);
-  } catch (error) {
-    return err({
-      code: "CONTACT_GET_ERROR",
-      message: "Error retrieving contact",
-      details: error,
-    });
+): Promise<ContactWithNotes> {
+  // 1. Get contact
+  const contactResult = await ContactsRepository.getContactById(userId, contactId);
+
+  if (!contactResult.success) {
+    throw new AppError(contactResult.error.message, contactResult.error.code, "database", false);
   }
+
+  if (!contactResult.data) {
+    throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
+  }
+
+  const contact = contactResult.data;
+
+  // 2. Get notes separately (you'll need to import NotesRepository)
+  const notesResult = await NotesRepository.listNotes(userId, contactId);
+
+  if (!notesResult.success) {
+    // Notes fetch failed - return contact with empty notes rather than error
+    console.warn("Failed to fetch notes for contact:", notesResult.error);
+    return { ...contact, notes: [] };
+  }
+
+  // 3. Combine - notesResult.data is Note[], not { items: Note[] }
+  return {
+    ...contact,
+    notes: notesResult.data,
+  };
+}
+
+/**
+ * Create new contact
+ */
+export async function createContactService(
+  userId: string,
+  input: {
+    displayName: string;
+    primaryEmail?: string | undefined;
+    primaryPhone?: string | undefined;
+    photoUrl?: string | undefined;
+    source?: string | undefined;
+    lifecycleStage?: string | undefined;
+    tags?: string[] | undefined;
+    confidenceScore?: string | undefined;
+    dateOfBirth?: string | undefined;
+    emergencyContactName?: string | undefined;
+    emergencyContactPhone?: string | undefined;
+    clientStatus?: string | undefined;
+    referralSource?: string | undefined;
+    address?: unknown;
+    healthContext?: unknown;
+    preferences?: unknown;
+  },
+): Promise<Contact> {
+  const result = await ContactsRepository.createContact({
+    userId,
+    displayName: input.displayName,
+    primaryEmail: input.primaryEmail ?? null,
+    primaryPhone: input.primaryPhone ?? null,
+    photoUrl: input.photoUrl ?? null,
+    source: input.source ?? null,
+    lifecycleStage: input.lifecycleStage ?? null,
+    tags: input.tags ?? null,
+    confidenceScore: input.confidenceScore ?? null,
+    dateOfBirth: input.dateOfBirth ?? null,
+    emergencyContactName: input.emergencyContactName ?? null,
+    emergencyContactPhone: input.emergencyContactPhone ?? null,
+    clientStatus: input.clientStatus ?? null,
+    referralSource: input.referralSource ?? null,
+    address: input.address ?? null,
+    healthContext: input.healthContext ?? null,
+    preferences: input.preferences ?? null,
+  });
+
+  if (!result.success) {
+    throw new AppError(result.error.message, result.error.code, "database", false);
+  }
+
+  // Transform null to undefined for exactOptionalPropertyTypes compatibility
+  return normalizeContactNulls(result.data);
+}
+
+/**
+ * Helper: Convert null values to undefined for schema compatibility
+ * Required because exactOptionalPropertyTypes treats null and undefined as distinct
+ */
+function normalizeContactNulls(contact: Contact): Contact {
+  return {
+    ...contact,
+    primaryEmail: contact.primaryEmail ?? undefined,
+    primaryPhone: contact.primaryPhone ?? undefined,
+    photoUrl: contact.photoUrl ?? undefined,
+    source: contact.source ?? undefined,
+    lifecycleStage: contact.lifecycleStage ?? undefined,
+    clientStatus: contact.clientStatus ?? undefined,
+    referralSource: contact.referralSource ?? undefined,
+    confidenceScore: contact.confidenceScore ?? undefined,
+    dateOfBirth: contact.dateOfBirth ?? undefined,
+    emergencyContactName: contact.emergencyContactName ?? undefined,
+    emergencyContactPhone: contact.emergencyContactPhone ?? undefined,
+    address: contact.address ?? undefined,
+    healthContext: contact.healthContext ?? undefined,
+    preferences: contact.preferences ?? undefined,
+    tags: contact.tags ?? undefined,
+  } as Contact;
 }
 
 /**
@@ -490,43 +397,49 @@ export async function getContactByIdService(
 export async function updateContactService(
   userId: string,
   contactId: string,
-  updateData: Partial<CreateContactInput>,
-): Promise<ContactsServiceResult<Contact>> {
-  try {
-    const contact = await updateContactInDB(userId, contactId, updateData);
-    if (!contact) {
-      return err({
-        code: "CONTACT_UPDATE_FAILED",
-        message: "Failed to update contact",
-      });
-    }
-    return ok(contact);
-  } catch (error) {
-    return err({
-      code: "CONTACT_UPDATE_ERROR",
-      message: "Error updating contact",
-      details: error,
-    });
+  updates: {
+    displayName?: string | undefined;
+    primaryEmail?: string | null | undefined;
+    primaryPhone?: string | null | undefined;
+    photoUrl?: string | null | undefined;
+    source?: string | null | undefined;
+    lifecycleStage?: string | null | undefined;
+    tags?: string[] | null | undefined;
+    confidenceScore?: string | null | undefined;
+    dateOfBirth?: string | null | undefined;
+    emergencyContactName?: string | null | undefined;
+    emergencyContactPhone?: string | null | undefined;
+    clientStatus?: string | null | undefined;
+    referralSource?: string | null | undefined;
+    address?: unknown;
+    healthContext?: unknown;
+    preferences?: unknown;
+  },
+): Promise<Contact> {
+  const result = await ContactsRepository.updateContact(userId, contactId, updates);
+
+  if (!result.success) {
+    throw new AppError(result.error.message, result.error.code, "database", false);
   }
+
+  if (!result.data) {
+    throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
+  }
+
+  return normalizeContactNulls(result.data);
 }
 
 /**
  * Delete contact
  */
-export async function deleteContactService(
-  userId: string,
-  contactId: string,
-): Promise<ContactsServiceResult<boolean>> {
-  try {
-    const deleted = await deleteContactFromDB(userId, contactId);
-    return ok(deleted);
-  } catch (error) {
-    return err({
-      code: "CONTACT_DELETE_ERROR",
-      message: "Error deleting contact",
-      details: error,
-    });
+export async function deleteContactService(userId: string, contactId: string): Promise<boolean> {
+  const result = await ContactsRepository.deleteContact(userId, contactId);
+
+  if (!result.success) {
+    throw new AppError(result.error.message, result.error.code, "database", false);
   }
+
+  return result.data;
 }
 
 /**
@@ -535,41 +448,51 @@ export async function deleteContactService(
 export async function findContactByEmailService(
   userId: string,
   email: string,
-): Promise<ContactsServiceResult<Contact | null>> {
-  try {
-    const result = await ContactsRepository.findContactByEmail(userId, email);
+): Promise<Contact | null> {
+  const result = await ContactsRepository.findContactByEmail(userId, email);
 
-    if (isErr(result)) {
-      return err({
-        code: "CONTACT_EMAIL_SEARCH_FAILED",
-        message: "Failed to search contact by email",
-        details: result.error,
-      });
-    }
-
-    if (!isSuccessResult(result)) {
-      return ok(null);
-    }
-
-    const contact = result.data;
-
-    if (!contact) {
-      return ok(null);
-    }
-
-    return ok({
-      ...contact,
-      createdAt: contact.createdAt ?? new Date(),
-      updatedAt: contact.updatedAt ?? new Date(),
-      tags: Array.isArray(contact.tags) ? contact.tags : null,
-    });
-  } catch (error) {
-    return err({
-      code: "CONTACT_EMAIL_SEARCH_ERROR",
-      message: "Error searching contact by email",
-      details: error,
-    });
+  if (!result.success) {
+    throw new AppError(result.error.message, result.error.code, "database", false);
   }
+
+  return result.data ? normalizeContactNulls(result.data) : null;
+}
+
+// ============================================================================
+// BULK OPERATIONS
+// ============================================================================
+
+/**
+ * Bulk delete contacts
+ */
+export async function deleteContactsBulk(
+  userId: string,
+  request: BulkDeleteRequest,
+): Promise<BulkDeleteResponse> {
+  const { ids } = request;
+
+  const result = await ContactsRepository.deleteContactsByIds(userId, ids);
+
+  if (!result.success) {
+    throw new AppError(result.error.message, result.error.code, "database", false);
+  }
+
+  const deletedCount = result.data;
+
+  // Log for audit
+  await logger.info("Bulk deleted contacts", {
+    operation: "contacts_bulk_delete",
+    additionalData: {
+      userId: userId.slice(0, 8) + "...",
+      deletedCount,
+      requestedIds: ids.length,
+    },
+  });
+
+  return {
+    deleted: deletedCount,
+    errors: [],
+  };
 }
 
 /**
@@ -577,198 +500,41 @@ export async function findContactByEmailService(
  */
 export async function createContactsBatchService(
   userId: string,
-  contactsData: Array<CreateContactInput>,
-): Promise<
-  ContactsServiceResult<{ created: ContactListItem[]; duplicates: number; errors: number }>
-> {
-  try {
-    const created: ContactListItem[] = [];
-    let duplicates = 0;
-    let errors = 0;
+  contactsData: Array<{
+    displayName: string;
+    primaryEmail?: string;
+    primaryPhone?: string;
+    source?: string;
+    lifecycleStage?: string;
+    tags?: string[];
+  }>,
+): Promise<{
+  created: Contact[];
+  duplicates: number;
+  errors: number;
+}> {
+  const created: Contact[] = [];
+  let duplicates = 0;
+  let errors = 0;
 
-    for (const contactData of contactsData) {
-      try {
-        if (contactData.primaryEmail) {
-          const existingResult = await ContactsRepository.findContactByEmail(
-            userId,
-            contactData.primaryEmail,
-          );
-          if (existingResult.success && existingResult.data) {
-            duplicates++;
-            continue;
-          }
-          // If lookup failed, log error but continue with creation
-          if (!existingResult.success) {
-            console.error("Failed to check for existing contact:", existingResult.error);
-          }
+  for (const contactData of contactsData) {
+    try {
+      // Check for duplicates by email
+      if (contactData.primaryEmail) {
+        const existing = await findContactByEmailService(userId, contactData.primaryEmail);
+        if (existing) {
+          duplicates++;
+          continue;
         }
-
-        const contact = await createContactInDB(userId, contactData);
-        if (contact) {
-          created.push(contact);
-        }
-      } catch (error) {
-        errors++;
-        console.error("Error creating contact in batch:", error);
       }
-    }
 
-    return ok({ created, duplicates, errors });
-  } catch (error) {
-    return err({
-      code: "BATCH_CREATE_ERROR",
-      message: "Error in batch contact creation",
-      details: error,
-    });
+      const contact = await createContactService(userId, contactData);
+      created.push(contact);
+    } catch (error) {
+      errors++;
+      console.error("Error creating contact in batch:", error);
+    }
   }
-}
 
-// ============================================================================
-// PUBLIC API - NOTES OPERATIONS
-// ============================================================================
-
-// Legacy note methods removed - use NotesRepository directly via /api/notes endpoints
-
-// ============================================================================
-// BULK DELETE OPERATIONS
-// ============================================================================
-
-/**
- * Execute bulk deletion of contacts
- */
-export async function deleteContactsBulk(
-  userId: string,
-  request: BulkDeleteRequest,
-): Promise<ContactsServiceResult<BulkDeleteResponse>> {
-  try {
-    const { ids } = request;
-
-    // Execute bulk deletion via repository
-    const deletedCountResult = await ContactsRepository.deleteContactsByIds(userId, ids);
-
-    if (isErr(deletedCountResult)) {
-      return err({
-        code: "BULK_DELETE_FAILED",
-        message: "Failed to delete contacts",
-        details: deletedCountResult.error,
-      });
-    }
-
-    if (!isSuccessResult(deletedCountResult)) {
-      return err({
-        code: "BULK_DELETE_FAILED",
-        message: "Invalid result state from delete operation",
-      });
-    }
-
-    const deletedCount = deletedCountResult.data;
-
-    // Log successful bulk deletion operation
-    await logBulkDeletion(userId, deletedCount, ids.length);
-
-    return ok({
-      deleted: deletedCount,
-      errors: [], // No errors for successful deletions
-    });
-  } catch (error) {
-    return err({
-      code: "BULK_DELETE_ERROR",
-      message: "Error in bulk delete operation",
-      details: error,
-    });
-  }
-}
-
-/**
- * Log bulk deletion operation for audit purposes
- */
-async function logBulkDeletion(
-  userId: string,
-  deletedCount: number,
-  requestedCount: number,
-): Promise<void> {
-  await logger.info("Bulk deleted Contacts", {
-    operation: "contacts_bulk_delete",
-    additionalData: {
-      userId: userId.slice(0, 8) + "...",
-      deletedCount,
-      requestedIds: requestedCount,
-    },
-  });
-}
-
-// ============================================================================
-// DATABASE QUERY OPERATIONS (AI Assistant)
-// ============================================================================
-
-/**
- * Get the total number of contacts for a user
- */
-export async function getContactsCount(userId: string): Promise<QueryResult<ContactCountData>> {
-  try {
-    const contactsResult = await ContactsRepository.listContacts(userId);
-    if (isErr(contactsResult)) {
-      return err({
-        code: "CONTACTS_COUNT_FAILED",
-        message: "Failed to fetch contacts for count",
-        details: contactsResult.error,
-      });
-    }
-
-    if (!isSuccessResult(contactsResult)) {
-      return err({
-        code: "CONTACTS_COUNT_FAILED",
-        message: "Invalid result state",
-      });
-    }
-
-    const totalContacts = contactsResult.data.total;
-    return ok({
-      count: totalContacts,
-      message: `Total contacts: ${totalContacts}`,
-    });
-  } catch (error) {
-    return err({
-      code: "CONTACTS_COUNT_ERROR",
-      message: "Error getting contacts count",
-      details: error,
-    });
-  }
-}
-
-/**
- * Get comprehensive contacts summary for a user
- */
-export async function getContactsSummary(
-  userId: string,
-): Promise<QueryResult<ContactsSummaryData>> {
-  try {
-    const contactsResult = await ContactsRepository.listContacts(userId);
-    if (isErr(contactsResult)) {
-      return err({
-        code: "CONTACTS_SUMMARY_FAILED",
-        message: "Failed to fetch contacts for summary",
-        details: contactsResult.error,
-      });
-    }
-
-    if (!isSuccessResult(contactsResult)) {
-      return err({
-        code: "CONTACTS_SUMMARY_FAILED",
-        message: "Invalid result state",
-      });
-    }
-
-    const allContacts = contactsResult.data.items;
-    return ok({
-      contacts: allContacts,
-      total: allContacts.length,
-    });
-  } catch (error) {
-    return err({
-      code: "CONTACTS_SUMMARY_ERROR",
-      message: "Error getting contacts summary",
-      details: error,
-    });
-  }
+  return { created, duplicates, errors };
 }

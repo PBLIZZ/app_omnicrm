@@ -14,14 +14,15 @@ import {
 } from "@/components/ui/sidebar";
 
 // Icons for the settings navigation
-import { User, CreditCard, Bell, Mail, Calendar as CalendarIcon } from "lucide-react";
-import { getSyncStatus } from "@/lib/services/client/sync.service";
+import { User, CreditCard, Bell, Mail, Calendar as CalendarIcon, FileText } from "lucide-react";
+import { getSyncStatus } from "@/lib/api/sync.api";
 
 // Navigation items for the settings section
 const settingsNavItems = [
   { title: "Account", href: "/settings/account", icon: User },
   { title: "Billing", href: "/settings/billing", icon: CreditCard },
   { title: "Notifications", href: "/settings/notifications", icon: Bell },
+  { title: "Intake Form", href: "/settings/onboarding", icon: FileText },
 ];
 
 export function SettingsSidebar(): JSX.Element {

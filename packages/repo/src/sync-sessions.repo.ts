@@ -2,12 +2,19 @@ import { eq, and, desc } from "drizzle-orm";
 import { syncSessions } from "./schema";
 import { getDb } from "./db";
 import type {
-  SyncSessionDTO,
-  CreateSyncSessionDTO,
-  UpdateSyncSessionDTO,
-  SyncSessionFilters
-} from "@omnicrm/contracts";
-import { SyncSessionDTOSchema } from "@omnicrm/contracts";
+  SyncSession,
+  CreateSyncSession
+} from "./schema";
+
+// Local type aliases for repository layer
+type SyncSessionDTO = SyncSession;
+type CreateSyncSessionDTO = CreateSyncSession;
+type UpdateSyncSessionDTO = Partial<CreateSyncSession>;
+
+interface SyncSessionFilters {
+  service?: string;
+  status?: string;
+}
 
 export class SyncSessionsRepository {
   /**
@@ -55,7 +62,7 @@ export class SyncSessionsRepository {
 
     const rows = await query;
 
-    return rows.map(row => SyncSessionDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -91,7 +98,7 @@ export class SyncSessionsRepository {
       return null;
     }
 
-    return SyncSessionDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -131,7 +138,7 @@ export class SyncSessionsRepository {
       return null;
     }
 
-    return SyncSessionDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -170,7 +177,7 @@ export class SyncSessionsRepository {
       )
       .orderBy(desc(syncSessions.startedAt));
 
-    return rows.map(row => SyncSessionDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -205,7 +212,7 @@ export class SyncSessionsRepository {
         updatedAt: syncSessions.updatedAt,
       });
 
-    return SyncSessionDTOSchema.parse(newSession);
+    return newSession;
   }
 
   /**
@@ -265,7 +272,7 @@ export class SyncSessionsRepository {
       return null;
     }
 
-    return SyncSessionDTOSchema.parse(updatedSession);
+    return updatedSession;
   }
 
   /**
@@ -315,7 +322,7 @@ export class SyncSessionsRepository {
       return null;
     }
 
-    return SyncSessionDTOSchema.parse(updatedSession);
+    return updatedSession;
   }
 
   /**

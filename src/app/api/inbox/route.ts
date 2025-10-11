@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
 import { InboxService } from "@/server/services/inbox.service";
-import { z } from "zod";
 import {
-  CreateInboxItemDTOSchema,
-  VoiceInboxCaptureDTOSchema,
-  BulkProcessInboxDTOSchema,
-  type CreateInboxItemDTO,
-  type VoiceInboxCaptureDTO,
-  type BulkProcessInboxDTO,
-} from "@omnicrm/contracts";
+  GetInboxQuerySchema,
+  InboxListResponseSchema,
+  InboxStatsResponseSchema,
+  InboxPostRequestSchema,
+  InboxItemResponseSchema,
+  InboxProcessResultResponseSchema,
+} from "@/server/db/business-schemas";
 
 /**
  * Inbox API - Quick capture and list inbox items
@@ -18,122 +16,53 @@ import {
  * can quickly capture thoughts/tasks for AI processing later.
  */
 
-// Query schema for GET requests
-const GetInboxQuerySchema = z.object({
-  status: z.array(z.enum(["unprocessed", "processed", "archived"])).optional(),
-  search: z.string().optional(),
-  createdAfter: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
-  createdBefore: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
-  hasAiSuggestions: z.string().optional().transform(val => val === "true"),
-  stats: z.string().optional().transform(val => val === "true"),
-});
-
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { searchParams } = new URL(request.url);
-
-    // Validate query parameters
-    const validatedQuery = GetInboxQuerySchema.optional().parse(
-      Object.fromEntries(searchParams.entries())
-    );
-
-    const wantsStats = validatedQuery?.stats ?? false;
+export const GET = handleGetWithQueryAuth(
+  GetInboxQuerySchema,
+  InboxListResponseSchema.or(InboxStatsResponseSchema),
+  async (query, userId) => {
+    const wantsStats = query.stats ?? false;
 
     if (wantsStats) {
       // Return inbox statistics
       const stats = await InboxService.getInboxStats(userId);
-      return NextResponse.json({ stats });
+      return { stats };
     } else {
       // Return inbox items with filtering
-      // Extract stats and pass remaining params to service
-      const filterParams = validatedQuery ? Object.fromEntries(
-        Object.entries(validatedQuery).filter(([key]) => key !== 'stats')
-      ) : {};
+      const filterParams = InboxService.extractFilterParams(query);
       const items = await InboxService.listInboxItems(userId, filterParams);
-      return NextResponse.json({
+      return {
         items,
         total: items.length,
-      });
+      };
     }
-  } catch (error) {
-    console.error("Failed to fetch inbox items:", error);
-
-    // Handle validation errors
-    if (error instanceof Error && error.name === "ZodError") {
-      return NextResponse.json(
-        { error: "Invalid query parameters", details: error.message },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Failed to fetch inbox items" },
-      { status: 500 }
-    );
   }
-}
+);
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const body: unknown = await request.json();
-
-    // Validate request body
-    const validatedBody = z.discriminatedUnion("type", [
-      z.object({
-        type: z.literal("quick_capture"),
-        data: CreateInboxItemDTOSchema,
-      }),
-      z.object({
-        type: z.literal("voice_capture"),
-        data: VoiceInboxCaptureDTOSchema,
-      }),
-      z.object({
-        type: z.literal("bulk_process"),
-        data: BulkProcessInboxDTOSchema,
-      }),
-    ]).parse(body);
-
-    const { type, data } = validatedBody;
+export const POST = handleAuth(
+  InboxPostRequestSchema,
+  InboxItemResponseSchema.or(InboxProcessResultResponseSchema),
+  async (requestData, userId) => {
+    const { type, data } = requestData;
 
     switch (type) {
       case "quick_capture": {
-        const item = await InboxService.quickCapture(userId, data as CreateInboxItemDTO);
-        return NextResponse.json({ item }, { status: 201 });
+        const item = await InboxService.quickCapture(userId, data);
+        return { item };
       }
 
       case "voice_capture": {
-        const item = await InboxService.voiceCapture(userId, data as VoiceInboxCaptureDTO);
-        return NextResponse.json({ item }, { status: 201 });
+        const item = await InboxService.voiceCapture(userId, data);
+        return { item };
       }
 
       case "bulk_process": {
-        const result = await InboxService.bulkProcessInbox(userId, data as BulkProcessInboxDTO);
-        return NextResponse.json({ result }, { status: 200 });
+        const result = await InboxService.bulkProcessInbox(userId, data);
+        return { result };
       }
 
       default: {
-        return NextResponse.json(
-          { error: "Invalid request type" },
-          { status: 400 }
-        );
+        throw new Error("Invalid request type");
       }
     }
-  } catch (error) {
-    console.error("Failed to process inbox request:", error);
-
-    // Handle validation errors
-    if (error instanceof Error && error.name === "ZodError") {
-      return NextResponse.json(
-        { error: "Invalid request data", details: error.message },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Failed to process inbox request" },
-      { status: 500 }
-    );
   }
-}
+);

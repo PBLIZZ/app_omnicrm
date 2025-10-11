@@ -42,7 +42,7 @@ export class JobCreationService {
       .filter(event => event.provider === 'gmail')
       .map(event => ({
         id: crypto.randomUUID(),
-        userId: userId,
+        user_id: userId,
         kind: 'normalize_google_email' as const,
         payload: {
           rawEventId: event.id,
@@ -50,8 +50,8 @@ export class JobCreationService {
         },
         status: 'queued' as const,
         attempts: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
       }));
 
     if (jobsToCreate.length > 0) {
@@ -98,7 +98,7 @@ export class JobCreationService {
     // Create normalize jobs for calendar events
     const jobsToCreate = calendarEventsData.map(event => ({
       id: crypto.randomUUID(),
-      userId: userId,
+      user_id: userId,
       kind: 'normalize_google_event' as const,
       payload: {
         calendarEventId: event.id,
@@ -106,8 +106,8 @@ export class JobCreationService {
       },
       status: 'queued' as const,
       attempts: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
     }));
 
     if (jobsToCreate.length > 0) {

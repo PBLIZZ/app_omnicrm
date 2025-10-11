@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
+import { momentumService } from "@/server/services/momentum.service";
+import { TaskSchema } from "@/server/db/business-schemas";
+import { z } from "zod";
 
 /**
  * Task Approval API Route
@@ -10,44 +10,56 @@ import { MomentumRepository } from "@repo";
  * This is part of the AI workflow where users review and approve suggested tasks
  */
 
-interface RouteParams {
-  params: {
-    taskId: string;
-  };
-}
-
-/**
- * POST /api/omni-momentum/tasks/[taskId]/approve - Approve an AI-generated task
- */
-export async function POST(_: NextRequest, { params }: RouteParams): Promise<NextResponse> {
+export const POST = async (req: Request, { params }: { params: { taskId: string } }) => {
   try {
+    // Lazy import to avoid circular dependencies
+    const { getServerUserId } = await import("@/server/auth/user");
+
     const userId = await getServerUserId();
-    const { taskId } = params;
 
-    // Get the task to ensure it exists and belongs to the user
-    const task = await MomentumRepository.getTask(taskId, userId);
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    // Validate taskId from URL params
+    const taskId = z.string().uuid().parse(params.taskId);
+
+    // Approve task using service
+    const approvedTask = await momentumService.approveTask(taskId, userId);
+
+    if (!approvedTask) {
+      return new Response(JSON.stringify({ error: "Task not found" }), {
+        headers: { "content-type": "application/json" },
+        status: 404,
+      });
     }
 
-    // Note: approvalStatus field might not exist in current schema,
-    // this feature might need implementation. For now, just update status.
+    // Validate response
+    const validated = TaskSchema.parse(approvedTask);
 
-    // Update task to approved status
-    const updatedTask = await MomentumRepository.updateTask(taskId, userId, {
-      status: "todo", // Move to active todo status
+    return new Response(JSON.stringify(validated), {
+      headers: { "content-type": "application/json" },
+      status: 200,
     });
-
-    if (!updatedTask) {
-      return NextResponse.json({ error: "Failed to approve task" }, { status: 500 });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return new Response(
+        JSON.stringify({
+          error: "Validation failed",
+          details: error.issues,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 400,
+        },
+      );
     }
 
-    // Note: createMomentumAction method doesn't exist yet,
-    // this would need to be implemented for full audit trail
+    // Handle auth errors
+    if (error instanceof Error && "status" in error && error.status === 401) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { "content-type": "application/json" },
+        status: 401,
+      });
+    }
 
-    return NextResponse.json(updatedTask);
-  } catch (error) {
-    console.error("Failed to approve task:", error);
-    return NextResponse.json({ error: "Failed to approve task" }, { status: 500 });
+    // Re-throw unexpected errors to be handled by global error boundary
+    throw error;
   }
-}
+};

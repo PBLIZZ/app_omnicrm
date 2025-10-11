@@ -51,7 +51,6 @@ describe('Contacts End-to-End Workflow Integration', () => {
     expect(result?.displayName).toBe('Integration Test Contact');
     expect(result?.primaryEmail).toBe('integration@test.com');
     expect(result?.source).toBe('manual');
-    expect(result?.slug).toBeTruthy();
 
     // Step 2: Verify contact exists in repository layer
     const repoContact = makeOmniClientWithNotes({
@@ -129,7 +128,6 @@ describe('Contacts End-to-End Workflow Integration', () => {
 
     expect(serviceContact?.id).toBe(repoContactMatch?.id);
     expect(serviceContact?.primaryEmail).toBe(repoContactMatch?.primaryEmail);
-    expect(serviceContact?.slug).toBe(repoContactMatch?.slug);
 
     // Step 7: Test edge cases - empty string normalization
     const edgeCaseContact = makeOmniClientWithNotes({
@@ -176,16 +174,10 @@ describe('Contacts End-to-End Workflow Integration', () => {
     
     // Verify all contacts were created successfully
     expect(createdContacts).toHaveLength(5);
-    createdContacts.forEach((contact: Contact | null, i: number) => {
       expect(contact).toBeTruthy();
       expect(contact?.displayName).toBe(`Concurrent Contact ${i + 1}`);
-      expect(contact?.slug).toBeTruthy();
     });
 
-    // Verify unique slugs were generated
-    const slugs = createdContacts.map((c: Contact | null) => c?.slug).filter(Boolean);
-    const uniqueSlugs = new Set(slugs);
-    expect(uniqueSlugs.size).toBe(5);
 
     // Verify all contacts can be retrieved
     const listResult = await listContactsService(testUserId, {

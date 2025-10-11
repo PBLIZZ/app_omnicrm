@@ -12,7 +12,6 @@ import {
   Trash2,
   MessageSquare,
   Plus,
-  Mail,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -40,15 +39,14 @@ import { formatDistanceToNow } from "date-fns";
 import { NotesHoverCard } from "./NotesHoverCard";
 import Link from "next/link";
 import { ClientAIInsightsDialog } from "./ClientAIInsightsDialog";
-import { ClientEmailDialog } from "./ClientEmailDialog";
 import { NoteComposerPopover } from "./NoteComposerPopover";
+import { EditClientDialog } from "./EditClientDialog";
 import {
   useAskAIAboutOmniClient,
-  useGenerateOmniClientEmailSuggestion,
   useCreateOmniClientNote,
   useDeleteOmniClient,
 } from "@/hooks/use-omni-clients-bridge";
-import type { ClientWithNotes, ClientAIInsightsResponse, ClientEmailSuggestion } from "./types";
+import type { ClientWithNotes, ClientAIInsightsResponse } from "./types";
 import { toast } from "sonner";
 
 // Helper function to generate initials from display name
@@ -74,15 +72,12 @@ function getInitials(displayName: string): string {
 // AI Action Icons Component
 function ClientAIActions({ client }: { client: ClientWithNotes }): JSX.Element {
   const [aiInsightsOpen, setAiInsightsOpen] = useState(false);
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [addNoteDialogOpen, setAddNoteDialogOpen] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState("");
 
   const [aiInsights, setAiInsights] = useState<ClientAIInsightsResponse | null>(null);
-  const [emailSuggestion, setEmailSuggestion] = useState<ClientEmailSuggestion | null>(null);
 
   const askAIMutation = useAskAIAboutOmniClient();
-  const generateEmailMutation = useGenerateOmniClientEmailSuggestion();
   const createNoteMutation = useCreateOmniClientNote();
 
   const handleAskAI = async (): Promise<void> => {
@@ -93,24 +88,6 @@ function ClientAIActions({ client }: { client: ClientWithNotes }): JSX.Element {
     } catch {
       // Error handled by mutation
       setAiInsightsOpen(false);
-    }
-  };
-
-  const handleSendEmail = async (): Promise<void> => {
-    if (!client.primaryEmail) {
-      toast.error("This client has no email address");
-      return;
-    }
-
-    try {
-      setEmailDialogOpen(true);
-      const suggestion = await generateEmailMutation.mutateAsync({
-        contactId: client.id,
-      });
-      setEmailSuggestion(suggestion);
-    } catch {
-      // Error handled by mutation
-      setEmailDialogOpen(false);
     }
   };
 
@@ -152,25 +129,6 @@ function ClientAIActions({ client }: { client: ClientWithNotes }): JSX.Element {
         </TooltipContent>
       </Tooltip>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 hover:bg-sky-50 hover:text-sky-600 dark:hover:bg-sky-950 dark:hover:text-sky-300"
-            onClick={handleSendEmail}
-            data-testid={`send-email-${client.id}`}
-            disabled={!client.primaryEmail}
-          >
-            <Mail className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-            <span className="sr-only">Send Email</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{client.primaryEmail ? "Send email" : "No email address"}</p>
-        </TooltipContent>
-      </Tooltip>
-
       <NoteComposerPopover clientId={client.id} clientName={client.displayName}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -197,15 +155,6 @@ function ClientAIActions({ client }: { client: ClientWithNotes }): JSX.Element {
         insights={aiInsights}
         isLoading={askAIMutation.isPending}
         clientName={client.displayName}
-      />
-
-      <ClientEmailDialog
-        open={emailDialogOpen}
-        onOpenChange={setEmailDialogOpen}
-        emailSuggestion={emailSuggestion}
-        isLoading={generateEmailMutation.isPending}
-        clientName={client.displayName}
-        clientEmail={client.primaryEmail ?? undefined}
       />
 
       {/* Add Note Dialog */}
@@ -257,7 +206,9 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
     id: "select",
     header: ({ table }) => (
       <Checkbox
-        checked={table.getIsAllPageRowsSelected()}
+        checked={
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all clients"
       />
@@ -266,7 +217,7 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
       <Checkbox
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select client"
+        aria-label={`Select client ${row.original.displayName || "Unknown"}`}
       />
     ),
     enableSorting: false,
@@ -280,13 +231,18 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
       const client = row.original;
       const initials = getInitials(client.displayName);
 
+      // Only try to load avatar image if client has a photo URL
+      const hasPhoto = client.photoUrl && client.photoUrl.trim();
+
       return (
         <Avatar className="size-8" data-testid={`client-avatar-${client.id}`}>
-          <AvatarImage
-            src={`/api/omni-clients/${client.id}/avatar`}
-            alt={`${client.displayName} avatar`}
-          />
-          <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-blue-100 to-purple-100 text-blue-700 dark:from-blue-900 dark:to-purple-900 dark:text-blue-300">
+          {hasPhoto && (
+            <AvatarImage
+              src={`/api/omni-clients/${client.id}/avatar`}
+              alt={`${client.displayName} avatar`}
+            />
+          )}
+          <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-teal-100 to-teal-200 text-teal-700 dark:from-teal-900 dark:to-teal-800 dark:text-teal-300">
             {initials}
           </AvatarFallback>
         </Avatar>
@@ -314,13 +270,42 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
         </Button>
       );
     },
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const client = row.original;
       const name = row.getValue("displayName") as string;
-      const href = client.slug ? `/omni-clients/${client.slug}` : `/omni-clients/${client.id}`;
+
+      const handleContactClick = () => {
+        // Set up navigation context in localStorage for Tinder-style browsing
+        const allRows = table.getFilteredRowModel().rows;
+        const contactIds = allRows.map((r) => r.original.id);
+        const currentIndex = allRows.findIndex((r) => r.original.id === client.id);
+
+        const searchQuery =
+          typeof window !== "undefined" && window.location.search.includes("search=")
+            ? new URLSearchParams(window.location.search).get("search") || undefined
+            : undefined;
+
+        const navigationContext = {
+          currentIndex,
+          totalItems: contactIds.length,
+          contactIds,
+          searchQuery,
+        };
+
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("omniClientsNavigationContext", JSON.stringify(navigationContext));
+          } catch (error) {
+            // Silently handle storage failures (private mode, quota exceeded, etc.)
+            console.warn("Failed to persist navigation context:", error);
+          }
+        }
+      };
+
       return (
         <Link
-          href={href}
+          href={`/omni-clients/details?id=${client.id}`}
+          onClick={handleContactClick}
           className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
         >
           {name ?? "Unknown"}
@@ -588,64 +573,98 @@ export const omniClientsColumns: ColumnDef<ClientWithNotes>[] = [
 
 function ClientActionsCell({ client }: { client: ClientWithNotes }): JSX.Element {
   const deleteClient = useDeleteOmniClient();
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const handleEditClient = (client: ClientWithNotes): void => {
-    toast.info(`Edit client functionality for ${client.displayName ?? "Unknown"} - Coming soon!`);
-    // TODO: Open edit client dialog/form
+  const handleEditClient = (): void => {
+    setEditDialogOpen(true);
   };
 
-  const handleDeleteClient = (client: ClientWithNotes): void => {
-    if (
-      confirm(
-        `Are you sure you want to delete ${client.displayName ?? "Unknown"}? This action cannot be undone.`,
-      )
-    ) {
-      deleteClient.mutate(client.id);
-    }
+  const handleDeleteClient = (): void => {
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteClient = (): void => {
+    deleteClient.mutate(client.id);
+    setDeleteDialogOpen(false);
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0" data-testid={`client-actions-${client.id}`}>
-          <MoreHorizontal className="h-4 w-4" />
-          <span className="sr-only">Open menu</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          data-testid={`edit-client-${client.id}`}
-          onClick={() => handleEditClient(client)}
-        >
-          <Edit className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
-          Edit Client
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          data-testid={`add-note-${client.id}`}
-          onClick={() => {
-            // This should open the add note dialog for this specific client
-            // Since this is outside the ClientAIActions component, we'll need to implement this differently
-            toast.info(
-              `Add note for ${client.displayName ?? "Unknown"} - Use the note icon in the Actions column`,
-            );
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Note
-        </DropdownMenuItem>
-        <DropdownMenuItem data-testid={`view-notes-${client.id}`}>
-          <MessageSquare className="h-4 w-4 mr-2" />
-          View Notes
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          data-testid={`delete-client-${client.id}`}
-          onClick={() => handleDeleteClient(client)}
-        >
-          <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            data-testid={`client-actions-${client.id}`}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Open menu</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            data-testid={`edit-client-${client.id}`}
+            onClick={() => handleEditClient()}
+          >
+            <Edit className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
+            Edit Client
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            data-testid={`add-note-${client.id}`}
+            onClick={() => {
+              // This should open the add note dialog for this specific client
+              // Since this is outside the ClientAIActions component, we'll need to implement this differently
+              toast.info(
+                `Add note for ${client.displayName ?? "Unknown"} - Use the note icon in the Actions column`,
+              );
+            }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Note
+          </DropdownMenuItem>
+          <DropdownMenuItem data-testid={`view-notes-${client.id}`}>
+            <MessageSquare className="h-4 w-4 mr-2" />
+            View Notes
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            data-testid={`delete-client-${client.id}`}
+            onClick={handleDeleteClient}
+          >
+            <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Edit Client Dialog */}
+      <EditClientDialog client={client} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Client</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {client.displayName ?? "Unknown"}? This action cannot
+              be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteClient}
+              disabled={deleteClient.isPending}
+            >
+              {deleteClient.isPending ? "Deleting..." : "Delete Client"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

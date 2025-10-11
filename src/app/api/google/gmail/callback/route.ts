@@ -1,32 +1,26 @@
 /** GET /api/google/gmail/callback — handle Gmail OAuth redirect (auth required). Errors: 400 invalid_state|missing_code_or_state, 401 Unauthorized */
-import { NextRequest, NextResponse } from "next/server";
+import { handleAuthFlow } from "@/lib/api-edge-cases";
+import { GmailOAuthCallbackQuerySchema } from "@/server/db/business-schemas";
 import { getServerUserId } from "@/server/auth/user";
 import { GoogleOAuthService } from "@/server/services/google-oauth.service";
-import { z } from "zod";
 
-const callbackQuerySchema = z.object({
-  code: z.string().optional(),
-  state: z.string().optional(),
-  error: z.string().optional(),
-});
-
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-
-    // Parse query parameters
-    const { searchParams } = new URL(request.url);
-    const queryParams = Object.fromEntries(searchParams.entries());
-    const validatedQuery = callbackQuerySchema.parse(queryParams);
-    const { code, state } = validatedQuery;
+export const GET = handleAuthFlow(GmailOAuthCallbackQuerySchema, async (query, request) => {
+  const userId = await getServerUserId();
+  const { code, state } = query;
 
   if (!code || !state) {
-    return NextResponse.json({ error: "Missing code or state parameter" }, { status: 400 });
+    const errorUrl = new URL("/auth/error", request.url);
+    errorUrl.searchParams.set("error", "missing_code_or_state");
+    return Response.redirect(errorUrl.toString(), 302);
   }
 
-  const cookieValue = request.cookies.get("gmail_auth")?.value ?? "";
+  const cookieHeader = request.headers.get("cookie");
+  const gmailAuthMatch = cookieHeader?.match(/(?:^|;\s*)gmail_auth=([^;]+)/);
+  const cookieValue = gmailAuthMatch?.[1] ?? "";
   if (!cookieValue) {
-    return NextResponse.json({ error: "Invalid state parameter" }, { status: 400 });
+    const errorUrl = new URL("/auth/error", request.url);
+    errorUrl.searchParams.set("error", "invalid_state");
+    return Response.redirect(errorUrl.toString(), 302);
   }
 
   const result = await GoogleOAuthService.handleOAuthCallback(
@@ -37,20 +31,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   );
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    const errorUrl = new URL("/auth/error", request.url);
+    errorUrl.searchParams.set("error", result.error);
+    return Response.redirect(errorUrl.toString(), 302);
   }
 
   // Clear nonce cookie and redirect to sync setup step
-  const response = NextResponse.redirect(new URL(result.redirectUrl, request.url));
+  const response = Response.redirect(new URL(result.redirectUrl, request.url).toString(), 302);
   const cookieConfig = GoogleOAuthService.clearOAuthCookie("gmail");
-  response.cookies.set(cookieConfig.name, "", cookieConfig.options);
+
+  // Add cookie clearing to response headers
+  response.headers.set(
+    "Set-Cookie",
+    `${cookieConfig.name}=; ${Object.entries(cookieConfig.options)
+      .map(([k, v]) => `${k}=${v}`)
+      .join("; ")}`,
+  );
 
   return response;
-  } catch (error) {
-    console.error("GET /api/google/gmail/callback error:", error);
-    return NextResponse.json(
-      { error: "Failed to handle Gmail OAuth callback" },
-      { status: 500 }
-    );
-  }
-}
+});

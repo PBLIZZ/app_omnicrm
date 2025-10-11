@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
+import { handleAuth } from "@/lib/api";
+import { momentumRepository } from "@repo";
+import { TaskSchema } from "@/server/db/business-schemas";
+import { z } from "zod";
 
 /**
  * Task Rejection API Route
@@ -10,60 +11,47 @@ import { MomentumRepository } from "@repo";
  * Rejected tasks can be optionally deleted or kept for AI learning purposes
  */
 
-interface RouteParams {
-  params: {
-    taskId: string;
-  };
-}
+const TaskRejectionInputSchema = z.object({
+  taskId: z.string().uuid(),
+  deleteTask: z.boolean().optional().default(false),
+  reason: z.string().optional(),
+});
 
-/**
- * POST /api/omni-momentum/tasks/[taskId]/reject - Reject an AI-generated task
- */
-export async function POST(request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { taskId } = params;
-    const body: unknown = await request.json();
+const TaskRejectionResponseSchema = z.union([
+  TaskSchema,
+  z.object({
+    success: z.boolean(),
+    deleted: z.boolean(),
+  }),
+]);
 
-    // Type guard for the body structure
-    if (typeof body !== 'object' || body === null) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-    }
-
-    const bodyAsRecord = body as Record<string, unknown>;
-    const deleteTask = typeof bodyAsRecord.deleteTask === 'boolean' ? bodyAsRecord.deleteTask : false;
-    const reason = typeof bodyAsRecord.reason === 'string' ? bodyAsRecord.reason : "";
-
+export const POST = handleAuth(
+  TaskRejectionInputSchema,
+  TaskRejectionResponseSchema,
+  async (data, userId): Promise<z.infer<typeof TaskRejectionResponseSchema>> => {
     // Get the task to ensure it exists and belongs to the user
-    const task = await MomentumRepository.getTask(taskId, userId);
+    const task = await momentumRepository.getTask(data.taskId, userId);
     if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+      throw new Error("Task not found");
     }
 
-    // Note: approvalStatus field might not exist in current schema,
-    // this feature might need implementation. For now, proceed with rejection.
-
-    // Note: createMomentumAction method doesn't exist yet,
-    // this would need to be implemented for full audit trail
-
-    if (deleteTask) {
+    if (data.deleteTask) {
       // Delete the task entirely
-      await MomentumRepository.deleteTask(taskId, userId);
-      return NextResponse.json({ success: true, deleted: true });
+      await momentumRepository.deleteTask(data.taskId, userId);
+      return { success: true, deleted: true };
     } else {
       // Update task to rejected status (keep for AI learning)
-      const updatedTask = await MomentumRepository.updateTask(taskId, userId, {
+      await momentumRepository.updateTask(data.taskId, userId, {
         status: "canceled", // Move to cancelled status
       });
 
+      // Get the updated task to return
+      const updatedTask = await momentumRepository.getTask(data.taskId, userId);
       if (!updatedTask) {
-        return NextResponse.json({ error: "Failed to reject task" }, { status: 500 });
+        throw new Error("Failed to reject task");
       }
 
-      return NextResponse.json(updatedTask);
+      return updatedTask;
     }
-  } catch (error) {
-    console.error("Failed to reject task:", error);
-    return NextResponse.json({ error: "Failed to reject task" }, { status: 500 });
   }
-}
+);

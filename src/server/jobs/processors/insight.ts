@@ -9,10 +9,10 @@ import {
   generateNextSteps,
   generateRiskAssessment,
   generatePersonaInsight,
-  type InsightRequest,
-} from "@/server/ai/llm.service";
-import { NewAiInsight } from "@/server/db/schema";
+} from "@/server/ai/core/llm.service"; // Added /core
+import type { NewAiInsight } from "@/server/db/types";
 import { ensureError } from "@/lib/utils/error-handler";
+import { generateContactInsights } from "@/server/ai/clients/generate-contact-insights";
 
 // Extended insight types from insight-writer
 type InsightKind =
@@ -49,6 +49,40 @@ export interface InsightGenerationTask {
   subjectId: string | null;
   kind: InsightKind;
   context?: Record<string, unknown> | undefined;
+}
+
+// Context types for different insight kinds
+interface SummaryContext {
+  contactId: string;
+  recentInteractions: string[];
+  lastContactDate?: string;
+}
+
+interface NextStepContext {
+  contactId: string;
+  currentStage: string;
+  recentActivities: string[];
+}
+
+interface RiskContext {
+  contactId: string;
+  warningSignals: string[];
+  lastInteractionDate?: string;
+}
+
+interface PersonaContext {
+  contactId: string;
+  demographics: Record<string, unknown>;
+  preferences: string[];
+}
+
+type InsightContext = SummaryContext | NextStepContext | RiskContext | PersonaContext;
+
+interface InsightRequest {
+  subjectType: string;
+  subjectId: string;
+  kind: "summary" | "next_step" | "risk" | "persona";
+  context: InsightContext;
 }
 
 /**
@@ -237,19 +271,27 @@ export class InsightWriter {
       };
 
       let llmResult: unknown;
-      switch (task.kind) {
-        case "summary":
-          llmResult = await generateContactSummary(task.userId, request);
-          break;
-        case "next_step":
-          llmResult = await generateNextSteps(task.userId, request);
-          break;
-        case "risk":
-          llmResult = await generateRiskAssessment(task.userId, request);
-          break;
-        case "persona":
-          llmResult = await generatePersonaInsight(task.userId, request);
-          break;
+      if (task.kind === "summary") {
+        // Validate email before processing
+        const email = request.context.contact.primaryEmail;
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          throw new Error("Invalid or missing email address for contact summary generation");
+        }
+
+        // Use generateContactInsights for contact summaries
+        llmResult = await generateContactInsights(task.userId, email, {});
+      } else {
+        switch (task.kind) {
+          case "next_step":
+            llmResult = await generateNextSteps(task.userId, request);
+            break;
+          case "risk":
+            llmResult = await generateRiskAssessment(task.userId, request);
+            break;
+          case "persona":
+            llmResult = await generatePersonaInsight(task.userId, request);
+            break;
+        }
       }
 
       // Convert LLM result to GeneratedInsight format

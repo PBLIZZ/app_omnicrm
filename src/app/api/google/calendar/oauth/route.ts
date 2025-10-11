@@ -1,20 +1,24 @@
 /** GET /api/google/calendar/oauth — start Calendar OAuth (auth required). Errors: 401 Unauthorized */
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { handleAuthFlow } from "@/lib/api-edge-cases";
 import { GoogleOAuthService } from "@/server/services/google-oauth.service";
+import { z } from "zod";
 
-// GET /api/google/calendar/oauth - specific Calendar full access authorization
-export const GET = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "google_calendar_oauth" },
-})(async ({ userId }) => {
+// Empty query schema for OAuth start (no query parameters expected)
+const QuerySchema = z.object({});
+
+export const GET = handleAuthFlow(QuerySchema, async (query, request) => {
+  // OAuth flows need to extract userId manually since they handle their own auth
+  const { getServerUserId } = await import("@/server/auth/user");
+  const userId = await getServerUserId();
+
   const result = await GoogleOAuthService.startOAuthFlow(userId, "calendar");
 
   if (!result.success) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: result.status }
-    );
+    // For OAuth flows, we still return Response objects, not NextResponse.json
+    return new Response(JSON.stringify({ error: result.error }), {
+      status: result.status,
+      headers: { "content-type": "application/json" }
+    });
   }
 
   return result.response;

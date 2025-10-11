@@ -10,46 +10,18 @@
  * - Parallel processing for high throughput
  * - Automatic normalization job enqueuing
  */
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleAuth } from "@/lib/api";
+import { GmailSyncRequestSchema, GmailSyncResponseSchema } from "@/server/db/business-schemas";
 import { GmailSyncService } from "@/server/services/gmail-sync.service";
-import { z } from "zod";
 
-// Request schema: incremental sync from last successful raw_event by default
-const syncSchema = z.object({
-  incremental: z.boolean().optional().default(true),
-  // Optional overlap to avoid missing messages around boundary
-  overlapHours: z.number().int().min(0).max(72).optional().default(0),
-  // Fallback lookback window when no last sync exists
-  daysBack: z.number().min(1).max(365).optional(),
+export const POST = handleAuth(GmailSyncRequestSchema, GmailSyncResponseSchema, async (data, userId) => {
+  const { incremental, overlapHours, daysBack } = data;
+
+  const result = await GmailSyncService.syncGmail(userId, {
+    incremental,
+    overlapHours,
+    daysBack: daysBack ?? undefined,
+  });
+
+  return result;
 });
-
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-
-    // Validate request body
-    const body: unknown = await request.json();
-    const validatedBody = syncSchema.parse(body);
-    const { incremental, overlapHours, daysBack } = validatedBody;
-
-    const result = await GmailSyncService.syncGmail(userId, {
-      incremental,
-      overlapHours,
-      daysBack: daysBack ?? undefined,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error("POST /api/google/gmail/sync error:", error);
-
-    if (error instanceof Error && error.message === "Gmail not connected") {
-      return NextResponse.json({ error: "Gmail not connected" }, { status: 400 });
-    }
-
-    return NextResponse.json(
-      { error: "Failed to sync Gmail messages" },
-      { status: 500 }
-    );
-  }
-}

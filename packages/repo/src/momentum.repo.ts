@@ -13,28 +13,47 @@ import {
 import type { InboxItem } from "./schema";
 import { eq, desc, and, asc, isNull, inArray } from "drizzle-orm";
 import type {
-  ProjectDTO,
-  CreateProjectDTO,
-  UpdateProjectDTO,
-  TaskDTO,
-  CreateTaskDTO,
-  UpdateTaskDTO,
-  GoalDTO,
-  CreateGoalDTO,
-  UpdateGoalDTO,
-  DailyPulseLogDTO,
-  CreateDailyPulseLogDTO,
-  UpdateDailyPulseLogDTO,
-  ProjectFilters,
-  TaskFilters,
-  GoalFilters,
-} from "@omnicrm/contracts";
-import {
-  ProjectDTOSchema,
-  TaskDTOSchema,
-  GoalDTOSchema,
-  DailyPulseLogDTOSchema,
-} from "@omnicrm/contracts";
+  Project,
+  CreateProject,
+  Task,
+  CreateTask,
+  Goal,
+  CreateGoal,
+  DailyPulseLog,
+  CreateDailyPulseLog
+} from "./schema";
+
+// Local type aliases for repository layer
+type ProjectDTO = Project;
+type CreateProjectDTO = CreateProject;
+type UpdateProjectDTO = Partial<CreateProject>;
+type TaskDTO = Task;
+type CreateTaskDTO = CreateTask;
+type UpdateTaskDTO = Partial<CreateTask>;
+type GoalDTO = Goal;
+type CreateGoalDTO = CreateGoal;
+type UpdateGoalDTO = Partial<CreateGoal>;
+type DailyPulseLogDTO = DailyPulseLog;
+type CreateDailyPulseLogDTO = CreateDailyPulseLog;
+type UpdateDailyPulseLogDTO = Partial<CreateDailyPulseLog>;
+
+interface ProjectFilters {
+  zoneId?: number;
+  status?: string[];
+}
+
+interface TaskFilters {
+  projectId?: string;
+  parentTaskId?: string | null;
+  status?: string[];
+  priority?: string[];
+}
+
+interface GoalFilters {
+  contactId?: string;
+  goalType?: string[];
+  status?: string[];
+}
 
 export class MomentumRepository {
   // ============================================================================
@@ -54,7 +73,7 @@ export class MomentumRepository {
       })
       .returning();
     if (!project) throw new Error("Failed to create project");
-    return ProjectDTOSchema.parse(this.mapProjectToDTO(project));
+    return this.mapProjectToDTO(project);
   }
 
   async getProjects(userId: string, filters: ProjectFilters = {}): Promise<ProjectDTO[]> {
@@ -89,7 +108,7 @@ export class MomentumRepository {
       .select()
       .from(projects)
       .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
-    return project ? ProjectDTOSchema.parse(this.mapProjectToDTO(project)) : null;
+    return project ? this.mapProjectToDTO(project) : null;
   }
 
   async updateProject(
@@ -132,7 +151,7 @@ export class MomentumRepository {
       })
       .returning();
     if (!task) throw new Error("Failed to create task");
-    return TaskDTOSchema.parse(this.mapTaskToDTO(task));
+    return this.mapTaskToDTO(task);
   }
 
   async getTasks(
@@ -178,7 +197,7 @@ export class MomentumRepository {
       .where(and(...whereConditions))
       .orderBy(desc(tasks.updatedAt));
 
-    return tasksData.map(t => TaskDTOSchema.parse(this.mapTaskToDTO(t)));
+    return tasksData.map(t => this.mapTaskToDTO(t));
   }
 
   async getTask(taskId: string, userId: string): Promise<TaskDTO | null> {
@@ -187,7 +206,7 @@ export class MomentumRepository {
       .select()
       .from(tasks)
       .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)));
-    return task ? TaskDTOSchema.parse(this.mapTaskToDTO(task)) : null;
+    return task ? this.mapTaskToDTO(task) : null;
   }
 
   async getTasksWithProject(userId: string, projectId: string): Promise<TaskDTO[]> {
@@ -198,7 +217,7 @@ export class MomentumRepository {
       .where(and(eq(tasks.userId, userId), eq(tasks.projectId, projectId)))
       .orderBy(desc(tasks.updatedAt));
 
-    return tasksData.map(t => TaskDTOSchema.parse(this.mapTaskToDTO(t)));
+    return tasksData.map(t => this.mapTaskToDTO(t));
   }
 
   async getSubtasks(parentTaskId: string, userId: string): Promise<TaskDTO[]> {
@@ -209,7 +228,7 @@ export class MomentumRepository {
       .where(and(eq(tasks.userId, userId), eq(tasks.parentTaskId, parentTaskId)))
       .orderBy(asc(tasks.createdAt));
 
-    return tasksData.map(t => TaskDTOSchema.parse(this.mapTaskToDTO(t)));
+    return tasksData.map(t => this.mapTaskToDTO(t));
   }
 
   async updateTask(
@@ -294,7 +313,7 @@ export class MomentumRepository {
       })
       .returning();
     if (!goal) throw new Error("Failed to create goal");
-    return GoalDTOSchema.parse(this.mapGoalToDTO(goal));
+    return this.mapGoalToDTO(goal);
   }
 
   async getGoals(
@@ -332,7 +351,7 @@ export class MomentumRepository {
       .where(and(...whereConditions))
       .orderBy(desc(goals.updatedAt));
 
-    return goalsData.map(g => GoalDTOSchema.parse(this.mapGoalToDTO(g)));
+    return goalsData.map(g => this.mapGoalToDTO(g));
   }
 
   async getGoal(goalId: string, userId: string): Promise<GoalDTO | null> {
@@ -341,7 +360,7 @@ export class MomentumRepository {
       .select()
       .from(goals)
       .where(and(eq(goals.id, goalId), eq(goals.userId, userId)));
-    return goal ? GoalDTOSchema.parse(this.mapGoalToDTO(goal)) : null;
+    return goal ? this.mapGoalToDTO(goal) : null;
   }
 
   async updateGoal(
@@ -388,7 +407,7 @@ export class MomentumRepository {
       })
       .returning();
     if (!log) throw new Error("Failed to create daily pulse log");
-    return DailyPulseLogDTOSchema.parse(this.mapDailyPulseLogToDTO(log));
+    return this.mapDailyPulseLogToDTO(log);
   }
 
   async getDailyPulseLogs(userId: string, limit = 30): Promise<DailyPulseLogDTO[]> {
@@ -400,7 +419,7 @@ export class MomentumRepository {
       .orderBy(desc(dailyPulseLogs.logDate))
       .limit(limit);
 
-    return logsData.map(l => DailyPulseLogDTOSchema.parse(this.mapDailyPulseLogToDTO(l)));
+    return logsData.map(l => this.mapDailyPulseLogToDTO(l));
   }
 
   async getDailyPulseLog(userId: string, logDate: Date): Promise<DailyPulseLogDTO | null> {
@@ -417,7 +436,7 @@ export class MomentumRepository {
         eq(dailyPulseLogs.userId, userId),
         eq(dailyPulseLogs.logDate, dateString)
       ));
-    return log ? DailyPulseLogDTOSchema.parse(this.mapDailyPulseLogToDTO(log)) : null;
+    return log ? this.mapDailyPulseLogToDTO(log) : null;
   }
 
   async updateDailyPulseLog(

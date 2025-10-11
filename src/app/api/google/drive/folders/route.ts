@@ -5,18 +5,21 @@
  * Currently scaffolded for future implementation - Drive sync is not yet implemented.
  */
 
-import { NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGet } from "@/lib/api";
+import { z } from "zod";
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    // Validate auth but don't use userId since this is scaffolded
-    await getServerUserId();
+const DriveFoldersResponseSchema = z.object({
+  error: z.string(),
+  timestamp: z.string(),
+});
 
+export const GET = handleGet(
+  DriveFoldersResponseSchema,
+  async (): Promise<z.infer<typeof DriveFoldersResponseSchema>> => {
     // SCAFFOLD: Drive integration not yet implemented
-    return NextResponse.json({ error: "Drive integration coming soon" }, { status: 500 });
-  } catch (error) {
-    console.error("GET /api/google/drive/folders error:", error);
-    return NextResponse.json({ error: "Failed to list Drive folders" }, { status: 500 });
+    return {
+      error: "Drive integration coming soon",
+      timestamp: new Date().toISOString(),
+    };
   }
-}
+);

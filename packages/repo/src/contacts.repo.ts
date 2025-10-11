@@ -1,51 +1,71 @@
-import { eq, and, ilike, desc, inArray, sql } from "drizzle-orm";
-import { contacts, notes } from "./schema";
+import { eq, and, ilike, desc, asc, inArray, sql, count } from "drizzle-orm";
+import { contacts, notes, type Contact, type CreateContact, type Note } from "./schema";
 import { getDb } from "./db";
-import type {
-  ContactDTO,
-  CreateContactDTO,
-  UpdateContactDTO,
-  ContactWithNotesDTO,
-} from "@omnicrm/contracts";
-import { ContactDTOSchema, ContactWithNotesDTOSchema } from "@omnicrm/contracts";
+
+export type ContactDTO = Contact;
+export type CreateContactDTO = CreateContact;
+export type UpdateContactDTO = Partial<CreateContact> & { id: string };
+export type ContactWithNotesDTO = Contact & { notes: Note[] };
 
 export class ContactsRepository {
   /**
-   * List contacts for a user with optional search filtering
+   * List contacts for a user with pagination, search, and sorting
    */
-  static async listContacts(userId: string, search?: string): Promise<ContactDTO[]> {
+  static async listContacts(
+    userId: string,
+    params: {
+      search?: string;
+      sort?: "displayName" | "createdAt" | "updatedAt";
+      order?: "asc" | "desc";
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ): Promise<{ items: ContactDTO[]; total: number }> {
     const db = await getDb();
+    const page = params.page ?? 1;
+    const pageSize = params.pageSize ?? 50;
+    const offset = (page - 1) * pageSize;
+    const sortKey = params.sort ?? "updatedAt";
+    const sortDir = params.order === "desc" ? desc : asc;
 
     // Build conditions array
     const conditions = [eq(contacts.userId, userId)];
 
-    if (search) {
-      conditions.push(ilike(contacts.displayName, `%${search}%`));
+    if (params.search) {
+      conditions.push(ilike(contacts.displayName, `%${params.search}%`));
     }
 
+    // Count total using Drizzle's typed count helper
+    const countResult = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(and(...conditions));
+
+    const total = countResult[0]?.count ?? 0;
+
+    // Main query with dynamic sort and limit/offset
+    const sortColumnMap = {
+      displayName: contacts.displayName,
+      createdAt: contacts.createdAt,
+      updatedAt: contacts.updatedAt,
+    } as const;
+
+    const orderByClause = sortDir(sortColumnMap[sortKey] ?? contacts.updatedAt);
+
     const query = db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        slug: contacts.slug,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(...conditions))
-      .orderBy(desc(contacts.updatedAt));
+      .orderBy(orderByClause)
+      .limit(pageSize)
+      .offset(offset);
 
     const rows = await query;
 
-    // Validate and transform DB rows to DTOs
-    return rows.map(row => ContactDTOSchema.parse(row));
+    // Transform DB rows to DTOs
+    const items = rows;
+
+    return { items, total };
   }
 
   /**
@@ -55,20 +75,7 @@ export class ContactsRepository {
     const db = await getDb();
 
     const rows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        slug: contacts.slug,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
       .limit(1);
@@ -77,63 +84,21 @@ export class ContactsRepository {
       return null;
     }
 
-    return ContactDTOSchema.parse(rows[0]);
-  }
-
-  /**
-   * Get a single contact by slug
-   */
-  static async getBySlug(userId: string, slug: string): Promise<ContactDTO | null> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        slug: contacts.slug,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
-      .from(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.slug, slug)))
-      .limit(1);
-
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return ContactDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
    * Get contact with associated notes
    */
-  static async getContactWithNotes(userId: string, contactId: string): Promise<ContactWithNotesDTO | null> {
+  static async getContactWithNotes(
+    userId: string,
+    contactId: string,
+  ): Promise<ContactWithNotesDTO | null> {
     const db = await getDb();
 
     // Get contact
     const contactRows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        slug: contacts.slug,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
       .limit(1);
@@ -144,15 +109,7 @@ export class ContactsRepository {
 
     // Get associated notes
     const noteRows = await db
-      .select({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      })
+      .select()
       .from(notes)
       .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)))
       .orderBy(desc(notes.createdAt));
@@ -162,7 +119,7 @@ export class ContactsRepository {
       notes: noteRows,
     };
 
-    return ContactWithNotesDTOSchema.parse(contactWithNotes);
+    return contactWithNotes;
   }
 
   /**
@@ -177,32 +134,16 @@ export class ContactsRepository {
       displayName: data.displayName,
       primaryEmail: data.primaryEmail ?? null,
       primaryPhone: data.primaryPhone ?? null,
+      photoUrl: data.photoUrl ?? null,
       source: data.source ?? null,
-      stage: data.stage ?? null,
+      lifecycleStage: data.lifecycleStage ?? null,
       tags: data.tags ?? null,
       confidenceScore: data.confidenceScore ?? null,
-      slug: data.slug ?? null,
     };
 
-    const [newContact] = await db
-      .insert(contacts)
-      .values(insertValues)
-      .returning({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        slug: contacts.slug,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      });
+    const [newContact] = await db.insert(contacts).values(insertValues).returning();
 
-    return ContactDTOSchema.parse(newContact);
+    return newContact;
   }
 
   /**
@@ -211,7 +152,7 @@ export class ContactsRepository {
   static async updateContact(
     userId: string,
     contactId: string,
-    data: UpdateContactDTO
+    data: UpdateContactDTO,
   ): Promise<ContactDTO | null> {
     const db = await getDb();
 
@@ -221,37 +162,24 @@ export class ContactsRepository {
       ...(data.displayName !== undefined && { displayName: data.displayName }),
       ...(data.primaryEmail !== undefined && { primaryEmail: data.primaryEmail ?? null }),
       ...(data.primaryPhone !== undefined && { primaryPhone: data.primaryPhone ?? null }),
+      ...(data.photoUrl !== undefined && { photoUrl: data.photoUrl ?? null }),
       ...(data.source !== undefined && { source: data.source ?? null }),
-      ...(data.stage !== undefined && { stage: data.stage ?? null }),
+      ...(data.lifecycleStage !== undefined && { lifecycleStage: data.lifecycleStage ?? null }),
       ...(data.tags !== undefined && { tags: data.tags ?? null }),
       ...(data.confidenceScore !== undefined && { confidenceScore: data.confidenceScore ?? null }),
-      ...(data.slug !== undefined && { slug: data.slug ?? null }),
     };
 
     const [updatedContact] = await db
       .update(contacts)
       .set(updateValues)
       .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
-      .returning({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        slug: contacts.slug,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      });
+      .returning();
 
     if (!updatedContact) {
       return null;
     }
 
-    return ContactDTOSchema.parse(updatedContact);
+    return updatedContact;
   }
 
   /**
@@ -274,20 +202,7 @@ export class ContactsRepository {
     const db = await getDb();
 
     const rows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        slug: contacts.slug,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(eq(contacts.userId, userId), eq(contacts.primaryEmail, email)))
       .limit(1);
@@ -296,7 +211,7 @@ export class ContactsRepository {
       return null;
     }
 
-    return ContactDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -310,24 +225,11 @@ export class ContactsRepository {
     const db = await getDb();
 
     const rows = await db
-      .select({
-        id: contacts.id,
-        userId: contacts.userId,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-        primaryPhone: contacts.primaryPhone,
-        source: contacts.source,
-        stage: contacts.stage,
-        tags: contacts.tags,
-        confidenceScore: contacts.confidenceScore,
-        slug: contacts.slug,
-        createdAt: contacts.createdAt,
-        updatedAt: contacts.updatedAt,
-      })
+      .select()
       .from(contacts)
       .where(and(eq(contacts.userId, userId), inArray(contacts.id, contactIds)));
 
-    return rows.map(row => ContactDTOSchema.parse(row));
+    return rows;
   }
 
   /**
@@ -353,21 +255,28 @@ export class ContactsRepository {
     }
 
     // Delete the contacts
-    await db.delete(contacts).where(and(eq(contacts.userId, userId), inArray(contacts.id, contactIds)));
+    const result = await db
+      .delete(contacts)
+      .where(and(eq(contacts.userId, userId), inArray(contacts.id, contactIds)));
 
-    return n;
+    return result.count || n;
   }
 
   /**
-   * Count contacts for a user
+   * Count contacts for a user with optional search filter
    */
-  static async countContacts(userId: string): Promise<number> {
+  static async countContacts(userId: string, search?: string): Promise<number> {
     const db = await getDb();
+
+    const conditions = [eq(contacts.userId, userId)];
+    if (search) {
+      conditions.push(ilike(contacts.displayName, `%${search}%`));
+    }
 
     const result = await db
       .select({ count: sql<number>`count(*)` })
       .from(contacts)
-      .where(eq(contacts.userId, userId))
+      .where(and(...conditions))
       .limit(1);
 
     return result[0]?.count ?? 0;

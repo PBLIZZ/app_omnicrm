@@ -1,128 +1,82 @@
+import { handleAuth } from "@/lib/api";
+import { OmniClientService } from "@/server/services/omni-client.service";
+import {
+  ContactResponseSchema,
+  UpdateContactBodySchema,
+  DeleteContactResponseSchema
+} from "@/server/db/business-schemas";
 import { z } from "zod";
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { ContactsRepository } from "@repo";
-import type { UpdateContactDTO } from "@contracts/contact";
-import { UpdateOmniClientSchema } from "@/lib/validation/schemas/omniClients";
-import { toOmniClient } from "@/server/adapters/omniClients";
+import { NextRequest } from "next/server";
 
-// --- helpers ---
-const IdParams = z.object({ clientId: z.string().uuid() });
+/**
+ * Individual OmniClient Management API Routes
+ *
+ * Migrated to new auth pattern:
+ * ✅ handleAuth for all operations
+ * ✅ Zod validation and type safety
+ * ✅ Business schema standardization
+ */
 
-function toOptional(v: string | null | undefined): string | undefined {
-  if (typeof v === "string" && v.trim().length === 0) return undefined;
-  return v ?? undefined;
+interface RouteParams {
+  params: {
+    clientId: string;
+  };
 }
 
-// --- GET /api/omni-clients/[clientId] ---
-export async function GET(
-  _: NextRequest,
-  context: { params: { clientId: string } }
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+/**
+ * GET /api/omni-clients/[clientId] - Get client by ID
+ */
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(z.void(), ContactResponseSchema, async (_, userId) => {
+    const omniClient = await OmniClientService.getOmniClient(userId, params.clientId);
 
-    // Validate params
-    const validatedParams = IdParams.parse(context.params);
-
-    const contact = await ContactsRepository.getContactById(userId, validatedParams.clientId);
-
-    if (!contact) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    if (!omniClient) {
+      throw new Error("Client not found");
     }
 
-    return NextResponse.json({ item: toOmniClient(contact) });
-  } catch (error) {
-    console.error("GET /api/omni-clients/[clientId] error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch omni client" },
-      { status: 500 }
-    );
-  }
+    return { item: omniClient };
+  });
+
+  return handler(request);
 }
 
-// --- PATCH /api/omni-clients/[clientId] ---
-export async function PATCH(
-  request: NextRequest,
-  context: { params: { clientId: string } }
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-
-    // Validate params
-    const validatedParams = IdParams.parse(context.params);
-
-    // Validate request body
-    const body: unknown = await request.json();
-    const validatedBody = UpdateOmniClientSchema.parse(body);
-
-    const updates: UpdateContactDTO = {};
-
-    if (validatedBody.displayName !== undefined) updates.displayName = validatedBody.displayName;
-    if (validatedBody.primaryEmail !== undefined)
-      updates.primaryEmail = toOptional(validatedBody.primaryEmail);
-    if (validatedBody.primaryPhone !== undefined)
-      updates.primaryPhone = toOptional(validatedBody.primaryPhone);
-    if (validatedBody.stage !== undefined) {
-      const stageValue = toOptional(validatedBody.stage);
-      if (stageValue !== undefined) {
-        updates.stage = stageValue as "New Client" | "VIP Client" | "Core Client" | "Prospect" | "At Risk Client" | "Lost Client" | "Referring Client";
-      }
-    }
-    if (validatedBody.tags !== undefined) {
-      updates.tags = validatedBody.tags ?? undefined;
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: "No valid updates provided" },
-        { status: 400 }
+/**
+ * PUT /api/omni-clients/[clientId] - Update client
+ */
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(
+    UpdateContactBodySchema,
+    ContactResponseSchema,
+    async (data, userId) => {
+      // Add the clientId to the data for the service call
+      const dataWithId = { ...data, id: params.clientId };
+      const omniClient = await OmniClientService.updateOmniClient(
+        userId,
+        params.clientId,
+        dataWithId,
       );
-    }
 
-    const updatedContact = await ContactsRepository.updateContact(
-      userId,
-      validatedParams.clientId,
-      updates
-    );
+      if (!omniClient) {
+        throw new Error("Client not found");
+      }
 
-    if (!updatedContact) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
-    }
+      return { item: omniClient };
+    },
+  );
 
-    return NextResponse.json({ item: toOmniClient(updatedContact) });
-  } catch (error) {
-    console.error("PATCH /api/omni-clients/[clientId] error:", error);
-    return NextResponse.json(
-      { error: "Failed to update omni client" },
-      { status: 500 }
-    );
-  }
+  return handler(request);
 }
 
-// Optional: keep PUT for backward compatibility, delegate to PATCH
-export const PUT = PATCH;
-
-// --- DELETE /api/omni-clients/[clientId] ---
-export async function DELETE(
-  _: NextRequest,
-  context: { params: { clientId: string } }
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-
-    // Validate params
-    const validatedParams = IdParams.parse(context.params);
-
-    const deleted = await ContactsRepository.deleteContact(userId, validatedParams.clientId);
+/**
+ * DELETE /api/omni-clients/[clientId] - Delete client
+ */
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(z.void(), DeleteContactResponseSchema, async (_, userId) => {
+    const deleted = await OmniClientService.deleteOmniClient(userId, params.clientId);
 
     // idempotent delete - return success even if contact didn't exist
-    return NextResponse.json({ deleted: deleted ? 1 : 0 });
-  } catch (error) {
-    console.error("DELETE /api/omni-clients/[clientId] error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete omni client" },
-      { status: 500 }
-    );
-  }
+    return { deleted: deleted ? 1 : 0 };
+  });
+
+  return handler(request);
 }

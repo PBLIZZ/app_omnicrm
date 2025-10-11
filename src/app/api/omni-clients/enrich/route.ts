@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleStream } from "@/lib/api-edge-cases";
 import { ClientEnrichmentService } from "@/server/services/client-enrichment.service";
+import { z } from "zod";
 
 /**
  * OmniClients AI Enrichment API
@@ -9,18 +9,19 @@ import { ClientEnrichmentService } from "@/server/services/client-enrichment.ser
  * Supports both standard and streaming responses
  */
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const url = new URL(request.url);
-    const isStreaming = url.searchParams.get("stream") === "true";
+const EnrichmentQuerySchema = z.object({
+  stream: z.coerce.boolean().optional().default(false),
+});
 
-    if (isStreaming) {
+export const POST = handleStream(
+  EnrichmentQuerySchema,
+  async (query, userId): Promise<ReadableStream | Response> => {
+    if (query.stream) {
       // Return streaming response for real-time progress
       const encoder = new TextEncoder();
 
       const stream = new ReadableStream({
-        async start(controller) {
+        async start(controller): Promise<void> {
           try {
             for await (const progress of ClientEnrichmentService.enrichAllClientsStreaming(
               userId,
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
       });
 
-      return new NextResponse(stream, {
+      return new Response(stream, {
         headers: {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
@@ -51,10 +52,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     } else {
       // Return standard response for non-streaming
       const result = await ClientEnrichmentService.enrichAllClients(userId);
-      return NextResponse.json(result);
+      return new Response(JSON.stringify(result), {
+        headers: { "Content-Type": "application/json" },
+      });
     }
-  } catch (error) {
-    console.error("POST /api/omni-clients/enrich error:", error);
-    return NextResponse.json({ error: "Failed to enrich omni clients" }, { status: 500 });
   }
-}
+);

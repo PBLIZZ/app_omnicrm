@@ -8,48 +8,22 @@
  * - Data freshness indicators for UI components
  * - Health monitoring and stuck job detection
  */
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleGetWithQueryAuth } from "@/lib/api";
 import { JobStatusService } from "@/server/services/job-status.service";
-import { ComprehensiveJobStatusDTOSchema } from "@omnicrm/contracts";
-import { z } from "zod";
+import { JobStatusQuerySchema, ComprehensiveJobStatusDTOSchema } from "@/server/db/business-schemas";
 
-const jobStatusQuerySchema = z.object({
-  includeHistory: z.coerce.boolean().optional().default(false),
-  includeFreshness: z.coerce.boolean().optional().default(true),
-  batchId: z.string().optional(), // For tracking specific sync session jobs
-});
+export const GET = handleGetWithQueryAuth(JobStatusQuerySchema, ComprehensiveJobStatusDTOSchema, async (query, userId) => {
+  const { includeHistory, includeFreshness, batchId } = query;
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await getServerUserId();
-    const { searchParams } = new URL(request.url);
-
-    const validation = jobStatusQuerySchema.safeParse({
-      includeHistory: searchParams.get('includeHistory'),
-      includeFreshness: searchParams.get('includeFreshness'),
-      batchId: searchParams.get('batchId'),
-    });
-
-    if (!validation.success) {
-      return NextResponse.json({
-        error: "Invalid query parameters",
-        details: validation.error.issues
-      }, { status: 400 });
-    }
-
-    const { includeHistory, includeFreshness, batchId } = validation.data;
     const result = await JobStatusService.getComprehensiveJobStatus(userId, {
       includeHistory,
       includeFreshness,
       ...(batchId !== undefined && { batchId }),
     });
 
-    // Validate response with schema
-    const validatedResult = ComprehensiveJobStatusDTOSchema.parse(result);
-
-    return NextResponse.json(validatedResult);
-  } catch {
+    return result;
+  } catch (error) {
     // Return safe, empty state so UI doesn't break
     const emptyState = {
       queue: {
@@ -86,6 +60,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       timestamp: new Date().toISOString(),
     };
 
-    return NextResponse.json(emptyState, { status: 503 });
+    return emptyState;
   }
-}
+});

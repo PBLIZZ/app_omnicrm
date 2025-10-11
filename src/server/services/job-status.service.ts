@@ -9,7 +9,7 @@ import type {
   DataFreshnessDTO,
   ProcessingHealthDTO,
   JobDTO,
-} from "@omnicrm/contracts";
+} from "@/server/db/business-schemas/business-schema";
 import { logger } from "@/lib/observability";
 
 interface JobStatusOptions {

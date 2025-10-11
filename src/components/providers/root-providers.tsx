@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -24,6 +25,9 @@ export default function RootProviders({ children }: { children: React.ReactNode 
       }),
   );
 
+  const pathname = usePathname();
+  const isOnboardingRoute = pathname?.startsWith("/onboard");
+
   return (
     <ThemeProvider
       attribute="class"
@@ -34,7 +38,7 @@ export default function RootProviders({ children }: { children: React.ReactNode 
     >
       <TooltipProvider>
         <TanStackQueryClientProvider client={queryClient}>
-          <AuthProvider>{children}</AuthProvider>
+          {isOnboardingRoute ? children : <AuthProvider>{children}</AuthProvider>}
         </TanStackQueryClientProvider>
         <Toaster
           position="top-center"

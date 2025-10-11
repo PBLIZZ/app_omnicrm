@@ -14,9 +14,12 @@ export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+const PASSWORD_MIN_LENGTH = 8;
+
 export function validatePassword(password: string): string | null {
   if (!password) return "Password is required";
-  if (password.length < 6) return "Password must be at least 6 characters";
+  if (password.length < PASSWORD_MIN_LENGTH)
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters`;
   return null;
 }
 

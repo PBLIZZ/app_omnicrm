@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
+import { handleGetWithQueryAuth } from "@/lib/api";
+import { momentumService } from "@/server/services/momentum.service";
+import { z } from "zod";
 
 /**
  * Pending Approval Tasks API Route
@@ -11,29 +11,26 @@ import { MomentumRepository } from "@repo";
  * but users must approve them before they become active
  */
 
-/**
- * GET /api/omni-momentum/tasks/pending-approval - Get AI-generated tasks awaiting approval
- */
-export async function GET(_: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+const PendingTasksResponseSchema = z.object({
+  tasks: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string().nullable(),
+      priority: z.enum(["low", "medium", "high", "urgent"]),
+      status: z.string(),
+      createdAt: z.string(),
+      aiGenerated: z.boolean().optional(),
+    }),
+  ),
+  total: z.number(),
+});
 
-    // Get tasks with pending approval status
-    const pendingTasks = await MomentumRepository.getTasks(userId, {
-      // Note: The repository currently doesn't have approval status filtering
-      // This will need to be enhanced once the approval system is implemented
-    });
-
-    // Note: approvalStatus field doesn't exist in current schema
-    // For now, return empty array until the approval system is implemented
-    const filteredTasks: never[] = [];
-
-    return NextResponse.json(filteredTasks);
-  } catch (error) {
-    console.error("Failed to get pending approval tasks:", error);
-    return NextResponse.json(
-      { error: "Failed to retrieve pending approval tasks" },
-      { status: 500 },
-    );
-  }
-}
+export const GET = handleGetWithQueryAuth(
+  z.object({}), // No query parameters needed
+  PendingTasksResponseSchema,
+  async (query, userId): Promise<z.infer<typeof PendingTasksResponseSchema>> => {
+    const pendingTasks = await momentumService.getPendingApprovalTasks(userId);
+    return pendingTasks;
+  },
+);

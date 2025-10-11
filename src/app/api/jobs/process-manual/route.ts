@@ -12,63 +12,31 @@
  * - Safe execution with proper rate limiting
  */
 
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { handleAuth } from "@/lib/api";
 import { JobProcessingService } from "@/server/services/job-processing.service";
-import { z } from "zod";
+import { ProcessManualSchema, JobProcessingResultSchema } from "@/server/db/business-schemas";
 
-const processManualSchema = z.object({
-  // Optional filters for selective processing
-  jobTypes: z.array(z.enum(['normalize', 'embed', 'insight', 'sync_gmail', 'sync_calendar'])).optional(),
-  batchId: z.string().optional(), // Process only jobs from specific batch
-  maxJobs: z.number().int().min(1).max(100).optional().default(25), // Limit for safety
+export const POST = handleAuth(ProcessManualSchema, JobProcessingResultSchema, async (data, userId) => {
+  const { jobTypes, batchId, maxJobs, includeRetrying, skipStuckJobs, realTimeUpdates } = data;
 
-  // Processing options
-  includeRetrying: z.boolean().optional().default(true), // Include jobs in retrying state
-  skipStuckJobs: z.boolean().optional().default(false), // Skip jobs stuck in processing
+  // Helper function to remove undefined values from object
+  const removeUndefined = <T extends Record<string, unknown>>(obj: T): Partial<T> => {
+    return Object.fromEntries(
+      Object.entries(obj).filter(([, value]) => value !== undefined),
+    ) as Partial<T>;
+  };
 
-  // Feedback options
-  realTimeUpdates: z.boolean().optional().default(true), // Enable progress tracking
-});
-
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "manual_job_processing" },
-  validation: { body: processManualSchema },
-})(async ({ userId, validated, requestId }) => {
-  const {
+  // Build options object with all possible keys, then filter out undefined values
+  const options = removeUndefined({
     jobTypes,
     batchId,
     maxJobs,
     includeRetrying,
     skipStuckJobs,
-    realTimeUpdates
-  } = validated.body;
+    realTimeUpdates,
+  }) as Parameters<typeof JobProcessingService.processJobsManually>[1];
 
-  try {
-    // Build options object only with defined values to satisfy exactOptionalPropertyTypes
-    const options: Parameters<typeof JobProcessingService.processJobsManually>[1] = {};
-    if (jobTypes !== undefined) options.jobTypes = jobTypes;
-    if (batchId !== undefined) options.batchId = batchId;
-    if (maxJobs !== undefined) options.maxJobs = maxJobs;
-    if (includeRetrying !== undefined) options.includeRetrying = includeRetrying;
-    if (skipStuckJobs !== undefined) options.skipStuckJobs = skipStuckJobs;
-    if (realTimeUpdates !== undefined) options.realTimeUpdates = realTimeUpdates;
+  const result = await JobProcessingService.processJobsManually(userId, options);
 
-    const result = await JobProcessingService.processJobsManually(userId, options, requestId);
-
-    return NextResponse.json(result);
-  } catch {
-    return NextResponse.json({
-      error: "Failed to start job processing",
-      details: "The job processing system encountered an error. Please try again or contact support if the problem persists.",
-      suggestions: [
-        "Wait a few minutes and try again",
-        "Try processing fewer jobs at once",
-        "Check the job status for stuck jobs",
-        "Contact support if errors persist"
-      ]
-    }, { status: 500 });
-  }
+  return result;
 });
-

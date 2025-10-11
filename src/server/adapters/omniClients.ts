@@ -2,138 +2,213 @@
 // Transforms backend Contact objects to UI-friendly OmniClient objects
 // Keeps backend as "contacts", presents "OmniClients" to the frontend
 
-import type { Contact } from "@/server/db/schema";
-import type { ContactListItem } from "@/server/repositories/omni-clients.repo";
+import type { Contact as DbContact } from "@/server/db/types";
+import type {
+  Contact,
+  ContactWithNotesDTO,
+  CreateContact,
+  UpdateContact,
+} from "@/server/db/business-schemas/business-schema";
+import { isValidSource, isValidStage, normalizeTags } from "@/lib/utils/validation-helpers";
 
-// OmniClient - UI view-model (what the frontend sees)
-export interface OmniClient {
-  id: string;
-  userId: string;
-  displayName: string;
-  primaryEmail: string | null;
-  primaryPhone: string | null;
-  source: string | null;
-  slug: string | null;
-  stage: string | null;
-  tags: unknown; // jsonb - wellness tags array
-  confidenceScore: string | null;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
+function normalizeTagsOrNull(tags: unknown): string[] | null {
+  const normalized = normalizeTags(tags);
+  return normalized && normalized.length > 0 ? normalized : null;
 }
 
-// Extended OmniClient with notes data for table view
-export interface OmniClientWithNotes extends OmniClient {
-  notesCount: number;
-  lastNote: string | null;
-  interactions?: number;
+// Re-export unified types for backward compatibility
+export type OmniClient = Contact;
+export type OmniClientWithNotes = ContactWithNotesDTO;
+export type OmniClientInput = CreateContact;
+export type OmniClientUpdate = UpdateContact;
+
+type ContactWithOptionalNotes<T> = T & {
+  notesCount?: number;
+  lastNote?: string | null;
+  notes?: Array<{
+    id: string;
+    userId: string;
+    contactId: string | null;
+    title: string | null;
+    content: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+};
+
+type ContactInput = ContactWithOptionalNotes<Contact | DbContact>;
+
+function isDatabaseContact(contact: ContactInput): contact is ContactWithOptionalNotes<DbContact> {
+  return "display_name" in contact;
 }
 
-// Input type for creating/updating OmniClients from UI
-export interface OmniClientInput {
-  displayName: string;
-  primaryEmail?: string | null | undefined;
-  primaryPhone?: string | null | undefined;
-  source?: "manual" | "gmail_import" | "upload" | "calendar_import" | undefined;
-  stage?: string | null | undefined;
-  tags?: unknown;
+function ensureValidSource(value: unknown): Contact["source"] {
+  return isValidSource(value) ? value : "manual";
 }
 
-// Type guard for date values
-function ensureDate(value: unknown): Date {
-  if (value instanceof Date) {
-    return value;
-  }
+function ensureValidStage(value: unknown): Contact["lifecycleStage"] {
+  return isValidStage(value) ? value : null;
+}
+
+function coerceDate(value: unknown, fallback: Date): Date {
+  if (value instanceof Date) return value;
   if (typeof value === "string" || typeof value === "number") {
-    const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      return date;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
     }
   }
-  // Fallback to current date if invalid
-  return new Date();
+  return fallback;
 }
 
-// Transform Contact to OmniClient (response transformation)
-export function toOmniClient(contact: Contact): OmniClient {
-  const created = ensureDate(contact.createdAt);
-  const updatedRaw = contact.updatedAt ?? contact.createdAt;
-  const updated = ensureDate(updatedRaw);
+// Helper function to coerce created and updated dates
+function coerceCreatedAndUpdated(contact: ContactInput): { createdAt: Date; updatedAt: Date } {
+  if (isDatabaseContact(contact)) {
+    const createdAt = new Date(contact.created_at);
+    const updatedAt = new Date(contact.updated_at ?? contact.created_at);
+    return { createdAt, updatedAt };
+  }
+
+  const createdAt = coerceDate(contact.createdAt, new Date());
+  const updatedAt = coerceDate(contact.updatedAt ?? contact.createdAt, createdAt);
+  return { createdAt, updatedAt };
+}
+
+// Transform Contact to Contact
+export function toContact(contact: ContactInput): Contact {
+  const { createdAt, updatedAt } = coerceCreatedAndUpdated(contact);
+
+  if (isDatabaseContact(contact)) {
+    return {
+      id: contact.id,
+      userId: contact.user_id,
+      displayName: contact.display_name ?? "",
+      primaryEmail: contact.primary_email,
+      primaryPhone: contact.primary_phone,
+      photoUrl: contact.photo_url,
+      source: ensureValidSource(contact.source),
+      lifecycleStage: ensureValidStage(contact.lifecycle_stage),
+      tags: normalizeTagsOrNull(contact.tags),
+      confidenceScore: contact.confidence_score,
+      createdAt,
+      updatedAt,
+    };
+  }
 
   return {
     id: contact.id,
     userId: contact.userId,
     displayName: contact.displayName ?? "",
-    primaryEmail: contact.primaryEmail,
-    primaryPhone: contact.primaryPhone,
-    source: contact.source,
-    slug: contact.slug,
-    stage: contact.stage,
-    tags: contact.tags,
-    confidenceScore: contact.confidenceScore,
-    createdAt: created.toISOString(),
-    updatedAt: updated.toISOString(),
+    primaryEmail: contact.primaryEmail ?? null,
+    primaryPhone: contact.primaryPhone ?? null,
+    photoUrl: contact.photoUrl ?? null,
+    source: ensureValidSource(contact.source),
+    lifecycleStage: ensureValidStage(contact.lifecycleStage),
+    tags: normalizeTagsOrNull(contact.tags),
+    confidenceScore: contact.confidenceScore ?? null,
+    createdAt,
+    updatedAt,
   };
 }
 
-// Transform ContactListItem (with notes) to OmniClientWithNotes
-export function toOmniClientWithNotes(contact: ContactListItem): OmniClientWithNotes {
-  const created = ensureDate(contact.createdAt);
-  const updatedRaw = contact.updatedAt ?? contact.createdAt;
-  const updated = ensureDate(updatedRaw);
+// Transform Contact with notes data to ContactWithNotesDTO
+export function toContactWithNotesDTO(
+  contact: Contact & {
+    notesCount?: number;
+    lastNote?: string | null;
+    notes?: Array<{
+      id: string;
+      userId: string;
+      contactId: string | null;
+      title: string | null;
+      content: string;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+  },
+): ContactWithNotesDTO {
+  const baseContact = toContact(contact);
+
+  const notes = contact.notes ?? [];
 
   return {
-    id: contact.id,
-    userId: contact.userId,
-    displayName: contact.displayName ?? "",
-    primaryEmail: contact.primaryEmail,
-    primaryPhone: contact.primaryPhone,
-    source: contact.source,
-    slug: contact.slug,
-    stage: contact.stage,
-    tags: contact.tags,
-    confidenceScore: contact.confidenceScore,
-    createdAt: created.toISOString(),
-    updatedAt: updated.toISOString(),
-    notesCount: contact.notesCount ?? 0,
-    lastNote: contact.lastNote ?? null,
-    interactions: 0, // TODO: Add interactions count to ContactListItem if needed
+    ...baseContact,
+    notes: notes.map((note) => ({
+      id: note.id,
+      userId: note.userId,
+      contactId: note.contactId,
+      title: note.title,
+      content: note.content,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt,
+    })),
   };
 }
 
-// Transform OmniClient input to Contact creation input (request transformation)
-export function fromOmniClientInput(input: OmniClientInput): {
+// Transform CreateContact to database Contact input (matches service interface)
+export function fromCreateContact(input: CreateContact): {
   displayName: string;
-  primaryEmail: string | null;
-  primaryPhone: string | null;
-  source: "manual" | "gmail_import" | "upload" | "calendar_import";
+  primaryEmail?: string | null;
+  primaryPhone?: string | null;
+  source: "manual" | "gmail_import" | "upload" | "calendar_import" | "onboarding_form";
+  lifecycleStage?:
+    | "Prospect"
+    | "New Client"
+    | "Core Client"
+    | "Referring Client"
+    | "VIP Client"
+    | "Lost Client"
+    | "At Risk Client"
+    | null;
+  tags?: string[] | null;
+  confidenceScore?: string | null;
 } {
   return {
     displayName: input.displayName,
     primaryEmail: input.primaryEmail ?? null,
     primaryPhone: input.primaryPhone ?? null,
-    source: input.source ?? "manual", // Default to manual if not specified
+    source: input.source ?? "manual",
+    lifecycleStage: input.lifecycleStage ?? null,
+    tags: normalizeTagsOrNull(input.tags),
+    confidenceScore: input.confidenceScore ?? null,
   };
 }
 
 // Transform arrays of contacts
-export function toOmniClients(contacts: Contact[]): OmniClient[] {
-  return contacts.map(toOmniClient);
+export function toContacts(contacts: Contact[]): Contact[] {
+  return contacts.map(toContact);
 }
 
-export function toOmniClientsWithNotes(contacts: ContactListItem[]): OmniClientWithNotes[] {
-  return contacts.map(toOmniClientWithNotes);
+export function toContactWithNotesDTOs<
+  T extends Contact & {
+    notes?: Array<{
+      id: string;
+      userId: string;
+      contactId: string | null;
+      title: string | null;
+      content: string;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+  },
+>(contacts: T[]): ContactWithNotesDTO[] {
+  return contacts.map(toContactWithNotesDTO);
 }
 
-// Note: Adapter types are the source of truth for the interface types
-// Zod types in schemas have DTO suffix to avoid confusion
+// Backward compatibility aliases
+export const toOmniClient = toContact;
+export const toOmniClientWithNotes = toContactWithNotesDTO;
+export const toOmniClients = toContacts;
+export const toOmniClientsWithNotes = toContactWithNotesDTOs;
+export const fromOmniClientInput = fromCreateContact;
 
-// Response envelope types for consistent API responses (kept for backward compatibility)
+// Response envelope types (deprecated - use unified types)
 export interface OmniClientsListResponse {
-  items: OmniClientWithNotes[];
+  items: ContactWithNotesDTO[];
   total: number;
   nextCursor?: string | null;
 }
 
 export interface OmniClientResponse {
-  item: OmniClient;
+  item: Contact;
 }

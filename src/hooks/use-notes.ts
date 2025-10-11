@@ -16,7 +16,7 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Retry other errors up to 2 times
   return retryCount < 2;
 };
-import type { Note } from "@/server/db/schema";
+import type { Note } from "@/server/db/types";
 
 interface UseNotesOptions {
   contactId: string;

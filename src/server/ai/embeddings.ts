@@ -5,11 +5,12 @@
  * This module serves as a bridge to the LLM service for embedding generation.
  */
 
-import { generateEmbedding as generateEmbeddingFromLLM } from "@/server/ai/llm.service";
 import { getDb } from "@/server/db/client";
 import { embeddings } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
-import crypto from "crypto";
+import { createHash } from "crypto";
+import { getOpenAIClient, isOpenAIConfigured } from "@/server/ai/providers/openai";
+import { parseEnvBool } from "@/lib/utils/env-helpers";
 
 /**
  * Generate embedding for text content
@@ -19,10 +20,47 @@ import crypto from "crypto";
  * @returns Promise containing the embedding vector
  */
 export async function generateEmbedding(text: string, userId?: string): Promise<number[]> {
-  // For backward compatibility, use a default user ID if not provided
-  const effectiveUserId = userId || "system";
+  // Check if we should use mock mode
+  if (parseEnvBool(process.env["EMBEDDINGS_MOCK"])) {
+    console.warn("Using mock embeddings - not suitable for production");
+    return generateEmbeddingFromLLM(userId || "mock", text);
+  }
 
-  return generateEmbeddingFromLLM(effectiveUserId, text);
+  // Use real OpenAI embeddings
+  if (!isOpenAIConfigured()) {
+    throw new Error(
+      "OpenAI API key not configured. Set OPENAI_API_KEY environment variable or use EMBEDDINGS_MOCK=true for development",
+    );
+  }
+
+  try {
+    const client = getOpenAIClient();
+    const response = await client.embeddings.create({
+      model: "text-embedding-3-small", // Using the latest small model for cost efficiency
+      input: text,
+    });
+
+    // Validate response structure and fail loudly if missing
+    if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+      throw new Error(
+        `Invalid embedding response: missing or empty data array. Model: text-embedding-3-small`,
+      );
+    }
+
+    const embedding = response.data[0]?.embedding;
+    if (!embedding || !Array.isArray(embedding)) {
+      throw new Error(
+        `Invalid embedding response: missing or invalid embedding vector. Data: ${JSON.stringify(response.data[0])}`,
+      );
+    }
+
+    return embedding;
+  } catch (error) {
+    console.error("Failed to generate embedding:", error);
+    throw new Error(
+      `Failed to generate embedding: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
 }
 
 /**
@@ -30,10 +68,10 @@ export async function generateEmbedding(text: string, userId?: string): Promise<
  */
 export async function generateEmbeddingWithHash(
   text: string,
-  userId: string
+  userId: string,
 ): Promise<{ embedding: number[]; contentHash: string }> {
-  const contentHash = crypto.createHash("sha256").update(text).digest("hex");
-  const embedding = await generateEmbeddingFromLLM(userId, text);
+  const contentHash = createHash("sha256").update(text).digest("hex");
+  const embedding = await generateEmbedding(text, userId);
 
   return { embedding, contentHash };
 }
@@ -46,7 +84,7 @@ export async function storeEmbedding(
   ownerType: string,
   ownerId: string,
   text: string,
-  chunkIndex: number = 0
+  chunkIndex: number = 0,
 ): Promise<string> {
   const db = await getDb();
   const { embedding, contentHash } = await generateEmbeddingWithHash(text, userId);
@@ -62,8 +100,8 @@ export async function storeEmbedding(
       chunkIndex,
       meta: {
         textLength: text.length,
-        generatedAt: new Date().toISOString()
-      }
+        generatedAt: new Date().toISOString(),
+      },
     })
     .returning({ id: embeddings.id });
 
@@ -79,17 +117,14 @@ export async function storeEmbedding(
  */
 export async function getEmbeddingByHash(
   userId: string,
-  contentHash: string
+  contentHash: string,
 ): Promise<number[] | null> {
   const db = await getDb();
 
   const result = await db
     .select({ embedding: embeddings.embedding })
     .from(embeddings)
-    .where(and(
-      eq(embeddings.userId, userId),
-      eq(embeddings.contentHash, contentHash)
-    ))
+    .where(and(eq(embeddings.userId, userId), eq(embeddings.contentHash, contentHash)))
     .limit(1);
 
   return result[0]?.embedding || null;
@@ -98,11 +133,8 @@ export async function getEmbeddingByHash(
 /**
  * Generate embedding with caching
  */
-export async function generateEmbeddingCached(
-  text: string,
-  userId: string
-): Promise<number[]> {
-  const contentHash = crypto.createHash("sha256").update(text).digest("hex");
+export async function generateEmbeddingCached(text: string, userId: string): Promise<number[]> {
+  const contentHash = createHash("sha256").update(text).digest("hex");
 
   // Check for existing embedding
   const existingEmbedding = await getEmbeddingByHash(userId, contentHash);
@@ -111,20 +143,17 @@ export async function generateEmbeddingCached(
   }
 
   // Generate new embedding
-  return generateEmbeddingFromLLM(userId, text);
+  return generateEmbedding(text, userId);
 }
 
 /**
  * Generate embeddings for multiple text chunks
  */
-export async function generateBulkEmbeddings(
-  texts: string[],
-  userId: string
-): Promise<number[][]> {
+export async function generateBulkEmbeddings(texts: string[], userId: string): Promise<number[][]> {
   const embeddings: number[][] = [];
 
   for (const text of texts) {
-    const embedding = await generateEmbeddingFromLLM(userId, text);
+    const embedding = await generateEmbedding(text, userId);
     embeddings.push(embedding);
   }
 
@@ -164,7 +193,7 @@ export async function findSimilarEmbeddings(
   userId: string,
   ownerType?: string,
   limit: number = 10,
-  threshold: number = 0.7
+  threshold: number = 0.7,
 ): Promise<Array<{ id: string; ownerId: string; similarity: number }>> {
   const db = await getDb();
 
@@ -178,26 +207,44 @@ export async function findSimilarEmbeddings(
     .select({
       id: embeddings.id,
       ownerId: embeddings.ownerId,
-      embedding: embeddings.embedding
+      embedding: embeddings.embedding,
     })
     .from(embeddings)
     .where(and(...conditions));
 
   // Calculate similarities
   const similarities = results
-    .map(result => {
+    .map((result) => {
       if (!result.embedding) return null;
 
       const similarity = cosineSimilarity(targetEmbedding, result.embedding);
       return {
         id: result.id,
         ownerId: result.ownerId,
-        similarity
+        similarity,
       };
     })
-    .filter((item): item is NonNullable<typeof item> => item !== null && item.similarity >= threshold)
+    .filter(
+      (item): item is NonNullable<typeof item> => item !== null && item.similarity >= threshold,
+    )
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, limit);
 
   return similarities;
+}
+
+export async function generateEmbeddingFromLLM(userId: string, text: string): Promise<number[]> {
+  // Mock implementation for development/testing when EMBEDDINGS_MOCK=true
+  console.warn(`Generating mock embedding for userId: ${userId}, text length: ${text.length}`);
+
+  // Generate deterministic mock embeddings based on text content for consistency
+  const hash = createHash("sha256").update(text).digest("hex");
+  const seed = parseInt(hash.substring(0, 8), 16);
+
+  // Use seeded random for consistent mock embeddings in [-1, 1] range
+  const mockEmbedding = Array.from({ length: 1536 }, (_, i) => {
+    return Math.sin(seed + i);
+  });
+
+  return mockEmbedding;
 }

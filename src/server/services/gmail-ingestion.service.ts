@@ -1,7 +1,10 @@
 import { gmail_v1 } from "googleapis";
 import { getGoogleClients } from "@/server/google/client";
 import { RawEventsRepository } from "@repo";
-import type { GmailIngestionResultDTO, CreateRawEventDTO } from "@omnicrm/contracts";
+import type {
+  GmailIngestionResultDTO,
+  CreateRawEventDTO,
+} from "@/server/db/business-schemas/business-schema";
 import { logger } from "@/lib/observability";
 
 interface GmailMessage {
@@ -115,7 +118,7 @@ export class GmailIngestionService {
   private static async ingestSingleMessage(
     userId: string,
     gmail: gmail_v1.Gmail,
-    messageId: string
+    messageId: string,
   ): Promise<MessageIngestionResult> {
     try {
       // Get full message
@@ -170,7 +173,7 @@ export class GmailIngestionService {
       maxResults?: number;
       query?: string;
       batchId?: string;
-    } = {}
+    } = {},
   ): Promise<GmailIngestionResultDTO> {
     const { maxResults = 100, query, batchId } = options;
 
@@ -180,7 +183,7 @@ export class GmailIngestionService {
         userId: userId.slice(0, 8) + "...",
         maxResults,
         query,
-        batchId
+        batchId,
       },
     });
 
@@ -222,7 +225,7 @@ export class GmailIngestionService {
           const existingEvent = await RawEventsRepository.findRawEventBySourceId(
             userId,
             "gmail",
-            msg.id ?? messageId
+            msg.id ?? messageId,
           );
 
           if (existingEvent) {
@@ -254,7 +257,7 @@ export class GmailIngestionService {
 
       // Bulk insert raw events
       if (rawEvents.length > 0) {
-        const eventsWithUserId = rawEvents.map(event => ({ ...event, userId }));
+        const eventsWithUserId = rawEvents.map((event) => ({ ...event, userId }));
         await RawEventsRepository.createBulkRawEvents(eventsWithUserId);
       }
 
@@ -295,32 +298,34 @@ export class GmailIngestionService {
   /**
    * Get ingestion statistics for a user
    */
-  static async getIngestionStats(userId: string, provider: string = "gmail"): Promise<{
+  static async getIngestionStats(
+    userId: string,
+    provider: string = "gmail",
+  ): Promise<{
     totalEvents: number;
     recentEvents: number;
     lastIngestionAt: Date | null;
   }> {
     const totalEvents = await RawEventsRepository.countRawEvents(userId, {
-      provider: [provider]
+      provider: [provider],
     });
 
     // Count events from last 24 hours
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recentEvents = await RawEventsRepository.countRawEvents(userId, {
       provider: [provider],
-      occurredAfter: yesterday
+      occurredAfter: yesterday,
     });
 
     // Get most recent event to determine last ingestion
     const recentEventsList = await RawEventsRepository.listRawEvents(
       userId,
       { provider: [provider] },
-      1
+      1,
     );
 
-    const lastIngestionAt = recentEventsList.length > 0
-      ? recentEventsList[0]?.createdAt ?? null
-      : null;
+    const lastIngestionAt =
+      recentEventsList.length > 0 ? (recentEventsList[0]?.createdAt ?? null) : null;
 
     return {
       totalEvents,

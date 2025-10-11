@@ -10,7 +10,8 @@
  */
 
 import { getDb } from "@/server/db/client";
-import { userIntegrations, jobs, userSyncPrefs, type UserIntegration } from "@/server/db/schema";
+import { userIntegrations, jobs, userSyncPrefs } from "@/server/db/schema";
+import type { UserIntegration } from "@/server/db/types";
 import { desc, eq, and, sql, inArray } from "drizzle-orm";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 import { GoogleCalendarService } from "@/server/services/google-calendar.service";
@@ -390,6 +391,30 @@ export class GoogleIntegrationService {
       ...prefs,
       initialSyncDate: prefs.initialSyncDate?.toISOString() ?? null,
     } as GoogleSyncPreferences;
+  }
+
+  /**
+   * Build a clean update object without undefined values for database operations
+   */
+  static buildCleanUpdateObject(data: GoogleSyncPreferencesUpdate): GoogleSyncPreferencesUpdate {
+    const updateData: GoogleSyncPreferencesUpdate = {};
+
+    if (data.gmailQuery !== undefined) updateData.gmailQuery = data.gmailQuery;
+    if (data.gmailLabelIncludes !== undefined) updateData.gmailLabelIncludes = data.gmailLabelIncludes;
+    if (data.gmailLabelExcludes !== undefined) updateData.gmailLabelExcludes = data.gmailLabelExcludes;
+    if (data.gmailTimeRangeDays !== undefined) updateData.gmailTimeRangeDays = data.gmailTimeRangeDays;
+    if (data.calendarIncludeOrganizerSelf !== undefined) updateData.calendarIncludeOrganizerSelf = data.calendarIncludeOrganizerSelf;
+    if (data.calendarIncludePrivate !== undefined) updateData.calendarIncludePrivate = data.calendarIncludePrivate;
+    if (data.calendarTimeWindowDays !== undefined) updateData.calendarTimeWindowDays = data.calendarTimeWindowDays;
+    if (data.calendarIds !== undefined) updateData.calendarIds = data.calendarIds;
+    if (data.calendarFutureDays !== undefined) updateData.calendarFutureDays = data.calendarFutureDays;
+    if (data.driveIngestionMode !== undefined) updateData.driveIngestionMode = data.driveIngestionMode;
+    if (data.driveFolderIds !== undefined) updateData.driveFolderIds = data.driveFolderIds;
+    if (data.driveMaxSizeMB !== undefined) updateData.driveMaxSizeMB = data.driveMaxSizeMB;
+    if (data.initialSyncCompleted !== undefined) updateData.initialSyncCompleted = data.initialSyncCompleted;
+    if (data.initialSyncDate !== undefined) updateData.initialSyncDate = data.initialSyncDate;
+
+    return updateData;
   }
 
   /**

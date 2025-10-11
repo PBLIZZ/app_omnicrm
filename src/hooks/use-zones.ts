@@ -8,26 +8,29 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   if (error instanceof Error && error.message.includes("403")) return false;
 
   // Retry network errors up to 3 times
-  if (error instanceof Error && (error.message.includes("fetch") || error.message.includes("network"))) {
+  if (
+    error instanceof Error &&
+    (error.message.includes("fetch") || error.message.includes("network"))
+  ) {
     return retryCount < 3;
   }
 
   // Retry other errors up to 2 times
   return retryCount < 2;
 };
-import type { ZoneDTO, ZoneWithStatsDTO } from "@omnicrm/contracts";
+import type { Zone, ZoneWithStats } from "@/server/db/business-schemas";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface ZonesApiResponse {
-  items: ZoneDTO[];
+  items: Zone[];
   total: number;
 }
 
 interface ZonesWithStatsApiResponse {
-  items: ZoneWithStatsDTO[];
+  items: ZoneWithStats[];
   total: number;
 }
 
@@ -37,10 +40,10 @@ interface UseZonesOptions {
 }
 
 interface UseZonesReturn {
-  zones: ZoneDTO[] | ZoneWithStatsDTO[];
+  zones: Zone[] | ZoneWithStats[];
   isLoading: boolean;
   error: unknown;
-  refetch: () => Promise<{ data: (ZoneDTO[] | ZoneWithStatsDTO[]) | undefined; error: unknown }>;
+  refetch: () => Promise<{ data: (Zone[] | ZoneWithStats[]) | undefined; error: unknown }>;
 }
 
 // ============================================================================
@@ -74,7 +77,7 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
   // Fetch zones
   const zonesQuery = useQuery({
     queryKey: queryKeys.zones.list(withStats),
-    queryFn: async (): Promise<ZoneDTO[] | ZoneWithStatsDTO[]> => {
+    queryFn: async (): Promise<Zone[] | ZoneWithStats[]> => {
       if (withStats) {
         const data = await apiClient.get<ZonesWithStatsApiResponse>(apiUrl);
         return data.items ?? [];
@@ -184,7 +187,7 @@ export function isValidWellnessZone(zoneName: string): boolean {
 /**
  * Get zone color by name (with fallback)
  */
-export function getZoneColor(zones: ZoneDTO[], zoneName: string): string {
+export function getZoneColor(zones: Zone[], zoneName: string): string {
   const zone = zones.find((z) => z.name === zoneName);
   return zone?.color ?? "#6366f1"; // Default indigo color
 }
@@ -192,7 +195,7 @@ export function getZoneColor(zones: ZoneDTO[], zoneName: string): string {
 /**
  * Get zone icon by name (with fallback)
  */
-export function getZoneIcon(zones: ZoneDTO[], zoneName: string): string {
+export function getZoneIcon(zones: Zone[], zoneName: string): string {
   const zone = zones.find((z) => z.name === zoneName);
   return zone?.iconName ?? "circle"; // Default circle icon
 }

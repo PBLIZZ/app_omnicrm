@@ -1,60 +1,99 @@
 /** DELETE /api/user/delete — Permanent account deletion for GDPR compliance (auth required). */
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
+import { handleAuth } from "@/lib/api";
+import {
+  UserDeletionRequestSchema,
+  UserDeletionResponseSchema,
+} from "@/server/db/business-schemas";
 import { UserDeletionService } from "@/server/services/user-deletion.service";
-import { z } from "zod";
 
-const deletionSchema = z.object({
-  confirmation: z.literal("DELETE MY DATA"),
-  acknowledgeIrreversible: z.literal(true),
-});
+// Custom handler that passes request to access IP headers
+function handleAuthWithRequest<TIn, TOut>(
+  input: import("zod").ZodType<TIn>,
+  output: import("zod").ZodType<TOut>,
+  fn: (parsed: TIn, userId: string, request: Request) => Promise<TOut>,
+) {
+  return async (req: Request) => {
+    try {
+      const { getServerUserId } = await import("@/server/auth/user");
+      const userId = await getServerUserId();
 
-export async function DELETE(request: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const body: unknown = await request.json();
+      let body = {};
+      const contentType = req.headers.get("content-type");
+      const contentLength = req.headers.get("content-length");
 
-    // Validate request body
-    const validatedBody = deletionSchema.parse(body);
-    const { confirmation, acknowledgeIrreversible } = validatedBody;
+      if (
+        contentType?.includes("application/json") &&
+        contentLength &&
+        parseInt(contentLength) > 0
+      ) {
+        body = await req.json();
+      }
+
+      const parsed = input.parse(body);
+      const result = await fn(parsed, userId, req);
+      const validated = output.parse(result);
+
+      return new Response(JSON.stringify(validated), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      });
+    } catch (error) {
+      if (error instanceof import("zod").ZodError) {
+        return new Response(
+          JSON.stringify({
+            error: "Validation failed",
+            details: error.issues,
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: 400,
+          },
+        );
+      }
+
+      if (error instanceof Error && "status" in error && error.status === 401) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          headers: { "content-type": "application/json" },
+          status: 401,
+        });
+      }
+
+      throw error;
+    }
+  };
+}
+
+export const DELETE = handleAuthWithRequest(
+  UserDeletionRequestSchema,
+  UserDeletionResponseSchema,
+  async (data, userId, request) => {
+    const { confirmation, acknowledgeIrreversible } = data;
+
+    // Extract IP address
+    const ipAddress =
+      request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
 
     // Validate deletion request
     const validation = UserDeletionService.validateDeletionRequest({
       confirmation,
       acknowledgeIrreversible,
-      ipAddress: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown",
+      ipAddress,
     });
 
     if (!validation.valid) {
-      return NextResponse.json(
-        { error: "Invalid deletion request", details: validation.errors },
-        { status: 400 }
-      );
+      const error = new Error("Invalid deletion request");
+      (error as any).status = 400;
+      (error as any).details = validation.errors;
+      throw error;
     }
 
     // Execute deletion
     const result = await UserDeletionService.deleteUserData(userId, {
       confirmation,
       acknowledgeIrreversible,
-      ipAddress: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown",
+      ipAddress,
     });
 
-    return NextResponse.json(result);
-  } catch (error: unknown) {
-    console.error("Account deletion failed:", error);
-
-    // Handle validation errors
-    if (error instanceof Error && error.name === "ZodError") {
-      return NextResponse.json(
-        { error: "Invalid deletion request", details: error.message },
-        { status: 400 }
-      );
-    }
-
-    // SECURITY: Don't expose internal error details for account deletion failures
-    return NextResponse.json(
-      { error: "Account deletion failed due to internal error" },
-      { status: 500 }
-    );
+    return result;
   }
-}
+);

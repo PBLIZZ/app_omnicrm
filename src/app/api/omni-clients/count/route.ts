@@ -1,25 +1,25 @@
-import { NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { listContactsService } from "@/server/services/contacts.service";
+import { handleGetWithQueryAuth } from "@/lib/api";
+import { GetOmniClientsQuerySchema, ContactCountResponseSchema } from "@/server/db/business-schemas";
+import { ContactsRepository } from "@repo";
 
 /**
- * OmniClients Count API - Get total count only
+ * OmniClients Count API
+ *
+ * GET: Get total count of clients with optional filtering
+ * Uses existing contacts table with UI terminology transformation
+ *
+ * Migrated to new auth pattern:
+ * ✅ handleGetWithQueryAuth for GET
+ * ✅ Zod validation and type safety
  */
-export async function GET(): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
 
-    // Use minimal query to get just the count
-    const { total } = await listContactsService(userId, {
-      page: 1,
-      pageSize: 1, // Minimum items needed
-      sort: "displayName",
-      order: "asc",
-    });
+export const GET = handleGetWithQueryAuth(
+  GetOmniClientsQuerySchema,
+  ContactCountResponseSchema,
+  async (query, userId) => {
+    // Get count using repository
+    const total = await ContactsRepository.countContacts(userId, query.search);
 
-    return NextResponse.json({ count: total });
-  } catch (error) {
-    console.error("Failed to fetch omni clients count:", error);
-    return NextResponse.json({ error: "Failed to fetch omni clients count" }, { status: 500 });
-  }
-}
+    return { count: total };
+  },
+);

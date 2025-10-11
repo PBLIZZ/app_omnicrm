@@ -9,7 +9,10 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   if (error instanceof Error && error.message.includes("403")) return false;
 
   // Retry network errors up to 3 times
-  if (error instanceof Error && (error.message.includes("fetch") || error.message.includes("network"))) {
+  if (
+    error instanceof Error &&
+    (error.message.includes("fetch") || error.message.includes("network"))
+  ) {
     return retryCount < 3;
   }
 
@@ -17,15 +20,15 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   return retryCount < 2;
 };
 import type {
-  InboxItemDTO,
-  CreateInboxItemDTO,
-  UpdateInboxItemDTO,
+  InboxItem,
+  CreateInboxItem,
+  UpdateInboxItem,
   InboxProcessingResultDTO,
   ProcessInboxItemDTO,
   BulkProcessInboxDTO,
   VoiceInboxCaptureDTO,
   InboxFilters,
-} from "@omnicrm/contracts";
+} from "@/server/db/business-schemas";
 
 // ============================================================================
 // TYPES
@@ -44,7 +47,7 @@ interface InboxStats {
 }
 
 interface InboxApiResponse {
-  items: InboxItemDTO[];
+  items: InboxItem[];
   total: number;
 }
 
@@ -58,25 +61,25 @@ interface InboxProcessingResponse {
 
 interface BulkProcessResponse {
   result: {
-    processed: InboxItemDTO[];
+    processed: InboxItem[];
     results?: InboxProcessingResultDTO[];
   };
 }
 
 interface UseInboxReturn {
   // Query data
-  items: InboxItemDTO[];
+  items: InboxItem[];
   stats: InboxStats | undefined;
   isLoading: boolean;
   isLoadingStats: boolean;
   error: unknown;
 
   // Actions
-  quickCapture: (data: CreateInboxItemDTO) => void;
+  quickCapture: (data: CreateInboxItem) => void;
   voiceCapture: (data: VoiceInboxCaptureDTO) => void;
   processItem: (data: ProcessInboxItemDTO) => Promise<InboxProcessingResultDTO>;
   bulkProcess: (data: BulkProcessInboxDTO) => Promise<BulkProcessResponse["result"]>;
-  updateItem: (itemId: string, data: UpdateInboxItemDTO) => void;
+  updateItem: (itemId: string, data: UpdateInboxItem) => void;
   markAsProcessed: (itemId: string, createdTaskId?: string) => void;
   deleteItem: (itemId: string) => void;
 
@@ -88,7 +91,7 @@ interface UseInboxReturn {
   isDeleting: boolean;
 
   // Utilities
-  refetch: () => Promise<{ data: InboxItemDTO[] | undefined; error: unknown }>;
+  refetch: () => Promise<{ data: InboxItem[] | undefined; error: unknown }>;
   refetchStats: () => Promise<{ data: InboxStats | undefined; error: unknown }>;
 }
 
@@ -129,7 +132,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Fetch inbox items
   const inboxQuery = useQuery({
     queryKey: queryKeys.inbox.list(filters),
-    queryFn: async (): Promise<InboxItemDTO[]> => {
+    queryFn: async (): Promise<InboxItem[]> => {
       const data = await apiClient.get<InboxApiResponse>(apiUrl);
       return data.items ?? [];
     },
@@ -154,8 +157,8 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
 
   // Quick capture
   const quickCaptureMutation = useMutation({
-    mutationFn: async (data: CreateInboxItemDTO): Promise<InboxItemDTO> => {
-      const result = await apiClient.post<{ item: InboxItemDTO }>("/api/inbox", {
+    mutationFn: async (data: CreateInboxItem): Promise<InboxItem> => {
+      const result = await apiClient.post<{ item: InboxItem }>("/api/inbox", {
         type: "quick_capture",
         data,
       });
@@ -167,11 +170,11 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       await queryClient.cancelQueries({ queryKey: queryKeys.inbox.stats() });
 
       // Snapshot previous values
-      const previousItems = queryClient.getQueryData<InboxItemDTO[]>(queryKeys.inbox.list(filters));
+      const previousItems = queryClient.getQueryData<InboxItem[]>(queryKeys.inbox.list(filters));
       const previousStats = queryClient.getQueryData<InboxStats>(queryKeys.inbox.stats());
 
       // Optimistically update items
-      const tempItem: InboxItemDTO = {
+      const tempItem: InboxItem = {
         id: `temp-${Date.now()}`,
         userId: "",
         rawText: newItemData.rawText,
@@ -182,7 +185,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
         updatedAt: new Date(),
       };
 
-      queryClient.setQueryData<InboxItemDTO[]>(queryKeys.inbox.list(filters), (old) => [
+      queryClient.setQueryData<InboxItem[]>(queryKeys.inbox.list(filters), (old) => [
         tempItem,
         ...(old ?? []),
       ]);
@@ -198,7 +201,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
 
       return { previousItems, previousStats, tempItem };
     },
-    onError: (...[,, context]) => {
+    onError: (...[, , context]) => {
       // Rollback optimistic updates
       if (context?.previousItems) {
         queryClient.setQueryData(queryKeys.inbox.list(filters), context.previousItems);
@@ -212,9 +215,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
         variant: "destructive",
       });
     },
-    onSuccess: (...[newItem,, context]) => {
+    onSuccess: (...[newItem, , context]) => {
       // Replace temp item with real item
-      queryClient.setQueryData<InboxItemDTO[]>(
+      queryClient.setQueryData<InboxItem[]>(
         queryKeys.inbox.list(filters),
         (old) =>
           old?.map((item) => (item.id === context?.tempItem.id ? newItem : item)) ?? [newItem],
@@ -234,8 +237,8 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
 
   // Voice capture
   const voiceCaptureMutation = useMutation({
-    mutationFn: async (data: VoiceInboxCaptureDTO): Promise<InboxItemDTO> => {
-      const result = await apiClient.post<{ item: InboxItemDTO }>("/api/inbox", {
+    mutationFn: async (data: VoiceInboxCaptureDTO): Promise<InboxItem> => {
+      const result = await apiClient.post<{ item: InboxItem }>("/api/inbox", {
         type: "voice_capture",
         data,
       });
@@ -325,9 +328,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       data,
     }: {
       itemId: string;
-      data: UpdateInboxItemDTO;
-    }): Promise<InboxItemDTO> => {
-      const result = await apiClient.patch<{ item: InboxItemDTO }>(`/api/inbox/${itemId}`, {
+      data: UpdateInboxItem;
+    }): Promise<InboxItem> => {
+      const result = await apiClient.patch<{ item: InboxItem }>(`/api/inbox/${itemId}`, {
         action: "update_status",
         data,
       });
@@ -335,7 +338,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
     },
     onSuccess: (updatedItem) => {
       // Update the item in the cache
-      queryClient.setQueryData<InboxItemDTO[]>(
+      queryClient.setQueryData<InboxItem[]>(
         queryKeys.inbox.list(filters),
         (old) => old?.map((item) => (item.id === updatedItem.id ? updatedItem : item)) ?? [],
       );
@@ -358,15 +361,15 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
     }: {
       itemId: string;
       createdTaskId?: string;
-    }): Promise<InboxItemDTO> => {
-      const result = await apiClient.patch<{ item: InboxItemDTO }>(`/api/inbox/${itemId}`, {
+    }): Promise<InboxItem> => {
+      const result = await apiClient.patch<{ item: InboxItem }>(`/api/inbox/${itemId}`, {
         action: "mark_processed",
         data: createdTaskId ? { createdTaskId } : undefined,
       });
       return result.item;
     },
     onSuccess: (updatedItem) => {
-      queryClient.setQueryData<InboxItemDTO[]>(
+      queryClient.setQueryData<InboxItem[]>(
         queryKeys.inbox.list(filters),
         (old) => old?.map((item) => (item.id === updatedItem.id ? updatedItem : item)) ?? [],
       );
@@ -396,12 +399,12 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       await queryClient.cancelQueries({ queryKey: queryKeys.inbox.stats() });
 
       // Snapshot previous values
-      const previousItems = queryClient.getQueryData<InboxItemDTO[]>(queryKeys.inbox.list(filters));
+      const previousItems = queryClient.getQueryData<InboxItem[]>(queryKeys.inbox.list(filters));
       const previousStats = queryClient.getQueryData<InboxStats>(queryKeys.inbox.stats());
 
       // Optimistically remove item
       const itemToDelete = previousItems?.find((item) => item.id === itemId);
-      queryClient.setQueryData<InboxItemDTO[]>(
+      queryClient.setQueryData<InboxItem[]>(
         queryKeys.inbox.list(filters),
         (old) => old?.filter((item) => item.id !== itemId) ?? [],
       );
@@ -420,7 +423,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
 
       return { previousItems, previousStats };
     },
-    onError: (...[,, context]) => {
+    onError: (...[, , context]) => {
       // Rollback optimistic updates
       if (context?.previousItems) {
         queryClient.setQueryData(queryKeys.inbox.list(filters), context.previousItems);
@@ -464,7 +467,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
     voiceCapture: voiceCaptureMutation.mutate,
     processItem: processItemMutation.mutateAsync,
     bulkProcess: bulkProcessMutation.mutateAsync,
-    updateItem: (itemId: string, data: UpdateInboxItemDTO) =>
+    updateItem: (itemId: string, data: UpdateInboxItem) =>
       updateItemMutation.mutate({ itemId, data }),
     markAsProcessed: (itemId: string, createdTaskId?: string) => {
       const payload: { itemId: string; createdTaskId?: string } = { itemId };
@@ -513,7 +516,7 @@ export function useInboxStats() {
 export function useUnprocessedInboxItems(limit?: number) {
   return useQuery({
     queryKey: queryKeys.inbox.unprocessed(limit),
-    queryFn: async (): Promise<InboxItemDTO[]> => {
+    queryFn: async (): Promise<InboxItem[]> => {
       const queryParams = new URLSearchParams();
       queryParams.append("status", "unprocessed");
       if (limit) {

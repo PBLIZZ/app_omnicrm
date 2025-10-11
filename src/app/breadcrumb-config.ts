@@ -72,6 +72,14 @@ export const routeConfig: Record<string, RouteConfig> = {
     label: "Settings",
     parent: "/",
   },
+  "/settings/account": {
+    label: "Account",
+    parent: "/settings",
+  },
+  "/settings/onboarding": {
+    label: "Intake Form",
+    parent: "/settings",
+  },
   "/settings/sync-preferences": {
     label: "Sync Preferences",
     parent: "/settings",

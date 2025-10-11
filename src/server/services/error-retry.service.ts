@@ -168,7 +168,7 @@ export class ErrorRetryService {
 
         // Apply retry strategy based on error category
         switch (classification.category) {
-          case "authentication":
+          case "auth":
             retryResult = await this.retryAuthenticationError(userId, includeAuthRefresh);
             break;
 
@@ -176,15 +176,15 @@ export class ErrorRetryService {
             retryResult = await this.retryNetworkError(userId);
             break;
 
-          case "processing":
+          case "system":
             retryResult = await this.retryProcessingError(userId);
             break;
 
-          case "quota":
+          case "rate_limit":
             retryResult = await this.retryQuotaError(retryStrategy);
             break;
 
-          case "data_format":
+          case "validation":
             retryResult = await this.retryDataFormatError();
             break;
 

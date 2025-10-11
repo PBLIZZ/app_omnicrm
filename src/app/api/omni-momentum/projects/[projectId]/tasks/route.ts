@@ -1,12 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { MomentumRepository } from "@repo";
+import { handleGetWithQueryAuth } from "@/lib/api";
+import { momentumService } from "@/server/services/momentum.service";
+import { TaskFiltersSchema, TaskSchema } from "@/server/db/business-schemas";
+import { z } from "zod";
+import { NextRequest } from "next/server";
 
 /**
  * Project Tasks API Route
  *
- * GET /api/omni-momentum/projects/[projectId]/tasks
- * Returns all tasks (momentums) within a specific project
+ * Migrated to new auth pattern:
+ * ✅ handleGetWithQueryAuth for GET with query params
+ * ✅ Zod validation and type safety
  */
 
 interface RouteParams {
@@ -18,28 +21,15 @@ interface RouteParams {
 /**
  * GET /api/omni-momentum/projects/[projectId]/tasks - Get tasks within project
  */
-export async function GET(request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
-    const { projectId } = params;
-    const { searchParams } = new URL(request.url);
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  // Create a handler that passes the projectId to the service
+  const handler = handleGetWithQueryAuth(
+    TaskFiltersSchema,
+    z.array(TaskSchema),
+    async (filters, userId) => {
+      return await momentumService.getProjectTasks(params.projectId, userId, filters);
+    },
+  );
 
-    // Optional filtering
-    const status = searchParams.get("status") || undefined;
-    const parentTaskId = searchParams.get("parentTaskId");
-
-    // Ensure project exists and belongs to user
-    const project = await MomentumRepository.getProject(projectId, userId);
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-
-    // Get tasks for this project - use getTasksWithProject method
-    const tasks = await MomentumRepository.getTasksWithProject(userId, projectId);
-
-    return NextResponse.json(tasks);
-  } catch (error) {
-    console.error("Failed to get project tasks:", error);
-    return NextResponse.json({ error: "Failed to retrieve project tasks" }, { status: 500 });
-  }
+  return handler(request);
 }

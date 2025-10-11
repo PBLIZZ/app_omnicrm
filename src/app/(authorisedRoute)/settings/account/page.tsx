@@ -25,7 +25,7 @@ import { signOut } from "@/lib/actions/auth";
 import { AccountDataManagement } from "../_components/AccountDataManagement";
 
 // Constants
-const MIN_PASSWORD_LENGTH = 6;
+import { PASSWORD_MIN_LENGTH } from "@/lib/constants/auth";
 const ROUTES = {
   LogIn: "/log-in",
   dashboard: "/omni-flow",
@@ -115,11 +115,11 @@ export default function AccountPage(): JSX.Element {
       return;
     }
 
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
       dispatchMessage({
         type: "SET_MESSAGE",
         payload: {
-          text: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`,
+          text: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`,
           type: "error",
         },
       });

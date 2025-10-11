@@ -1,32 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { handleCron } from "@/lib/api-edge-cases";
 import { JobRunner } from "@/server/jobs/runner";
 import { logger } from "@/lib/observability/unified-logger";
 import { ensureError } from "@/lib/utils/error-handler";
+import { CronJobInputSchema, CronJobResultSchema } from "@/server/db/business-schemas";
 
 /**
+ * POST /api/cron/process-jobs — Cron job endpoint for processing pending jobs
+ *
  * This is the API endpoint that our Supabase cron job will call.
  * It is responsible for processing any pending jobs in the queue.
+ *
+ * Authentication: Uses CRON_SECRET header validation (handled by handleCron)
+ * Migrated to new pattern: ✅ handleCron with proper schema validation
  */
-export const POST = createRouteHandler({
-  auth: false, // No user auth - uses cron secret instead
-  rateLimit: { operation: "cron_job_processor" },
-})(async ({}, request: NextRequest) => {
-  // 1. --- Secure the Endpoint ---
-  // This is critical. We only want to allow requests from our own cron job.
-  const authToken = (request.headers.get("authorization") ?? "").split("Bearer ").at(1);
+export const POST = handleCron(CronJobInputSchema, CronJobResultSchema, async () => {
+  // Authentication is handled by handleCron - no need to check CRON_SECRET here
+  // Note: data and request parameters not needed for this endpoint
 
-  if (authToken !== process.env["CRON_SECRET"]) {
-    await logger.security("Unauthorized cron access attempt", {
-      operation: "cron.process_jobs.unauthorized",
-      additionalData: {
-        hasAuthToken: Boolean(authToken),
-      },
-    });
-    return NextResponse.json({ error: "Unauthorized access attempt" }, { status: 401 });
-  }
-
-  // 2. --- Run the Job Processor ---
   try {
     await logger.info("CRON - Job processor starting...", { operation: "cron_job_start" });
     const runner = new JobRunner();
@@ -45,11 +35,12 @@ export const POST = createRouteHandler({
       },
     );
 
-    return NextResponse.json({
+    return {
       success: true,
       message: "Job processor ran successfully.",
-      ...result,
-    });
+      processed: result.processed,
+      failed: result.failed,
+    };
   } catch (error) {
     await logger.error(
       "Critical error in cron job runner",
@@ -59,13 +50,13 @@ export const POST = createRouteHandler({
       },
       ensureError(error),
     );
-    return NextResponse.json(
-      {
-        error: "Job processor failed",
-        success: false,
-        message: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    );
+
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Unknown error",
+      processed: 0,
+      failed: 0,
+      error: "Job processor failed",
+    };
   }
 });

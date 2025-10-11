@@ -1,8 +1,5 @@
 import { ContactAIActionsService } from "@/server/services/contact-ai-actions.service";
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
+import { handleAuth } from "@/lib/api";
 import { z } from "zod";
 
 /**
@@ -12,48 +9,26 @@ import { z } from "zod";
  * UI boundary transformation: presents "OmniClient" while using "contacts" backend
  */
 
-const ParamsSchema = z.object({
-  clientId: z.string(),
+const NoteSuggestionsInputSchema = z.object({
+  clientId: z.string().uuid(),
 });
 
-export async function POST(
-  _: NextRequest,
-  { params }: { params: { clientId: string } }
-): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+const NoteSuggestionsResponseSchema = z.object({
+  suggestions: z.array(z.object({
+    id: z.string(),
+    title: z.string(),
+    content: z.string(),
+    category: z.string().optional(),
+    confidence: z.number().optional(),
+  })),
+});
 
-    const validation = ParamsSchema.safeParse(params);
-    if (!validation.success) {
-      return NextResponse.json({
-        error: "Invalid client ID",
-        details: validation.error.issues
-      }, { status: 400 });
-    }
-
-    const { clientId } = validation.data;
-
+export const POST = handleAuth(
+  NoteSuggestionsInputSchema,
+  NoteSuggestionsResponseSchema,
+  async (data, userId): Promise<z.infer<typeof NoteSuggestionsResponseSchema>> => {
     // Use existing service but present as OmniClient note suggestions
-    const noteSuggestions = await ContactAIActionsService.generateNoteSuggestions(userId, clientId);
-
-    return NextResponse.json({ suggestions: noteSuggestions });
-  } catch (error) {
-    console.error("POST /api/omni-clients/[clientId]/note-suggestions error:", error);
-    await logger.error(
-      "OmniClient note suggestions generation failed",
-      {
-        operation: "api.omni_clients.note_suggestions",
-        additionalData: {
-          errorType: error instanceof Error ? error.constructor.name : typeof error,
-        },
-      },
-      ensureError(error),
-    );
-
-    if (error instanceof Error && error.message === "Contact not found") {
-      return NextResponse.json({ error: "OmniClient not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ error: "Failed to generate note suggestions for OmniClient" }, { status: 500 });
+    const noteSuggestions = await ContactAIActionsService.generateNoteSuggestions(userId, data.clientId);
+    return { suggestions: noteSuggestions };
   }
-}
+);

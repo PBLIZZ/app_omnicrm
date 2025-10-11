@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queries/keys";
-import type { Contact } from "@/server/db/schema";
+import type { Contact } from "@/server/db/types";
 
 export interface EnrichmentProgress {
   type: "start" | "progress" | "enriched" | "error" | "complete";

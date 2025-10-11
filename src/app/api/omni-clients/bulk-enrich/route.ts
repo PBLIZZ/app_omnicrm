@@ -1,40 +1,30 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerUserId } from "@/server/auth/user";
-import { BulkDeleteBodySchema } from "@/lib/validation/schemas/omniClients";
+import { handleAuth } from "@/lib/api";
+import { BulkDeleteBodySchema, BulkEnrichResponseSchema } from "@/server/db/business-schemas";
 import { ClientEnrichmentService } from "@/server/services/client-enrichment.service";
+import { z } from "zod";
 
 /**
  * OmniClients Bulk Enrich API
  *
  * POST: Enrich multiple clients with AI-generated insights, wellness stages, and tags
  * Uses existing contacts table with UI terminology transformation
+ *
+ * Migrated to new auth pattern:
+ * ✅ handleAuth for POST
+ * ✅ Zod validation and type safety
  */
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    const userId = await getServerUserId();
+// Schema for bulk enrich (same as bulk delete - array of IDs)
+const BulkEnrichBodySchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, "At least one client ID required"),
+});
 
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
-    }
-
-    const validation = BulkDeleteBodySchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json({
-        error: "Validation failed",
-        details: validation.error.issues
-      }, { status: 400 });
-    }
-
-    const { ids } = validation.data;
-    const result = await ClientEnrichmentService.enrichClientsByIds(userId, ids);
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error("POST /api/omni-clients/bulk-enrich error:", error);
-    return NextResponse.json({ error: "Failed to enrich clients" }, { status: 500 });
-  }
-}
+export const POST = handleAuth(
+  BulkEnrichBodySchema,
+  BulkEnrichResponseSchema,
+  async (data, userId) => {
+    // Service expects clientIds parameter name
+    const result = await ClientEnrichmentService.enrichClientsByIds(userId, data.ids);
+    return result;
+  },
+);

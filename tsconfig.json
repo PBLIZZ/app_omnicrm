@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -33,21 +29,11 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@omnicrm/contracts": [
-        "./packages/contracts/src"
-      ],
-      "@contracts/*": [
-        "./packages/contracts/src/*"
-      ],
-      "@packages/testing": [
-        "./packages/testing/src"
-      ],
-      "@repo": [
-        "./packages/repo/src"
-      ]
+      "@/*": ["./src/*"],
+      "@omnicrm/contracts": ["./packages/contracts/src"],
+      "@contracts/*": ["./packages/contracts/src/*"],
+      "@packages/testing": ["./packages/testing/src"],
+      "@repo": ["./packages/repo/src"]
     }
   },
   "include": [
@@ -56,15 +42,10 @@
     "src/**/*",
     ".next/types/**/*.ts",
     "playwright.config.ts",
+    "packages/repo/src/auth-user.repo.ts",
+    "packages/repo/src/identities.repo.ts",
+    "packages/repo/src/schema-canaries.test.ts"
   ],
-  "types": [
-    "vitest/globals",
-    "@testing-library/jest-dom"
-  ],
-  "exclude": [
-    "drizzle/**",
-    "node_modules",
-    "e2e/**",
-    "tests/**"
-  ]
+  "types": ["vitest/globals", "@testing-library/jest-dom"],
+  "exclude": ["drizzle/**", "node_modules", "e2e/**", "tests/**"]
 }

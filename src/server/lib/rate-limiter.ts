@@ -1,14 +1,22 @@
-// SECURITY: Advanced rate limiting for compute-intensive operations
+// SECURITY: Advanced rate limiting for compute-intensive operations (Redis-backed)
 import { logger } from "@/lib/observability";
+import { redisIncr } from "./redis-client";
+
+// Lazy-loaded Redis client singleton
+let redisClientModule: any = null;
+
+async function getRedisClient() {
+  if (!redisClientModule) {
+    redisClientModule = await import("./redis-client");
+  }
+  return redisClientModule;
+}
 
 interface RateLimitConfig {
   windowMs: number;
   maxRequests: number;
   keyPrefix: string;
 }
-
-// In-memory store - in production, use Redis or similar
-const rateLimitStore = new Map<string, { count: number; resetTime: number; blocked?: boolean }>();
 
 // Operation-specific rate limits
 const RATE_LIMITS: Record<string, RateLimitConfig> = {
@@ -33,25 +41,6 @@ const RATE_LIMITS: Record<string, RateLimitConfig> = {
 };
 
 export class RateLimiter {
-  static {
-    // Cleanup expired entries every 5 minutes
-    setInterval(
-      () => {
-        const now = Date.now();
-        const keysToDelete: string[] = [];
-
-        for (const [key, data] of rateLimitStore.entries()) {
-          if (now >= data.resetTime) {
-            keysToDelete.push(key);
-          }
-        }
-
-        keysToDelete.forEach((key) => rateLimitStore.delete(key));
-      },
-      5 * 60 * 1000,
-    );
-  }
-
   /**
    * Check if an operation is rate limited for a user
    * @param operation - Operation type (must be in RATE_LIMITS)
@@ -80,72 +69,35 @@ export class RateLimiter {
     }
 
     const now = Date.now();
-    const key = `${config.keyPrefix}:${userId}`;
-    const existing = rateLimitStore.get(key);
+    const key = `rl:${config.keyPrefix}:${userId}`;
+    const windowSeconds = Math.ceil(config.windowMs / 1000);
 
-    // Check if window has expired
-    if (!existing || now >= existing.resetTime) {
-      rateLimitStore.set(key, {
-        count: 1,
-        resetTime: now + config.windowMs,
-      });
-      return {
-        allowed: true,
-        remaining: config.maxRequests - 1,
-        resetTime: now + config.windowMs,
-      };
-    }
+    // Use Redis for rate limiting
+    const count = await redisIncr(key, windowSeconds);
+    const resetTime = now + config.windowMs;
 
-    // Check if user is already blocked
-    if (existing.blocked) {
-      await logger.warn("Rate limited user attempted blocked operation", {
+    if (count > config.maxRequests) {
+      await logger.warn("User exceeded rate limit", {
         operation: "rate_limit",
         additionalData: {
           operation,
           userId,
-          resetTime: existing.resetTime,
-        },
-      });
-
-      return {
-        allowed: false,
-        resetTime: existing.resetTime,
-        reason: "Rate limit exceeded - temporarily blocked",
-      };
-    }
-
-    // Check if limit exceeded
-    if (existing.count >= config.maxRequests) {
-      // Block user for remainder of window
-      existing.blocked = true;
-      rateLimitStore.set(key, existing);
-
-      await logger.warn("User exceeded rate limit and has been blocked", {
-        operation: "rate_limit",
-        additionalData: {
-          operation,
-          userId,
-          count: existing.count,
+          count,
           maxRequests: config.maxRequests,
-          resetTime: existing.resetTime,
         },
       });
 
       return {
         allowed: false,
-        resetTime: existing.resetTime,
+        resetTime,
         reason: "Rate limit exceeded",
       };
     }
 
-    // Increment counter
-    existing.count++;
-    rateLimitStore.set(key, existing);
-
     return {
       allowed: true,
-      remaining: config.maxRequests - existing.count,
-      resetTime: existing.resetTime,
+      remaining: config.maxRequests - count,
+      resetTime,
     };
   }
 
@@ -160,12 +112,11 @@ export class RateLimiter {
     const config = RATE_LIMITS[operation];
     if (!config) return;
 
-    const key = `${config.keyPrefix}:${userId}`;
-    rateLimitStore.set(key, {
-      count: config.maxRequests,
-      resetTime: Date.now() + durationMs,
-      blocked: true,
-    });
+    const key = `rl:${config.keyPrefix}:${userId}`;
+    const { redisSet } = await getRedisClient();
+
+    // Set count to max + 1 to ensure blocking
+    await redisSet(key, config.maxRequests + 1, Math.ceil(durationMs / 1000));
 
     await logger.warn("User manually blocked from operation", {
       operation: "rate_limit",
@@ -180,33 +131,45 @@ export class RateLimiter {
   /**
    * Get current rate limit status for a user/operation
    */
-  static getStatus(
+  static async getStatus(
     operation: string,
     userId: string,
-  ): {
+  ): Promise<{
     remaining: number;
     resetTime: number;
     blocked: boolean;
-  } | null {
+  } | null> {
     const config = RATE_LIMITS[operation];
     if (!config) return null;
 
-    const key = `${config.keyPrefix}:${userId}`;
-    const existing = rateLimitStore.get(key);
+    const key = `rl:${config.keyPrefix}:${userId}`;
+    const { redisGet } = await getRedisClient();
 
-    if (!existing || Date.now() >= existing.resetTime) {
+    try {
+      const count = (await redisGet(key)) as number | null;
+
+      if (count === null) {
+        // No rate limit data, user has full quota
+        return {
+          remaining: config.maxRequests,
+          resetTime: Date.now() + config.windowMs,
+          blocked: false,
+        };
+      }
+
       return {
-        remaining: config.maxRequests,
+        remaining: Math.max(0, config.maxRequests - count),
+        resetTime: Date.now() + config.windowMs, // Approximate reset time
+        blocked: count > config.maxRequests,
+      };
+    } catch (_error) {
+      // Redis error, return safe defaults
+      return {
+        remaining: 0,
         resetTime: Date.now() + config.windowMs,
         blocked: false,
       };
     }
-
-    return {
-      remaining: Math.max(0, config.maxRequests - existing.count),
-      resetTime: existing.resetTime,
-      blocked: existing.blocked ?? false,
-    };
   }
 
   /**
@@ -216,8 +179,9 @@ export class RateLimiter {
     const config = RATE_LIMITS[operation];
     if (!config) return;
 
-    const key = `${config.keyPrefix}:${userId}`;
-    rateLimitStore.delete(key);
+    const key = `rl:${config.keyPrefix}:${userId}`;
+    const { redisDel } = await getRedisClient();
+    await redisDel(key);
 
     await logger.info("Rate limit manually cleared", {
       operation: "rate_limit",

@@ -1,6 +1,7 @@
 // Database query service for AI assistant
-import { contactsStorage } from "@/server/storage/contacts.storage";
-import type { Contact } from "@/server/db/schema";
+import { ContactsRepository } from "packages/repo/src/contacts.repo";
+import { NotesRepository } from "packages/repo/src/notes.repo";
+import type { Contact } from "@/server/db/business-schemas/business-schema";
 
 // Specific result data types
 export interface ContactsSummaryData {
@@ -86,12 +87,12 @@ export class DatabaseQueryService {
    */
   static async getContactsCount(userId: string): Promise<DatabaseQueryResult> {
     try {
-      const contacts = await contactsStorage.getContacts(userId);
+      const contacts = await ContactsRepository.listContacts(userId);
       return {
         success: true,
         data: {
-          count: contacts.length,
-          message: `You have ${contacts.length} contact${contacts.length === 1 ? "" : "s"} in your CRM.`,
+          count: contacts.items.length,
+          message: `You have ${contacts.items.length} contact${contacts.items.length === 1 ? "" : "s"} in your CRM.`,
         },
       };
     } catch {
@@ -107,15 +108,17 @@ export class DatabaseQueryService {
    */
   static async getContactsSummary(userId: string): Promise<DatabaseQueryResult> {
     try {
-      const contacts = await contactsStorage.getContacts(userId);
+      const contacts = await ContactsRepository.listContacts(userId);
 
       const summary = {
-        totalContacts: contacts.length,
-        contactsWithEmail: contacts.filter((c) => c.primaryEmail && c.primaryEmail.trim() !== "")
-          .length,
-        contactsWithPhone: contacts.filter((c) => c.primaryPhone && c.primaryPhone.trim() !== "")
-          .length,
-        recentContacts: contacts
+        totalContacts: contacts.items.length,
+        contactsWithEmail: contacts.items.filter(
+          (c) => c.primaryEmail && c.primaryEmail.trim() !== "",
+        ).length,
+        contactsWithPhone: contacts.items.filter(
+          (c) => c.primaryPhone && c.primaryPhone.trim() !== "",
+        ).length,
+        recentContacts: contacts.items
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 5)
           .map((c) => ({
@@ -142,13 +145,13 @@ export class DatabaseQueryService {
    */
   static async searchContacts(userId: string, query: string): Promise<DatabaseQueryResult> {
     try {
-      const contacts = await contactsStorage.getContacts(userId);
+      const contacts = await ContactsRepository.listContacts(userId);
       const searchTerm = query.toLowerCase();
 
-      const matchingContacts = contacts.filter(
+      const matchingContacts = contacts.items.filter(
         (contact) =>
-          contact.displayName.toLowerCase().includes(searchTerm) ??
-          contact.primaryEmail?.toLowerCase().includes(searchTerm) ??
+          contact.displayName.toLowerCase().includes(searchTerm) ||
+          contact.primaryEmail?.toLowerCase().includes(searchTerm) ||
           contact.primaryPhone?.includes(searchTerm),
       );
 
@@ -177,7 +180,7 @@ export class DatabaseQueryService {
   static async getNotesInfo(userId: string, contactId?: string): Promise<DatabaseQueryResult> {
     try {
       if (contactId) {
-        const notes = await contactsStorage.getNotes(contactId, userId);
+        const notes = await NotesRepository.getNotesByContactId(userId, contactId);
         return {
           success: true,
           data: {
@@ -195,11 +198,11 @@ export class DatabaseQueryService {
         };
       } else {
         // Get total notes across all contacts
-        const contacts = await contactsStorage.getContacts(userId);
+        const contacts = await ContactsRepository.listContacts(userId);
         let totalNotes = 0;
 
-        for (const contact of contacts) {
-          const notes = await contactsStorage.getNotes(contact.id, userId);
+        for (const contact of contacts.items) {
+          const notes = await NotesRepository.getNotesByContactId(userId, contact.id);
           totalNotes += notes.length;
         }
 
@@ -224,9 +227,9 @@ export class DatabaseQueryService {
    */
   static async filterContacts(userId: string, query: string): Promise<DatabaseQueryResult> {
     try {
-      const contacts = await contactsStorage.getContacts(userId);
+      const contacts = await ContactsRepository.listContacts(userId);
       const normalizedQuery = query.toLowerCase();
-      let filteredContacts = contacts;
+      let filteredContacts = contacts.items;
       let description = "";
 
       // Pattern: "contacts that begin with [letter]" or "contacts beginning with [letter]"
@@ -235,7 +238,7 @@ export class DatabaseQueryService {
       );
       if (beginsWithMatch?.[1]) {
         const letter = beginsWithMatch[1].toUpperCase();
-        filteredContacts = contacts.filter((contact) =>
+        filteredContacts = filteredContacts.filter((contact) =>
           contact.displayName.toUpperCase().startsWith(letter),
         );
         description = `contacts that begin with "${letter}"`;
@@ -247,7 +250,7 @@ export class DatabaseQueryService {
         normalizedQuery.includes("have email") ||
         normalizedQuery.includes("has email")
       ) {
-        filteredContacts = contacts.filter(
+        filteredContacts = filteredContacts.filter(
           (contact) => contact.primaryEmail && contact.primaryEmail.trim() !== "",
         );
         description = "contacts with email addresses";
@@ -259,7 +262,7 @@ export class DatabaseQueryService {
         normalizedQuery.includes("have phone") ||
         normalizedQuery.includes("has phone")
       ) {
-        filteredContacts = contacts.filter(
+        filteredContacts = filteredContacts.filter(
           (contact) => contact.primaryPhone && contact.primaryPhone.trim() !== "",
         );
         description = "contacts with phone numbers";
@@ -267,7 +270,7 @@ export class DatabaseQueryService {
 
       // Pattern: "contacts without email"
       else if (normalizedQuery.includes("without email") ?? normalizedQuery.includes("no email")) {
-        filteredContacts = contacts.filter(
+        filteredContacts = filteredContacts.filter(
           (contact) => !contact.primaryEmail || contact.primaryEmail.trim() === "",
         );
         description = "contacts without email addresses";
@@ -275,7 +278,7 @@ export class DatabaseQueryService {
 
       // Pattern: "contacts without phone"
       else if (normalizedQuery.includes("without phone") ?? normalizedQuery.includes("no phone")) {
-        filteredContacts = contacts.filter(
+        filteredContacts = filteredContacts.filter(
           (contact) => !contact.primaryPhone || contact.primaryPhone.trim() === "",
         );
         description = "contacts without phone numbers";
@@ -291,7 +294,7 @@ export class DatabaseQueryService {
         );
         if (containingMatch?.[1]) {
           const searchTerm = containingMatch[1];
-          filteredContacts = contacts.filter((contact) =>
+          filteredContacts = filteredContacts.filter((contact) =>
             contact.displayName.toLowerCase().includes(searchTerm.toLowerCase()),
           );
           description = `contacts containing "${searchTerm}"`;
@@ -329,17 +332,17 @@ export class DatabaseQueryService {
    */
   static async getAllContactNames(userId: string): Promise<DatabaseQueryResult> {
     try {
-      const contacts = await contactsStorage.getContacts(userId);
+      const contacts = await ContactsRepository.listContacts(userId);
 
       return {
         success: true,
         data: {
-          contacts: contacts.map((c) => ({
+          contacts: contacts.items.map((c) => ({
             name: c.displayName,
             email: c.primaryEmail,
             phone: c.primaryPhone,
           })),
-          message: `Here are your ${contacts.length} contacts:\n\n${contacts.map((c) => `• ${c.displayName}${c.primaryEmail ? ` (${c.primaryEmail})` : ""}${c.primaryPhone ? ` - ${c.primaryPhone}` : ""}`).join("\n")}`,
+          message: `Here are your ${contacts.items.length} contacts:\n\n${contacts.items.map((c) => `• ${c.displayName}${c.primaryEmail ? ` (${c.primaryEmail})` : ""}${c.primaryPhone ? ` - ${c.primaryPhone}` : ""}`).join("\n")}`,
         },
       };
     } catch {
@@ -358,12 +361,12 @@ export class DatabaseQueryService {
     contactName: string,
   ): Promise<DatabaseQueryResult> {
     try {
-      const contacts = await contactsStorage.getContacts(userId);
+      const contacts = await ContactsRepository.listContacts(userId);
       const searchTerm = contactName.toLowerCase();
 
-      const matchingContact = contacts.find(
+      const matchingContact = contacts.items.find(
         (contact) =>
-          contact.displayName.toLowerCase().includes(searchTerm) ??
+          contact.displayName.toLowerCase().includes(searchTerm) ||
           contact.primaryEmail?.toLowerCase().includes(searchTerm),
       );
 
@@ -393,8 +396,8 @@ export class DatabaseQueryService {
       contactInfo += "\n";
 
       // AI Insights
-      if (matchingContact.stage) {
-        contactInfo += `🎯 **Client Stage:** ${matchingContact.stage}\n`;
+      if (matchingContact.lifecycleStage) {
+        contactInfo += `🎯 **Client Stage:** ${matchingContact.lifecycleStage}\n`;
       }
 
       // AI Insights are now stored separately in notes table

@@ -18,34 +18,34 @@ vi.mock("@/server/db/client", () => {
         // Mock implementation acknowledges table parameter for type compliance
         void table;
         return {
-        where: (cond: unknown) => {
-          // Mock implementation acknowledges cond parameter for type compliance
-          void cond;
-          return {
-          orderBy: () => ({
-            limit: async () => [],
-          }),
-          limit: async () => {
-            const first = shared.prefsStore[0];
-            return first ? [first] : [];
+          where: (cond: unknown) => {
+            // Mock implementation acknowledges cond parameter for type compliance
+            void cond;
+            return {
+              orderBy: () => ({
+                limit: async () => [],
+              }),
+              limit: async () => {
+                const first = shared.prefsStore[0];
+                return first ? [first] : [];
+              },
+            };
           },
         };
-        },
-      };
       },
     }),
     insert: (table: unknown) => {
       // Mock implementation acknowledges table parameter for type compliance
       void table;
       return {
-      values: async (row: Record<string, unknown>) => {
-        if ((row as { provider?: unknown }).provider) {
-          shared.rawEvents.push(row);
-        } else if ((row as { kind?: unknown }).kind) {
-          shared.jobs.push(row);
-        }
-      },
-    };
+        values: async (row: Record<string, unknown>) => {
+          if ((row as { provider?: unknown }).provider) {
+            shared.rawEvents.push(row);
+          } else if ((row as { kind?: unknown }).kind) {
+            shared.jobs.push(row);
+          }
+        },
+      };
     },
   } as const;
   return {
@@ -60,7 +60,7 @@ vi.mock("@/server/db/client", () => {
   };
 });
 
-// Mock supabase admin service-role writes to push into our in-memory rawEvents
+// Mock supabase admin secret key writes to push into our in-memory rawEvents
 vi.mock("@/lib/supabase/admin", () => {
   function toCamelCaseKeys(row: Record<string, unknown>): Record<string, unknown> {
     const mapping: Record<string, string> = {
@@ -91,7 +91,7 @@ vi.mock("@/lib/supabase/admin", () => {
           return [] as unknown[];
         }
         if (table === "interactions") {
-          const key = `${values['user_id'] as string}|${values['source'] as string}|${(values['source_id'] as string) ?? ""}`;
+          const key = `${values["user_id"] as string}|${values["source"] as string}|${(values["source_id"] as string) ?? ""}`;
           if (shared.interactions.has(key)) {
             // conflict; ignore
             return [] as unknown[];

@@ -1,44 +1,32 @@
-import { NextResponse } from "next/server";
-import { createRouteHandler } from "@/server/api/handler";
+import { handleAuth } from "@/lib/api";
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
-import { z } from "zod";
+import {
+  UploadUrlRequestSchema,
+  UploadUrlResponseSchema,
+} from "@/server/db/business-schemas";
 
-const uploadUrlSchema = z.object({
-  fileName: z.string().min(1),
-  contentType: z.string().min(1),
-  folderPath: z.string().optional(),
-  bucket: z.string().default("contacts"),
-});
-
-// POST /api/storage/upload-url
-// Body: { fileName: string; contentType: string; folderPath?: string; bucket?: string }
-// Returns: { signedUrl: string | null; path: string; error?: string; details?: string }
-export const POST = createRouteHandler({
-  auth: true,
-  rateLimit: { operation: "storage_upload_url" },
-  validation: {
-    body: uploadUrlSchema,
-  },
-})(async ({ validated }) => {
-  try {
-    const { fileName, folderPath, bucket } = validated.body;
+export const POST = handleAuth(
+  UploadUrlRequestSchema,
+  UploadUrlResponseSchema,
+  async (data, userId) => {
+    const { fileName, folderPath, bucket } = data;
 
     const path = folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName;
 
     const client = supabaseServerAdmin ?? supabaseServerPublishable;
     if (!client) {
-      return NextResponse.json({ error: "Supabase server client not available" }, { status: 500 });
+      throw new Error("Supabase server client not available");
     }
 
-    const { data, error } = await client.storage.from(bucket).createSignedUploadUrl(path);
+    const { data: uploadData, error } = await client.storage.from(bucket).createSignedUploadUrl(path);
 
     if (error) {
-      return NextResponse.json({ error: "Failed to create signed upload URL" }, { status: 500 });
+      throw new Error("Failed to create signed upload URL");
     }
 
-    return NextResponse.json({ signedUrl: data?.signedUrl ?? null, path });
-  } catch (error: unknown) {
-    console.error("Error creating signed upload URL:", error);
-    return NextResponse.json({ error: "unexpected_error" }, { status: 500 });
+    return {
+      signedUrl: uploadData?.signedUrl ?? null,
+      path
+    };
   }
-});
+);

@@ -439,31 +439,81 @@ export class JobProcessingService {
   }
 
   /**
-   * Process normalization jobs specifically
+   * Process normalization jobs specifically (replaces normalize route business logic)
    */
-  static async processNormalizationJobs(userId: string): Promise<{
+  static async processNormalizationJobs(userId: string, limit: number = 20): Promise<{
     processed: number;
     succeeded: number;
     failed: number;
+    message: string;
   }> {
-    const jobRunner = new JobRunner();
-    const result = await jobRunner.processUserJobs(userId, 50);
+    try {
+      const db = await getDb();
+      const jobRunner = new JobRunner();
 
-    await logger.info("Normalization jobs processed", {
-      operation: "normalization_processing",
-      additionalData: {
-        userId,
+      // Get queued normalize jobs for this user (exactly like the original route)
+      const normalizeJobs = await db
+        .select()
+        .from(jobs)
+        .where(
+          and(
+            eq(jobs.userId, userId),
+            eq(jobs.status, "queued"),
+            inArray(jobs.kind, ["normalize", "normalize_google_email", "normalize_google_event"])
+          )
+        )
+        .limit(limit);
+
+      if (normalizeJobs.length === 0) {
+        return {
+          processed: 0,
+          succeeded: 0,
+          failed: 0,
+          message: "No normalize jobs found to process",
+        };
+      }
+
+      await logger.info(`Starting manual normalize processing for ${normalizeJobs.length} jobs`, {
+        operation: "manual_normalize_processor",
+        additionalData: {
+          userId: userId,
+          jobCount: normalizeJobs.length,
+        },
+      });
+
+      // Process the normalize jobs
+      const result = await jobRunner.processUserJobs(userId, normalizeJobs.length);
+
+      await logger.info(`Manual normalize processing complete`, {
+        operation: "manual_normalize_processor",
+        additionalData: {
+          userId: userId,
+          ...result,
+        },
+      });
+
+      const message = `Processed ${result.processed} normalize jobs. Success: ${result.succeeded}, Failed: ${result.failed}`;
+
+      return {
         processed: result.processed,
         succeeded: result.succeeded,
         failed: result.failed,
-      }
-    });
+        message,
+      };
+    } catch (error) {
+      await logger.error(
+        "Failed to process normalize jobs",
+        {
+          operation: "manual_normalize_processor",
+          additionalData: {
+            userId: userId,
+          },
+        },
+        ensureError(error),
+      );
 
-    return {
-      processed: result.processed,
-      succeeded: result.succeeded,
-      failed: result.failed,
-    };
+      throw new Error("Failed to process normalize jobs");
+    }
   }
 
   /**
@@ -547,6 +597,44 @@ export class JobProcessingService {
   }> {
     const jobRunner = new JobRunner();
     return jobRunner.processJobs(batchSize);
+  }
+
+  /**
+   * Process user-specific jobs (for /api/jobs/runner route)
+   */
+  static async processUserSpecificJobs(
+    userId: string,
+    requestId?: string
+  ): Promise<{
+    processed: number;
+    succeeded: number;
+    failed: number;
+    errors: string[];
+  }> {
+    await logger.info("Job runner processing started", {
+      operation: "job_runner.start",
+      additionalData: {
+        userId,
+        requestId,
+      },
+    });
+
+    const jobRunner = new JobRunner();
+    const result = await jobRunner.processUserJobs(userId);
+
+    await logger.info("Job runner processing completed", {
+      operation: "job_runner.complete",
+      additionalData: {
+        userId,
+        requestId,
+        processed: result.processed,
+        succeeded: result.succeeded,
+        failed: result.failed,
+        errorCount: result.errors.length,
+      },
+    });
+
+    return result;
   }
 
   /**

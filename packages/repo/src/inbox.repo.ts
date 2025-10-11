@@ -2,13 +2,22 @@ import { eq, and, desc, ilike, inArray, sql } from "drizzle-orm";
 import { inboxItems } from "./schema";
 import { getDb } from "./db";
 import type {
-  InboxItemDTO,
-  CreateInboxItemDTO,
-  UpdateInboxItemDTO,
-  InboxFilters,
-  InboxItemStatus,
-} from "@omnicrm/contracts";
-import { InboxItemDTOSchema } from "@omnicrm/contracts";
+  InboxItem,
+  CreateInboxItem
+} from "./schema";
+
+// Local type aliases for repository layer
+type InboxItemDTO = InboxItem;
+type CreateInboxItemDTO = CreateInboxItem;
+type UpdateInboxItemDTO = Partial<CreateInboxItem>;
+type InboxItemStatus = "unprocessed" | "processed" | "archived";
+
+interface InboxFilters {
+  status?: InboxItemStatus[];
+  search?: string;
+  createdAfter?: Date;
+  createdBefore?: Date;
+}
 
 export class InboxRepository {
   /**
@@ -56,7 +65,7 @@ export class InboxRepository {
 
     const rows = await query;
 
-    return rows.map(row => InboxItemDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -84,7 +93,7 @@ export class InboxRepository {
       return null;
     }
 
-    return InboxItemDTOSchema.parse(rows[0]);
+    return rows[0];
   }
 
   /**
@@ -115,7 +124,7 @@ export class InboxRepository {
         updatedAt: inboxItems.updatedAt,
       });
 
-    return InboxItemDTOSchema.parse(newItem);
+    return newItem;
   }
 
   /**
@@ -154,7 +163,7 @@ export class InboxRepository {
       return null;
     }
 
-    return InboxItemDTOSchema.parse(updatedItem);
+    return updatedItem;
   }
 
   /**
@@ -205,7 +214,7 @@ export class InboxRepository {
         updatedAt: inboxItems.updatedAt,
       });
 
-    return updatedItems.map(item => InboxItemDTOSchema.parse(item));
+    return updatedItems.map(item => item);
   }
 
   /**
@@ -297,7 +306,7 @@ export class InboxRepository {
       .orderBy(desc(inboxItems.createdAt))
       .limit(limit);
 
-    return rows.map(row => InboxItemDTOSchema.parse(row));
+    return rows.map(row => row);
   }
 
   /**
@@ -336,6 +345,6 @@ export class InboxRepository {
       return null;
     }
 
-    return InboxItemDTOSchema.parse(updatedItem);
+    return updatedItem;
   }
 }

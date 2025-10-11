@@ -18,10 +18,9 @@ export type OmniClientDTO = {
   primaryEmail: string | null;
   primaryPhone: string | null;
   source: string | null;
-  stage: string | null;
+  lifecycleStage: string | null;
   tags: string[] | null;
   confidenceScore: string | null;
-  slug: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -37,7 +36,7 @@ export type CreateOmniClientInput = {
   primaryEmail?: string | null;
   primaryPhone?: string | null;
   source?: "manual" | "gmail_import" | "upload" | "calendar_import";
-  stage?: string | null;
+  lifecycleStage?: string | null;
   tags?: string[] | null;
 };
 
@@ -45,7 +44,7 @@ export type UpdateOmniClientInput = {
   displayName?: string;
   primaryEmail?: string | null;
   primaryPhone?: string | null;
-  stage?: string | null;
+  lifecycleStage?: string | null;
   tags?: string[] | null;
 };
 
@@ -376,10 +375,9 @@ export function makeOmniClient(overrides: Partial<OmniClientDTO> = {}): OmniClie
     primaryEmail: faker.internet.email(),
     primaryPhone: faker.phone.number(),
     source: faker.helpers.arrayElement(CONTACT_SOURCES),
-    stage: faker.helpers.arrayElement(CLIENT_STAGES),
+    lifecycleStage: faker.helpers.arrayElement(CLIENT_STAGES),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 1, max: 5 }),
     confidenceScore: faker.number.float({ min: 0.1, max: 1.0, fractionDigits: 1 }).toString(),
-    slug: faker.helpers.slugify(faker.person.fullName()).toLowerCase(),
     createdAt: faker.date.past().toISOString(),
     updatedAt: faker.date.recent().toISOString(),
   };
@@ -413,7 +411,7 @@ export function makeCreateOmniClientInput(
     primaryEmail: faker.internet.email(),
     primaryPhone: faker.phone.number(),
     source: faker.helpers.arrayElement(CONTACT_SOURCES),
-    stage: faker.helpers.arrayElement(CLIENT_STAGES),
+    lifecycleStage: faker.helpers.arrayElement(CLIENT_STAGES),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 1, max: 3 }),
     ...overrides,
   };
@@ -426,7 +424,7 @@ export function makeUpdateOmniClientInput(
     displayName: faker.person.fullName(),
     primaryEmail: faker.internet.email(),
     primaryPhone: faker.phone.number(),
-    stage: faker.helpers.arrayElement(CLIENT_STAGES),
+    lifecycleStage: faker.helpers.arrayElement(CLIENT_STAGES),
     tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 1, max: 3 }),
     ...overrides,
   };

@@ -19,7 +19,6 @@ const baseMockContact = {
   stage: "Core Client" as const,
   tags: ["yoga", "regular"],
   confidenceScore: "0.85",
-  slug: "john-doe",
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",
 };

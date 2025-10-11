@@ -792,6 +792,7 @@ When making architectural decisions, document using this template:
 **Objective**: Eliminate pattern inconsistency by adopting universal NextResponse usage
 
 ### Progress Summary (Sprint Completed)
+
 - **Started with**: 128 architecture errors, 552 warnings
 - **Final status**: 52 architecture errors (59% reduction), 530 warnings
 - **Pattern migration**: 68+ API routes converted from ApiResponse to NextResponse
@@ -802,11 +803,13 @@ When making architectural decisions, document using this template:
 ### Key Accomplishments
 
 #### 1. **ESLint Configuration Simplified**
+
 - Removed NextResponse restrictions from `eslint.config.mjs`
 - Eliminated OAuth/callback exceptions - universal NextResponse now allowed
 - Developers can use NextResponse everywhere without linting conflicts
 
 #### 2. **Service Layer Architecture Completed**
+
 - **ErrorRetryService** - Intelligent error retry mechanisms with classification-based strategies
 - **GmailSyncService** - Consolidated Gmail sync logic (analysis shows 3 routes can be merged)
 - **JobProcessingService** - Background job processing logic extracted from API routes
@@ -817,6 +820,7 @@ When making architectural decisions, document using this template:
 - Clean API route pattern: Request → Service → Response (100% compliance)
 
 #### 3. **Response Pattern Unification Achievement**
+
 - **68+ API routes converted** - Now using NextResponse.json() consistently
 - **Debug route elimination** - Deleted 11 debug routes (18 ApiResponseBuilder usages removed)
 - **Dead code removal** - Eliminated calendar preview route (confirmed unused)
@@ -825,14 +829,16 @@ When making architectural decisions, document using this template:
 
 ### Sprint Results Summary
 
-#### Major Achievements:
+#### Major Achievements
+
 - **59% architecture error reduction** - From 128 down to 52 errors
 - **96% type safety improvement** - From 73+ violations down to 3 remaining
 - **Complete service layer architecture** - All business logic extracted from API routes
 - **Universal NextResponse adoption** - Consistent pattern across entire codebase
 - **Dead code elimination** - Removed 11 debug routes + unused calendar preview
 
-#### Remaining Work (Final 5% Polish):
+#### Remaining Work (Final 5% Polish)
+
 1. **28 ApiResponseBuilder usages** - Complete conversion to NextResponse (mechanical task)
 2. **3 type safety violations** - Minor no-explicit-any issues in service files
 3. **Gmail sync consolidation** - Merge 3 routes into single parameterized endpoint
@@ -840,35 +846,42 @@ When making architectural decisions, document using this template:
 
 ### Architecture Impact
 
-#### Before This Phase:
+#### Before This Phase
+
 ```typescript
 // Mixed patterns causing confusion
 return ApiResponse.success(data);        // Some routes
 return NextResponse.json(data);          // Other routes
 ```
 
-#### After This Phase:
+#### After This Phase
+
 ```typescript
 // Consistent pattern everywhere
 return NextResponse.json(data);          // All routes (universal)
 ```
 
-### Lessons Learned
+### Lessons Learned from this Phase
 
 #### 1. **Pattern Consistency is Critical**
+
 Mixed ApiResponse/NextResponse patterns created:
+
 - Developer confusion about which pattern to use
 - Code review inconsistencies
 - Maintenance overhead with two systems
 
 #### 2. **Universal NextResponse Benefits**
+
 - **Simplicity** - One response pattern across entire application
 - **Performance** - No additional abstraction layer overhead
 - **Framework alignment** - Leverages Next.js optimizations
 - **Maintainability** - Standard Next.js patterns, easier for new developers
 
 #### 3. **Service Layer Success**
+
 Moving business logic to service layer achieved:
+
 - Clean API routes (thin handlers)
 - Reusable business logic across multiple endpoints
 - Better testability with isolated business operations
@@ -877,6 +890,7 @@ Moving business logic to service layer achieved:
 ### Next Steps
 
 The remaining 78 architecture errors follow established patterns:
+
 - Complete the 25 remaining ApiResponseBuilder conversions
 - Extract business logic from 29 remaining API routes
 - Apply mechanical type safety fixes (any → unknown + guards)
@@ -895,11 +909,13 @@ The remaining 78 architecture errors follow established patterns:
 After comprehensive investigation, the momentum module TypeScript errors originated from fundamental mismatches between database schema and application type definitions:
 
 #### **Primary Issue: Date Type Mismatches**
+
 - **Database Reality**: PostgreSQL DATE columns for projects.due_date and goals.target_date
 - **Codebase Expectation**: TIMESTAMPTZ types throughout schema definitions
 - **Impact**: Serialization failures between PostgreSQL DATE and JavaScript Date objects
 
-#### **Secondary Issues**:
+#### **Secondary Issues**
+
 - **JSONB Type Safety**: Unknown types from database vs expected Record<string, unknown>
 - **Enum Type Assertions**: String literals from database requiring explicit type casting
 - **Null/Undefined Handling**: exactOptionalPropertyTypes configuration strict compliance
@@ -909,6 +925,7 @@ After comprehensive investigation, the momentum module TypeScript errors origina
 Following the user's directive: "Database first, then codebase" - systematic schema correction was implemented:
 
 #### **Phase 1: Database Schema Correction (✅ Completed)**
+
 ```sql
 -- Corrected SQL Migration Applied to Supabase app_omnicrm
 ALTER TABLE projects ALTER COLUMN due_date TYPE timestamptz USING due_date::timestamptz;
@@ -919,7 +936,9 @@ ALTER TABLE daily_pulse_logs ALTER COLUMN log_date TYPE date, ALTER COLUMN log_d
 **Verification**: Schema correction confirmed via Supabase MCP server inspection
 
 #### **Phase 2: Drizzle Schema Synchronization (✅ Completed)**
+
 Updated `src/server/db/schema.ts` to reflect TIMESTAMPTZ corrections:
+
 ```typescript
 // Updated to match corrected database schema
 export const projects = pgTable("projects", {
@@ -934,7 +953,9 @@ export const goals = pgTable("goals", {
 ```
 
 #### **Phase 3: Repository Layer Type Safety (✅ Completed)**
+
 Fixed JSONB type casting and enum assertions in `packages/repo/src/momentum.repo.ts`:
+
 ```typescript
 // Fixed JSONB type safety violations
 const mapProjectToDTO = (project: any): ProjectDTO => ({
@@ -949,7 +970,9 @@ priority: task.priority as "low" | "medium" | "high" | "urgent",
 ```
 
 #### **Phase 4: DTO Contracts Completion (✅ Completed)**
+
 Added missing completedAt field to `packages/contracts/src/momentum.ts`:
+
 ```typescript
 export const UpdateTaskDTOSchema = CreateTaskDTOSchema.partial().extend({
   completedAt: z.date().nullable().optional(), // Missing field added
@@ -957,7 +980,9 @@ export const UpdateTaskDTOSchema = CreateTaskDTOSchema.partial().extend({
 ```
 
 #### **Phase 5: Service Layer Type Resolution (✅ Completed)**
+
 Fixed import and type issues in `src/server/services/momentum.service.ts`:
+
 ```typescript
 // Added missing type imports
 import type { Zone, InboxItem } from "@/server/db/schema";
@@ -970,7 +995,8 @@ p.details['description'] // Compliant with exactOptionalPropertyTypes
 
 **🚨 MAJOR FINDING**: Post-implementation analysis revealed critical database/codebase synchronization issues:
 
-#### **Database Reality (via Supabase MCP Inspection)**:
+#### **Database Reality (via Supabase MCP Inspection)**
+
 ```sql
 -- Actual database schema (September 21, 2025)
 projects.due_date: date                    -- Still DATE type
@@ -978,7 +1004,8 @@ goals.target_date: date                   -- Still DATE type
 tasks.due_date: timestamp with time zone  -- Correctly TIMESTAMPTZ
 ```
 
-#### **Codebase Schema (src/server/db/schema.ts)**:
+#### **Codebase Schema (src/server/db/schema.ts)**
+
 ```typescript
 // Application schema definitions
 projects.dueDate: timestamp("due_date", { withTimezone: true })  // Expects TIMESTAMPTZ
@@ -1003,9 +1030,11 @@ tasks.dueDate: timestamp("due_date", { withTimezone: true })     // ✅ Matches 
 ### TypeScript Compilation Status
 
 #### **Before Database-First Fixes**: 20+ momentum-specific compilation errors
+
 #### **After Implementation**: ~5 remaining type issues related to database schema mismatch
 
 **Remaining Issues Requiring Database Migration**:
+
 1. `projects.due_date` DATE → TIMESTAMPTZ conversion needed
 2. `goals.target_date` DATE → TIMESTAMPTZ conversion needed
 3. Type generation refresh after database correction
@@ -1020,24 +1049,28 @@ ALTER TABLE goals ALTER COLUMN target_date TYPE timestamptz USING target_date::t
 ```
 
 **Next Steps**:
+
 1. Execute corrected migration on Supabase database
 2. Regenerate TypeScript types via Supabase MCP
 3. Verify repository layer Date handling post-migration
 4. Confirm zero TypeScript compilation errors
 
-### Lessons Learned
+### Lessons Learned from this next phase
 
 #### **Database-First Approach Validation**
+
 - Systematic schema correction eliminates root cause type mismatches
 - Direct database inspection essential for verifying migration success
 - Application schema must exactly match database reality for type safety
 
 #### **Workspace Cleanup Success**
+
 - Manual deletion approach was effective with no architectural damage
 - Comprehensive verification across all layers confirmed clean state
 - No workspace-related technical debt remains in codebase
 
 #### **Type Safety Resolution Pattern**
+
 - JSONB casting: `unknown` → `Record<string, unknown>` with explicit assertions
 - Enum safety: Database strings → typed literals with `as` assertions
 - Date handling: Consistent TIMESTAMPTZ types eliminate serialization issues

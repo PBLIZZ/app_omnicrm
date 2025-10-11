@@ -50,7 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 ```typescript
 // src/app/api/omni-clients/route.ts - POST handler
 import { handleAuth } from "@/lib/api";
-import { CreateOmniClientSchema, OmniClientSchema } from "@/server/db/business-schemas/omniClients";
+import { CreateOmniClientSchema, OmniClientSchema } from "@/server/db/business-schemas/contacts";
 import { OmniClientsService } from "@/server/services/omni-clients.service";
 
 export const POST = handleAuth(

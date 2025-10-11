@@ -76,7 +76,7 @@ export class StorageService {
    */
   static async getUploadSignedUrl(
     fileName: string,
-    contentType: string,
+    _contentType: string,
     folderPath?: string,
     bucket = "contacts"
   ): Promise<UploadUrlResult> {

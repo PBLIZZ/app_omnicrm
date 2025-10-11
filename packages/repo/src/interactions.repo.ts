@@ -1,7 +1,8 @@
 import { eq, and, desc, gte, lte, inArray, count, sql } from "drizzle-orm";
-import { interactions } from "./schema";
-import { getDb } from "./db";
-import type { Interaction, CreateInteraction } from "./schema";
+import { interactions } from "@/server/db/schema";
+import { getDb } from "@/server/db/client";
+import type { Interaction, CreateInteraction } from "@/server/db/schema";
+import { ok, err, DbResult } from "@/lib/utils/result";
 
 // Local type aliases for repository layer
 type InteractionDTO = Interaction;
@@ -48,55 +49,63 @@ export class InteractionsRepository {
   static async listInteractions(
     userId: string,
     filters?: InteractionFilters,
-  ): Promise<InteractionDTO[]> {
-    const db = await getDb();
+  ): Promise<DbResult<InteractionDTO[]>> {
+    try {
+      const db = await getDb();
 
-    // Build conditions array
-    const conditions = [eq(interactions.userId, userId)];
+      // Build conditions array
+      const conditions = [eq(interactions.userId, userId)];
 
-    if (filters?.contactId) {
-      conditions.push(eq(interactions.contactId, filters.contactId));
+      if (filters?.contactId) {
+        conditions.push(eq(interactions.contactId, filters.contactId));
+      }
+
+      if (filters?.type && filters.type.length > 0) {
+        conditions.push(inArray(interactions.type, filters.type));
+      }
+
+      if (filters?.source && filters.source.length > 0) {
+        conditions.push(inArray(interactions.source, filters.source));
+      }
+
+      if (filters?.occurredAfter) {
+        conditions.push(gte(interactions.occurredAt, filters.occurredAfter));
+      }
+
+      if (filters?.occurredBefore) {
+        conditions.push(lte(interactions.occurredAt, filters.occurredBefore));
+      }
+
+      const query = db
+        .select({
+          id: interactions.id,
+          userId: interactions.userId,
+          contactId: interactions.contactId,
+          type: interactions.type,
+          subject: interactions.subject,
+          bodyText: interactions.bodyText,
+          bodyRaw: interactions.bodyRaw,
+          occurredAt: interactions.occurredAt,
+          source: interactions.source,
+          sourceId: interactions.sourceId,
+          sourceMeta: interactions.sourceMeta,
+          batchId: interactions.batchId,
+          createdAt: interactions.createdAt,
+        })
+        .from(interactions)
+        .where(and(...conditions))
+        .orderBy(desc(interactions.occurredAt));
+
+      const rows = await query;
+
+      return ok(rows.map((row) => row));
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to list interactions",
+        details: error,
+      });
     }
-
-    if (filters?.type && filters.type.length > 0) {
-      conditions.push(inArray(interactions.type, filters.type));
-    }
-
-    if (filters?.source && filters.source.length > 0) {
-      conditions.push(inArray(interactions.source, filters.source));
-    }
-
-    if (filters?.occurredAfter) {
-      conditions.push(gte(interactions.occurredAt, filters.occurredAfter));
-    }
-
-    if (filters?.occurredBefore) {
-      conditions.push(lte(interactions.occurredAt, filters.occurredBefore));
-    }
-
-    const query = db
-      .select({
-        id: interactions.id,
-        userId: interactions.userId,
-        contactId: interactions.contactId,
-        type: interactions.type,
-        subject: interactions.subject,
-        bodyText: interactions.bodyText,
-        bodyRaw: interactions.bodyRaw,
-        occurredAt: interactions.occurredAt,
-        source: interactions.source,
-        sourceId: interactions.sourceId,
-        sourceMeta: interactions.sourceMeta,
-        batchId: interactions.batchId,
-        createdAt: interactions.createdAt,
-      })
-      .from(interactions)
-      .where(and(...conditions))
-      .orderBy(desc(interactions.occurredAt));
-
-    const rows = await query;
-
-    return rows.map((row) => row);
   }
 
   /**
@@ -105,34 +114,42 @@ export class InteractionsRepository {
   static async getInteractionById(
     userId: string,
     interactionId: string,
-  ): Promise<InteractionDTO | null> {
-    const db = await getDb();
+  ): Promise<DbResult<InteractionDTO | null>> {
+    try {
+      const db = await getDb();
 
-    const rows = await db
-      .select({
-        id: interactions.id,
-        userId: interactions.userId,
-        contactId: interactions.contactId,
-        type: interactions.type,
-        subject: interactions.subject,
-        bodyText: interactions.bodyText,
-        bodyRaw: interactions.bodyRaw,
-        occurredAt: interactions.occurredAt,
-        source: interactions.source,
-        sourceId: interactions.sourceId,
-        sourceMeta: interactions.sourceMeta,
-        batchId: interactions.batchId,
-        createdAt: interactions.createdAt,
-      })
-      .from(interactions)
-      .where(and(eq(interactions.userId, userId), eq(interactions.id, interactionId)))
-      .limit(1);
+      const rows = await db
+        .select({
+          id: interactions.id,
+          userId: interactions.userId,
+          contactId: interactions.contactId,
+          type: interactions.type,
+          subject: interactions.subject,
+          bodyText: interactions.bodyText,
+          bodyRaw: interactions.bodyRaw,
+          occurredAt: interactions.occurredAt,
+          source: interactions.source,
+          sourceId: interactions.sourceId,
+          sourceMeta: interactions.sourceMeta,
+          batchId: interactions.batchId,
+          createdAt: interactions.createdAt,
+        })
+        .from(interactions)
+        .where(and(eq(interactions.userId, userId), eq(interactions.id, interactionId)))
+        .limit(1);
 
-    if (rows.length === 0) {
-      return null;
+      if (rows.length === 0) {
+        return ok(null);
+      }
+
+      return ok(rows[0]!);
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to get interaction",
+        details: error,
+      });
     }
-
-    return rows[0]!;
   }
 
   /**
@@ -173,45 +190,56 @@ export class InteractionsRepository {
   static async createInteraction(
     userId: string,
     data: CreateInteractionDTO,
-  ): Promise<InteractionDTO> {
-    const db = await getDb();
+  ): Promise<DbResult<InteractionDTO>> {
+    try {
+      const db = await getDb();
 
-    // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
-    const insertValues = {
-      userId: userId,
-      contactId: data.contactId ?? null,
-      type: data.type,
-      subject: data.subject ?? null,
-      bodyText: data.bodyText ?? null,
-      bodyRaw: data.bodyRaw ?? null,
-      occurredAt: data.occurredAt,
-      source: data.source ?? null,
-      sourceId: data.sourceId ?? null,
-      sourceMeta: data.sourceMeta ?? null,
-      batchId: data.batchId ?? null,
-    };
+      // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
+      const insertValues = {
+        userId: userId,
+        contactId: data.contactId ?? null,
+        type: data.type,
+        subject: data.subject ?? null,
+        bodyText: data.bodyText ?? null,
+        bodyRaw: data.bodyRaw ?? null,
+        occurredAt: data.occurredAt,
+        source: data.source ?? null,
+        sourceId: data.sourceId ?? null,
+        sourceMeta: data.sourceMeta ?? null,
+        batchId: data.batchId ?? null,
+      };
 
-    const [newInteraction] = await db.insert(interactions).values(insertValues).returning({
-      id: interactions.id,
-      userId: interactions.userId,
-      contactId: interactions.contactId,
-      type: interactions.type,
-      subject: interactions.subject,
-      bodyText: interactions.bodyText,
-      bodyRaw: interactions.bodyRaw,
-      occurredAt: interactions.occurredAt,
-      source: interactions.source,
-      sourceId: interactions.sourceId,
-      sourceMeta: interactions.sourceMeta,
-      batchId: interactions.batchId,
-      createdAt: interactions.createdAt,
-    });
+      const [newInteraction] = await db.insert(interactions).values(insertValues).returning({
+        id: interactions.id,
+        userId: interactions.userId,
+        contactId: interactions.contactId,
+        type: interactions.type,
+        subject: interactions.subject,
+        bodyText: interactions.bodyText,
+        bodyRaw: interactions.bodyRaw,
+        occurredAt: interactions.occurredAt,
+        source: interactions.source,
+        sourceId: interactions.sourceId,
+        sourceMeta: interactions.sourceMeta,
+        batchId: interactions.batchId,
+        createdAt: interactions.createdAt,
+      });
 
-    if (!newInteraction) {
-      throw new Error("Failed to create interaction");
+      if (!newInteraction) {
+        return err({
+          code: "DB_INSERT_FAILED",
+          message: "Failed to create interaction - no data returned",
+        });
+      }
+
+      return ok(newInteraction);
+    } catch (error) {
+      return err({
+        code: "DB_INSERT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to create interaction",
+        details: error,
+      });
     }
-
-    return newInteraction;
   }
 
   /**
@@ -377,7 +405,7 @@ export class InteractionsRepository {
         ${interaction.subject}, ${interaction.bodyText}, ${JSON.stringify(interaction.bodyRaw)},
         ${interaction.occurredAt}, ${interaction.source}, ${interaction.sourceId},
         ${JSON.stringify(interaction.sourceMeta)}, ${interaction.batchId},
-        ${new Date().toISOString()}
+        ${new Date()}
       )
       ON CONFLICT (user_id, source, source_id) 
       DO UPDATE SET

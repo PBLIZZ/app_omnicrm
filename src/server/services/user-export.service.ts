@@ -25,6 +25,7 @@ import {
   aiQuotas,
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { Result, ok, err } from "@/lib/utils/result";
 
 export interface UserExportResult {
   exportedAt: string;
@@ -88,9 +89,10 @@ export class UserExportService {
   /**
    * Export all user data for GDPR compliance
    */
-  static async exportAllUserData(userId: string): Promise<UserExportResult> {
-    const db = await getDb();
-    const exportTimestamp = new Date().toISOString();
+  static async exportAllUserData(userId: string): Promise<Result<UserExportResult, string>> {
+    try {
+      const db = await getDb();
+      const exportTimestamp = new Date().toISOString();
 
     // Export all user data tables with performance limits
     const [
@@ -270,7 +272,10 @@ export class UserExportService {
       },
     };
 
-    return exportPayload;
+      return ok(exportPayload);
+    } catch (error) {
+      return err(error instanceof Error ? error.message : "Failed to export user data");
+    }
   }
 
   /**

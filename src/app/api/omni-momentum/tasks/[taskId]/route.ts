@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { handleAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
+import { productivityService } from "@/server/services/productivity.service";
 import { UpdateTaskSchema, TaskSchema } from "@/server/db/business-schemas";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { isErr } from "@/lib/utils/result";
 
 /**
  * Individual Task Management API Routes
@@ -24,13 +25,17 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const handler = handleAuth(z.object({}), TaskSchema, async (_, userId) => {
-    const task = await momentumService.getTask(params.taskId, userId);
+    const result = await productivityService.getTask(params.taskId, userId);
 
-    if (!task) {
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+
+    if (!result.data) {
       notFound();
     }
 
-    return task;
+    return result.data;
   });
 
   return handler(request);
@@ -41,13 +46,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   const handler = handleAuth(UpdateTaskSchema, TaskSchema, async (data, userId) => {
-    const task = await momentumService.updateTask(params.taskId, userId, data);
+    const result = await productivityService.updateTask(params.taskId, userId, data);
 
-    if (!task) {
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+
+    if (!result.data) {
       notFound();
     }
 
-    return task;
+    return result.data;
   });
 
   return handler(request);
@@ -61,7 +70,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     z.object({}),
     z.object({ success: z.boolean() }),
     async (_, userId) => {
-      await momentumService.deleteTask(params.taskId, userId);
+      const result = await productivityService.deleteTask(params.taskId, userId);
+
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+
       return { success: true };
     },
   );

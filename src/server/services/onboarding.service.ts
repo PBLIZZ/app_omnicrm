@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/business-schemas/business-schema";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { Result, ok, err, isOk, isErr } from "@/lib/utils/result";
+import { OnboardingRepository, type ClientData, type ConsentData } from "@repo";
 
 // Validation schemas
 const AddressSchema = z
@@ -70,24 +70,19 @@ const OnboardingSubmissionSchema = z.object({
 // Type definitions
 export type OnboardingSubmissionData = z.infer<typeof OnboardingSubmissionSchema>;
 
+interface OnboardingResult {
+  contactId: string;
+  message: string;
+}
+
 interface ClientIpData {
   ip: string;
   userAgent: string;
 }
 
 // Constants
-const INVALID_AUTH_SPEC = "28000";
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-const PHONE_REGEX = /^[\+]?[1-9][\d]{0,15}$/;
-
-// Environment variable validation helper
-function getRequiredEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Required environment variable ${key} is not set`);
-  }
-  return value;
-}
+const PHONE_REGEX = /^[\+]?[1-9][\d]{0,15}$/
 
 // Rate limiter instance
 const ratelimit = new Ratelimit({
@@ -99,8 +94,13 @@ export class OnboardingService {
   /**
    * Check rate limits for client requests
    */
-  static async checkRateLimit(clientId: string): Promise<{ success: boolean }> {
-    return await ratelimit.limit(clientId);
+  static async checkRateLimit(clientId: string): Promise<Result<boolean, string>> {
+    try {
+      const { success } = await ratelimit.limit(clientId);
+      return ok(success);
+    } catch (error) {
+      return err(error instanceof Error ? error.message : "Rate limit check failed");
+    }
   }
 
   /**
@@ -138,8 +138,17 @@ export class OnboardingService {
   /**
    * Validate onboarding submission data
    */
-  static validateSubmission(body: unknown): OnboardingSubmissionData {
-    return OnboardingSubmissionSchema.parse(body);
+  static validateSubmission(body: unknown): Result<OnboardingSubmissionData, string> {
+    try {
+      const data = OnboardingSubmissionSchema.parse(body);
+      return ok(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const messages = error.issues.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`).join(', ');
+        return err(`Validation failed: ${messages}`);
+      }
+      return err(error instanceof Error ? error.message : "Validation failed");
+    }
   }
 
   /**
@@ -178,44 +187,55 @@ export class OnboardingService {
   /**
    * Validate all client data including email, phone, and JSONB fields
    */
-  static validateClientData(client: OnboardingSubmissionData["client"]): void {
-    // Validate email format
-    if (!this.validateEmail(client.primary_email)) {
-      throw new Error("Invalid email format");
-    }
+  static validateClientData(client: OnboardingSubmissionData["client"]): Result<void, string> {
+    try {
+      // Validate email format
+      if (!this.validateEmail(client.primary_email)) {
+        return err("Invalid email format");
+      }
 
-    // Validate phone formats
-    if (client.primary_phone && !this.validatePhone(client.primary_phone)) {
-      throw new Error("Invalid phone format");
-    }
+      // Validate phone formats
+      if (client.primary_phone && !this.validatePhone(client.primary_phone)) {
+        return err("Invalid phone format");
+      }
 
-    if (client.emergency_contact_phone && !this.validatePhone(client.emergency_contact_phone)) {
-      throw new Error("Invalid emergency contact phone format");
-    }
+      if (client.emergency_contact_phone && !this.validatePhone(client.emergency_contact_phone)) {
+        return err("Invalid emergency contact phone format");
+      }
 
-    // Validate JSONB fields
-    if (client.address) {
-      this.validateJsonbField(client.address, "address", 5000);
-    }
-    if (client.health_context) {
-      this.validateJsonbField(client.health_context, "health_context", 10000);
-    }
-    if (client.preferences) {
-      this.validateJsonbField(client.preferences, "preferences", 5000);
+      // Validate JSONB fields
+      if (client.address) {
+        this.validateJsonbField(client.address, "address", 5000);
+      }
+      if (client.health_context) {
+        this.validateJsonbField(client.health_context, "health_context", 10000);
+      }
+      if (client.preferences) {
+        this.validateJsonbField(client.preferences, "preferences", 5000);
+      }
+
+      return ok(undefined);
+    } catch (error) {
+      return err(error instanceof Error ? error.message : "Client data validation failed");
     }
   }
 
   /**
    * Validate consent data
    */
-  static validateConsentData(consent: OnboardingSubmissionData["consent"]): void {
-    this.validateJsonbField(consent, "consent", 10000);
+  static validateConsentData(consent: OnboardingSubmissionData["consent"]): Result<void, string> {
+    try {
+      this.validateJsonbField(consent, "consent", 10000);
+      return ok(undefined);
+    } catch (error) {
+      return err(error instanceof Error ? error.message : "Consent data validation failed");
+    }
   }
 
   /**
    * Prepare client data for database insertion
    */
-  static prepareClientData(client: OnboardingSubmissionData["client"]) {
+  static prepareClientData(client: OnboardingSubmissionData["client"]): any {
     return {
       display_name: `${client.first_name} ${client.last_name}`,
       primary_email: client.primary_email,
@@ -236,7 +256,7 @@ export class OnboardingService {
   static prepareConsentData(
     consent: OnboardingSubmissionData["consent"],
     clientIpData: ClientIpData,
-  ) {
+  ): any {
     return {
       ...consent,
       ip_address: clientIpData.ip,
@@ -245,57 +265,56 @@ export class OnboardingService {
   }
 
   /**
-   * Submit onboarding data to database
+   * Submit onboarding data to database using repository
    */
   static async submitOnboarding(
+    userId: string,
     token: string,
-    clientData: ReturnType<typeof OnboardingService.prepareClientData>,
-    consentData: ReturnType<typeof OnboardingService.prepareConsentData>,
+    clientData: ClientData,
+    consentData: ConsentData,
     photoPath?: string,
-  ): Promise<string> {
-    const supabase = createClient<Database>(
-      getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-      getRequiredEnv("SUPABASE_SECRET_KEY"),
-    );
+  ): Promise<Result<string, string>> {
+    try {
+      const result = await OnboardingRepository.createContactWithConsent(
+        userId,
+        token,
+        clientData,
+        consentData,
+        photoPath
+      );
 
-    const { data: contactId, error } = await supabase.rpc("onboard_client_with_token", {
-      p_token: token,
-      p_client: clientData,
-      p_consent: consentData,
-      ...(photoPath && { p_photo_path: photoPath }),
-    });
-
-    if (error) {
-      console.error("Onboarding submission error:", error);
-
-      // Handle specific error codes with robust checking
-      if (
-        error?.code === INVALID_AUTH_SPEC ||
-        (error?.message && error.message.includes("invalid_authorization_specification"))
-      ) {
-        throw new Error("Invalid or expired token");
+      // Convert DbResult to Result<string, string>
+      if (isErr(result)) {
+        return err(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid repository result state");
       }
 
-      throw new Error("Failed to complete onboarding");
+      return ok(result.data);
+    } catch (error) {
+      console.error("Onboarding submission error:", error);
+      return err(error instanceof Error ? error.message : "Failed to complete onboarding");
     }
-
-    return contactId;
   }
 
   /**
    * Track successful submission by incrementing token usage count
    */
-  static async trackSubmission(token: string): Promise<void> {
+  static async trackSubmission(token: string): Promise<Result<void, string>> {
     try {
-      const supabase = createClient<Database>(
-        getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-        getRequiredEnv("SUPABASE_SECRET_KEY"),
-      );
-
-      await supabase.rpc("increment_submission_count", { token_value: token });
+      const result = await OnboardingRepository.incrementTokenUsage(token);
+      if (isErr(result)) {
+        console.warn("Failed to track submission:", result.error);
+        // Don't fail the request if tracking fails, just log
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
+      }
+      return ok(undefined);
     } catch (trackingError) {
-      // Don't fail the request if tracking fails
       console.warn("Failed to track submission:", trackingError);
+      return ok(undefined); // Don't fail the request if tracking fails
     }
   }
 
@@ -303,28 +322,48 @@ export class OnboardingService {
    * Complete onboarding process - main service method
    */
   static async processOnboardingSubmission(
+    userId: string,
     submissionData: OnboardingSubmissionData,
     clientIpData: ClientIpData,
-  ): Promise<{ contactId: string; message: string }> {
+  ): Promise<Result<OnboardingResult, string>> {
     const { token, client, consent, photo_path } = submissionData;
 
     // Validate all client data
-    this.validateClientData(client);
-    this.validateConsentData(consent);
+    const clientValidation = this.validateClientData(client);
+    if (isErr(clientValidation)) {
+      return err(clientValidation.error);
+    }
+    if (!isOk(clientValidation)) {
+      throw new Error("Invalid client validation result state");
+    }
+
+    const consentValidation = this.validateConsentData(consent);
+    if (isErr(consentValidation)) {
+      return err(consentValidation.error);
+    }
+    if (!isOk(consentValidation)) {
+      throw new Error("Invalid consent validation result state");
+    }
 
     // Prepare data for database
     const clientData = this.prepareClientData(client);
     const consentData = this.prepareConsentData(consent, clientIpData);
 
     // Submit to database
-    const contactId = await this.submitOnboarding(token, clientData, consentData, photo_path);
+    const submissionResult = await this.submitOnboarding(userId, token, clientData, consentData, photo_path);
+    if (isErr(submissionResult)) {
+      return err(submissionResult.error);
+    }
+    if (!isOk(submissionResult)) {
+      throw new Error("Invalid submission result state");
+    }
 
-    // Track successful submission
+    // Track successful submission (don't fail if tracking fails)
     await this.trackSubmission(token);
 
-    return {
-      contactId,
+    return ok({
+      contactId: submissionResult.data,
       message: "Onboarding completed successfully",
-    };
+    });
   }
 }

@@ -1,30 +1,55 @@
 /**
- * Gmail Sync Service
+ * Gmail Sync Service (server-only)
  *
- * Consolidates all Gmail synchronization business logic for API routes:
- * - /api/google/gmail/sync
- * - /api/google/gmail/sync-blocking
- * - /api/google/gmail/sync-direct
+ * Responsibilities:
+ * - Fetch Gmail message IDs for a time range (incremental or full)
+ * - Fetch each message and upsert into raw_events (dedup on userId+provider+sourceId)
+ * - Enqueue normalization job for inserted emails (background processing)
+ * - Test and bulk ingestion helpers (merged from former gmail-ingestion.service.ts)
  *
- * Provides methods for incremental sync, direct processing, and blocking sync operations.
+ * Notes:
+ * - Uses GoogleGmailService.getAuth() as the single source of truth for auth/refresh.
+ * - SSE/streaming removed.
+ * - "Blocking" removed. API/UI can poll job status separately.
+ * - Standardized on RawEventsRepository (no direct Drizzle access here).
  */
 
-import { getDb } from "@/server/db/client";
-import { userIntegrations, rawEvents } from "@/server/db/schema";
-import { getGoogleClients } from "@/server/google/client";
-import { listGmailMessageIds } from "@/server/google/gmail";
-import { and, eq, desc } from "drizzle-orm";
-import type { gmail_v1 } from "googleapis";
+import { google, gmail_v1 } from "googleapis";
 import { randomUUID } from "node:crypto";
 import { logger } from "@/lib/observability";
 import { enqueue } from "@/server/jobs/enqueue";
+import { GoogleGmailService } from "@/server/services/google-gmail.service";
+import { listGmailMessageIds } from "@/server/google/gmail";
+
+import { RawEventsRepository } from "@repo";
+import type {
+  CreateRawEventDTO,
+  GmailIngestionResultDTO,
+} from "@/server/db/business-schemas/gmail";
+import { Result, ok, err } from "@/lib/utils/result";
+
+// -------------------------------
+// Public types
+// -------------------------------
 
 export interface GmailSyncOptions {
-  incremental?: boolean | undefined;
-  overlapHours?: number | undefined;
-  daysBack?: number | undefined;
-  blocking?: boolean | undefined;
-  direct?: boolean | undefined;
+  /**
+   * Incremental sync uses the last raw_event.createdAt boundary.
+   * If false, falls back to a wider window (daysBack).
+   */
+  incremental?: boolean;
+  /**
+   * Overlap hours to move boundary backwards to avoid gaps.
+   */
+  overlapHours?: number;
+  /**
+   * Days to look back when not incremental (default 365).
+   */
+  daysBack?: number;
+  /**
+   * For logging context. No behavioral difference except telemetry.
+   */
+  direct?: boolean;
 }
 
 export interface GmailSyncResult {
@@ -38,38 +63,25 @@ export interface GmailSyncResult {
   };
 }
 
-export interface GmailSyncProgress {
-  type: 'start' | 'progress' | 'batch_complete' | 'complete' | 'error';
-  processed?: number;
-  total?: number;
-  batchId?: string;
-  error?: string;
-  stats?: GmailSyncResult['stats'];
-}
+// -------------------------------
+// Service
+// -------------------------------
 
 export class GmailSyncService {
   /**
-   * Main Gmail sync method - processes Gmail messages into raw_events
+   * Standard/background Gmail sync.
+   * - Writes raw_events (via Repository)
+   * - Enqueues normalization job (background)
    */
-  static async syncGmail(
-    userId: string,
-    options: GmailSyncOptions = {}
-  ): Promise<GmailSyncResult> {
+  static async syncGmail(userId: string, options: GmailSyncOptions = {}): Promise<GmailSyncResult> {
     const { incremental = true, overlapHours = 0, daysBack } = options;
 
-    const db = await getDb();
+    // ---- Auth & client via single source of truth
+    const auth = await GoogleGmailService.getAuth(userId);
+    const gmail = google.gmail({ version: "v1", auth });
 
-    // Verify Gmail integration exists (check both gmail-specific and unified)
-    const integration = await this.getGmailIntegration(userId, db);
-    if (!integration) {
-      throw new Error("Gmail not connected");
-    }
-
-    // Get Gmail client
-    const { gmail } = await getGoogleClients(userId);
-
-    // Determine sync query based on incremental settings
-    const query = await this.buildSyncQuery(userId, incremental, overlapHours, daysBack, db);
+    // ---- Build query window
+    const query = await this.buildSyncQuery(userId, incremental, overlapHours, daysBack);
     const batchId = randomUUID();
 
     await logger.info("Gmail sync started", {
@@ -81,23 +93,24 @@ export class GmailSyncService {
         daysBack: daysBack ?? null,
         query,
         batchId,
+        mode: options.direct ? "direct" : "background",
       },
     });
 
-    // Fetch Gmail message IDs
+    // ---- List message IDs
     const { ids, pages } = await listGmailMessageIds(gmail, query, userId);
+    const totalToProcess = ids.length;
 
     let processed = 0;
     let inserted = 0;
     let errors = 0;
 
-    // Process messages in parallel batches for optimal throughput
+    // Reasonable defaults; tuned to avoid API rate issues
     const BATCH_SIZE = 20;
     const PARALLEL_BATCHES = 5;
-    const totalToProcess = ids.length;
 
     for (let i = 0; i < totalToProcess; i += BATCH_SIZE * PARALLEL_BATCHES) {
-      const batchResults = await this.processBatchParallel(
+      const groups = await this.processBatchParallel(
         gmail,
         ids,
         i,
@@ -107,22 +120,15 @@ export class GmailSyncService {
         userId,
         batchId,
         query,
-        db
       );
 
-      // Count results
-      for (const batchResult of batchResults) {
-        for (const result of batchResult) {
-          processed++;
-          if (result.success) {
-            inserted++;
-          } else {
-            errors++;
-          }
-        }
+      for (const group of groups) {
+        processed += group.processed;
+        inserted += group.inserted;
+        errors += group.errors;
       }
 
-      // Small delay between parallel batch groups to avoid rate limits
+      // Light pacing to be nice to Gmail quotas
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
@@ -136,22 +142,22 @@ export class GmailSyncService {
         inserted,
         errors,
         pages,
+        mode: options.direct ? "direct" : "background",
       },
     });
 
-    // Enqueue normalization jobs for the synced emails
+    // ---- Enqueue normalization for newly inserted emails (best-effort)
     if (inserted > 0) {
       try {
         await enqueue("normalize_google_email", { batchId, provider: "gmail" }, userId, batchId);
-      } catch (jobError) {
-        // Non-fatal; raw events written successfully
+      } catch (e) {
         await logger.warn("Failed to enqueue normalization job after Gmail sync", {
           operation: "job_enqueue",
           additionalData: {
             userId,
             batchId,
             inserted,
-            error: jobError instanceof Error ? jobError.message : String(jobError),
+            error: e instanceof Error ? e.message : String(e),
           },
         });
       }
@@ -170,226 +176,216 @@ export class GmailSyncService {
   }
 
   /**
-   * Streaming Gmail sync with real-time progress updates
-   */
-  static async *syncGmailStreaming(
-    userId: string,
-    options: GmailSyncOptions = {}
-  ): AsyncGenerator<GmailSyncProgress, void, unknown> {
-    try {
-      const { incremental = true, overlapHours = 0, daysBack } = options;
-      const db = await getDb();
-
-      // Verify Gmail integration
-      const integration = await this.getGmailIntegration(userId, db);
-      if (!integration) {
-        yield { type: 'error', error: 'Gmail not connected' };
-        return;
-      }
-
-      const { gmail } = await getGoogleClients(userId);
-      const query = await this.buildSyncQuery(userId, incremental, overlapHours, daysBack, db);
-      const batchId = randomUUID();
-
-      // Fetch message IDs
-      const { ids } = await listGmailMessageIds(gmail, query, userId);
-      const total = ids.length;
-
-      yield { type: 'start', total, batchId };
-
-      let processed = 0;
-      let inserted = 0;
-      let errors = 0;
-
-      const BATCH_SIZE = 10; // Smaller batches for streaming
-      for (let i = 0; i < total; i += BATCH_SIZE) {
-        const batchIds = ids.slice(i, Math.min(i + BATCH_SIZE, total));
-
-        const batchResults = await this.processBatch(
-          gmail,
-          batchIds,
-          userId,
-          batchId,
-          query,
-          db
-        );
-
-        // Count batch results
-        for (const result of batchResults) {
-          processed++;
-          if (result.success) {
-            inserted++;
-          } else {
-            errors++;
-          }
-        }
-
-        yield {
-          type: 'batch_complete',
-          processed,
-          total,
-          batchId,
-        };
-
-        // Small delay between batches
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      // Enqueue normalization if needed
-      if (inserted > 0) {
-        try {
-          await enqueue("normalize_google_email", { batchId, provider: "gmail" }, userId, batchId);
-        } catch (jobError) {
-          // Non-fatal error
-          await logger.warn("Failed to enqueue normalization job", {
-            operation: "job_enqueue",
-            additionalData: { userId, batchId, error: String(jobError) },
-          });
-        }
-      }
-
-      yield {
-        type: 'complete',
-        processed,
-        total,
-        stats: {
-          totalFound: total,
-          processed,
-          inserted,
-          errors,
-          batchId,
-        }
-      };
-
-    } catch (error) {
-      yield {
-        type: 'error',
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  }
-
-  /**
-   * Direct Gmail sync without background job queuing
+   * Direct Gmail sync (same behavior; separate log context).
+   * Keep this for explicit "Run now" UX or CLI invocations.
    */
   static async syncGmailDirect(
     userId: string,
-    options: GmailSyncOptions = {}
+    options: GmailSyncOptions = {},
   ): Promise<GmailSyncResult> {
-    // Direct sync is the same as regular sync but with different logging context
     const result = await this.syncGmail(userId, { ...options, direct: true });
 
     await logger.info("Gmail direct sync completed", {
       operation: "gmail_sync_direct",
-      additionalData: {
-        userId,
-        stats: result.stats,
-      },
+      additionalData: { userId, stats: result.stats },
     });
 
     return result;
   }
 
+  // ------------------------------------------------------------------
+  // Ingestion helpers (merged from former gmail-ingestion.service.ts)
+  // ------------------------------------------------------------------
+
   /**
-   * Blocking Gmail sync that waits for all processing to complete
+   * Test Gmail ingestion - fetch 10 newest messages and insert via repository.
    */
-  static async syncGmailBlocking(
+  static async testGmailIngestion(
     userId: string,
-    options: GmailSyncOptions = {}
-  ): Promise<GmailSyncResult & { normalizedCount: number }> {
-    // First, perform the regular sync
-    const syncResult = await this.syncGmail(userId, { ...options, blocking: true });
-
-    // Wait for normalization to complete if emails were inserted
-    let normalizedCount = 0;
-    if (syncResult.stats.inserted > 0) {
-      try {
-        // Wait for normalization job to complete
-        normalizedCount = await this.waitForNormalization(userId, syncResult.stats.batchId);
-      } catch (error) {
-        await logger.warn("Normalization waiting failed in blocking sync", {
-          operation: "gmail_sync_blocking",
-          additionalData: {
-            userId,
-            batchId: syncResult.stats.batchId,
-            error: error instanceof Error ? error.message : String(error),
-          },
-        });
-      }
-    }
-
-    await logger.info("Gmail blocking sync completed", {
-      operation: "gmail_sync_blocking",
-      additionalData: {
-        userId,
-        stats: syncResult.stats,
-        normalizedCount,
-      },
+  ): Promise<Result<GmailIngestionResultDTO, string>> {
+    await logger.info("Starting Gmail ingest test", {
+      operation: "gmail_ingestion_service.test",
+      additionalData: { userId: this.mask(userId), messageLimit: 10 },
     });
 
-    return {
-      ...syncResult,
-      normalizedCount,
-    };
+    try {
+      const auth = await GoogleGmailService.getAuth(userId);
+      const gmail = google.gmail({ version: "v1", auth });
+
+      const listResponse = await gmail.users.messages.list({ userId: "me", maxResults: 10 });
+      const messageIds = listResponse.data.messages?.map((m) => m.id).filter(Boolean) ?? [];
+
+      const results = await this.fetchAndInsertMessages(gmail, messageIds, userId, undefined, {
+        testIngestion: true,
+      });
+
+      const successCount = results.filter((r) => r.success).length;
+      const failureCount = results.length - successCount;
+
+      await logger.info("Gmail ingest completed", {
+        operation: "gmail_ingestion_service.test",
+        additionalData: {
+          userId: this.mask(userId),
+          totalMessages: messageIds.length,
+          successCount,
+          failureCount,
+        },
+      });
+
+      return ok({
+        totalMessages: messageIds.length,
+        successCount,
+        failureCount,
+        results,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await logger.error(
+        "Gmail ingest failed",
+        {
+          operation: "gmail_ingestion_service.test",
+          additionalData: { userId: this.mask(userId), error: errorMsg },
+        },
+        error instanceof Error ? error : undefined,
+      );
+      return err(errorMsg);
+    }
   }
 
   /**
-   * Get Gmail integration (unified or gmail-specific)
+   * Bulk Gmail ingestion (explicit), optional query and batchId.
    */
-  private static async getGmailIntegration(userId: string, db: Awaited<ReturnType<typeof getDb>>): Promise<typeof userIntegrations.$inferSelect | undefined> {
-    const [gmailIntegration, unifiedIntegration] = await Promise.all([
-      db
-        .select()
-        .from(userIntegrations)
-        .where(
-          and(
-            eq(userIntegrations.userId, userId),
-            eq(userIntegrations.provider, "google"),
-            eq(userIntegrations.service, "gmail"),
-          ),
-        )
-        .limit(1),
-      db
-        .select()
-        .from(userIntegrations)
-        .where(
-          and(
-            eq(userIntegrations.userId, userId),
-            eq(userIntegrations.provider, "google"),
-            eq(userIntegrations.service, "unified"),
-          ),
-        )
-        .limit(1),
-    ]);
+  static async bulkGmailIngestion(
+    userId: string,
+    options: { maxResults?: number; query?: string; batchId?: string } = {},
+  ): Promise<Result<GmailIngestionResultDTO, string>> {
+    const { maxResults = 100, query, batchId } = options;
 
-    return unifiedIntegration[0] ?? gmailIntegration[0];
+    await logger.info("Starting bulk Gmail ingestion", {
+      operation: "gmail_ingestion_service.bulk",
+      additionalData: { userId: this.mask(userId), maxResults, query, batchId },
+    });
+
+    try {
+      const auth = await GoogleGmailService.getAuth(userId);
+      const gmail = google.gmail({ version: "v1", auth });
+
+      const listParams: { userId: string; maxResults: number; q?: string } = {
+        userId: "me",
+        maxResults,
+      };
+      if (query) listParams.q = query;
+
+      const listResponse = await gmail.users.messages.list(listParams);
+      const messageIds = listResponse.data.messages?.map((m) => m.id).filter(Boolean) ?? [];
+
+      const results = await this.fetchAndInsertMessages(gmail, messageIds, userId, batchId, {
+        bulkIngestion: true,
+      });
+
+      const successCount = results.filter((r) => r.success).length;
+      const failureCount = results.length - successCount;
+
+      await logger.info("Bulk Gmail ingestion completed", {
+        operation: "gmail_ingestion_service.bulk",
+        additionalData: {
+          userId: this.mask(userId),
+          totalMessages: messageIds.length,
+          successCount,
+          failureCount,
+          batchId,
+        },
+      });
+
+      return ok({
+        totalMessages: messageIds.length,
+        successCount,
+        failureCount,
+        results,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await logger.error(
+        "Bulk Gmail ingestion failed",
+        {
+          operation: "gmail_ingestion_service.bulk",
+          additionalData: { userId: this.mask(userId), error: errorMsg },
+        },
+        error instanceof Error ? error : undefined,
+      );
+      return err(errorMsg);
+    }
   }
 
   /**
-   * Build Gmail query string based on sync options
+   * Get ingestion statistics for a user.
+   */
+  static async getIngestionStats(
+    userId: string,
+    provider: string = "gmail",
+  ): Promise<
+    Result<{ totalEvents: number; recentEvents: number; lastIngestionAt: Date | null }, string>
+  > {
+    try {
+      const totalEvents = await RawEventsRepository.countRawEvents(userId, {
+        provider: [provider],
+      });
+
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentEvents = await RawEventsRepository.countRawEvents(userId, {
+        provider: [provider],
+        occurredAfter: yesterday,
+      });
+
+      const recentEventsList = await RawEventsRepository.listRawEvents(
+        userId,
+        { provider: [provider] },
+        1,
+      );
+      const lastIngestionAt =
+        recentEventsList.length > 0 ? (recentEventsList[0]?.createdAt ?? null) : null;
+
+      return ok({ totalEvents, recentEvents, lastIngestionAt });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await logger.error(
+        "Failed to get ingestion stats",
+        {
+          operation: "gmail_ingestion_service.stats",
+          additionalData: { userId: this.mask(userId), provider, error: errorMsg },
+        },
+        error instanceof Error ? error : undefined,
+      );
+      return err(errorMsg);
+    }
+  }
+
+  // -----------------------------
+  // Internals
+  // -----------------------------
+
+  /**
+   * Build Gmail query string based on sync options.
+   * - Incremental: boundary from last raw_event.createdAt (with overlap).
+   * - Fallback: newer_than:{daysBack}d
    */
   private static async buildSyncQuery(
     userId: string,
     incremental: boolean,
     overlapHours: number,
     daysBack: number | undefined,
-    db: Awaited<ReturnType<typeof getDb>>
   ): Promise<string> {
     if (incremental) {
-      // Determine incremental boundary from last successful raw_event insert
-      const last = await db
-        .select({ createdAt: rawEvents.createdAt })
-        .from(rawEvents)
-        .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, "gmail")))
-        .orderBy(desc(rawEvents.createdAt))
-        .limit(1);
+      // Use repository to find the latest raw_event for Gmail
+      const latest = await RawEventsRepository.listRawEvents(userId, { provider: ["gmail"] }, 1);
+      const createdAt = latest[0]?.createdAt;
 
-      if (last[0]?.createdAt) {
-        const boundary = new Date(last[0].createdAt);
+      if (createdAt) {
+        const boundary = new Date(createdAt);
         if (overlapHours && overlapHours > 0) {
           boundary.setHours(boundary.getHours() - overlapHours);
         }
-        // Gmail after: uses YYYY/MM/DD format
+        // Gmail after:YYYY/MM/DD (day-resolution)
         const yyyy = boundary.getFullYear();
         const mm = String(boundary.getMonth() + 1).padStart(2, "0");
         const dd = String(boundary.getDate()).padStart(2, "0");
@@ -397,13 +393,14 @@ export class GmailSyncService {
       }
     }
 
-    // Fallback when no previous sync exists
     const fallbackDays = daysBack ?? 365;
     return `newer_than:${fallbackDays}d`;
   }
 
   /**
-   * Process messages in parallel batches
+   * Process multiple small batches in parallel (to balance throughput vs. quota).
+   * Each parallel unit fetches messages, then attempts a bulk upsert via repository.
+   * On bulk failure, it falls back to per-message insert to compute accurate stats.
    */
   private static async processBatchParallel(
     gmail: gmail_v1.Gmail,
@@ -415,136 +412,208 @@ export class GmailSyncService {
     userId: string,
     batchId: string,
     query: string,
-    db: Awaited<ReturnType<typeof getDb>>
-  ): Promise<Array<Array<{ success: boolean; error?: string }>>> {
-    const batchPromises = [];
+  ): Promise<Array<{ processed: number; inserted: number; errors: number }>> {
+    const tasks: Array<Promise<{ processed: number; inserted: number; errors: number }>> = [];
 
     for (let j = 0; j < parallelBatches && startIndex + j * batchSize < totalToProcess; j++) {
-      const startIdx = startIndex + j * batchSize;
-      const endIdx = Math.min(startIdx + batchSize, totalToProcess);
-      const batchIds = ids.slice(startIdx, endIdx);
+      const start = startIndex + j * batchSize;
+      const end = Math.min(start + batchSize, totalToProcess);
+      const slice = ids.slice(start, end);
+      if (slice.length === 0) break;
 
-      if (batchIds.length === 0) break;
-
-      const batchPromise = this.processBatch(gmail, batchIds, userId, batchId, query, db);
-      batchPromises.push(batchPromise);
+      tasks.push(this.processBatch(gmail, slice, userId, batchId, query));
     }
 
-    return Promise.all(batchPromises);
+    return Promise.all(tasks);
   }
 
   /**
-   * Process a single batch of message IDs
+   * Process a single batch of message IDs.
    */
   private static async processBatch(
     gmail: gmail_v1.Gmail,
     messageIds: string[],
     userId: string,
-    batchId: string,
+    batchId: string | undefined,
     query: string,
-    db: Awaited<ReturnType<typeof getDb>>
-  ): Promise<Array<{ success: boolean; error?: string }>> {
-    return Promise.all(
-      messageIds.map(async (messageId) => {
-        try {
-          const response = await gmail.users.messages.get({
-            userId: "me",
-            id: messageId,
-            format: "full",
-          });
+  ): Promise<{ processed: number; inserted: number; errors: number }> {
+    const createPayloads: Array<CreateRawEventDTO & { userId: string }> = [];
+    let processed = 0;
+    let inserted = 0;
+    let errors = 0;
 
-          const msg = response.data;
-          if (!msg) {
-            return { success: false, error: "No message data" };
-          }
+    // Fetch full messages
+    for (const messageId of messageIds) {
+      try {
+        const response = await gmail.users.messages.get({
+          userId: "me",
+          id: messageId,
+          format: "full",
+        });
 
-          // Parse email timestamp
-          const internalMs = Number(msg.internalDate ?? 0);
-          const occurredAt = internalMs ? new Date(internalMs) : new Date();
+        const msg = response.data as gmail_v1.Schema$Message & {
+          internalDate?: string | null;
+          labelIds?: string[] | null;
+        };
 
-          // Insert directly into raw_events using upsert for deduplication
-          await db
-            .insert(rawEvents)
-            .values({
-              userId,
-              provider: "gmail",
-              payload: msg,
-              occurredAt,
-              contactId: null,
-              batchId,
-              sourceMeta: {
-                labelIds: msg.labelIds ?? [],
-                fetchedAt: new Date().toISOString(),
-                matchedQuery: query,
-                syncType: "service_sync",
-              },
-              sourceId: msg.id ?? null,
-            })
-            .onConflictDoUpdate({
-              target: [rawEvents.userId, rawEvents.provider, rawEvents.sourceId],
-              set: {
-                payload: msg,
-                occurredAt,
-                sourceMeta: {
-                  labelIds: msg.labelIds ?? [],
-                  fetchedAt: new Date().toISOString(),
-                  matchedQuery: query,
-                  syncType: "service_sync",
-                },
-                batchId,
-              },
-            });
-
-          return { success: true };
-        } catch (error) {
-          await logger.warn("Failed to process Gmail message", {
-            operation: "gmail_sync_batch",
-            additionalData: {
-              userId,
-              messageId,
-              error: error instanceof Error ? error.message : String(error),
-            },
-          });
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-          };
+        if (!msg) {
+          errors++;
+          continue;
         }
-      })
-    );
+
+        // OccurredAt from internalDate (ms)
+        const internalMs = Number(msg.internalDate ?? 0);
+        const occurredAt = internalMs ? new Date(internalMs) : new Date();
+
+        const event: CreateRawEventDTO & { userId: string } = {
+          userId,
+          provider: "gmail",
+          payload: msg as unknown as Record<string, unknown>,
+          occurredAt,
+          batchId,
+          sourceMeta: {
+            labelIds: msg.labelIds ?? [],
+            fetchedAt: new Date().toISOString(),
+            matchedQuery: query,
+            syncType: "service_sync",
+          },
+          sourceId: msg.id ?? messageId,
+        };
+
+        createPayloads.push(event);
+      } catch (error) {
+        errors++;
+        await logger.warn("Failed to fetch Gmail message", {
+          operation: "gmail_sync_batch",
+          additionalData: {
+            userId,
+            messageId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        });
+      } finally {
+        processed++;
+      }
+    }
+
+    if (createPayloads.length === 0) {
+      return { processed, inserted, errors };
+    }
+
+    // Try bulk upsert via repository (should dedupe internally)
+    try {
+      await RawEventsRepository.createBulkRawEvents(createPayloads);
+      inserted += createPayloads.length;
+      return { processed, inserted, errors };
+    } catch (bulkError) {
+      // Fall back to per-message create to compute accurate inserted/errors
+      await logger.warn("Bulk raw_events upsert failed; falling back to per-item", {
+        operation: "gmail_sync_batch",
+        additionalData: {
+          userId,
+          batchSize: createPayloads.length,
+          error: bulkError instanceof Error ? bulkError.message : String(bulkError),
+        },
+      });
+
+      for (const ev of createPayloads) {
+        try {
+          await RawEventsRepository.createRawEvent(ev);
+          inserted++;
+        } catch (e) {
+          errors++;
+        }
+      }
+      return { processed, inserted, errors };
+    }
+  }
+
+  private static mask(id: string) {
+    return id.slice(0, 8) + "...";
   }
 
   /**
-   * Wait for normalization jobs to complete for a specific batch
+   * Fetch+insert helper used by test and bulk ingestion entrypoints.
    */
-  private static async waitForNormalization(userId: string, batchId: string): Promise<number> {
-    const db = await getDb();
-    const maxWaitMs = 300000; // 5 minutes
-    const pollIntervalMs = 2000; // 2 seconds
-    const startTime = Date.now();
+  private static async fetchAndInsertMessages(
+    gmail: gmail_v1.Gmail,
+    messageIds: (string | null | undefined)[],
+    userId: string,
+    batchId?: string,
+    sourceMetaExtras?: Record<string, unknown>,
+  ): Promise<Array<{ id: string; success: boolean; error?: string }>> {
+    const validIds = messageIds.filter(Boolean) as string[];
+    const results: Array<{ id: string; success: boolean; error?: string }> = [];
+    const toInsert: Array<CreateRawEventDTO & { userId: string }> = [];
 
-    while (Date.now() - startTime < maxWaitMs) {
-      // Check if normalization jobs for this batch are complete
-      const jobs = await db
-        .select()
-        .from(rawEvents)
-        .where(
-          and(
-            eq(rawEvents.userId, userId),
-            eq(rawEvents.batchId, batchId),
-            eq(rawEvents.provider, "gmail")
-          )
-        );
+    for (const messageId of validIds) {
+      try {
+        const messageResponse = await gmail.users.messages.get({
+          userId: "me",
+          id: messageId,
+          format: "full",
+        });
 
-      // For now, we'll return the count of raw events as a proxy for normalized count
-      // In a more sophisticated implementation, we'd track actual normalization status
-      if (jobs.length > 0) {
-        return jobs.length;
+        const msg = messageResponse.data as gmail_v1.Schema$Message & {
+          internalDate?: string | null;
+        };
+        if (!msg) {
+          results.push({ id: messageId, success: false, error: "no_message_data" });
+          continue;
+        }
+
+        // Optional existence check (skip if present). If createBulkRawEvents handles upsert,
+        // we can skip this check for performance. Uncomment if you want pre-check behavior.
+        // const existing = await RawEventsRepository.findRawEventBySourceId(userId, "gmail", msg.id ?? messageId);
+        // if (existing) {
+        //   results.push({ id: messageId, success: true, error: "already_exists" });
+        //   continue;
+        // }
+
+        const internalMs = Number(msg.internalDate ?? 0);
+        const occurredAt = internalMs ? new Date(internalMs) : new Date();
+
+        toInsert.push({
+          userId,
+          provider: "gmail",
+          payload: msg as unknown as Record<string, unknown>,
+          occurredAt,
+          batchId,
+          sourceMeta: {
+            fetchedAt: new Date().toISOString(),
+            ...sourceMetaExtras,
+          },
+          sourceId: msg.id ?? messageId,
+        });
+
+        results.push({ id: messageId, success: true });
+      } catch (error) {
+        results.push({
+          id: messageId,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
-
-      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
     }
 
-    throw new Error("Normalization wait timeout");
+    if (toInsert.length > 0) {
+      try {
+        await RawEventsRepository.createBulkRawEvents(toInsert);
+      } catch {
+        // fall back per item to ensure at least partial success
+        for (const ev of toInsert) {
+          try {
+            await RawEventsRepository.createRawEvent(ev);
+          } catch (e) {
+            // mark the corresponding result as failed if needed
+            const idx = results.findIndex((r) => r.id === (ev.sourceId ?? ""));
+            if (idx >= 0)
+              results[idx] = { id: ev.sourceId ?? "", success: false, error: String(e) };
+          }
+        }
+      }
+    }
+
+    return results;
   }
 }

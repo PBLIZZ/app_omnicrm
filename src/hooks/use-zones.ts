@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -24,12 +25,12 @@ import type { Zone, ZoneWithStats } from "@/server/db/business-schemas";
 // TYPES
 // ============================================================================
 
-interface ZonesApiResponse {
+interface ZonesResponse {
   items: Zone[];
   total: number;
 }
 
-interface ZonesWithStatsApiResponse {
+interface ZonesWithStatsResponse {
   items: ZoneWithStats[];
   total: number;
 }
@@ -79,11 +80,21 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
     queryKey: queryKeys.zones.list(withStats),
     queryFn: async (): Promise<Zone[] | ZoneWithStats[]> => {
       if (withStats) {
-        const data = await apiClient.get<ZonesWithStatsApiResponse>(apiUrl);
-        return data.items ?? [];
+        const result =
+          await apiClient.get<Result<ZonesWithStatsResponse, { message: string; code: string }>>(
+            apiUrl,
+          );
+        if (isErr(result)) {
+          throw new Error(result.error.message);
+        }
+        return result.data.items ?? [];
       } else {
-        const data = await apiClient.get<ZonesApiResponse>(apiUrl);
-        return data.items ?? [];
+        const result =
+          await apiClient.get<Result<ZonesResponse, { message: string; code: string }>>(apiUrl);
+        if (isErr(result)) {
+          throw new Error(result.error.message);
+        }
+        return result.data.items ?? [];
       }
     },
     refetchInterval: autoRefetch ? 300000 : false, // Auto-refresh every 5 minutes (zones change rarely)
@@ -150,7 +161,7 @@ export function useZoneOptions() {
     value: zone.id.toString(),
     label: zone.name,
     color: zone.color,
-    icon: zone.iconName,
+    icon: zone.icon,
   }));
 
   return {
@@ -197,5 +208,5 @@ export function getZoneColor(zones: Zone[], zoneName: string): string {
  */
 export function getZoneIcon(zones: Zone[], zoneName: string): string {
   const zone = zones.find((z) => z.name === zoneName);
-  return zone?.iconName ?? "circle"; // Default circle icon
+  return zone?.icon ?? "circle"; // Default circle icon
 }

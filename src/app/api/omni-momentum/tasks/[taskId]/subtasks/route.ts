@@ -1,8 +1,9 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
+import { productivityService } from "@/server/services/productivity.service";
 import { CreateTaskSchema, TaskSchema, TaskFiltersSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 import { NextRequest } from "next/server";
+import { isErr } from "@/lib/utils/result";
 
 /**
  * Subtasks Management API Route
@@ -22,22 +23,25 @@ interface RouteParams {
 /**
  * GET /api/omni-momentum/tasks/[taskId]/subtasks - Get subtasks for a parent task
  */
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   const handler = handleGetWithQueryAuth(
     TaskFiltersSchema,
     z.array(TaskSchema),
     async (filters, userId) => {
-      const { subtasks, parentTask } = await momentumService.getSubtasksWithValidation(params.taskId, userId);
+      const result = await productivityService.getSubtasksWithValidation(params.taskId, userId);
+
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+
+      const { subtasks, parentTask } = result.data;
 
       if (!parentTask) {
         throw new Error("Parent task not found");
       }
 
       return subtasks;
-    }
+    },
   );
 
   return handler(request);
@@ -46,27 +50,30 @@ export async function GET(
 /**
  * POST /api/omni-momentum/tasks/[taskId]/subtasks - Create new subtask
  */
-export async function POST(
-  request: NextRequest,
-  { params }: RouteParams
-) {
-  const handler = handleAuth(
-    CreateTaskSchema,
-    TaskSchema,
-    async (data, userId) => {
-      const { subtask, parentTask } = await momentumService.createSubtaskWithValidation(params.taskId, userId, data);
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(CreateTaskSchema, TaskSchema, async (data, userId) => {
+    const result = await productivityService.createSubtaskWithValidation(
+      params.taskId,
+      userId,
+      data,
+    );
 
-      if (!parentTask) {
-        throw new Error("Parent task not found");
-      }
-
-      if (!subtask) {
-        throw new Error("Failed to create subtask");
-      }
-
-      return subtask;
+    if (isErr(result)) {
+      throw new Error(result.error.message);
     }
-  );
+
+    const { subtask, parentTask } = result.data;
+
+    if (!parentTask) {
+      throw new Error("Parent task not found");
+    }
+
+    if (!subtask) {
+      throw new Error("Failed to create subtask");
+    }
+
+    return subtask;
+  });
 
   return handler(request);
 }

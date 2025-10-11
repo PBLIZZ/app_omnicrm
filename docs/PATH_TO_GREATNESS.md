@@ -1,13 +1,12 @@
-# 🚀 PATH TO GREATNESS: Complete Codebase Cleanup Sprint
+# 🚀 PATH TO GREATNESS: Complete Codebase Cleanup Sprint 2025
 
-## 📊 **MISSION STATUS**
+## 📊 **CURRENT CRISIS STATUS**
 
 **Objective**: Achieve clean commits with zero linting, type, and architecture violations  
-**Status**: 🚀 **MAJOR BREAKTHROUGH**  
+**Status**: 🔄 **IN PROGRESS - 4,393+ BLOCKING ISSUES**  
 **Date**: January 2025  
-**Current State**: ~600 blocking issues (down from 1,110+)  
+**Current State**: Major infrastructure issues resolved, type mismatches revealed  
 **Target**: 0 violations across all categories  
-**Major Win**: API migration completed - 90% code reduction achieved!
 
 ---
 
@@ -15,521 +14,398 @@
 
 ### **Critical Issues Preventing Clean Commits**
 
-| Category                    | Count      | Status          | Priority   |
-| --------------------------- | ---------- | --------------- | ---------- |
-| **ESLint Violations**       | ~200       | 🟡 Reduced      | HIGH       |
-| **TypeScript Errors**       | ~150       | 🟡 Reduced      | HIGH       |
-| **Architecture Violations** | ~250       | 🟡 Reduced      | HIGH       |
-| **Total Blocking Issues**   | **~600**   | 🟡 **IMPROVED** | **HIGH**   |
-
-### **🎉 MAJOR ACHIEVEMENT: API Migration Complete!**
-
-- **82 API routes** migrated to typed handler pattern
-- **155+ handler usages** (90% of API surface modernized)
-- **71 legacy patterns** remaining (mostly edge cases)
-- **4 API business logic violations** remaining (down from 200+)
-- **479 type assertion violations** remaining (down from 500+)
+| Category | Count | Status | Priority | Impact |
+|----------|-------|--------|----------|---------|
+| **TypeScript Errors** | 712 | ❌ CRITICAL | URGENT | Type mismatches revealed |
+| **ESLint Violations** | 3,066 | ❌ CRITICAL | URGENT | Code quality failure |
+| **Architecture Violations** | 615 | ❌ HIGH | HIGH | Maintainability crisis |
+| **Total Blocking Issues** | **4,393+** | ❌ **CRITICAL** | **URGENT** | **Type system crisis** |
 
 ### **File Scope Analysis**
 
-- **Total TypeScript Files**: 545
-- **Files with Violations**: ~200+ (estimated)
-- **Clean Files**: ~345 (63% clean)
+- **Total TypeScript Files**: 566
+- **Files with Violations**: ~400+ (estimated 70%+ affected)
+- **Clean Files**: ~166 (30% clean)
+- **Critical Missing Dependencies**: `packages/contracts` deleted, `packages/repo/src/schema` missing
 
 ---
 
-## 🎉 **API MIGRATION BREAKTHROUGH**
+## 🚨 **EMERGENCY SITUATION ANALYSIS**
 
-### **What Was Accomplished**
+### **1. CRITICAL INFRASTRUCTURE FAILURE**
 
-The API migration represents a **massive architectural improvement** that has fundamentally changed the codebase quality:
+- **Missing Schema**: `packages/repo/src/schema.ts` deleted, causing 675 TypeScript errors
+- **Missing Contracts**: `packages/contracts/` directory deleted, breaking all DTO imports
+- **Repository Layer**: All repo files failing due to missing schema imports
+- **Impact**: Complete build failure, cannot deploy or develop
 
-#### **✅ API Route Modernization (COMPLETE)**
+### **2. MASSIVE CODE QUALITY DEBT**
 
-- **82 API routes** converted to typed handler pattern
-- **90% code reduction** per route (30+ lines → 3 lines)
-- **155+ handler usages** across the API surface
-- **Zero manual auth/validation/error handling** boilerplate
+- **3,066 ESLint Violations**: Unprecedented technical debt accumulation
+- **Type Safety Crisis**: 117+ unsafe type assertions (`as any`, `as unknown`)
+- **Architecture Breakdown**: 615 violations across service boundaries
+- **Impact**: Unmaintainable codebase, development velocity near zero
 
-#### **✅ Architecture Violations Eliminated**
+### **3. PACKAGE STRUCTURE COLLAPSE**
 
-- **200+ API business logic violations** → **4 remaining**
-- **API routes are now thin** - pure delegation to services
-- **Consistent error handling** across all endpoints
-- **Type-safe boundaries** with Zod validation
-
-#### **✅ Developer Experience Revolution**
-
-- **3-line API routes** instead of 30+ lines
-- **Automatic type safety** with full TypeScript inference
-- **Consistent patterns** across all 82 routes
-- **Edge case handlers** for OAuth, file uploads, webhooks
-
-### **Impact on Path to Greatness**
-
-This API migration has **dramatically accelerated** the cleanup process:
-
-1. **Architecture Violations**: 648 → ~250 (60% reduction)
-2. **Code Complexity**: 90% reduction in API route code
-3. **Type Safety**: Massive improvement with typed handlers
-4. **Maintainability**: Consistent patterns across entire API surface
+- **Contracts Package**: Completely deleted, breaking all DTO patterns
+- **Schema Dependencies**: Missing critical database schema definitions
+- **Import Chain Failure**: Cascading import failures across entire codebase
+- **Impact**: Development environment completely broken
 
 ---
 
-## 🏗️ **REVISED 14-DEV CLEANUP STRATEGY**
+## 🏗️ **EMERGENCY 14-DEV RECOVERY STRATEGY**
 
-### **🔥 PHASE 1: Critical TypeScript Compilation Errors (2-3 hours)**
+### **🔥 PHASE 1: INFRASTRUCTURE RECOVERY (4-6 hours)**
 
-#### **Priority: BLOCKING - Must fix first**
+#### Priority: EMERGENCY - Must fix immediately
 
-#### **Dev 1 (Claude Code - 5h limit): Schema & Type Mismatches**
+#### **Dev 1 (Claude Code - 5h limit): Schema Recovery**
 
-- **Focus**: `packages/contracts/src/contact.ts` - Fix tag schema issues
-- **Files**: `src/server/adapters/omniClients.ts`, `src/lib/utils/validation-helpers.ts`
-- **Issues**: Unsafe assignment of `any` value, index signature violations
-- **Pattern**: Replace `any` with proper types, fix bracket notation
+- **Focus**: Recreate `packages/repo/src/schema.ts` from database schema
+- **Files**: `src/server/db/schema.ts` → `packages/repo/src/schema.ts`
+- **Issues**: 675 TypeScript errors due to missing schema
+- **Pattern**: Export all database types and tables from main schema
 
-#### **Dev 2 (Claude Code - 5h limit): API Route Type Fixes**
+#### **Dev 2 (Claude Code - 5h limit): Contracts Package Recreation**
 
-- **Focus**: `src/app/api/chat/route.ts`, `src/app/api/inbox/route.ts`
-- **Issues**: Unused imports, unsafe assignments, type mismatches
-- **Pattern**: Remove unused imports, fix type assertions, proper validation
+- **Focus**: Recreate `packages/contracts/` with essential DTOs
+- **Files**: Create `packages/contracts/src/contact.ts`, `user.ts`, etc.
+- **Issues**: Missing DTO definitions breaking all API routes
+- **Pattern**: Extract DTOs from existing code, create Zod schemas
 
-#### **Dev 3 (Claude Code - 5h limit): Component Type Safety**
+#### **Dev 3 (Claude Code - 5h limit): Repository Type Fixes**
 
-- **Focus**: `src/app/(authorisedRoute)/omni-clients/_components/omni-clients-table.tsx`
-- **Issues**: Type compatibility with `exactOptionalPropertyTypes`
-- **Pattern**: Fix optional property types, ensure undefined handling
+- **Focus**: Fix all repository type mismatches
+- **Files**: `packages/repo/src/*.repo.ts` (15+ files)
+- **Issues**: Type incompatibilities, null handling, undefined returns
+- **Pattern**: Fix return types, handle null/undefined properly
 
-#### **Dev 4 (Claude Code - 5h limit): Service Layer Types**
+#### **Dev 4 (Claude Code - 5h limit): Import Chain Repair**
 
-- **Focus**: `src/server/services/` directory
-- **Issues**: Type mismatches, unsafe assignments
-- **Pattern**: Proper type guards, eliminate `any` types
+- **Focus**: Fix all broken imports across codebase
+- **Files**: All files importing from missing packages
+- **Issues**: Cascading import failures
+- **Pattern**: Update import paths, create missing exports
 
-### **⚡ PHASE 2: ESLint Violations Cleanup (3-4 hours)**
+### **⚡ PHASE 2: ESLint Crisis Resolution (6-8 hours)**
 
-#### **Priority: HIGH - Blocking commits**
+#### Priority: CRITICAL - 3,066 violations
 
-#### **Dev 5 (Cursor IDE - Unlimited): Unused Imports & Variables**
+#### **Dev 5 (Cursor IDE - Unlimited): Type Safety Violations**
 
-- **Focus**: Entire `src/` directory
-- **Issues**: 100+ unused imports, unused variables
-- **Pattern**: Remove unused imports
-
-#### **Dev 6 (Cursor IDE - Unlimited): Type Safety Violations**
-
-- **Focus**: `src/app/api/` and `src/server/` directories
-- **Issues**: `@typescript-eslint/no-unsafe-assignment`, `@typescript-eslint/no-explicit-any`
+- **Focus**: `@typescript-eslint/no-unsafe-assignment`, `@typescript-eslint/no-explicit-any`
+- **Files**: Entire `src/` directory
+- **Issues**: 1,000+ unsafe assignments, 117+ type assertions
 - **Pattern**: Replace `any` with proper types, add type guards
 
-#### **Dev 7 (Cursor IDE - Unlimited): Floating Promises**
+#### **Dev 6 (Cursor IDE - Unlimited): Unused Imports & Variables**
+
+- **Focus**: Entire `src/` directory
+- **Issues**: 500+ unused imports, unused variables
+- **Pattern**: Remove unused imports, prefix unused vars with `_`
+
+#### **Dev 7 (Cursor IDE - Unlimited): Floating Promises & Async Issues**
 
 - **Focus**: `src/hooks/`, `src/components/` directories
-- **Issues**: `@typescript-eslint/no-floating-promises`
-- **Pattern**: Add `.catch()` handlers or `void` operators
+- **Issues**: 300+ floating promises, async/await problems
+- **Pattern**: Add `.catch()` handlers, proper async handling
 
-#### **Dev 8 (Windsurf - Easy fixes): Non-null Assertions**
+#### **Dev 8 (Windsurf - Easy fixes): Code Quality Issues**
 
 - **Focus**: Entire codebase
-- **Issues**: `@typescript-eslint/no-non-null-assertions`
-- **Pattern**: Replace `!` with proper null checks
+- **Issues**: 1,200+ code quality violations
+- **Pattern**: Fix formatting, naming, null checks, etc.
 
-### **🏛️ PHASE 3: Architecture Violations (4-5 hours)**
+### **🏛️ PHASE 3: Architecture Recovery (4-6 hours)**
 
-#### **Priority: HIGH - Code quality**
+#### Priority: HIGH - 615 violations
 
-#### **Dev 9 (Cursor IDE - Unlimited): API Business Logic Extraction**
+#### **Dev 9 (Cursor IDE - Unlimited): API Error Handling**
 
 - **Focus**: `src/app/api/` directory
-- **Issues**: 200+ "API route contains business logic" violations
-- **Pattern**: Move business logic to `src/server/services/`
-- **Files**: `src/app/api/inbox/route.ts`, `src/app/api/omni-connect/dashboard/route.ts`
+- **Issues**: 200+ "Use OkEnvelope pattern for API errors" violations
+- **Pattern**: Implement consistent error response patterns
+- **Files**: All API routes need error handling standardization
 
-#### **Dev 10 (Cursor IDE - Unlimited): Type Assertion Elimination**
+#### **Dev 10 (Cursor IDE - Unlimited): Service Layer Cleanup**
 
-- **Focus**: Entire codebase
-- **Issues**: 50+ "Avoid type assertions" violations
-- **Pattern**: Replace `as Type` with proper type guards and Zod validation
-- **Files**: `src/app/api/chat/route.ts`, `src/server/services/omni-client.service.ts`
-
-#### **Dev 11 (Cursor IDE - Unlimited): Legacy API Pattern Updates**
-
-- **Focus**: `src/components/`, `src/hooks/` directories
-- **Issues**: Legacy `fetchGet`/`fetchPost` usage
-- **Pattern**: Replace with modern `get`/`post`/`put`/`del` from `@/lib/api`
-- **Files**: `src/components/sync/`, `src/hooks/useSyncSession.ts`
-
-#### **Dev 12 (KiloCode - Medium complexity): Service Layer Cleanup**
-
-- **Focus**: `src/server/services/` directory
+- **Focus**: `src/server/services/` directory (56 services)
 - **Issues**: Direct database imports, missing error handling
 - **Pattern**: Use `getDb()` pattern, add proper error boundaries
+- **Files**: All 56 service files need cleanup
 
-### **🔧 PHASE 4: Final Polish & Verification (1-2 hours)**
+#### **Dev 11 (Cursor IDE - Unlimited): Component Architecture**
 
-#### **Priority: MEDIUM - Quality assurance**
+- **Focus**: `src/components/`, `src/hooks/` directories
+- **Issues**: Business logic in components, improper data fetching
+- **Pattern**: Move logic to services, use proper data patterns
+- **Files**: 100+ component files need refactoring
+
+#### **Dev 12 (KiloCode - Medium complexity): API Pattern Updates**
+
+- **Focus**: `src/app/api/` directory
+- **Issues**: Inconsistent API patterns, missing validation
+- **Pattern**: Standardize API patterns, add proper validation
+- **Files**: All API routes need pattern consistency
+
+### **🔧 PHASE 4: Final Recovery & Verification (2-4 hours)**
+
+#### Priority: MEDIUM - Quality assurance
 
 #### **Dev 13 (Visual Studio Code - Easy fixes): Import Organization**
 
 - **Focus**: Entire codebase
-- **Issues**: Import order, missing imports
+- **Issues**: Import order, missing imports, circular dependencies
 - **Pattern**: Organize imports, fix missing dependencies
 
-#### **Dev 14 (You - Simple fixes): Documentation & Comments**
+#### **Dev 14 (You - Simple fixes): Documentation & Recovery**
 
-- **Focus**: New service files, complex functions
-- **Issues**: Missing JSDoc, unclear code
-- **Pattern**: Add comprehensive documentation
-
----
-
-## 📈 **PROGRESS TRACKING**
-
-### **✅ COMPLETED WORK (Based on Current Analysis)**
-
-#### **Service Layer Architecture** ✅ **COMPLETE**
-
-- **ChatService**: `src/server/services/chat.service.ts` - RAG chat processing
-- **OmniClientService**: `src/server/services/omni-client.service.ts` - Client management
-- **ErrorSummaryService**: `src/server/services/error-summary.service.ts` - Error analysis
-- **GmailSyncBlockingService**: `src/server/services/gmail-sync-blocking.service.ts` - Gmail sync
-
-#### **API Route Modernization** ✅ **COMPLETE**
-
-- **Updated Routes**: 82 API routes converted to typed handler pattern
-- **Pattern**: 3-line API routes with automatic auth/validation/error handling
-- **Code Reduction**: 90% reduction per route (30+ lines → 3 lines)
-- **Type Safety**: Full TypeScript inference with Zod validation
-- **Edge Cases**: OAuth flows, file uploads, webhooks, streaming responses
-
-#### **Type System Improvements** ✅ **MAJOR PROGRESS**
-
-- **DTO Contracts**: `packages/contracts/` with Zod validation
-- **Repository Pattern**: `packages/repo/` with clean data access
-- **API Boundaries**: Typed handlers with automatic validation
-- **Remaining**: ~150 TypeScript errors, ~200 ESLint violations
-
-### **❌ REMAINING WORK (Critical Issues)**
-
-#### **TypeScript Compilation Errors** 🟡 **~150 ERRORS** (Reduced from 171)
-
-- **Schema Issues**: Tag validation, type mismatches
-- **API Routes**: Mostly resolved with typed handlers
-- **Components**: Type compatibility issues
-- **Services**: Type guard improvements needed
-
-#### **ESLint Violations** 🟡 **~200 VIOLATIONS** (Reduced from 291)
-
-- **Unused Imports**: 100+ unused import statements
-- **Type Safety**: `any` types, unsafe assignments
-- **Code Quality**: Floating promises, non-null assertions
-- **Architecture**: Mostly resolved with API migration
-
-#### **Architecture Violations** 🟡 **~250 VIOLATIONS** (Reduced from 648)
-
-- **API Business Logic**: 4 remaining (down from 200+)
-- **Type Assertions**: 479 remaining (down from 500+)
-- **Legacy Patterns**: `fetchGet`/`fetchPost` usage
-- **Service Layer**: Direct database imports
+- **Focus**: New files, complex functions, recovery documentation
+- **Issues**: Missing documentation, unclear recovery patterns
+- **Pattern**: Add comprehensive documentation for recovery work
 
 ---
 
-## 🎯 **SPRINT GOALS & SUCCESS METRICS**
+## 🎉 **PROGRESS UPDATE - SCHEMA IMPORTS FIXED**
 
-### **Primary Objectives**
+### **✅ COMPLETED (Phase 1 - Infrastructure Recovery)**
 
-1. **Zero TypeScript Errors**: ~150 → 0 compilation errors
-2. **Zero ESLint Violations**: ~200 → 0 linting violations
-3. **Zero Architecture Violations**: ~250 → 0 architecture violations
+- **Schema Import Fixes**: All `./schema` imports updated to `@/server/db/schema`
+- **Repository Layer**: All 11 repo files in `packages/repo/src/` updated
+- **Import Chain**: Fixed cascading import failures
+- **Database Schema**: Correctly importing from main database schema
+
+### **📊 IMPACT OF SCHEMA FIXES**
+
+- **Before**: 675 TypeScript errors (schema import failures)
+- **After**: 850 TypeScript errors (type mismatches revealed)
+- **Net Result**: +175 errors (hidden type issues now visible)
+- **Status**: Infrastructure recovered, type system issues exposed
+
+---
+
+## 📈 **CURRENT STATE ANALYSIS**
+
+### **✅ WHAT EXISTS (Partial Recovery)**
+
+- **Service Layer**: 56 services in `src/server/services/` (good foundation)
+- **Database Schema**: `src/server/db/schema.ts` exists (needs export to packages)
+- **API Utilities**: `src/lib/api/` with modern `get`/`post`/`put`/`del` patterns
+- **Repository Pattern**: `packages/repo/` structure exists (needs schema fix)
+
+### **❌ CRITICAL MISSING (Emergency Fixes Needed)**
+
+- **Schema Exports**: `packages/repo/src/schema.ts` completely missing
+- **Contracts Package**: `packages/contracts/` completely deleted
+- **Type Safety**: 675 TypeScript errors preventing any compilation
+- **Code Quality**: 3,066 ESLint violations making code unmaintainable
+
+### **🚨 EMERGENCY PRIORITIES**
+
+1. **Schema Recovery**: Recreate missing schema exports (675 errors)
+2. **Contracts Recreation**: Rebuild essential DTO contracts
+3. **Type Safety**: Fix all TypeScript compilation errors
+4. **ESLint Crisis**: Resolve 3,066 code quality violations
+5. **Architecture Repair**: Fix 615 architecture violations
+
+---
+
+## 🎯 **RECOVERY GOALS & SUCCESS METRICS**
+
+### **Emergency Recovery Objectives**
+
+1. **Zero TypeScript Errors**: 675 → 0 compilation errors
+2. **Zero ESLint Violations**: 3,066 → 0 linting violations  
+3. **Zero Architecture Violations**: 615 → 0 architecture violations
 4. **Clean Commits**: All pre-commit hooks pass successfully
+5. **Build Success**: `pnpm build` completes without errors
 
-### **🎉 MAJOR MILESTONE ACHIEVED**
+### **Recovery Success Metrics**
 
-- **API Migration**: 82 routes → 3-line typed handlers (90% code reduction)
-- **Architecture Violations**: 648 → ~250 (60% reduction)
-- **Type Safety**: Massive improvement with typed API boundaries
+- **Build Status**: ✅ Successful compilation and build
+- **Code Quality**: ✅ 100% clean codebase
+- **Type Safety**: ✅ Zero `any` types, proper validation
+- **Architecture**: ✅ Clean separation of concerns
+- **Maintainability**: ✅ Consistent patterns throughout
 
-### **Success Metrics**
+### **Recovery Timeline**
 
-- **Code Quality**: 100% clean codebase
-- **Type Safety**: Zero `any` types, proper validation
-- **Architecture**: Clean separation of concerns
-- **Maintainability**: Consistent patterns throughout
-
-### **Timeline**
-
-- **Phase 1**: 1-2 hours (Critical TypeScript fixes) - **REDUCED**
-- **Phase 2**: 2-3 hours (ESLint violations) - **REDUCED**
-- **Phase 3**: 2-3 hours (Architecture cleanup) - **REDUCED**
-- **Phase 4**: 1 hour (Final polish) - **REDUCED**
-- **Total**: 6-9 hours across 14 developers - **50% FASTER**
-
-### **🚀 ACCELERATED TIMELINE**
-
-The API migration has **dramatically reduced** the remaining work:
-
-- **Architecture violations**: 60% already eliminated
-- **Type safety**: Massive improvement with typed handlers
-- **Code complexity**: 90% reduction in API routes
+- **Phase 1**: 4-6 hours (Infrastructure recovery)
+- **Phase 2**: 6-8 hours (ESLint crisis resolution)
+- **Phase 3**: 4-6 hours (Architecture recovery)
+- **Phase 4**: 2-4 hours (Final verification)
+- **Total**: 16-24 hours across 14 developers
 
 ---
 
-## 🎯 **API MIGRATION IMPACT ON PATH TO GREATNESS**
+## 🔧 **EMERGENCY IMPLEMENTATION PATTERNS**
 
-### **What Changed Everything**
-
-The API migration wasn't just a "side project" - it was a **game-changing architectural breakthrough** that fundamentally altered the Path to Greatness strategy:
-
-#### **✅ MASSIVE PROGRESS ACHIEVED**
-
-1. **Architecture Violations**: 648 → ~250 (60% reduction)
-   - **200+ API business logic violations** → **4 remaining**
-   - **API routes are now thin** - pure delegation to services
-   - **Consistent error handling** across all endpoints
-
-2. **Code Quality Revolution**:
-   - **82 API routes** converted to 3-line typed handlers
-   - **90% code reduction** per route (30+ lines → 3 lines)
-   - **Zero manual auth/validation/error handling** boilerplate
-   - **Type-safe boundaries** with automatic Zod validation
-
-3. **Developer Experience Transformation**:
-   - **Consistent patterns** across entire API surface
-   - **Edge case handlers** for OAuth, file uploads, webhooks
-   - **Automatic type safety** with full TypeScript inference
-   - **3-line API routes** instead of 30+ lines
-
-#### **🚀 ACCELERATED CLEANUP TIMELINE**
-
-The API migration has **dramatically reduced** the remaining work:
-
-- **Original Estimate**: 10-14 hours across 14 developers
-- **Revised Estimate**: 6-9 hours across 14 developers
-- **Time Savings**: 50% faster completion
-- **Quality Improvement**: Massive architectural gains
-
-#### **📊 UPDATED VIOLATION COUNTS**
-
-| Category | Before API Migration | After API Migration | Reduction |
-|----------|---------------------|-------------------|-----------|
-| **Architecture Violations** | 648 | ~250 | 60% |
-| **API Business Logic** | 200+ | 4 | 98% |
-| **Type Assertions** | 500+ | 479 | 4% |
-| **ESLint Violations** | 291 | ~200 | 31% |
-| **TypeScript Errors** | 171 | ~150 | 12% |
-
-### **🎉 STRATEGIC IMPACT**
-
-This API migration has **fundamentally changed** the Path to Greatness:
-
-1. **Architecture is now clean** - API routes are thin and consistent
-2. **Type safety is dramatically improved** - typed handlers everywhere
-3. **Code complexity is massively reduced** - 90% less API boilerplate
-4. **Remaining work is much smaller** - focus on components and services
-5. **Developer velocity is accelerated** - consistent patterns everywhere
-
----
-
-## 🔧 **DETAILED IMPLEMENTATION PATTERNS**
-
-### **1. TypeScript Error Fixes**
-
-#### **Schema & Type Mismatches**
+### **1. Schema Recovery Pattern**
 
 ```typescript
-// ❌ CURRENT (Unsafe assignment)
-const tagObj = item as Record<string, unknown>;
-return String(tagObj.tag || tagObj.name || tagObj.value || "");
+// ❌ CURRENT (Missing schema causing 675 errors)
+import { contacts, notes, type Contact, type CreateContact, type Note } from "./schema";
 
-// ✅ TARGET (Type-safe access)
-const tagObj = item as Record<string, unknown>;
-return String(tagObj["tag"] || tagObj["name"] || tagObj["value"] || "");
+// ✅ TARGET (Export from main schema)
+// packages/repo/src/schema.ts
+export * from "../../src/server/db/schema";
+export type { Contact, CreateContact, Note } from "../../src/server/db/schema";
 ```
 
-#### **API Route Type Safety**
+### **2. Contracts Recreation Pattern**
 
 ```typescript
-// ❌ CURRENT (Unused imports, unsafe assignments)
-import { ChatRequestBody } from "@/server/services/chat.service";
-const rawBody = (await request.json()) as ChatRequestBody;
+// ❌ CURRENT (Missing contracts package)
+import { CreateContactDTO, UpdateContactDTO } from "@omnicrm/contracts";
 
-// ✅ TARGET (Clean imports, proper validation)
-import { ChatService } from "@/server/services/chat.service";
-const rawBody = await request.json();
-const body = ChatRequestBodySchema.parse(rawBody);
+// ✅ TARGET (Recreate essential contracts)
+// packages/contracts/src/contact.ts
+import { z } from "zod";
+
+export const CreateContactDTOSchema = z.object({
+  displayName: z.string().min(1),
+  primaryEmail: z.string().email().optional(),
+  // ... other fields
+});
+
+export type CreateContactDTO = z.infer<typeof CreateContactDTOSchema>;
 ```
 
-### **2. ESLint Violation Fixes**
-
-#### **Unused Imports Cleanup**
+### **3. Type Safety Recovery Pattern**
 
 ```typescript
-// ❌ CURRENT (Unused imports)
-import { ChatRequestBody, ChatService } from "@/server/services/chat.service";
-import { CreateInboxItemDTO, VoiceInboxCaptureDTO } from "@omnicrm/contracts";
+// ❌ CURRENT (Unsafe assignments causing 3,066 violations)
+const data = response as any;
+const result = someValue as unknown;
 
-// ✅ TARGET (Clean imports)
-import { ChatService } from "@/server/services/chat.service";
-import { CreateInboxItemDTOSchema, VoiceInboxCaptureDTOSchema } from "@omnicrm/contracts";
-```
-
-#### **Type Safety Improvements**
-
-```typescript
-// ❌ CURRENT (Unsafe assignments)
-const data = requestBody as any;
-const result = someValue as SomeType;
-
-// ✅ TARGET (Proper validation)
-const data = SomeSchema.parse(requestBody);
+// ✅ TARGET (Proper type safety)
+const data = ResponseSchema.parse(response);
 const result = validateSomeType(someValue);
 ```
 
-### **3. Architecture Violation Fixes**
-
-#### **API Business Logic Extraction**
+### **4. API Error Handling Pattern**
 
 ```typescript
-// ❌ CURRENT (Business logic in API route)
-export async function POST(request: NextRequest) {
-  // 100+ lines of business logic
-  const message = typeof body.message === "string" ? body.message.trim() : "";
-  // Complex validation, processing, error handling...
-}
+// ❌ CURRENT (Inconsistent error handling)
+return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
 
-// ✅ TARGET (Thin API route with service delegation)
-export async function POST(request: NextRequest) {
-  const result = await ChatService.processChatRequest(requestBody);
-  return NextResponse.json(result);
-}
-```
-
-#### **Legacy API Pattern Updates**
-
-```typescript
-// ❌ CURRENT (Legacy fetch patterns)
-import { fetchGet, fetchPost } from "@/lib/api";
-const data = await fetchGet("/api/endpoint");
-const result = await fetchPost("/api/endpoint", payload);
-
-// ✅ TARGET (Modern API patterns)
-import { get, post } from "@/lib/api";
-const data = await get<ResponseType>("/api/endpoint");
-const result = await post<ResponseType>("/api/endpoint", payload);
+// ✅ TARGET (OkEnvelope pattern)
+return NextResponse.json(
+  { ok: false, error: "Something went wrong", data: null },
+  { status: 500 }
+);
 ```
 
 ---
 
-## 🚧 **CRITICAL PROBLEMS TO SOLVE**
+## 🚧 **CRITICAL PROBLEMS REQUIRING IMMEDIATE ATTENTION**
 
-### **1. TypeScript Compilation Failures**
+### **1. Complete Build Failure**
 
-- **Root Cause**: Schema mismatches, type incompatibilities
-- **Impact**: Cannot build or deploy application
-- **Solution**: Systematic type fixes across all files
+- **Root Cause**: Missing schema exports, deleted contracts package
+- **Impact**: Cannot build, deploy, or develop application
+- **Solution**: Emergency schema recovery and contracts recreation
 
-### **2. ESLint Violation Accumulation**
+### **2. Unprecedented Technical Debt**
 
-- **Root Cause**: Loose coding standards, technical debt
-- **Impact**: Code quality degradation, maintainability issues
-- **Solution**: Enforce strict linting rules, fix all violations
+- **Root Cause**: 3,066 ESLint violations accumulated over time
+- **Impact**: Code quality completely degraded, unmaintainable
+- **Solution**: Massive cleanup effort across entire codebase
 
-### **3. Architecture Boundary Violations**
+### **3. Architecture Breakdown**
 
-- **Root Cause**: Mixed concerns, business logic in wrong layers
+- **Root Cause**: 615 architecture violations, inconsistent patterns
 - **Impact**: Difficult to maintain, test, and scale
-- **Solution**: Extract business logic to proper service layers
+- **Solution**: Systematic architecture cleanup and pattern enforcement
 
-### **4. Legacy Pattern Inconsistency**
+### **4. Package Structure Collapse**
 
-- **Root Cause**: Mixed old/new patterns throughout codebase
-- **Impact**: Developer confusion, inconsistent code
-- **Solution**: Standardize on modern patterns, remove legacy code
+- **Root Cause**: Critical packages deleted, import chains broken
+- **Impact**: Development environment completely non-functional
+- **Solution**: Recreate missing packages and fix import chains
 
 ---
 
-## 🏆 **EXPECTED OUTCOMES**
+## 🏆 **RECOVERY SUCCESS CRITERIA**
 
-### **Immediate Benefits**
-
-- **Clean Commits**: All pre-commit hooks pass successfully
-- **Type Safety**: Zero TypeScript compilation errors
-- **Code Quality**: Zero ESLint violations
-- **Architecture**: Clean separation of concerns
-
-### **Long-term Benefits**
-
-- **Developer Velocity**: Faster development with clean codebase
-- **Maintainability**: Easier to understand and modify code
-- **Reliability**: Fewer runtime errors with proper type safety
-- **Scalability**: Clean architecture supports growth
-
-### **Success Criteria**
+### **Immediate Recovery (Phase 1)**
 
 - ✅ `pnpm typecheck` passes with 0 errors
+- ✅ `pnpm build` completes successfully
+- ✅ All missing packages recreated
+- ✅ Import chains restored
+
+### **Code Quality Recovery (Phase 2)**
+
 - ✅ `pnpm lint --max-warnings=0` passes with 0 violations
+- ✅ All unsafe type assertions eliminated
+- ✅ Proper error handling implemented
+- ✅ Code formatting standardized
+
+### **Architecture Recovery (Phase 3)**
+
 - ✅ `pnpm lint:architecture` passes with 0 violations
+- ✅ Consistent API patterns implemented
+- ✅ Service layer properly structured
+- ✅ Component architecture cleaned up
+
+### **Final Verification (Phase 4)**
+
 - ✅ All pre-commit hooks pass successfully
 - ✅ Clean git commits possible
+- ✅ Development environment fully functional
+- ✅ Documentation updated and complete
 
 ---
 
-## 📋 **DEVELOPER ASSIGNMENTS**
+## 📋 **EMERGENCY DEVELOPER ASSIGNMENTS**
 
-### **Phase 1: Critical TypeScript Fixes (2-3 hours)**
+### **Phase 1: Infrastructure Recovery (4-6 hours)**
 
-- **Dev 1**: Schema & type mismatches in contracts
-- **Dev 2**: API route type fixes and unused imports
-- **Dev 3**: Component type safety and compatibility
-- **Dev 4**: Service layer type improvements
+- **Dev 1**: Schema recovery and export creation
+- **Dev 2**: Contracts package recreation with essential DTOs
+- **Dev 3**: Repository type fixes and null handling
+- **Dev 4**: Import chain repair and missing exports
 
-### **Phase 2: ESLint Violations (3-4 hours)**
+### **Phase 2: ESLint Crisis Resolution (6-8 hours)**
 
-- **Dev 5**: Unused imports and variables cleanup
-- **Dev 6**: Type safety violations and `any` types
-- **Dev 7**: Floating promises and async handling
-- **Dev 8**: Non-null assertions and null checks
+- **Dev 5**: Type safety violations and unsafe assignments
+- **Dev 6**: Unused imports and variables cleanup
+- **Dev 7**: Floating promises and async issues
+- **Dev 8**: Code quality issues and formatting
 
-### **Phase 3: Architecture Cleanup (4-5 hours)**
+### **Phase 3: Architecture Recovery (4-6 hours)**
 
-- **Dev 9**: API business logic extraction to services
-- **Dev 10**: Type assertion elimination with proper guards
-- **Dev 11**: Legacy API pattern updates to modern patterns
-- **Dev 12**: Service layer cleanup and error handling
+- **Dev 9**: API error handling standardization
+- **Dev 10**: Service layer cleanup and error boundaries
+- **Dev 11**: Component architecture and data patterns
+- **Dev 12**: API pattern consistency and validation
 
-### **Phase 4: Final Polish (1-2 hours)**
+### **Phase 4: Final Recovery (2-4 hours)**
 
-- **Dev 13**: Import organization and missing dependencies
-- **Dev 14**: Documentation and code comments
-
----
-
-## 🎉 **CONCLUSION**
-
-The Path to Greatness has been **dramatically accelerated** by the API migration breakthrough! What started as a 1,110+ issue cleanup has been transformed into a much more manageable ~600 issue cleanup, with **massive architectural improvements** already achieved.
-
-**🎉 MAJOR BREAKTHROUGH ACHIEVED:**
-
-- **82 API routes** converted to 3-line typed handlers (90% code reduction)
-- **Architecture violations** reduced by 60% (648 → ~250)
-- **API business logic** eliminated (200+ → 4 violations)
-- **Type safety** dramatically improved with typed boundaries
-
-**Key Success Factors:**
-
-- **API Migration**: Game-changing architectural breakthrough
-- **Parallel Execution**: 14 developers working simultaneously
-- **Systematic Approach**: Phased cleanup with clear priorities
-- **Quality Focus**: Zero-tolerance policy for violations
-- **Architecture Respect**: Clean separation of concerns achieved
-
-**Revised Timeline**: 6-9 hours total across all developers (50% faster)
-**Expected Outcome**: 100% clean codebase with zero blocking issues
-**Current Status**: 🚀 **MAJOR BREAKTHROUGH** - 60% of architecture issues resolved!
+- **Dev 13**: Import organization and dependency fixes
+- **Dev 14**: Documentation and recovery verification
 
 ---
 
-_Generated on: January 2025_  
-_Architecture Pattern: Complete Codebase Cleanup Sprint_  
-_Status: 🚀 MAJOR BREAKTHROUGH - ~600 issues remaining (60% architecture issues resolved!)_
+## 🎉 **RECOVERY CONCLUSION**
+
+This emergency recovery sprint will transform the codebase from a state of complete system failure (4,393+ blocking issues) to a clean, maintainable, and production-ready codebase. The 14-developer emergency approach ensures parallel execution of critical fixes while rebuilding the essential infrastructure.
+
+**Key Recovery Factors:**
+
+- **Emergency Response**: Immediate infrastructure recovery
+- **Parallel Execution**: 14 developers working simultaneously on critical issues
+- **Systematic Approach**: Phased recovery with clear priorities
+- **Quality Focus**: Zero-tolerance policy for violations after recovery
+
+**Expected Recovery Timeline**: 16-24 hours total across all developers
+**Expected Outcome**: 100% functional codebase with zero blocking issues
+
+---
+
+*Generated on: January 2025*  
+*Architecture Pattern: Emergency Codebase Recovery Sprint*  
+*Status: 🚨 CRITICAL - 4,356+ issues requiring immediate attention*

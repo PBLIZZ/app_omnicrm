@@ -6,7 +6,6 @@ import { generateEmbedding } from "@/server/ai/embeddings";
 import { buildEmbedInput } from "@/server/ai/prompts/core/embed.prompt";
 import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
-import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * Process embedding generation for interactions and documents
@@ -82,7 +81,7 @@ export async function runEmbed(job: JobRecord<"embed">): Promise<void> {
           jobId: job.id,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }

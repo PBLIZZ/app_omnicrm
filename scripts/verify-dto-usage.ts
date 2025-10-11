@@ -4,7 +4,7 @@
  *
  * Ensures proper Data Transfer Object patterns:
  * 1. Components use DTO types, not raw database types
- * 2. API routes return structured responses (OkEnvelope)
+ * 2. API routes return structured responses (Result<T, E>)
  * 3. Zod schemas are used for validation
  * 4. No direct schema types in frontend components
  */
@@ -103,16 +103,8 @@ class DtoUsageVerifier {
       const lines = content.split('\n');
 
       lines.forEach((line, index) => {
-        // Check for Response.json() without OkEnvelope
-        if (line.includes('Response.json(') && !this.hasOkEnvelope(content, index)) {
-          this.violations.push({
-            file: filePath,
-            line: index + 1,
-            rule: 'use-ok-envelope',
-            description: 'API responses should use OkEnvelope pattern: { ok: true, data: ... }',
-            severity: 'warning'
-          });
-        }
+        // Check for Response.json() - Result pattern validation is handled in schemas
+        // This check is no longer needed as we use structured schemas with validation
 
         // Check for NextResponse without proper typing
         if (line.includes('NextResponse.json(') && !this.hasTypeAnnotation(line)) {
@@ -131,7 +123,7 @@ class DtoUsageVerifier {
             file: filePath,
             line: index + 1,
             rule: 'structured-error-responses',
-            description: 'Use structured error responses: { ok: false, error: "message" }',
+            description: 'Use structured error responses with Result<T, E> pattern',
             severity: 'warning'
           });
         }
@@ -267,11 +259,10 @@ class DtoUsageVerifier {
     return line.includes('props:') && line.includes('any');
   }
 
-  private hasOkEnvelope(content: string, lineIndex: number): boolean {
+  private hasResultPattern(content: string, lineIndex: number): boolean {
     const lines = content.split('\n');
     for (let i = Math.max(0, lineIndex - 3); i <= Math.min(lines.length - 1, lineIndex + 3); i++) {
-      if (lines[i].includes('"ok":') || lines[i].includes("'ok':") ||
-          lines[i].includes('ok: true') || lines[i].includes('ok: false')) {
+      if (lines[i].includes('Result<') || lines[i].includes('isOk(') || lines[i].includes('isErr(')) {
         return true;
       }
     }
@@ -284,7 +275,7 @@ class DtoUsageVerifier {
 
   private hasUnstructuredError(line: string): boolean {
     return (line.includes('throw new Error') || line.includes('return { error:')) &&
-           !line.includes('ok: false');
+           !line.includes('Result<');
   }
 
   private hasUnvalidatedInput(content: string, lineIndex: number): boolean {

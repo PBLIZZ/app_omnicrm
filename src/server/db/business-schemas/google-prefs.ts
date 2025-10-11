@@ -87,6 +87,38 @@ export const GooglePrefsUpdateSchema = z.object({
 export type GooglePrefsUpdate = z.infer<typeof GooglePrefsUpdateSchema>;
 
 // ============================================================================
+// GOOGLE ERROR CLASSIFICATION
+// ============================================================================
+
+/**
+ * Error categories for Google service operations
+ */
+export const GoogleErrorCodeEnum = z.enum([
+  "AUTH_ERROR",      // Authentication/token errors
+  "NETWORK_ERROR",   // Network connectivity issues
+  "QUOTA_ERROR",     // API quota/rate limit errors
+  "DATABASE_ERROR",  // Database operation errors
+  "PERMISSION_ERROR", // Insufficient permissions
+  "CONFIG_ERROR",    // Configuration/setup errors
+  "UNKNOWN_ERROR",   // Unclassified errors
+]);
+
+export type GoogleErrorCode = z.infer<typeof GoogleErrorCodeEnum>;
+
+/**
+ * Structured error for Google operations
+ */
+export const GoogleServiceErrorSchema = z.object({
+  code: GoogleErrorCodeEnum,
+  message: z.string(),
+  details: z.unknown().optional(),
+  retryable: z.boolean().default(false),
+  userActionRequired: z.boolean().default(false),
+});
+
+export type GoogleServiceError = z.infer<typeof GoogleServiceErrorSchema>;
+
+// ============================================================================
 // GOOGLE STATUS SCHEMAS
 // ============================================================================
 
@@ -103,37 +135,76 @@ export const GoogleStatusQuerySchema = z.object({
 export type GoogleStatusQuery = z.infer<typeof GoogleStatusQuerySchema>;
 
 /**
- * Google Status Response Schema
+ * Google Status Response Schema - Updated to match service implementation
  * Used by /api/google/status endpoint
  */
 export const GoogleStatusResponseSchema = z.object({
+  // Provider connection status
+  googleConnected: z.boolean(),
+
+  // Service-specific status with auto-refresh info
   services: z.object({
     gmail: z.object({
-      isConnected: z.boolean(),
-      lastSyncTime: z.string().nullable(),
-      totalEvents: z.number(),
-      recentErrorCount: z.number(),
-      tokenExpiry: z.string().nullable().optional(),
-      hasRefreshToken: z.boolean().optional(),
-      autoRefreshed: z.boolean().optional(),
+      connected: z.boolean(),
+      autoRefreshed: z.boolean(),
+      integration: z.object({
+        service: z.string(),
+        expiryDate: z.string().nullable(),
+        hasRefreshToken: z.boolean(),
+      }).nullable(),
+      lastSync: z.string().nullable(),
     }),
     calendar: z.object({
-      isConnected: z.boolean(),
-      lastSyncTime: z.string().nullable(),
-      totalEvents: z.number(),
-      recentErrorCount: z.number(),
-      tokenExpiry: z.string().nullable().optional(),
-      hasRefreshToken: z.boolean().optional(),
-      autoRefreshed: z.boolean().optional(),
+      connected: z.boolean(),
+      autoRefreshed: z.boolean(),
+      integration: z.object({
+        service: z.string(),
+        expiryDate: z.string().nullable(),
+        hasRefreshToken: z.boolean(),
+      }).nullable(),
+      lastSync: z.string().nullable(),
     }),
   }),
-  overall: z.object({
-    hasAnyConnection: z.boolean(),
-    pendingJobs: z.number(),
-    lastActivity: z.string().nullable(),
-    healthStatus: z.enum(['healthy', 'degraded', 'critical']).optional(),
+
+  // Feature flags
+  features: z.object({
+    gmail: z.boolean(),
+    calendar: z.boolean(),
   }),
-  timestamp: z.string(),
+
+  // Job processing metrics
+  jobs: z.object({
+    queued: z.number(),
+    done: z.number(),
+    error: z.number(),
+  }),
+  embedJobs: z.object({
+    queued: z.number(),
+    done: z.number(),
+    error: z.number(),
+  }),
+
+  lastBatchId: z.string().nullable(),
+
+  // Backward compatibility
+  serviceTokens: z.object({
+    google: z.boolean(),
+    gmail: z.boolean(),
+    calendar: z.boolean(),
+    unified: z.boolean(),
+  }),
+  flags: z.object({
+    gmail: z.boolean(),
+    calendar: z.boolean(),
+  }),
+  lastSync: z.object({
+    gmail: z.string().nullable(),
+    calendar: z.string().nullable(),
+  }),
+
+  // Cache metadata
+  _cached: z.boolean().optional(),
+  _cacheTime: z.string().optional(),
 });
 
 export type GoogleStatusResponse = z.infer<typeof GoogleStatusResponseSchema>;

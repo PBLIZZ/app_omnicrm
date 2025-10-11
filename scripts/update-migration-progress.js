@@ -98,7 +98,12 @@ function updateLeaderboard(content, developer, completedRoutes) {
   if (match) {
     const existingCompleted = parseInt(match[2]);
     const total = parseInt(match[3]);
-    const newCompleted = existingCompleted + completedRoutes;
+    const increment = Number(completedRoutes);
+    if (isNaN(increment)) {
+      console.warn(`⚠️  Invalid completed routes value: ${completedRoutes}, defaulting to 0`);
+      return content;
+    }
+    const newCompleted = existingCompleted + increment;
     const newPercentage = Math.round((newCompleted / total) * 100);
     const status = newPercentage === 100 ? "🟢" : newPercentage > 0 ? "🟡" : "🔴";
 

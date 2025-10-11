@@ -12,8 +12,7 @@ import {
 import { Brain, Clock, Target } from "lucide-react";
 // ✅ Following clean architecture - useInbox hook encapsulates repository pattern (Phase 7-8)
 import { useInbox } from "@/hooks/use-inbox";
-// ✅ Type-safe DTO from contracts package with runtime validation (Phase 5-6 DTO Migration)
-import type { InboxItem } from "@/server/db/business-schemas/business-schema";
+import type { InboxItem } from "@/server/db/business-schemas/inbox";
 
 /**
  * Today's Focus Section - Top 3 Priorities

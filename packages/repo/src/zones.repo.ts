@@ -1,10 +1,8 @@
 import { eq, asc } from "drizzle-orm";
-import { zones } from "./schema";
-import { getDb } from "./db";
-import type {
-  Zone,
-  CreateZone
-} from "./schema";
+import { zones } from "@/server/db/schema";
+import { getDb } from "@/server/db/client";
+import type { Zone, CreateZone } from "@/server/db/schema";
+import { ok, err, DbResult } from "@/lib/utils/result";
 
 // Local type aliases for repository layer
 type ZoneDTO = Zone;
@@ -21,20 +19,28 @@ export class ZonesRepository {
   /**
    * List all zones ordered by name
    */
-  static async listZones(): Promise<ZoneDTO[]> {
-    const db = await getDb();
+  static async listZones(): Promise<DbResult<ZoneDTO[]>> {
+    try {
+      const db = await getDb();
 
-    const rows = await db
-      .select({
-        id: zones.id,
-        name: zones.name,
-        color: zones.color,
-        iconName: zones.iconName,
-      })
-      .from(zones)
-      .orderBy(asc(zones.name));
+      const rows = await db
+        .select({
+          id: zones.id,
+          name: zones.name,
+          color: zones.color,
+          iconName: zones.iconName,
+        })
+        .from(zones)
+        .orderBy(asc(zones.name));
 
-    return rows.map(row => row);
+      return ok(rows.map((row) => row));
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to list zones",
+        details: error,
+      });
+    }
   }
 
   /**
@@ -58,7 +64,7 @@ export class ZonesRepository {
       return null;
     }
 
-    return rows[0];
+    return rows[0] ?? null;
   }
 
   /**
@@ -82,32 +88,45 @@ export class ZonesRepository {
       return null;
     }
 
-    return rows[0];
+    return rows[0] ?? null;
   }
 
   /**
    * Create a new zone (admin function)
    */
-  static async createZone(data: CreateZoneDTO): Promise<ZoneDTO> {
-    const db = await getDb();
+  static async createZone(data: CreateZoneDTO): Promise<DbResult<ZoneDTO>> {
+    try {
+      const db = await getDb();
 
-    const insertValues = {
-      name: data.name,
-      color: data.color ?? null,
-      iconName: data.iconName ?? null,
-    };
+      const insertValues = {
+        id: data.id ?? undefined, // Let database handle auto-increment if not provided
+        name: data.name,
+        color: data.color ?? null,
+        iconName: data.iconName ?? null,
+      };
 
-    const [newZone] = await db
-      .insert(zones)
-      .values(insertValues)
-      .returning({
+      const [newZone] = await db.insert(zones).values(insertValues).returning({
         id: zones.id,
         name: zones.name,
         color: zones.color,
         iconName: zones.iconName,
       });
 
-    return newZone;
+      if (!newZone) {
+        return err({
+          code: "DB_INSERT_FAILED",
+          message: "Failed to create zone - no data returned",
+        });
+      }
+
+      return ok(newZone);
+    } catch (error) {
+      return err({
+        code: "DB_INSERT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to create zone",
+        details: error,
+      });
+    }
   }
 
   /**
@@ -146,9 +165,7 @@ export class ZonesRepository {
   static async deleteZone(zoneId: number): Promise<boolean> {
     const db = await getDb();
 
-    const result = await db
-      .delete(zones)
-      .where(eq(zones.id, zoneId));
+    const result = await db.delete(zones).where(eq(zones.id, zoneId)).returning({ id: zones.id });
 
     return result.length > 0;
   }
@@ -156,28 +173,36 @@ export class ZonesRepository {
   /**
    * Get zones with usage statistics
    */
-  static async getZonesWithStats(): Promise<ZoneWithStatsDTO[]> {
-    const db = await getDb();
+  static async getZonesWithStats(): Promise<DbResult<ZoneWithStatsDTO[]>> {
+    try {
+      const db = await getDb();
 
-    // For now, return zones with zero counts since we'll implement usage stats later
-    // TODO: Add actual project and task count queries when those repositories are implemented
-    const rows = await db
-      .select({
-        id: zones.id,
-        name: zones.name,
-        color: zones.color,
-        iconName: zones.iconName,
-      })
-      .from(zones)
-      .orderBy(asc(zones.name));
+      // For now, return zones with zero counts since we'll implement usage stats later
+      // TODO: Add actual project and task count queries when those repositories are implemented
+      const rows = await db
+        .select({
+          id: zones.id,
+          name: zones.name,
+          color: zones.color,
+          iconName: zones.iconName,
+        })
+        .from(zones)
+        .orderBy(asc(zones.name));
 
-    const zonesWithStats = rows.map(row => ({
-      ...row,
-      projectCount: 0,
-      taskCount: 0,
-      activeTaskCount: 0,
-    }));
+      const zonesWithStats = rows.map((row) => ({
+        ...row,
+        projectCount: 0,
+        taskCount: 0,
+        activeTaskCount: 0,
+      }));
 
-    return zonesWithStats.map(row => row);
+      return ok(zonesWithStats.map((row) => row));
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to get zones with stats",
+        details: error,
+      });
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
+import { ok, err, DbResult } from "@/lib/utils/result";
 
 // Database row types for query results
 interface ContactIdentityRow {
@@ -50,8 +51,8 @@ export class IdentitiesRepository {
   /**
    * Add email identity for contact
    */
-  async addEmail(userId: string, contactId: string, email: string): Promise<void> {
-    await this.addIdentity(userId, contactId, "email", email.toLowerCase());
+  async addEmail(userId: string, contactId: string, email: string): Promise<DbResult<void>> {
+    return this.addIdentity(userId, contactId, "email", email.toLowerCase());
   }
 
   /**
@@ -89,44 +90,63 @@ export class IdentitiesRepository {
   /**
    * Resolve contact ID from identity query
    */
-  async resolve(userId: string, query: IdentityQuery): Promise<string | null> {
-    if (query.email) {
-      const contactId = await this.findByEmail(userId, query.email);
-      if (contactId) return contactId;
-    }
+  async resolve(userId: string, query: IdentityQuery): Promise<DbResult<string | null>> {
+    try {
+      if (query.email) {
+        const contactId = await this.findByEmail(userId, query.email);
+        if (contactId) return ok(contactId);
+      }
 
-    if (query.phone) {
-      const contactId = await this.findByPhone(userId, query.phone);
-      if (contactId) return contactId;
-    }
+      if (query.phone) {
+        const contactId = await this.findByPhone(userId, query.phone);
+        if (contactId) return ok(contactId);
+      }
 
-    if (query.handle && query.provider) {
-      const contactId = await this.findByHandle(userId, query.provider, query.handle);
-      if (contactId) return contactId;
-    }
+      if (query.handle && query.provider) {
+        const contactId = await this.findByHandle(userId, query.provider, query.handle);
+        if (contactId) return ok(contactId);
+      }
 
-    if (query.providerId && query.provider) {
-      const contactId = await this.findByProviderId(userId, query.provider, query.providerId);
-      if (contactId) return contactId;
-    }
+      if (query.providerId && query.provider) {
+        const contactId = await this.findByProviderId(userId, query.provider, query.providerId);
+        if (contactId) return ok(contactId);
+      }
 
-    return null;
+      return ok(null);
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to resolve identity",
+        details: error,
+      });
+    }
   }
 
   /**
    * Get all identities for a contact
    */
-  async getContactIdentities(userId: string, contactId: string): Promise<ContactIdentity[]> {
-    const db = await getDb();
+  async getContactIdentities(
+    userId: string,
+    contactId: string,
+  ): Promise<DbResult<ContactIdentity[]>> {
+    try {
+      const db = await getDb();
 
-    const result = await db.execute(sql`
-      SELECT id, user_id, contact_id, kind, value, provider, created_at
-      FROM contact_identities
-      WHERE user_id = ${userId} AND contact_id = ${contactId}
-      ORDER BY created_at ASC
-    `);
+      const result = await db.execute(sql`
+        SELECT id, user_id, contact_id, kind, value, provider, created_at
+        FROM contact_identities
+        WHERE user_id = ${userId} AND contact_id = ${contactId}
+        ORDER BY created_at ASC
+      `);
 
-    return (result as unknown as ContactIdentityRow[]).map(this.mapToContactIdentity);
+      return ok((result as unknown as ContactIdentityRow[]).map(this.mapToContactIdentity));
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to get contact identities",
+        details: error,
+      });
+    }
   }
 
   /**
@@ -273,15 +293,25 @@ export class IdentitiesRepository {
     kind: ContactIdentity["kind"],
     value: string,
     provider?: string,
-  ): Promise<void> {
-    const db = await getDb();
+  ): Promise<DbResult<void>> {
+    try {
+      const db = await getDb();
 
-    await db.execute(sql`
-      INSERT INTO contact_identities (user_id, contact_id, kind, value, provider, created_at)
-      VALUES (${userId}, ${contactId}, ${kind}, ${value}, ${provider ?? null}, ${new Date().toISOString()})
-      ON CONFLICT (user_id, kind, value, coalesce(provider, ''))
-      DO UPDATE SET contact_id = EXCLUDED.contact_id
-    `);
+      await db.execute(sql`
+        INSERT INTO contact_identities (user_id, contact_id, kind, value, provider, created_at)
+        VALUES (${userId}, ${contactId}, ${kind}, ${value}, ${provider ?? null}, ${new Date()})
+        ON CONFLICT (user_id, kind, value, coalesce(provider, ''))
+        DO UPDATE SET contact_id = EXCLUDED.contact_id
+      `);
+
+      return ok(undefined);
+    } catch (error) {
+      return err({
+        code: "DB_INSERT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to add identity",
+        details: error,
+      });
+    }
   }
 
   private async findByEmail(userId: string, email: string): Promise<string | null> {

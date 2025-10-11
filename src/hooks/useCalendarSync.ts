@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr, isOk } from "@/lib/utils/result";
 // Direct error handling and success notifications (no abstraction)
 const createErrorHandler = (context: string) => (error: unknown) => {
   const message = error instanceof Error ? error.message : "An unknown error occurred";
@@ -78,10 +79,24 @@ export function useCalendarSync(): UseCalendarSyncResult {
         setSyncStatus("Connecting to Google Calendar...");
 
         // Direct sync call (following the proven Gmail pattern)
-        const syncResponse = await apiClient.post<{
-          message?: string;
-          stats?: CalendarSyncStats;
-        }>("/api/google/calendar/sync", {});
+        const result = await apiClient.post<
+          Result<
+            {
+              message?: string;
+              stats?: CalendarSyncStats;
+            },
+            { message: string; code: string }
+          >
+        >("/api/google/calendar/sync", {});
+
+        if (isErr(result)) {
+          throw new Error(result.error.message);
+        }
+        if (!isOk(result)) {
+          throw new Error("Invalid result state");
+        }
+
+        const syncResponse = result.data;
 
         setSyncStatus("Processing calendar events...");
 

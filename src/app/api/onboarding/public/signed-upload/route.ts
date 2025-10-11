@@ -10,12 +10,9 @@ export const POST = handlePublic(
     const result = await SignedUploadService.processSignedUpload(uploadData);
 
     return {
-      ok: true,
-      data: {
-        uploadUrl: result.uploadUrl,
-        filePath: result.filePath,
-        token: result.token,
-      },
+      uploadUrl: result.uploadUrl,
+      filePath: result.filePath,
+      token: result.token,
     };
   }
 );

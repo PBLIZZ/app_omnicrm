@@ -16,8 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useInbox, useInboxStats } from "@/hooks/use-inbox";
 import { useZones } from "@/hooks/use-zones";
 import { TodaysFocusSection } from "./TodaysFocusSection";
-// ✅ Using validated DTO from @omnicrm/contracts package (Phase 5-6 DTO Migration)
-import type { CreateInboxItem } from "@/server/db/business-schemas/business-schema";
+import type { CreateInboxItem } from "@/server/db/business-schemas/inbox";
 
 /**
  * QuickCaptureInput - The "Dump Everything" Interface

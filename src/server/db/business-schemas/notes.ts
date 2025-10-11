@@ -2,37 +2,59 @@
  * Notes Business Schemas
  *
  * Business logic validation schemas for note-related API endpoints
+ * Derived from database schema for type safety
  */
 
 import { z } from "zod";
+import { type Note as DbNote, type CreateNote as DbCreateNote } from "@/server/db/schema";
 
 // ============================================================================
-// CORE NOTE SCHEMAS
+// CORE NOTE SCHEMAS - DERIVED FROM DATABASE SCHEMA
 // ============================================================================
 
 /**
- * Note Schema - Single note response
+ * Note Schema - matches database reality exactly
  */
 export const NoteSchema = z.object({
   id: z.string().uuid(),
-  contactId: z.string().uuid(),
+  userId: z.string().uuid(),
+  contactId: z.string().uuid().nullable(),
+  title: z.string().nullable(),
   content: z.string(),
-  isAIGenerated: z.boolean().default(false),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
-});
+}) satisfies z.ZodType<DbNote>;
 
 export type Note = z.infer<typeof NoteSchema>;
 
 /**
- * Create Note Body Schema
+ * Create Note Body Schema - for API input validation
  */
 export const CreateNoteBodySchema = z.object({
   content: z.string().min(1, "Note content is required"),
-  isAIGenerated: z.boolean().default(false),
+  title: z.string().optional(),
+  contactId: z.string().uuid().optional(),
 });
 
 export type CreateNoteBody = z.infer<typeof CreateNoteBodySchema>;
+
+/**
+ * Create Note Schema - matches database insert type
+ */
+export const CreateNoteSchema = z.object({
+  userId: z.string().uuid(),
+  contactId: z.string().uuid().nullable(),
+  title: z.string().nullable(),
+  content: z.string(),
+}) satisfies z.ZodType<DbCreateNote>;
+
+export type CreateNote = z.infer<typeof CreateNoteSchema>;
+
+/**
+ * Update Note Schema
+ */
+export const UpdateNoteSchema = CreateNoteSchema.partial().required({ userId: true });
+export type UpdateNote = z.infer<typeof UpdateNoteSchema>;
 
 /**
  * Notes List Response Schema

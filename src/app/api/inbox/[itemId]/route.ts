@@ -6,6 +6,7 @@ import {
   InboxUpdateRequestSchema,
   SuccessResponseSchema,
 } from "@/server/db/business-schemas";
+import { NextRequest } from "next/server";
 
 /**
  * Individual Inbox Item API - Get, update, and delete inbox items
@@ -19,84 +20,94 @@ const ItemIdParamsSchema = z.object({
   itemId: z.string().uuid(),
 });
 
-// Helper function to extract itemId from route params
-async function getItemId(routeParams: Promise<{ params: { itemId: string } }> | undefined) {
-  const params = await routeParams?.params;
-  if (!params?.itemId) {
-    throw new Error("Item ID is required");
-  }
+interface RouteParams {
+  params: {
+    itemId: string;
+  };
+}
 
-  const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
-  if (!itemId) {
-    throw new Error("Invalid item ID");
-  }
-
+// Helper to extract and validate itemId from route params
+async function getItemId(routeParams: RouteParams): Promise<string> {
+  const { itemId } = ItemIdParamsSchema.parse(routeParams.params);
   return itemId;
 }
 
-export const GET = handleAuth(
-  z.void(), // No request body validation needed
-  InboxItemResponseSchema,
-  async (_, userId, request, routeParams) => {
-    const itemId = await getItemId(routeParams);
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(
+    z.void(), // No request body validation needed
+    InboxItemResponseSchema,
+    async (_: void, userId: string) => {
+      const itemId = await getItemId({ params });
 
-    const item = await InboxService.getInboxItem(userId, itemId);
+      const item = await InboxService.getInboxItem(userId, itemId);
 
-    if (!item) {
-      throw new Error("Inbox item not found");
-    }
+      if (!item) {
+        throw new Error("Inbox item not found");
+      }
 
-    return { item };
-  }
-);
+      return { item };
+    },
+  );
 
-export const PATCH = handleAuth(
-  InboxUpdateRequestSchema,
-  InboxItemResponseSchema,
-  async (requestData, userId, request, routeParams) => {
-    const itemId = await getItemId(routeParams);
-    const { action, data } = requestData;
+  return handler(request);
+}
 
-    switch (action) {
-      case "update_status": {
-        const item = await InboxService.updateInboxItem(userId, itemId, data);
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(
+    InboxUpdateRequestSchema,
+    InboxItemResponseSchema,
+    async (requestData: z.infer<typeof InboxUpdateRequestSchema>, userId: string) => {
+      const itemId = await getItemId({ params });
+      const { action, data } = requestData;
 
-        if (!item) {
-          throw new Error("Inbox item not found");
+      switch (action) {
+        case "update_status": {
+          const item = await InboxService.updateInboxItem(userId, itemId, data);
+
+          if (!item) {
+            throw new Error("Inbox item not found");
+          }
+
+          return { item };
         }
 
-        return { item };
-      }
+        case "mark_processed": {
+          const success = await InboxService.markAsProcessed(userId, itemId);
 
-      case "mark_processed": {
-        const item = await InboxService.markAsProcessed(userId, itemId, data?.createdTaskId);
+          if (!success) {
+            throw new Error("Failed to mark item as processed");
+          }
 
-        if (!item) {
-          throw new Error("Inbox item not found");
+          const item = await InboxService.getInboxItem(userId, itemId);
+
+          if (!item) {
+            throw new Error("Inbox item not found after processing");
+          }
+
+          return { item };
         }
 
-        return { item };
+        default:
+          throw new Error(`Unknown action: ${action}`);
       }
+    },
+  );
 
-      default: {
-        throw new Error("Invalid action");
-      }
-    }
-  }
-);
+  return handler(request);
+}
 
-export const DELETE = handleAuth(
-  z.void(), // No request body validation needed
-  SuccessResponseSchema,
-  async (_, userId, request, routeParams) => {
-    const itemId = await getItemId(routeParams);
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const handler = handleAuth(z.void(), SuccessResponseSchema, async (_: void, userId: string) => {
+    const itemId = await getItemId({ params });
 
-    const deleted = await InboxService.deleteInboxItem(userId, itemId);
+    const success = await InboxService.deleteInboxItem(userId, itemId);
 
-    if (!deleted) {
-      throw new Error("Inbox item not found");
+    if (!success) {
+      throw new Error("Failed to delete inbox item");
     }
 
     return { success: true };
-  }
-);
+  });
+
+  return handler(request);
+}

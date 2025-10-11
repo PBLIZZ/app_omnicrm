@@ -272,6 +272,20 @@ export class GoogleCalendarService {
 
     return oauth2Client;
   }
+  catch(error: any) {
+    await logger.error("Failed to get Google Calendar auth", {
+      operation: "google_calendar_auth",
+      error: error instanceof Error ? error.message : String(error),
+      additionalData: { userId },
+    });
+    throw error instanceof GoogleAuthError
+      ? error
+      : new GoogleAuthError(
+          error instanceof Error ? error.message : "Failed to get Google Calendar authentication",
+          "auth_error",
+          false,
+        );
+  }
 
   /**
    * Check if an error is an authentication/authorization error
@@ -1019,7 +1033,10 @@ export class GoogleCalendarService {
   /**
    * Get formatted calendar events for API responses
    */
-  static async getFormattedEvents(userId: string, limit = 500): Promise<{
+  static async getFormattedEvents(
+    userId: string,
+    limit = 500,
+  ): Promise<{
     events: Array<{
       id: string;
       googleEventId: string;
@@ -1051,7 +1068,7 @@ export class GoogleCalendarService {
       .limit(limit);
 
     // Transform to match expected format
-    const transformedEvents = events.map(event => ({
+    const transformedEvents = events.map((event) => ({
       id: event.id,
       googleEventId: event.googleEventId,
       title: event.title,
@@ -1140,7 +1157,9 @@ export class GoogleCalendarService {
 
     // Check if we have any valid calendars
     if (calendars.length === 0 && rawItems.length > 0) {
-      throw new Error(`No valid calendars found after processing ${rawItems.length} items from Google Calendar API`);
+      throw new Error(
+        `No valid calendars found after processing ${rawItems.length} items from Google Calendar API`,
+      );
     }
 
     // Sort calendars: primary first, then by summary

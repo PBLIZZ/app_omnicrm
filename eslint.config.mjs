@@ -12,16 +12,26 @@ const __dirname = path.dirname(__filename);
 
 // 0) Global ignores (truly never lint these)
 const GLOBAL_IGNORES = [
-  "**/node_modules/**", "**/.pnpm/**", "**/dist/**", "**/build/**", ".next/**", "coverage/**",
+  "**/node_modules/**",
+  "**/.pnpm/**",
+  "**/dist/**",
+  "**/build/**",
+  ".next/**",
+  "coverage/**",
   // generated/third-party
   "src/components/ui/**",
   "src/lib/supabase.types.ts",
   "supabase/functions/**",
   // configs not in tsconfig project
-  "vitest.config.ts", "vitest.setup.ts", "playwright.config.*", "tailwind.config.*",
+  "vitest.config.ts",
+  "vitest.setup.ts",
+  "playwright.config.*",
+  "tailwind.config.*",
   // e2e and run directories
   "e2e/**",
   "run/**",
+  // documentation directories
+  "docs/**",
 ];
 
 export default [
@@ -31,14 +41,30 @@ export default [
   // 1) Fast, non-typed pass across repo
   {
     files: ["**/*.{ts,tsx,js,jsx}"],
-    plugins: { "@typescript-eslint": tseslint, "unused-imports": unusedImports, "@next/next": nextPlugin },
+    plugins: {
+      "@typescript-eslint": tseslint,
+      "unused-imports": unusedImports,
+      "@next/next": nextPlugin,
+    },
     languageOptions: { parser: tsParser }, // no project => cheap
     rules: {
       // debt prevention (still cheap)
-      "@typescript-eslint/no-unused-vars": ["error", { args: "all", argsIgnorePattern: "^_", caughtErrors: "all", caughtErrorsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          args: "all",
+          argsIgnorePattern: "^_",
+          caughtErrors: "all",
+          caughtErrorsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
       "unused-imports/no-unused-imports": "error",
       "@typescript-eslint/no-explicit-any": "error",
-      "@typescript-eslint/ban-ts-comment": ["error", { "ts-ignore": true, "ts-expect-error": true, "ts-nocheck": true, "ts-check": true }],
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        { "ts-ignore": true, "ts-expect-error": true, "ts-nocheck": true, "ts-check": true },
+      ],
       // Next hints
       "@next/next/no-html-link-for-pages": "off",
       "@next/next/no-img-element": "warn",
@@ -49,12 +75,7 @@ export default [
 
   // 2) Typed, expensive rules ONLY on app/server source (not tests)
   {
-    files: [
-      "src/server/**/*.{ts,tsx}",
-      "src/app/api/**/*.{ts,tsx}",
-      "packages/repo/src/**/*.ts",
-      "packages/contracts/src/**/*.ts",
-    ],
+    files: ["src/server/**/*.{ts,tsx}", "src/app/api/**/*.{ts,tsx}", "packages/repo/src/**/*.ts"],
     // These are the only files that are type-checked by ESLint
     languageOptions: {
       parser: tsParser,
@@ -71,7 +92,12 @@ export default [
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/explicit-function-return-type": [
         "error",
-        { allowExpressions: true, allowTypedFunctionExpressions: true, allowHigherOrderFunctions: true, allowConciseArrowFunctionExpressionsStartingWithVoid: true },
+        {
+          allowExpressions: true,
+          allowTypedFunctionExpressions: true,
+          allowHigherOrderFunctions: true,
+          allowConciseArrowFunctionExpressionsStartingWithVoid: true,
+        },
       ],
     },
   },
@@ -95,57 +121,66 @@ export default [
             {
               name: "next/server",
               importNames: ["NextResponse", "NextRequest"],
-              message: "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of NextResponse/NextRequest. See migration guide in memories."
-            }
+              message:
+                "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of NextResponse/NextRequest. See migration guide in memories.",
+            },
           ],
           patterns: [
             {
               group: ["@omnicrm/contracts", "@omnicrm/contracts/**"],
-              message: "Removed. Use '@/server/db/business-schemas' for validation schemas."
+              message: "Removed. Use '@/server/db/business-schemas' for validation schemas.",
             },
             {
               group: ["@/lib/validation/schemas", "@/lib/validation/schemas/**"],
-              message: "Removed. Use '@/server/db/business-schemas' for validation schemas."
+              message: "Removed. Use '@/server/db/business-schemas' for validation schemas.",
             },
             {
               group: ["**/packages/contracts/**"],
-              message: "Removed. Use '@/server/db/business-schemas' for validation schemas."
+              message: "Removed. Use '@/server/db/business-schemas' for validation schemas.",
             },
             {
               group: ["@/server/utils/api-helpers", "@/server/utils/api-helpers/**"],
-              message: "Legacy API helpers removed. Use '@/lib/api' or '@/lib/api-edge-cases' handlers."
+              message:
+                "Legacy API helpers removed. Use '@/lib/api' or '@/lib/api-edge-cases' handlers.",
             },
             {
               group: ["@/lib/api-client", "@/lib/api-client/**"],
-              message: "Legacy API client removed. Use '@/lib/api' handlers."
+              message: "Legacy API client removed. Use '@/lib/api' handlers.",
             },
             {
               group: ["@/lib/api-request", "@/lib/api-request/**"],
-              message: "Legacy API request removed. Use '@/lib/api' handlers."
-            }
-          ]
-        }
+              message: "Legacy API request removed. Use '@/lib/api' handlers.",
+            },
+          ],
+        },
       ],
 
       // Ban legacy syntax patterns
       "no-restricted-syntax": [
         "error",
         {
-          selector: "CallExpression[callee.object.name='NextResponse'][callee.property.name='json']",
-          message: "Use standardized API handlers (handle, handleAuth, handleGetWithQueryAuth) from '@/lib/api' instead of NextResponse.json(). This ensures consistent error handling and validation."
+          selector:
+            "CallExpression[callee.object.name='NextResponse'][callee.property.name='json']",
+          message:
+            "Use standardized API handlers (handle, handleAuth, handleGetWithQueryAuth) from '@/lib/api' instead of NextResponse.json(). This ensures consistent error handling and validation.",
         },
         {
-          selector: "FunctionDeclaration[params.0.typeAnnotation.typeAnnotation.typeName.name='NextRequest']",
-          message: "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of manual NextRequest handling. This ensures type safety and consistent patterns."
+          selector:
+            "FunctionDeclaration[params.0.typeAnnotation.typeAnnotation.typeName.name='NextRequest']",
+          message:
+            "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of manual NextRequest handling. This ensures type safety and consistent patterns.",
         },
         {
-          selector: "ArrowFunctionExpression[params.0.typeAnnotation.typeAnnotation.typeName.name='NextRequest']",
-          message: "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of manual NextRequest handling."
+          selector:
+            "ArrowFunctionExpression[params.0.typeAnnotation.typeAnnotation.typeName.name='NextRequest']",
+          message:
+            "Use standardized API handlers from '@/lib/api' or '@/lib/api-edge-cases' instead of manual NextRequest handling.",
         },
         {
           selector: "NewExpression[callee.name='Response']",
-          message: "Use standardized API handlers from '@/lib/api' that return proper Response objects with consistent error handling."
-        }
+          message:
+            "Use standardized API handlers from '@/lib/api' that return proper Response objects with consistent error handling.",
+        },
       ],
 
       // Require proper imports for API routes
@@ -153,21 +188,22 @@ export default [
         "error",
         {
           name: "NextResponse",
-          message: "Import standardized handlers from '@/lib/api' or '@/lib/api-edge-cases' instead."
-        }
+          message:
+            "Import standardized handlers from '@/lib/api' or '@/lib/api-edge-cases' instead.",
+        },
       ],
 
       // Ensure API routes use proper patterns
       "@typescript-eslint/explicit-function-return-type": [
-        "error", 
-        { 
+        "error",
+        {
           allowExpressions: false,
           allowTypedFunctionExpressions: false,
           allowHigherOrderFunctions: true,
-          allowConciseArrowFunctionExpressionsStartingWithVoid: false 
-        }
+          allowConciseArrowFunctionExpressionsStartingWithVoid: false,
+        },
       ],
-    }
+    },
   },
 
   // 4) Tests: explicitly turn off unsafe rules that mocks trigger

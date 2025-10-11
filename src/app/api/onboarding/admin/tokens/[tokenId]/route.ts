@@ -1,4 +1,3 @@
-import { handleAuth } from "@/lib/api";
 import { OnboardingTokenService } from "@/server/services/onboarding-token.service";
 import {
   DeleteTokenRequestSchema,
@@ -28,6 +27,7 @@ function handleAuthWithParams<TIn, TOut>(
       const contentType = req.headers.get("content-type");
       const contentLength = req.headers.get("content-length");
 
+      // Only parse body if there's actual JSON content
       if (
         contentType?.includes("application/json") &&
         contentLength &&
@@ -36,8 +36,11 @@ function handleAuthWithParams<TIn, TOut>(
         body = await req.json();
       }
 
+      // Parse and validate URL params
+      const validatedParams = TokenIdParamsSchema.parse(context.params);
+
       const parsed = input.parse(body);
-      const result = await fn(parsed, userId, context.params);
+      const result = await fn(parsed, userId, validatedParams);
       const validated = output.parse(result);
 
       return new Response(JSON.stringify(validated), {
@@ -80,7 +83,7 @@ export const GET = handleAuthWithParams(
     const token = await OnboardingTokenService.getTokenById(userId, tokenId);
 
     return token;
-  }
+  },
 );
 
 export const DELETE = handleAuthWithParams(
@@ -93,8 +96,7 @@ export const DELETE = handleAuthWithParams(
     const result = await OnboardingTokenService.deleteUserToken(userId, tokenId);
 
     return {
-      ok: result.success,
       message: result.message,
     };
-  }
+  },
 );

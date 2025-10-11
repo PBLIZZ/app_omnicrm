@@ -10,12 +10,9 @@ export const POST = handleAuth(SimpleJobProcessSchema, NormalizeJobResultSchema,
   const result = await JobProcessingService.processNormalizationJobs(userId);
 
   return {
-    ok: true,
-    data: {
-      message: result.message,
-      processed: result.processed,
-      succeeded: result.succeeded,
-      failed: result.failed,
-    },
+    message: result.message,
+    processed: result.processed,
+    succeeded: result.succeeded,
+    failed: result.failed,
   };
 });

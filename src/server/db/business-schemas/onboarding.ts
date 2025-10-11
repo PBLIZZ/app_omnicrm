@@ -76,7 +76,6 @@ export const DeleteTokenRequestSchema = z.object({});
  * Delete Token Response Schema
  */
 export const DeleteTokenResponseSchema = z.object({
-  ok: z.boolean(),
   message: z.string(),
 });
 
@@ -97,7 +96,6 @@ export const TrackAccessRequestSchema = z.object({
  * Track Access Response Schema
  */
 export const TrackAccessResponseSchema = z.object({
-  ok: z.boolean(),
   message: z.string(),
 });
 
@@ -115,13 +113,9 @@ export const SignedUploadRequestSchema = z.object({
  * Signed Upload Response Schema
  */
 export const SignedUploadResponseSchema = z.object({
-  ok: z.boolean(),
-  data: z.object({
-    uploadUrl: z.string(),
-    filePath: z.string(),
-    token: z.string(),
-  }).optional(),
-  error: z.string().optional(),
+  uploadUrl: z.string(),
+  filePath: z.string(),
+  token: z.string(),
 });
 
 /**

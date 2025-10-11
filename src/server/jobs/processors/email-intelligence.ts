@@ -6,11 +6,7 @@ import { rawEvents, aiInsights } from "@/server/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
-import {
-  processEmailIntelligence,
-  storeEmailIntelligence,
-} from "@/server/services/email-intelligence.service";
-import { ensureError } from "@/lib/utils/error-handler";
+import { processEmailIntelligence, storeEmailIntelligence } from "@/lib/clients/connect-api.client";
 
 export interface EmailIntelligenceJobPayload {
   rawEventId: string;
@@ -67,7 +63,7 @@ export async function runEmailIntelligence(job: JobRecord<"email_intelligence">)
           jobId: job.id,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }
@@ -252,7 +248,7 @@ export async function runEmailIntelligenceBatch(
           jobId: job.id,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }
@@ -331,7 +327,7 @@ export async function runEmailIntelligenceCleanup(
           jobId: job.id,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }

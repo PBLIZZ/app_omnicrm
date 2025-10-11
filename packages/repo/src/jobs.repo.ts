@@ -1,10 +1,8 @@
 import { eq, and, desc, inArray, count, sql } from "drizzle-orm";
-import { jobs } from "./schema";
-import { getDb } from "./db";
-import type {
-  Job,
-  CreateJob
-} from "./schema";
+import { jobs } from "@/server/db/schema";
+import { getDb } from "@/server/db/client";
+import type { Job, CreateJob } from "@/server/db/schema";
+import { ok, err, DbResult } from "@/lib/utils/result";
 
 // Local type aliases for repository layer
 type JobDTO = Job;
@@ -14,23 +12,28 @@ export class JobsRepository {
   /**
    * Create a new job
    */
-  static async createJob(data: CreateJobDTO & { userId: string }): Promise<JobDTO> {
-    const db = await getDb();
+  static async createJob(data: CreateJobDTO & { userId: string }): Promise<DbResult<JobDTO>> {
+    try {
+      const db = await getDb();
 
-    const insertValues = {
-      userId: data.userId,
-      kind: data.kind,
-      payload: data.payload,
-      batchId: data.batchId ?? null,
-      status: "queued" as const,
-      attempts: 0,
-      lastError: null,
-    };
+      if (!data.userId || !data.kind) {
+        return err({
+          code: "VALIDATION_ERROR",
+          message: "Required fields missing: userId and kind are required",
+        });
+      }
 
-    const [newJob] = await db
-      .insert(jobs)
-      .values(insertValues)
-      .returning({
+      const insertValues = {
+        userId: data.userId,
+        kind: data.kind,
+        payload: data.payload,
+        batchId: data.batchId ?? null,
+        status: "queued" as const,
+        attempts: 0,
+        lastError: null,
+      };
+
+      const [newJob] = await db.insert(jobs).values(insertValues).returning({
         id: jobs.id,
         userId: jobs.userId,
         kind: jobs.kind,
@@ -43,37 +46,55 @@ export class JobsRepository {
         updatedAt: jobs.updatedAt,
       });
 
-    return newJob;
+      if (!newJob) {
+        return err({
+          code: "DB_INSERT_FAILED",
+          message: "Failed to create job - no data returned",
+        });
+      }
+
+      return ok(newJob);
+    } catch (error) {
+      return err({
+        code: "DB_INSERT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to create job",
+        details: error,
+      });
+    }
   }
 
   /**
    * Get a job by ID
    */
-  static async getJobById(userId: string, jobId: string): Promise<JobDTO | null> {
-    const db = await getDb();
+  static async getJobById(userId: string, jobId: string): Promise<DbResult<JobDTO | null>> {
+    try {
+      const db = await getDb();
 
-    const rows = await db
-      .select({
-        id: jobs.id,
-        userId: jobs.userId,
-        kind: jobs.kind,
-        payload: jobs.payload,
-        status: jobs.status,
-        attempts: jobs.attempts,
-        batchId: jobs.batchId,
-        lastError: jobs.lastError,
-        createdAt: jobs.createdAt,
-        updatedAt: jobs.updatedAt,
-      })
-      .from(jobs)
-      .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
-      .limit(1);
+      const rows = await db
+        .select({
+          id: jobs.id,
+          userId: jobs.userId,
+          kind: jobs.kind,
+          payload: jobs.payload,
+          status: jobs.status,
+          attempts: jobs.attempts,
+          batchId: jobs.batchId,
+          lastError: jobs.lastError,
+          createdAt: jobs.createdAt,
+          updatedAt: jobs.updatedAt,
+        })
+        .from(jobs)
+        .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
+        .limit(1);
 
-    if (rows.length === 0) {
-      return null;
+      return ok(rows.length === 0 ? null : (rows[0] ?? null));
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to get job",
+        details: error,
+      });
     }
-
-    return rows[0];
   }
 
   /**
@@ -87,7 +108,7 @@ export class JobsRepository {
       batchId?: string;
       limit?: number;
       offset?: number;
-    } = {}
+    } = {},
   ): Promise<JobDTO[]> {
     const db = await getDb();
     const { status, kind, batchId, limit = 50, offset = 0 } = options;
@@ -125,13 +146,16 @@ export class JobsRepository {
       .limit(limit)
       .offset(offset);
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
    * Get job counts by status and kind
    */
-  static async getJobCounts(userId: string, batchId?: string): Promise<{
+  static async getJobCounts(
+    userId: string,
+    batchId?: string,
+  ): Promise<{
     statusCounts: Record<string, number>;
     kindCounts: Record<string, number>;
   }> {
@@ -170,7 +194,7 @@ export class JobsRepository {
     };
 
     jobCounts.forEach(({ status, kind, count: jobCount }) => {
-      if (status in statusCounts) {
+      if (status && status in statusCounts) {
         statusCounts[status as keyof typeof statusCounts] += jobCount;
       }
       if (kind in kindCounts) {
@@ -184,12 +208,16 @@ export class JobsRepository {
   /**
    * Get pending jobs (queued, processing, retrying)
    */
-  static async getPendingJobs(userId: string, batchId?: string, limit: number = 50): Promise<JobDTO[]> {
+  static async getPendingJobs(
+    userId: string,
+    batchId?: string,
+    limit: number = 50,
+  ): Promise<JobDTO[]> {
     const db = await getDb();
 
     const conditions = [
       eq(jobs.userId, userId),
-      inArray(jobs.status, ['queued', 'processing', 'retrying'])
+      inArray(jobs.status, ["queued", "processing", "retrying"]),
     ];
 
     if (batchId) {
@@ -214,13 +242,17 @@ export class JobsRepository {
       .orderBy(jobs.createdAt)
       .limit(limit);
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
    * Get recent jobs for history/monitoring
    */
-  static async getRecentJobs(userId: string, batchId?: string, limit: number = 20): Promise<JobDTO[]> {
+  static async getRecentJobs(
+    userId: string,
+    batchId?: string,
+    limit: number = 20,
+  ): Promise<JobDTO[]> {
     const db = await getDb();
 
     const conditions = [eq(jobs.userId, userId)];
@@ -246,7 +278,7 @@ export class JobsRepository {
       .orderBy(desc(jobs.updatedAt))
       .limit(limit);
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
@@ -259,39 +291,43 @@ export class JobsRepository {
       status?: string;
       attempts?: number;
       lastError?: string | null;
-    }
-  ): Promise<JobDTO | null> {
-    const db = await getDb();
+    },
+  ): Promise<DbResult<JobDTO | null>> {
+    try {
+      const db = await getDb();
 
-    const updateValues = {
-      updatedAt: new Date(),
-      ...(updates.status !== undefined && { status: updates.status }),
-      ...(updates.attempts !== undefined && { attempts: updates.attempts }),
-      ...(updates.lastError !== undefined && { lastError: updates.lastError }),
-    };
+      const updateValues = {
+        updatedAt: new Date(),
+        ...(updates.status !== undefined && { status: updates.status }),
+        ...(updates.attempts !== undefined && { attempts: updates.attempts }),
+        ...(updates.lastError !== undefined && { lastError: updates.lastError }),
+      };
 
-    const [updatedJob] = await db
-      .update(jobs)
-      .set(updateValues)
-      .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
-      .returning({
-        id: jobs.id,
-        userId: jobs.userId,
-        kind: jobs.kind,
-        payload: jobs.payload,
-        status: jobs.status,
-        attempts: jobs.attempts,
-        batchId: jobs.batchId,
-        lastError: jobs.lastError,
-        createdAt: jobs.createdAt,
-        updatedAt: jobs.updatedAt,
+      const [updatedJob] = await db
+        .update(jobs)
+        .set(updateValues)
+        .where(and(eq(jobs.userId, userId), eq(jobs.id, jobId)))
+        .returning({
+          id: jobs.id,
+          userId: jobs.userId,
+          kind: jobs.kind,
+          payload: jobs.payload,
+          status: jobs.status,
+          attempts: jobs.attempts,
+          batchId: jobs.batchId,
+          lastError: jobs.lastError,
+          createdAt: jobs.createdAt,
+          updatedAt: jobs.updatedAt,
+        });
+
+      return ok(updatedJob || null);
+    } catch (error) {
+      return err({
+        code: "DB_UPDATE_FAILED",
+        message: error instanceof Error ? error.message : "Failed to update job",
+        details: error,
       });
-
-    if (!updatedJob) {
-      return null;
     }
-
-    return updatedJob;
   }
 
   /**
@@ -329,10 +365,7 @@ export class JobsRepository {
   /**
    * Get jobs that have been processing for too long (stuck jobs)
    */
-  static async getStuckJobs(
-    userId: string,
-    thresholdMinutes: number = 10
-  ): Promise<JobDTO[]> {
+  static async getStuckJobs(userId: string, thresholdMinutes: number = 10): Promise<JobDTO[]> {
     const db = await getDb();
 
     const thresholdTime = new Date(Date.now() - thresholdMinutes * 60 * 1000);
@@ -354,19 +387,19 @@ export class JobsRepository {
       .where(
         and(
           eq(jobs.userId, userId),
-          eq(jobs.status, 'processing'),
-          sql`${jobs.updatedAt} < ${thresholdTime}`
-        )
+          eq(jobs.status, "processing"),
+          sql`${jobs.updatedAt} < ${thresholdTime}`,
+        ),
       );
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
    * Bulk create jobs for batch operations
    */
   static async createBulkJobs(
-    jobsData: Array<CreateJobDTO & { userId: string }>
+    jobsData: Array<CreateJobDTO & { userId: string }>,
   ): Promise<JobDTO[]> {
     if (jobsData.length === 0) {
       return [];
@@ -374,7 +407,7 @@ export class JobsRepository {
 
     const db = await getDb();
 
-    const insertValues = jobsData.map(job => ({
+    const insertValues = jobsData.map((job) => ({
       userId: job.userId,
       kind: job.kind,
       payload: job.payload,
@@ -384,22 +417,19 @@ export class JobsRepository {
       lastError: null,
     }));
 
-    const newJobs = await db
-      .insert(jobs)
-      .values(insertValues)
-      .returning({
-        id: jobs.id,
-        userId: jobs.userId,
-        kind: jobs.kind,
-        payload: jobs.payload,
-        status: jobs.status,
-        attempts: jobs.attempts,
-        batchId: jobs.batchId,
-        lastError: jobs.lastError,
-        createdAt: jobs.createdAt,
-        updatedAt: jobs.updatedAt,
-      });
+    const newJobs = await db.insert(jobs).values(insertValues).returning({
+      id: jobs.id,
+      userId: jobs.userId,
+      kind: jobs.kind,
+      payload: jobs.payload,
+      status: jobs.status,
+      attempts: jobs.attempts,
+      batchId: jobs.batchId,
+      lastError: jobs.lastError,
+      createdAt: jobs.createdAt,
+      updatedAt: jobs.updatedAt,
+    });
 
-    return newJobs.map(job => job);
+    return newJobs.map((job) => job);
   }
 }

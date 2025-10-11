@@ -2,7 +2,7 @@
 // This provides RLS-bypassing operations for system processes like sync jobs
 import { logger } from "@/lib/observability";
 import { getDb } from "./client";
-import { rawEvents, interactions, aiInsights, embeddings } from "./schema";
+import { rawEvents, interactions, aiInsights, embeddings } from "@/server/db/schema";
 
 const isTest = process.env.NODE_ENV === "test";
 

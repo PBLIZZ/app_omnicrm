@@ -37,12 +37,12 @@ export const GET = handleGet(
 
     const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
       cookies: {
-        getAll() {
+        getAll(): { name: string; value: string }[] {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]): void {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            cookiesToSet.forEach(({ name, value, options }): void =>
               cookieStore.set(name, value, options),
             );
           } catch {

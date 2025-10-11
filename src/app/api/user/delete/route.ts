@@ -1,5 +1,4 @@
 /** DELETE /api/user/delete — Permanent account deletion for GDPR compliance (auth required). */
-import { handleAuth } from "@/lib/api";
 import {
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,
@@ -58,6 +57,20 @@ function handleAuthWithRequest<TIn, TOut>(
         });
       }
 
+      // Handle any Error with a numeric status property
+      if (error instanceof Error && "status" in error && typeof error.status === "number") {
+        return new Response(
+          JSON.stringify({
+            error: error.message,
+            ...(error.details ? { details: error.details } : {}),
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: error.status,
+          },
+        );
+      }
+
       throw error;
     }
   };
@@ -95,5 +108,5 @@ export const DELETE = handleAuthWithRequest(
     });
 
     return result;
-  }
+  },
 );

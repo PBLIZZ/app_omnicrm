@@ -55,7 +55,7 @@ export const queryKeys = {
   // Client management
   clients: {
     all: ["clients"] as const,
-    list: () => ["/api/omni-clients"] as const,
+    list: () => ["/api/contacts"] as const,
   },
 
   // Chat and messaging

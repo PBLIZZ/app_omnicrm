@@ -12,29 +12,23 @@
  * - Server-side caching to prevent UI flickering
  */
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { GoogleStatusQuerySchema, GoogleStatusResponseSchema } from "@/server/db/business-schemas";
+import {
+  GoogleStatusQuerySchema,
+  GoogleStatusResponseSchema,
+} from "@/server/db/business-schemas/google-prefs";
 import { GoogleIntegrationService } from "@/server/services/google-integration.service";
 
-export const GET = handleGetWithQueryAuth(GoogleStatusQuerySchema, GoogleStatusResponseSchema, async (query, userId) => {
-  try {
-    return await GoogleIntegrationService.getGoogleStatus(userId);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+export const GET = handleGetWithQueryAuth(
+  GoogleStatusQuerySchema,
+  GoogleStatusResponseSchema,
+  async (query, userId) => {
+    const result = await GoogleIntegrationService.getGoogleStatus(userId);
 
-    // Classify error types for better user experience
-    let errorCode: string;
-    if (errorMessage.includes("auth") || errorMessage.includes("token")) {
-      errorCode = "AUTH_ERROR";
-    } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
-      errorCode = "NETWORK_ERROR";
-    } else if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
-      errorCode = "QUOTA_ERROR";
-    } else if (errorMessage.includes("database") || errorMessage.includes("db")) {
-      errorCode = "DATABASE_ERROR";
-    } else {
-      errorCode = "UNKNOWN_ERROR";
+    if (result.success) {
+      return result.data;
     }
 
-    throw new Error(`Failed to get Google status: ${errorCode} - ${errorMessage}`);
-  }
-});
+    // Propagate the original classified error object to preserve HTTP status and metadata
+    throw result.error;
+  },
+);

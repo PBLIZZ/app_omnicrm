@@ -68,7 +68,8 @@ export function GmailPreferences({
           Gmail Sync Preferences
         </h3>
         <p className="text-sm text-muted-foreground">
-          Configure your Gmail import preferences. This is a one-time setup and cannot be changed after the initial sync.
+          Configure your Gmail import preferences. This is a one-time setup and cannot be changed
+          after the initial sync.
         </p>
       </div>
 
@@ -116,7 +117,8 @@ export function GmailPreferences({
                   Import Everything
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Import all emails from all sources (inbox, sent, drafts, chats, categories, labels)
+                  Import all emails from all sources (inbox, sent, drafts, chats, categories,
+                  labels)
                 </p>
               </div>
               <Switch
@@ -131,7 +133,8 @@ export function GmailPreferences({
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-sm">
-                  <strong>Everything includes:</strong> Inbox, Sent Items, Drafts, Chats, All Categories (Primary, Social, Promotions, Updates, Forums), and All Labels/Folders
+                  <strong>Everything includes:</strong> Inbox, Sent Items, Drafts, Chats, All
+                  Categories (Primary, Social, Promotions, Updates, Forums), and All Labels/Folders
                 </AlertDescription>
               </Alert>
             )}
@@ -166,16 +169,16 @@ export function GmailPreferences({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Sync Preview</CardTitle>
-            <CardDescription>
-              Estimated data that will be imported from Gmail
-            </CardDescription>
+            <CardDescription>Estimated data that will be imported from Gmail</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Stats */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Estimated Emails</p>
-                <p className="text-2xl font-semibold">{previewData.estimatedItems.toLocaleString()}</p>
+                <p className="text-2xl font-semibold">
+                  {previewData.estimatedItems.toLocaleString()}
+                </p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Estimated Size</p>
@@ -195,7 +198,7 @@ export function GmailPreferences({
             {/* Warnings */}
             {previewData.warnings.length > 0 && (
               <div className="space-y-2">
-                {previewData.warnings.map((warning, index) => (
+                {previewData.warnings.map((warning: string, index: number) => (
                   <Alert key={index} variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription className="text-sm">{warning}</AlertDescription>
@@ -208,7 +211,9 @@ export function GmailPreferences({
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-sm">
-                <strong>Important:</strong> This is a one-time setup. After the initial sync, only new emails will be imported automatically. You cannot change these preferences later.
+                <strong>Important:</strong> This is a one-time setup. After the initial sync, only
+                new emails will be imported automatically. You cannot change these preferences
+                later.
               </AlertDescription>
             </Alert>
           </CardContent>

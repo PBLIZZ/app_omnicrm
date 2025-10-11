@@ -65,7 +65,7 @@ describe("Authentication Flow Integration Tests", () => {
       }));
 
       // Simulate middleware check
-      const middlewareRequest = new NextRequest("http://localhost:3000/api/omni-clients", {
+      const middlewareRequest = new NextRequest("http://localhost:3000/api/contacts", {
         headers: {
           cookie: "supabase-auth-token=valid-token",
         },
@@ -131,7 +131,7 @@ describe("Authentication Flow Integration Tests", () => {
 
     it("allows GET requests without CSRF tokens", async () => {
       // GET requests should not require CSRF tokens
-      const getRequest = new NextRequest("http://localhost:3000/api/omni-clients");
+      const getRequest = new NextRequest("http://localhost:3000/api/contacts");
 
       // Should not validate CSRF for GET requests
       expect(getRequest.method).toBe("GET");
@@ -139,7 +139,7 @@ describe("Authentication Flow Integration Tests", () => {
     });
 
     it("rejects mutating requests without CSRF tokens", async () => {
-      const postRequest = new NextRequest("http://localhost:3000/api/omni-clients", {
+      const postRequest = new NextRequest("http://localhost:3000/api/contacts", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -157,9 +157,6 @@ describe("Authentication Flow Integration Tests", () => {
       // Step 1: Create user sync preferences (initial setup)
       await db.insert(userSyncPrefs).values({
         userId: testUserId,
-        gmailQuery: "category:primary newer_than:30d",
-        gmailLabelIncludes: [],
-        gmailLabelExcludes: ["Promotions", "Social"],
         calendarIncludeOrganizerSelf: true,
         calendarIncludePrivate: false,
         calendarTimeWindowDays: 60,
@@ -216,7 +213,6 @@ describe("Authentication Flow Integration Tests", () => {
         .limit(1);
 
       expect(syncPrefs).toHaveLength(1);
-      expect(syncPrefs[0]?.gmailQuery).toBe("category:primary newer_than:30d");
       expect(syncPrefs[0]?.calendarIncludeOrganizerSelf).toBe(true);
     });
 
@@ -447,9 +443,6 @@ describe("Authentication Flow Integration Tests", () => {
         .insert(userSyncPrefs)
         .values({
           userId: newUserId,
-          gmailQuery: "category:primary -in:chats -in:drafts newer_than:30d",
-          gmailLabelIncludes: [],
-          gmailLabelExcludes: ["Promotions", "Social", "Forums", "Updates"],
           calendarIncludeOrganizerSelf: true,
           calendarIncludePrivate: false,
           calendarTimeWindowDays: 60,
@@ -486,7 +479,6 @@ describe("Authentication Flow Integration Tests", () => {
 
       expect(syncPrefs).toHaveLength(1);
       expect(integrations).toHaveLength(1);
-      expect(syncPrefs[0]?.gmailQuery).toBe("category:primary -in:chats -in:drafts newer_than:30d");
       expect(integrations[0]?.provider).toBe("google");
 
       // Clean up new user data
@@ -514,7 +506,6 @@ describe("Authentication Flow Integration Tests", () => {
           .insert(userSyncPrefs)
           .values({
             userId: oldUserId,
-            gmailQuery: "custom query",
             calendarIncludeOrganizerSelf: false,
           })
           .returning(),
@@ -550,7 +541,6 @@ describe("Authentication Flow Integration Tests", () => {
       expect(remainingOldSyncPrefs).toHaveLength(0);
 
       expect(newContacts[0]?.displayName).toBe("Old User Contact");
-      expect(newSyncPrefs[0]?.gmailQuery).toBe("custom query");
 
       // Clean up migrated data
       await db.delete(contacts).where(eq(contacts.userId, newUserId));

@@ -37,7 +37,7 @@ interface DeletionRequest {
   ipAddress?: string;
 }
 
-interface DeletionResult {
+export interface DeletionResult {
   deleted: boolean;
   deletedAt: string;
   deletionResults: Record<string, number>;
@@ -73,11 +73,15 @@ export class UserDeletionService {
       // Delete in reverse dependency order to avoid foreign key constraints
 
       // 1. Delete task contact tags (junction table - need subquery)
-      const userTaskIds = await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.userId, userId));
-      const taskIds = userTaskIds.map(t => t.id);
-      const taskContactTagsResult = taskIds.length > 0
-        ? await tx.delete(taskContactTags).where(inArray(taskContactTags.taskId, taskIds))
-        : { length: 0 };
+      const userTaskIds = await tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.userId, userId));
+      const taskIds = userTaskIds.map((t) => t.id);
+      const taskContactTagsResult =
+        taskIds.length > 0
+          ? await tx.delete(taskContactTags).where(inArray(taskContactTags.taskId, taskIds))
+          : { length: 0 };
       results["taskContactTags"] = taskContactTagsResult.length || 0;
 
       // 2. Delete tasks
@@ -85,15 +89,11 @@ export class UserDeletionService {
       results["tasks"] = tasksResult.length;
 
       // 3. Delete projects
-      const projectsResult = await tx
-        .delete(projects)
-        .where(eq(projects.userId, userId));
+      const projectsResult = await tx.delete(projects).where(eq(projects.userId, userId));
       results["projects"] = projectsResult.length;
 
       // 4. Delete goals
-      const goalsResult = await tx
-        .delete(goals)
-        .where(eq(goals.userId, userId));
+      const goalsResult = await tx.delete(goals).where(eq(goals.userId, userId));
       results["goals"] = goalsResult.length;
 
       // 5. Delete daily pulse logs
@@ -103,9 +103,7 @@ export class UserDeletionService {
       results["dailyPulseLogs"] = dailyPulseLogsResult.length;
 
       // 6. Delete inbox items
-      const inboxItemsResult = await tx
-        .delete(inboxItems)
-        .where(eq(inboxItems.userId, userId));
+      const inboxItemsResult = await tx.delete(inboxItems).where(eq(inboxItems.userId, userId));
       results["inboxItems"] = inboxItemsResult.length;
 
       // 5. Delete contact timeline (references contacts)

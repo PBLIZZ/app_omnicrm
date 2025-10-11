@@ -29,7 +29,7 @@ globalThis.React = React;
 
 // Mock implementations for external services
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(() => ({
+  createContact: vi.fn(() => ({
     auth: {
       getUser: vi.fn(() => Promise.resolve({ data: { user: { id: "test-user" } } })),
       signIn: vi.fn(),

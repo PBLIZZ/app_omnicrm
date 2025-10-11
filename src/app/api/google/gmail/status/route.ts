@@ -11,14 +11,14 @@
  * - Access Gmail data via response.services.gmail instead of root level
  */
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { OAuthStartQuerySchema, GmailStatusResponseSchema } from "@/server/db/business-schemas";
+import { GmailStatusQuerySchema, GmailStatusResponseSchema } from "@/server/db/business-schemas";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { userIntegrations } from "@/server/db/schema";
 import { GoogleGmailService } from "@/server/services/google-gmail.service";
 
 export const GET = handleGetWithQueryAuth(
-  OAuthStartQuerySchema,
+  GmailStatusQuerySchema,
   GmailStatusResponseSchema,
   async (_query, userId) => {
     const db = await getDb();

@@ -30,7 +30,9 @@ export function PreparationWorkflow({
   );
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
-  const currentAppointment = upcomingAppointments.find((app) => app.id === selectedAppointment);
+  const currentAppointment = upcomingAppointments.find(
+    (app: Appointment) => app.id === selectedAppointment,
+  );
 
   if (isLoading) {
     return (
@@ -58,7 +60,9 @@ export function PreparationWorkflow({
 
   const totalTasks = currentAppointment?.preparationTasks.length ?? 0;
   const completedCount =
-    currentAppointment?.preparationTasks.filter((task) => completedTasks.has(task.id)).length ?? 0;
+    currentAppointment?.preparationTasks.filter((task: PreparationTask) =>
+      completedTasks.has(task.id),
+    ).length ?? 0;
   const progressPercentage = totalTasks > 0 ? (completedCount / totalTasks) * 100 : 0;
 
   return (
@@ -78,7 +82,7 @@ export function PreparationWorkflow({
           <div className="space-y-3">
             <h4 className="font-medium text-sm">Select Appointment to Prepare:</h4>
             <div className="grid gap-2">
-              {upcomingAppointments.map((appointment) => {
+              {upcomingAppointments.map((appointment: Appointment) => {
                 const hoursUntil = differenceInHours(new Date(appointment.startTime), new Date());
                 const isUrgent = hoursUntil <= 24;
 
@@ -158,7 +162,7 @@ export function PreparationWorkflow({
               </h4>
 
               <div className="space-y-3">
-                {currentAppointment.preparationTasks.map((task) => (
+                {currentAppointment.preparationTasks.map((task: PreparationTask) => (
                   <PreparationTaskItem
                     key={task.id}
                     task={task}
@@ -177,19 +181,19 @@ export function PreparationWorkflow({
               </div>
             </div>
 
-            {/* Client Insights */}
+            {/* Contact Insights */}
             {(currentAppointment.clientNotes ?? currentAppointment.lastSessionNotes) && (
               <div className="space-y-4">
                 <h4 className="font-medium flex items-center gap-2">
                   <Lightbulb className="h-4 w-4" />
-                  Client Insights
+                  Contact Insights
                 </h4>
 
                 {currentAppointment.clientNotes && (
                   <div className="border rounded-lg p-3">
                     <div className="flex items-center gap-2 mb-2">
                       <User className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium text-sm">Client Notes</span>
+                      <span className="font-medium text-sm">Contact Notes</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {currentAppointment.clientNotes}
@@ -253,7 +257,7 @@ export function PreparationWorkflow({
                   timeUntil="2 hours before"
                 />
                 <AutomatedWorkflowItem
-                  title="Client Intake Review"
+                  title="Contact Intake Review"
                   description="Review and update client intake form"
                   status="pending"
                   timeUntil="1 hour before"

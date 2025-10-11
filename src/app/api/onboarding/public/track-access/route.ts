@@ -20,7 +20,6 @@ export const POST = handlePublic(
     const result = await OnboardingTrackingService.trackTokenAccess(data, clientIpData);
 
     return {
-      ok: true,
       message: result.message,
     };
   }

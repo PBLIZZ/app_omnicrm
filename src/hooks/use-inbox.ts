@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -27,8 +28,8 @@ import type {
   ProcessInboxItemDTO,
   BulkProcessInboxDTO,
   VoiceInboxCaptureDTO,
-  InboxFilters,
-} from "@/server/db/business-schemas";
+} from "@/server/db/business-schemas/inbox";
+import type { InboxFilters } from "@/server/services/inbox.service";
 
 // ============================================================================
 // TYPES
@@ -133,8 +134,12 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   const inboxQuery = useQuery({
     queryKey: queryKeys.inbox.list(filters),
     queryFn: async (): Promise<InboxItem[]> => {
-      const data = await apiClient.get<InboxApiResponse>(apiUrl);
-      return data.items ?? [];
+      const result =
+        await apiClient.get<Result<InboxApiResponse, { message: string; code: string }>>(apiUrl);
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.items ?? [];
     },
     refetchInterval: autoRefetch ? 30000 : false, // Auto-refresh every 30 seconds
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -144,8 +149,14 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   const statsQuery = useQuery({
     queryKey: queryKeys.inbox.stats(),
     queryFn: async (): Promise<InboxStats> => {
-      const data = await apiClient.get<InboxStatsApiResponse>("/api/inbox?stats=true");
-      return data.stats;
+      const result =
+        await apiClient.get<Result<InboxStatsApiResponse, { message: string; code: string }>>(
+          "/api/inbox?stats=true",
+        );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.stats;
     },
     refetchInterval: autoRefetch ? 60000 : false, // Auto-refresh every minute
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -158,11 +169,16 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Quick capture
   const quickCaptureMutation = useMutation({
     mutationFn: async (data: CreateInboxItem): Promise<InboxItem> => {
-      const result = await apiClient.post<{ item: InboxItem }>("/api/inbox", {
+      const result = await apiClient.post<
+        Result<{ item: InboxItem }, { message: string; code: string }>
+      >("/api/inbox", {
         type: "quick_capture",
         data,
       });
-      return result.item;
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.item;
     },
     onMutate: async (newItemData) => {
       // Cancel outgoing refetches
@@ -183,6 +199,11 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
         processedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
+        // Computed fields
+        isProcessed: false,
+        wordCount: newItemData.rawText.split(/\s+/).length,
+        preview:
+          newItemData.rawText.slice(0, 100) + (newItemData.rawText.length > 100 ? "..." : ""),
       };
 
       queryClient.setQueryData<InboxItem[]>(queryKeys.inbox.list(filters), (old) => [
@@ -238,11 +259,16 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Voice capture
   const voiceCaptureMutation = useMutation({
     mutationFn: async (data: VoiceInboxCaptureDTO): Promise<InboxItem> => {
-      const result = await apiClient.post<{ item: InboxItem }>("/api/inbox", {
+      const result = await apiClient.post<
+        Result<{ item: InboxItem }, { message: string; code: string }>
+      >("/api/inbox", {
         type: "voice_capture",
         data,
       });
-      return result.item;
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.item;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.inbox.list(filters) });
@@ -264,8 +290,13 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Process item with AI
   const processItemMutation = useMutation({
     mutationFn: async (data: ProcessInboxItemDTO): Promise<InboxProcessingResultDTO> => {
-      const result = await apiClient.post<InboxProcessingResponse>("/api/inbox/process", data);
-      return result.result;
+      const result = await apiClient.post<
+        Result<InboxProcessingResponse, { message: string; code: string }>
+      >("/api/inbox/process", data);
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.result;
     },
     onError: (error) => {
       // Handle specific error types
@@ -296,11 +327,16 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Bulk process
   const bulkProcessMutation = useMutation({
     mutationFn: async (data: BulkProcessInboxDTO): Promise<BulkProcessResponse["result"]> => {
-      const result = await apiClient.post<BulkProcessResponse>("/api/inbox", {
+      const result = await apiClient.post<
+        Result<BulkProcessResponse, { message: string; code: string }>
+      >("/api/inbox", {
         type: "bulk_process",
         data,
       });
-      return result.result;
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.result;
     },
     onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.inbox.list(filters) });
@@ -330,11 +366,16 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       itemId: string;
       data: UpdateInboxItem;
     }): Promise<InboxItem> => {
-      const result = await apiClient.patch<{ item: InboxItem }>(`/api/inbox/${itemId}`, {
+      const result = await apiClient.patch<
+        Result<{ item: InboxItem }, { message: string; code: string }>
+      >(`/api/inbox/${itemId}`, {
         action: "update_status",
         data,
       });
-      return result.item;
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.item;
     },
     onSuccess: (updatedItem) => {
       // Update the item in the cache
@@ -362,11 +403,16 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       itemId: string;
       createdTaskId?: string;
     }): Promise<InboxItem> => {
-      const result = await apiClient.patch<{ item: InboxItem }>(`/api/inbox/${itemId}`, {
+      const result = await apiClient.patch<
+        Result<{ item: InboxItem }, { message: string; code: string }>
+      >(`/api/inbox/${itemId}`, {
         action: "mark_processed",
         data: createdTaskId ? { createdTaskId } : undefined,
       });
-      return result.item;
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.item;
     },
     onSuccess: (updatedItem) => {
       queryClient.setQueryData<InboxItem[]>(
@@ -391,7 +437,12 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Delete item
   const deleteItemMutation = useMutation({
     mutationFn: async (itemId: string): Promise<void> => {
-      await apiClient.delete(`/api/inbox/${itemId}`);
+      const result = await apiClient.delete<Result<void, { message: string; code: string }>>(
+        `/api/inbox/${itemId}`,
+      );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
     },
     onMutate: async (itemId) => {
       // Cancel outgoing refetches
@@ -502,8 +553,14 @@ export function useInboxStats() {
   return useQuery({
     queryKey: queryKeys.inbox.stats(),
     queryFn: async (): Promise<InboxStats> => {
-      const data = await apiClient.get<InboxStatsApiResponse>("/api/inbox?stats=true");
-      return data.stats;
+      const result =
+        await apiClient.get<Result<InboxStatsApiResponse, { message: string; code: string }>>(
+          "/api/inbox?stats=true",
+        );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.stats;
     },
     refetchInterval: 60000, // Auto-refresh every minute
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -523,8 +580,13 @@ export function useUnprocessedInboxItems(limit?: number) {
         queryParams.set("limit", limit.toString());
       }
 
-      const data = await apiClient.get<InboxApiResponse>(`/api/inbox?${queryParams.toString()}`);
-      return data.items ?? [];
+      const result = await apiClient.get<
+        Result<InboxApiResponse, { message: string; code: string }>
+      >(`/api/inbox?${queryParams.toString()}`);
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      return result.data.items ?? [];
     },
     refetchInterval: 10000, // More frequent refresh for unprocessed items
     retry: (failureCount, error) => shouldRetry(error, failureCount),

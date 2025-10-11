@@ -1,5 +1,4 @@
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
 
 // Environment-based configuration
 const PRIMARY_KEY = process.env["OPENROUTER_API_KEY"];
@@ -350,7 +349,7 @@ export async function withKeyRotation<T>(apiCall: (apiKey: string) => Promise<T>
     const currentKey = rotator.getCurrentKey();
     return await apiCall(currentKey);
   } catch (error) {
-    lastError = ensureError(error);
+    lastError = error instanceof Error ? error : new Error(String(error));
 
     // If it's an auth error (401/403), mark current key as unhealthy
     if (
@@ -378,7 +377,7 @@ export async function withKeyRotation<T>(apiCall: (apiKey: string) => Promise<T>
         await rotator.rotateToKey(actualKey);
         return await apiCall(actualKey);
       } catch (error) {
-        lastError = ensureError(error);
+        lastError = error instanceof Error ? error : new Error(String(error));
         continue;
       }
     }

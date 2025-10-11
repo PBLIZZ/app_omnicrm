@@ -1,7 +1,14 @@
 import { eq, and, desc, asc, gte, lte, inArray, count, sql, type SQL } from "drizzle-orm";
-import { rawEvents, rawEventErrors } from "./schema";
-import { getDb } from "./db";
-import type { RawEvent, CreateRawEvent, RawEventError, CreateRawEventError } from "./schema";
+import { getDb } from "@/server/db/client";
+import {
+  RawEvent,
+  CreateRawEvent,
+  RawEventError,
+  CreateRawEventError,
+  rawEvents,
+  rawEventErrors,
+} from "@/server/db/schema";
+import { ok, err, DbResult } from "@/lib/utils/result";
 
 // Local type aliases for repository layer
 type RawEventDTO = RawEvent;
@@ -44,38 +51,51 @@ export class RawEventsRepository {
   /**
    * Create a new raw event
    */
-  static async createRawEvent(data: CreateRawEventDTO & { userId: string }): Promise<RawEventDTO> {
-    const db = await getDb();
+  static async createRawEvent(
+    data: CreateRawEventDTO & { userId: string },
+  ): Promise<DbResult<RawEventDTO>> {
+    try {
+      const db = await getDb();
 
-    const insertValues = {
-      userId: data.userId,
-      provider: data.provider,
-      payload: data.payload,
-      contactId: data.contactId ?? null,
-      occurredAt: data.occurredAt,
-      sourceMeta: data.sourceMeta ?? null,
-      batchId: data.batchId ?? null,
-      sourceId: data.sourceId ?? null,
-    };
+      const insertValues = {
+        userId: data.userId,
+        provider: data.provider,
+        payload: data.payload,
+        contactId: data.contactId ?? null,
+        occurredAt: data.occurredAt,
+        sourceMeta: data.sourceMeta ?? null,
+        batchId: data.batchId ?? null,
+        sourceId: data.sourceId ?? null,
+      };
 
-    const [newRawEvent] = await db.insert(rawEvents).values(insertValues).returning({
-      id: rawEvents.id,
-      userId: rawEvents.userId,
-      provider: rawEvents.provider,
-      payload: rawEvents.payload,
-      contactId: rawEvents.contactId,
-      occurredAt: rawEvents.occurredAt,
-      sourceMeta: rawEvents.sourceMeta,
-      batchId: rawEvents.batchId,
-      sourceId: rawEvents.sourceId,
-      createdAt: rawEvents.createdAt,
-    });
+      const [newRawEvent] = await db.insert(rawEvents).values(insertValues).returning({
+        id: rawEvents.id,
+        userId: rawEvents.userId,
+        provider: rawEvents.provider,
+        payload: rawEvents.payload,
+        contactId: rawEvents.contactId,
+        occurredAt: rawEvents.occurredAt,
+        sourceMeta: rawEvents.sourceMeta,
+        batchId: rawEvents.batchId,
+        sourceId: rawEvents.sourceId,
+        createdAt: rawEvents.createdAt,
+      });
 
-    if (!newRawEvent) {
-      throw new Error("Failed to create raw event");
+      if (!newRawEvent) {
+        return err({
+          code: "DB_INSERT_FAILED",
+          message: "Failed to create raw event - no data returned",
+        });
+      }
+
+      return ok(newRawEvent);
+    } catch (error) {
+      return err({
+        code: "DB_INSERT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to create raw event",
+        details: error,
+      });
     }
-
-    return newRawEvent;
   }
 
   /**
@@ -180,79 +200,87 @@ export class RawEventsRepository {
   static async listRawEventsPaginated(
     userId: string,
     params: RawEventListParams,
-  ): Promise<{ items: RawEventListItem[]; total: number }> {
-    const db = await getDb();
+  ): Promise<DbResult<{ items: RawEventListItem[]; total: number }>> {
+    try {
+      const db = await getDb();
 
-    let whereExpr: SQL<unknown> = eq(rawEvents.userId, userId);
-    if (params.provider) {
-      whereExpr = and(whereExpr, eq(rawEvents.provider, params.provider)) as SQL<unknown>;
+      let whereExpr: SQL<unknown> = eq(rawEvents.userId, userId);
+      if (params.provider) {
+        whereExpr = and(whereExpr, eq(rawEvents.provider, params.provider)) as SQL<unknown>;
+      }
+      if (params.dateRange?.from)
+        whereExpr = and(
+          whereExpr,
+          gte(rawEvents.occurredAt, params.dateRange.from as Date),
+        ) as SQL<unknown>;
+      if (params.dateRange?.to)
+        whereExpr = and(
+          whereExpr,
+          lte(rawEvents.occurredAt, params.dateRange.to as Date),
+        ) as SQL<unknown>;
+
+      const sortKey = params.sort ?? "occurredAt";
+      const sortDir = params.order === "desc" ? "desc" : "asc";
+      const orderExpr =
+        sortKey === "createdAt"
+          ? sortDir === "desc"
+            ? desc(rawEvents.createdAt)
+            : asc(rawEvents.createdAt)
+          : sortDir === "desc"
+            ? desc(rawEvents.occurredAt)
+            : asc(rawEvents.occurredAt);
+
+      const page = params.page;
+      const pageSize = params.pageSize;
+
+      const [items, totalRow] = await Promise.all([
+        db
+          .select({
+            id: rawEvents.id,
+            userId: rawEvents.userId,
+            provider: rawEvents.provider,
+            payload: rawEvents.payload,
+            contactId: rawEvents.contactId,
+            occurredAt: rawEvents.occurredAt,
+            sourceMeta: rawEvents.sourceMeta,
+            batchId: rawEvents.batchId,
+            sourceId: rawEvents.sourceId,
+            createdAt: rawEvents.createdAt,
+          })
+          .from(rawEvents)
+          .where(whereExpr)
+          .orderBy(orderExpr)
+          .limit(pageSize)
+          .offset((page - 1) * pageSize),
+        db
+          .select({ n: sql<number>`count(*)` })
+          .from(rawEvents)
+          .where(whereExpr)
+          .limit(1),
+      ]);
+
+      return ok({
+        items: items.map((r) => ({
+          id: r.id,
+          userId: r.userId,
+          provider: r.provider,
+          payload: r.payload,
+          contactId: r.contactId ?? null,
+          occurredAt: r.occurredAt,
+          sourceMeta: r.sourceMeta ?? null,
+          batchId: r.batchId ?? null,
+          sourceId: r.sourceId ?? null,
+          createdAt: r.createdAt,
+        })),
+        total: Number(totalRow[0]?.n) || 0,
+      });
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to list raw events",
+        details: error,
+      });
     }
-    if (params.dateRange?.from)
-      whereExpr = and(
-        whereExpr,
-        gte(rawEvents.occurredAt, params.dateRange.from as Date),
-      ) as SQL<unknown>;
-    if (params.dateRange?.to)
-      whereExpr = and(
-        whereExpr,
-        lte(rawEvents.occurredAt, params.dateRange.to as Date),
-      ) as SQL<unknown>;
-
-    const sortKey = params.sort ?? "occurredAt";
-    const sortDir = params.order === "desc" ? "desc" : "asc";
-    const orderExpr =
-      sortKey === "createdAt"
-        ? sortDir === "desc"
-          ? desc(rawEvents.createdAt)
-          : asc(rawEvents.createdAt)
-        : sortDir === "desc"
-          ? desc(rawEvents.occurredAt)
-          : asc(rawEvents.occurredAt);
-
-    const page = params.page;
-    const pageSize = params.pageSize;
-
-    const [items, totalRow] = await Promise.all([
-      db
-        .select({
-          id: rawEvents.id,
-          userId: rawEvents.userId,
-          provider: rawEvents.provider,
-          payload: rawEvents.payload,
-          contactId: rawEvents.contactId,
-          occurredAt: rawEvents.occurredAt,
-          sourceMeta: rawEvents.sourceMeta,
-          batchId: rawEvents.batchId,
-          sourceId: rawEvents.sourceId,
-          createdAt: rawEvents.createdAt,
-        })
-        .from(rawEvents)
-        .where(whereExpr)
-        .orderBy(orderExpr)
-        .limit(pageSize)
-        .offset((page - 1) * pageSize),
-      db
-        .select({ n: sql<number>`count(*)` })
-        .from(rawEvents)
-        .where(whereExpr)
-        .limit(1),
-    ]);
-
-    return {
-      items: items.map((r) => ({
-        id: r.id,
-        userId: r.userId,
-        provider: r.provider,
-        payload: r.payload,
-        contactId: r.contactId ?? null,
-        occurredAt: r.occurredAt,
-        sourceMeta: r.sourceMeta ?? null,
-        batchId: r.batchId ?? null,
-        sourceId: r.sourceId ?? null,
-        createdAt: r.createdAt,
-      })),
-      total: Number(totalRow[0]?.n) || 0,
-    };
   }
 
   /**

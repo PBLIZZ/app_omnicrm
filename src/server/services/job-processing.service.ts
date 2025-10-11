@@ -16,9 +16,9 @@ import { getDb } from "@/server/db/client";
 import { jobs, calendarEvents, rawEvents } from "@/server/db/schema";
 import { eq, and, inArray, desc, count } from "drizzle-orm";
 import { JobRunner } from "@/server/jobs/runner";
-import { ErrorTrackingService } from "@/server/services/error-tracking.service";
+import { rawEventErrors } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
+import { err } from "@/lib/utils/result";
 
 export interface JobProcessingOptions {
   jobTypes?: Array<'normalize' | 'embed' | 'insight' | 'sync_gmail' | 'sync_calendar'>;
@@ -188,22 +188,34 @@ export class JobProcessingService {
           };
         });
 
-        // Record errors in the error tracking system
-        await Promise.all(
-          processingErrors.map(({ jobId, error }) =>
-            ErrorTrackingService.recordError(userId, error, {
-              provider: 'gmail', // Default, could be refined based on job type
-              stage: 'processing',
-              operation: 'manual_job_processing',
-              itemId: jobId,
-              additionalMeta: {
-                processingType: 'manual',
-                requestId,
-                filters: { jobTypes, batchId }
-              }
-            })
-          )
-        );
+        // Log errors directly to database if there are any
+        if (processingErrors.length > 0) {
+          try {
+            await Promise.all(
+              processingErrors.map(async ({ jobId, error }) => {
+                await db.insert(rawEventErrors).values({
+                  userId,
+                  provider: 'system',
+                  stage: 'processing',
+                  error: error,
+                  context: {
+                    operation: 'manual_job_processing',
+                    itemId: jobId,
+                    processingType: 'manual',
+                    requestId,
+                    filters: { jobTypes, batchId }
+                  }
+                });
+              })
+            );
+          } catch (logError) {
+            // Don't fail the main operation if error logging fails
+            void logger.warn('Failed to log job processing errors', {
+              operation: 'job_processing_error_log',
+              additionalData: { userId, errorCount: processingErrors.length }
+            });
+          }
+        }
       }
 
       // Get final job status for response
@@ -279,18 +291,28 @@ export class JobProcessingService {
     } catch (processingError) {
       const errorMsg = processingError instanceof Error ? processingError.message : String(processingError);
 
-      // Record the processing failure
-      await ErrorTrackingService.recordError(userId, ensureError(processingError), {
-        provider: 'gmail',
-        stage: 'processing',
-        operation: 'manual_job_processing_failure',
-        additionalMeta: {
-          processingType: 'manual',
-          requestId,
-          eligibleJobCount: eligibleJobs.length,
-          filters: { jobTypes, batchId }
-        }
-      });
+      // Log the processing failure directly
+      try {
+        await db.insert(rawEventErrors).values({
+          userId,
+          provider: 'system',
+          stage: 'processing',
+          error: errorMsg,
+          context: {
+            operation: 'manual_job_processing_failure',
+            processingType: 'manual',
+            requestId,
+            eligibleJobCount: eligibleJobs.length,
+            filters: { jobTypes, batchId }
+          }
+        });
+      } catch (logError) {
+        // Don't fail if error logging fails
+        void logger.warn('Failed to log job processing failure', {
+          operation: 'job_processing_failure_log',
+          additionalData: { userId, error: errorMsg }
+        });
+      }
 
       await logger.error("Manual job processing failed", {
         operation: "manual_job_processing",
@@ -300,7 +322,7 @@ export class JobProcessingService {
           eligibleJobCount: eligibleJobs.length,
           error: errorMsg
         }
-      }, ensureError(processingError));
+      }, error);
 
       throw new Error(`Job processing failed unexpectedly: ${errorMsg}`);
     }
@@ -509,7 +531,7 @@ export class JobProcessingService {
             userId: userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
 
       throw new Error("Failed to process normalize jobs");

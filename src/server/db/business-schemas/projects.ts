@@ -7,24 +7,29 @@
 import { z } from "zod";
 
 /**
- * Project Schema (OmniMomentum)
+ * Base Project Schema (without transform)
  */
-export const ProjectSchema = z.object({
+const BaseProjectSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
   zoneId: z.number().nullable(),
   name: z.string().min(1),
-  status: z.enum(['active', 'on_hold', 'completed', 'archived']),
+  status: z.enum(["active", "on_hold", "completed", "archived"]),
   dueDate: z.coerce.date().nullable(),
-  details: z.record(z.unknown()).nullable(),
+  details: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
-}).transform((data) => ({
+});
+
+/**
+ * Project Schema (with transform)
+ */
+export const ProjectSchema = BaseProjectSchema.transform((data) => ({
   ...data,
   // UI computed fields
-  isActive: data.status === 'active',
-  isCompleted: data.status === 'completed',
-  isOverdue: data.dueDate ? data.dueDate < new Date() && data.status !== 'completed' : false,
+  isActive: data.status === "active",
+  isCompleted: data.status === "completed",
+  isOverdue: data.dueDate ? data.dueDate < new Date() && data.status !== "completed" : false,
   taskCount: 0, // Would be computed via join query
 }));
 
@@ -33,14 +38,10 @@ export type Project = z.infer<typeof ProjectSchema>;
 /**
  * Project creation schema (omits generated fields)
  */
-export const CreateProjectSchema = ProjectSchema.omit({
+export const CreateProjectSchema = BaseProjectSchema.omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-  isActive: true,
-  isCompleted: true,
-  isOverdue: true,
-  taskCount: true,
 });
 
 export type CreateProject = z.infer<typeof CreateProjectSchema>;
@@ -48,7 +49,7 @@ export type CreateProject = z.infer<typeof CreateProjectSchema>;
 /**
  * Project update schema (all fields optional except id)
  */
-export const UpdateProjectSchema = ProjectSchema.partial().required({ id: true });
+export const UpdateProjectSchema = BaseProjectSchema.partial().required({ id: true });
 export type UpdateProject = z.infer<typeof UpdateProjectSchema>;
 
 /**

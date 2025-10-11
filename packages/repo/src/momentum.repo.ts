@@ -1,5 +1,6 @@
 // OmniMomentum repository - Projects, Tasks, Goals, and Daily Pulse
-import { getDb } from "./db";
+import { getDb } from "@/server/db/client";
+import { ok, DbResult, dbError } from "@/lib/utils/result";
 import {
   projects,
   tasks,
@@ -8,11 +9,11 @@ import {
   zones,
   inboxItems,
   taskContactTags,
-  contacts
-} from "./schema";
-import type { InboxItem } from "./schema";
+  contacts,
+} from "@/server/db/schema";
 import { eq, desc, and, asc, isNull, inArray } from "drizzle-orm";
 import type {
+  InboxItem,
   Project,
   CreateProject,
   Task,
@@ -20,8 +21,8 @@ import type {
   Goal,
   CreateGoal,
   DailyPulseLog,
-  CreateDailyPulseLog
-} from "./schema";
+  CreateDailyPulseLog,
+} from "@/server/db/schema";
 
 // Local type aliases for repository layer
 type ProjectDTO = Project;
@@ -60,144 +61,207 @@ export class MomentumRepository {
   // PROJECTS (Pathways)
   // ============================================================================
 
-  async createProject(userId: string, data: CreateProjectDTO): Promise<ProjectDTO> {
-    const db = await getDb();
-    const [project] = await db
-      .insert(projects)
-      .values({
-        ...data,
-        userId,
-        zoneId: data.zoneId ?? null,
-        dueDate: data.dueDate ?? null,
-        details: data.details ?? {},
-      })
-      .returning();
-    if (!project) throw new Error("Failed to create project");
-    return this.mapProjectToDTO(project);
-  }
-
-  async getProjects(userId: string, filters: ProjectFilters = {}): Promise<ProjectDTO[]> {
-    const db = await getDb();
-    const whereConditions = [eq(projects.userId, userId)];
-
-    if (filters.zoneId !== undefined) {
-      whereConditions.push(eq(projects.zoneId, filters.zoneId));
-    }
-
-    if (filters.status && filters.status.length > 0) {
-      const validStatuses = filters.status.filter((status): status is "active" | "on_hold" | "completed" | "archived" =>
-        ["active", "on_hold", "completed", "archived"].includes(status)
-      );
-      if (validStatuses.length > 0) {
-        whereConditions.push(inArray(projects.status, validStatuses));
+  async createProject(userId: string, data: CreateProjectDTO): Promise<DbResult<ProjectDTO>> {
+    try {
+      const db = await getDb();
+      const [project] = await db
+        .insert(projects)
+        .values({
+          ...data,
+          userId,
+          zoneId: data.zoneId ?? null,
+          dueDate: data.dueDate ?? null,
+          details: data.details ?? {},
+        })
+        .returning();
+      if (!project) {
+        return dbError("DB_INSERT_FAILED", "Failed to create project - no data returned");
       }
+      return ok(this.mapProjectToDTO(project));
+    } catch (error) {
+      return dbError(
+        "DB_INSERT_FAILED",
+        error instanceof Error ? error.message : "Failed to create project",
+        error,
+      );
     }
-
-    const projectsData = await db
-      .select()
-      .from(projects)
-      .where(and(...whereConditions))
-      .orderBy(desc(projects.updatedAt));
-
-    return projectsData.map(p => ProjectDTOSchema.parse(this.mapProjectToDTO(p)));
   }
 
-  async getProject(projectId: string, userId: string): Promise<ProjectDTO | null> {
-    const db = await getDb();
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
-    return project ? this.mapProjectToDTO(project) : null;
+  async getProjects(userId: string, filters: ProjectFilters = {}): Promise<DbResult<ProjectDTO[]>> {
+    try {
+      const db = await getDb();
+      const whereConditions = [eq(projects.userId, userId)];
+
+      if (filters.zoneId !== undefined) {
+        whereConditions.push(eq(projects.zoneId, filters.zoneId));
+      }
+
+      if (filters.status && filters.status.length > 0) {
+        const validStatuses = filters.status.filter(
+          (status): status is "active" | "on_hold" | "completed" | "archived" =>
+            ["active", "on_hold", "completed", "archived"].includes(status),
+        );
+        if (validStatuses.length > 0) {
+          whereConditions.push(inArray(projects.status, validStatuses));
+        }
+      }
+
+      const projectsData = await db
+        .select()
+        .from(projects)
+        .where(and(...whereConditions))
+        .orderBy(desc(projects.updatedAt));
+
+      return ok(projectsData.map((p) => this.mapProjectToDTO(p)));
+    } catch (error) {
+      return dbError(
+        "DB_QUERY_FAILED",
+        error instanceof Error ? error.message : "Failed to get projects",
+        error,
+      );
+    }
+  }
+
+  async getProject(projectId: string, userId: string): Promise<DbResult<ProjectDTO | null>> {
+    try {
+      const db = await getDb();
+      const [project] = await db
+        .select()
+        .from(projects)
+        .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
+      return ok(project ? this.mapProjectToDTO(project) : null);
+    } catch (error) {
+      return dbError(
+        "DB_QUERY_FAILED",
+        error instanceof Error ? error.message : "Failed to get project",
+        error,
+      );
+    }
   }
 
   async updateProject(
     projectId: string,
     userId: string,
     data: UpdateProjectDTO,
-  ): Promise<void> {
-    const db = await getDb();
-    // Filter out undefined values for exact optional property types
-    const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
-    );
+  ): Promise<DbResult<void>> {
+    try {
+      const db = await getDb();
+      // Filter out undefined values for exact optional property types
+      const updateData = Object.fromEntries(
+        Object.entries(data).filter(([, value]) => value !== undefined),
+      );
 
-    await db
-      .update(projects)
-      .set({ ...updateData, updatedAt: new Date() })
-      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
+      await db
+        .update(projects)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
+
+      return ok(undefined);
+    } catch (error) {
+      return dbError(
+        "DB_UPDATE_FAILED",
+        error instanceof Error ? error.message : "Failed to update project",
+        error,
+      );
+    }
   }
 
-  async deleteProject(projectId: string, userId: string): Promise<void> {
-    const db = await getDb();
-    await db.delete(projects).where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
+  async deleteProject(projectId: string, userId: string): Promise<DbResult<void>> {
+    try {
+      const db = await getDb();
+      await db.delete(projects).where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
+      return ok(undefined);
+    } catch (error) {
+      return dbError(
+        "DB_DELETE_FAILED",
+        error instanceof Error ? error.message : "Failed to delete project",
+        error,
+      );
+    }
   }
 
   // ============================================================================
   // TASKS (Hierarchical)
   // ============================================================================
 
-  async createTask(userId: string, data: CreateTaskDTO): Promise<TaskDTO> {
-    const db = await getDb();
-    const [task] = await db
-      .insert(tasks)
-      .values({
-        ...data,
-        userId,
-        projectId: data.projectId || null,
-        parentTaskId: data.parentTaskId || null,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
-        details: data.details || {},
-      })
-      .returning();
-    if (!task) throw new Error("Failed to create task");
-    return this.mapTaskToDTO(task);
+  async createTask(userId: string, data: CreateTaskDTO): Promise<DbResult<TaskDTO>> {
+    try {
+      const db = await getDb();
+      const [task] = await db
+        .insert(tasks)
+        .values({
+          ...data,
+          userId,
+          projectId: data.projectId || null,
+          parentTaskId: data.parentTaskId || null,
+          dueDate: data.dueDate ? new Date(data.dueDate) : null,
+          details: data.details || {},
+        })
+        .returning();
+      if (!task) {
+        return dbError("DB_INSERT_FAILED", "Failed to create task - no data returned");
+      }
+      return ok(this.mapTaskToDTO(task));
+    } catch (error) {
+      return dbError(
+        "DB_INSERT_FAILED",
+        error instanceof Error ? error.message : "Failed to create task",
+        error,
+      );
+    }
   }
 
-  async getTasks(
-    userId: string,
-    filters: TaskFilters = {}
-  ): Promise<TaskDTO[]> {
-    const db = await getDb();
-    const whereConditions = [eq(tasks.userId, userId)];
+  async getTasks(userId: string, filters: TaskFilters = {}): Promise<DbResult<TaskDTO[]>> {
+    try {
+      const db = await getDb();
+      const whereConditions = [eq(tasks.userId, userId)];
 
-    if (filters.projectId) {
-      whereConditions.push(eq(tasks.projectId, filters.projectId));
-    }
-
-    if (filters.parentTaskId !== undefined) {
-      if (filters.parentTaskId === null) {
-        whereConditions.push(isNull(tasks.parentTaskId));
-      } else {
-        whereConditions.push(eq(tasks.parentTaskId, filters.parentTaskId));
+      if (filters.projectId) {
+        whereConditions.push(eq(tasks.projectId, filters.projectId));
       }
-    }
 
-    if (filters.status && filters.status.length > 0) {
-      const validStatuses = filters.status.filter((status): status is "todo" | "in_progress" | "done" | "canceled" =>
-        ["todo", "in_progress", "done", "canceled"].includes(status)
+      if (filters.parentTaskId !== undefined) {
+        if (filters.parentTaskId === null) {
+          whereConditions.push(isNull(tasks.parentTaskId));
+        } else {
+          whereConditions.push(eq(tasks.parentTaskId, filters.parentTaskId));
+        }
+      }
+
+      if (filters.status && filters.status.length > 0) {
+        const validStatuses = filters.status.filter(
+          (status): status is "todo" | "in_progress" | "done" | "canceled" =>
+            ["todo", "in_progress", "done", "canceled"].includes(status),
+        );
+        if (validStatuses.length > 0) {
+          whereConditions.push(inArray(tasks.status, validStatuses));
+        }
+      }
+
+      if (filters.priority && filters.priority.length > 0) {
+        const validPriorities = filters.priority.filter(
+          (priority): priority is "low" | "medium" | "high" | "urgent" =>
+            ["low", "medium", "high", "urgent"].includes(priority),
+        );
+        if (validPriorities.length > 0) {
+          whereConditions.push(inArray(tasks.priority, validPriorities));
+        }
+      }
+
+      const tasksData = await db
+        .select()
+        .from(tasks)
+        .where(and(...whereConditions))
+        .orderBy(desc(tasks.updatedAt));
+
+      return ok(tasksData.map((t) => this.mapTaskToDTO(t)));
+    } catch (error) {
+      return dbError(
+        "DB_QUERY_FAILED",
+        error instanceof Error ? error.message : "Failed to get tasks",
+        error,
       );
-      if (validStatuses.length > 0) {
-        whereConditions.push(inArray(tasks.status, validStatuses));
-      }
     }
-
-    if (filters.priority && filters.priority.length > 0) {
-      const validPriorities = filters.priority.filter((priority): priority is "low" | "medium" | "high" | "urgent" =>
-        ["low", "medium", "high", "urgent"].includes(priority)
-      );
-      if (validPriorities.length > 0) {
-        whereConditions.push(inArray(tasks.priority, validPriorities));
-      }
-    }
-
-    const tasksData = await db
-      .select()
-      .from(tasks)
-      .where(and(...whereConditions))
-      .orderBy(desc(tasks.updatedAt));
-
-    return tasksData.map(t => this.mapTaskToDTO(t));
   }
 
   async getTask(taskId: string, userId: string): Promise<TaskDTO | null> {
@@ -217,7 +281,7 @@ export class MomentumRepository {
       .where(and(eq(tasks.userId, userId), eq(tasks.projectId, projectId)))
       .orderBy(desc(tasks.updatedAt));
 
-    return tasksData.map(t => this.mapTaskToDTO(t));
+    return tasksData.map((t) => this.mapTaskToDTO(t));
   }
 
   async getSubtasks(parentTaskId: string, userId: string): Promise<TaskDTO[]> {
@@ -228,18 +292,14 @@ export class MomentumRepository {
       .where(and(eq(tasks.userId, userId), eq(tasks.parentTaskId, parentTaskId)))
       .orderBy(asc(tasks.createdAt));
 
-    return tasksData.map(t => this.mapTaskToDTO(t));
+    return tasksData.map((t) => this.mapTaskToDTO(t));
   }
 
-  async updateTask(
-    taskId: string,
-    userId: string,
-    data: UpdateTaskDTO,
-  ): Promise<void> {
+  async updateTask(taskId: string, userId: string, data: UpdateTaskDTO): Promise<void> {
     const db = await getDb();
     // Filter out undefined values for exact optional property types
     const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
+      Object.entries(data).filter(([, value]) => value !== undefined),
     );
 
     await db
@@ -263,7 +323,7 @@ export class MomentumRepository {
     if (contactIds.length === 0) return;
 
     const db = await getDb();
-    const tagData = contactIds.map(contactId => ({
+    const tagData = contactIds.map((contactId) => ({
       taskId,
       contactId,
     }));
@@ -278,10 +338,9 @@ export class MomentumRepository {
       // Remove specific contact tags
       await db
         .delete(taskContactTags)
-        .where(and(
-          eq(taskContactTags.taskId, taskId),
-          inArray(taskContactTags.contactId, contactIds)
-        ));
+        .where(
+          and(eq(taskContactTags.taskId, taskId), inArray(taskContactTags.contactId, contactIds)),
+        );
     } else {
       // Remove all contact tags for this task
       await db.delete(taskContactTags).where(eq(taskContactTags.taskId, taskId));
@@ -290,10 +349,7 @@ export class MomentumRepository {
 
   async getTaskContactTags(taskId: string): Promise<Array<{ taskId: string; contactId: string }>> {
     const db = await getDb();
-    return await db
-      .select()
-      .from(taskContactTags)
-      .where(eq(taskContactTags.taskId, taskId));
+    return await db.select().from(taskContactTags).where(eq(taskContactTags.taskId, taskId));
   }
 
   // ============================================================================
@@ -316,10 +372,7 @@ export class MomentumRepository {
     return this.mapGoalToDTO(goal);
   }
 
-  async getGoals(
-    userId: string,
-    filters: GoalFilters = {}
-  ): Promise<GoalDTO[]> {
+  async getGoals(userId: string, filters: GoalFilters = {}): Promise<GoalDTO[]> {
     const db = await getDb();
     const whereConditions = [eq(goals.userId, userId)];
 
@@ -328,8 +381,9 @@ export class MomentumRepository {
     }
 
     if (filters.goalType && filters.goalType.length > 0) {
-      const validGoalTypes = filters.goalType.filter((type): type is "practitioner_business" | "practitioner_personal" | "client_wellness" =>
-        ["practitioner_business", "practitioner_personal", "client_wellness"].includes(type)
+      const validGoalTypes = filters.goalType.filter(
+        (type): type is "practitioner_business" | "practitioner_personal" | "client_wellness" =>
+          ["practitioner_business", "practitioner_personal", "client_wellness"].includes(type),
       );
       if (validGoalTypes.length > 0) {
         whereConditions.push(inArray(goals.goalType, validGoalTypes));
@@ -337,8 +391,9 @@ export class MomentumRepository {
     }
 
     if (filters.status && filters.status.length > 0) {
-      const validStatuses = filters.status.filter((status): status is "on_track" | "at_risk" | "achieved" | "abandoned" =>
-        ["on_track", "at_risk", "achieved", "abandoned"].includes(status)
+      const validStatuses = filters.status.filter(
+        (status): status is "on_track" | "at_risk" | "achieved" | "abandoned" =>
+          ["on_track", "at_risk", "achieved", "abandoned"].includes(status),
       );
       if (validStatuses.length > 0) {
         whereConditions.push(inArray(goals.status, validStatuses));
@@ -351,7 +406,7 @@ export class MomentumRepository {
       .where(and(...whereConditions))
       .orderBy(desc(goals.updatedAt));
 
-    return goalsData.map(g => this.mapGoalToDTO(g));
+    return goalsData.map((g) => this.mapGoalToDTO(g));
   }
 
   async getGoal(goalId: string, userId: string): Promise<GoalDTO | null> {
@@ -363,15 +418,11 @@ export class MomentumRepository {
     return goal ? this.mapGoalToDTO(goal) : null;
   }
 
-  async updateGoal(
-    goalId: string,
-    userId: string,
-    data: UpdateGoalDTO,
-  ): Promise<void> {
+  async updateGoal(goalId: string, userId: string, data: UpdateGoalDTO): Promise<void> {
     const db = await getDb();
     // Filter out undefined values for exact optional property types
     const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
+      Object.entries(data).filter(([, value]) => value !== undefined),
     );
 
     await db
@@ -389,11 +440,14 @@ export class MomentumRepository {
   // DAILY PULSE LOGS
   // ============================================================================
 
-  async createDailyPulseLog(userId: string, data: CreateDailyPulseLogDTO): Promise<DailyPulseLogDTO> {
+  async createDailyPulseLog(
+    userId: string,
+    data: CreateDailyPulseLogDTO,
+  ): Promise<DailyPulseLogDTO> {
     const db = await getDb();
     const logDate = data.logDate || new Date();
-    const isoString = logDate.toISOString();
-    const logDateString = isoString.split('T')[0]; // Convert to YYYY-MM-DD format
+    const isoString = typeof logDate === "string" ? logDate : logDate.toISOString();
+    const logDateString = isoString.split("T")[0]; // Convert to YYYY-MM-DD format
     if (!logDateString) {
       throw new Error("Failed to format log date");
     }
@@ -419,23 +473,20 @@ export class MomentumRepository {
       .orderBy(desc(dailyPulseLogs.logDate))
       .limit(limit);
 
-    return logsData.map(l => this.mapDailyPulseLogToDTO(l));
+    return logsData.map((l) => this.mapDailyPulseLogToDTO(l));
   }
 
   async getDailyPulseLog(userId: string, logDate: Date): Promise<DailyPulseLogDTO | null> {
     const db = await getDb();
     const isoString = logDate.toISOString();
-    const dateString = isoString.split('T')[0]; // Convert to YYYY-MM-DD format
+    const dateString = isoString.split("T")[0]; // Convert to YYYY-MM-DD format
     if (!dateString) {
       throw new Error("Failed to format log date");
     }
     const [log] = await db
       .select()
       .from(dailyPulseLogs)
-      .where(and(
-        eq(dailyPulseLogs.userId, userId),
-        eq(dailyPulseLogs.logDate, dateString)
-      ));
+      .where(and(eq(dailyPulseLogs.userId, userId), eq(dailyPulseLogs.logDate, dateString)));
     return log ? this.mapDailyPulseLogToDTO(log) : null;
   }
 
@@ -447,7 +498,7 @@ export class MomentumRepository {
     const db = await getDb();
     // Filter out undefined values for exact optional property types
     const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
+      Object.entries(data).filter(([, value]) => value !== undefined),
     );
 
     await db
@@ -460,7 +511,9 @@ export class MomentumRepository {
   // ZONES (Lookup)
   // ============================================================================
 
-  async getZones(): Promise<Array<{ id: number; name: string; color: string | null; iconName: string | null }>> {
+  async getZones(): Promise<
+    Array<{ id: number; name: string; color: string | null; iconName: string | null }>
+  > {
     const db = await getDb();
     return await db.select().from(zones).orderBy(asc(zones.name));
   }
@@ -469,7 +522,10 @@ export class MomentumRepository {
   // INBOX ITEMS (AI Quick Capture)
   // ============================================================================
 
-  async createInboxItem(userId: string, data: { rawText: string; status?: "unprocessed" | "processed" | "archived" }): Promise<InboxItem> {
+  async createInboxItem(
+    userId: string,
+    data: { rawText: string; status?: "unprocessed" | "processed" | "archived" },
+  ): Promise<InboxItem> {
     const db = await getDb();
     const [item] = await db
       .insert(inboxItems)
@@ -490,7 +546,9 @@ export class MomentumRepository {
     if (status) {
       const validStatus = ["unprocessed", "processed", "archived"].includes(status);
       if (validStatus) {
-        whereConditions.push(eq(inboxItems.status, status as "unprocessed" | "processed" | "archived"));
+        whereConditions.push(
+          eq(inboxItems.status, status as "unprocessed" | "processed" | "archived"),
+        );
       }
     }
 
@@ -500,18 +558,23 @@ export class MomentumRepository {
       .where(and(...whereConditions))
       .orderBy(desc(inboxItems.createdAt));
 
-    return itemsData.map(item => this.mapInboxItemToDTO(item));
+    return itemsData.map((item) => this.mapInboxItemToDTO(item));
   }
 
   async updateInboxItem(
     itemId: string,
     userId: string,
-    data: { rawText?: string; status?: "unprocessed" | "processed" | "archived"; createdTaskId?: string; processedAt?: Date },
+    data: {
+      rawText?: string;
+      status?: "unprocessed" | "processed" | "archived";
+      createdTaskId?: string;
+      processedAt?: Date;
+    },
   ): Promise<void> {
     const db = await getDb();
     // Filter out undefined values for exact optional property types
     const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
+      Object.entries(data).filter(([, value]) => value !== undefined),
     );
 
     await db
@@ -539,10 +602,10 @@ export class MomentumRepository {
 
     const stats = {
       total: allTasks.length,
-      todo: allTasks.filter(t => t.status === 'todo').length,
-      inProgress: allTasks.filter(t => t.status === 'in_progress').length,
-      completed: allTasks.filter(t => t.status === 'done').length,
-      cancelled: allTasks.filter(t => t.status === 'canceled').length,
+      todo: allTasks.filter((t) => t.status === "todo").length,
+      inProgress: allTasks.filter((t) => t.status === "in_progress").length,
+      completed: allTasks.filter((t) => t.status === "done").length,
+      cancelled: allTasks.filter((t) => t.status === "canceled").length,
     };
 
     return stats;
@@ -563,10 +626,10 @@ export class MomentumRepository {
 
     const stats = {
       total: allProjects.length,
-      active: allProjects.filter(p => p.status === 'active').length,
-      onHold: allProjects.filter(p => p.status === 'on_hold').length,
-      completed: allProjects.filter(p => p.status === 'completed').length,
-      archived: allProjects.filter(p => p.status === 'archived').length,
+      active: allProjects.filter((p) => p.status === "active").length,
+      onHold: allProjects.filter((p) => p.status === "on_hold").length,
+      completed: allProjects.filter((p) => p.status === "completed").length,
+      archived: allProjects.filter((p) => p.status === "archived").length,
     };
 
     return stats;
@@ -576,7 +639,10 @@ export class MomentumRepository {
   // COMPLEX QUERIES WITH RELATIONS
   // ============================================================================
 
-  async getTaskWithRelations(taskId: string, userId: string): Promise<{
+  async getTaskWithRelations(
+    taskId: string,
+    userId: string,
+  ): Promise<{
     task: TaskDTO;
     project: ProjectDTO | null;
     parentTask: TaskDTO | null;
@@ -591,49 +657,45 @@ export class MomentumRepository {
     if (!task) return null;
 
     // Get related data in parallel
-    const [
-      project,
-      parentTask,
-      subtasks,
-      taggedContactsData,
-    ] = await Promise.all([
+    const [project, parentTask, subtasks, taggedContactsData] = await Promise.all([
       task.projectId ? this.getProject(task.projectId, userId) : null,
       task.parentTaskId ? this.getTask(task.parentTaskId, userId) : null,
       this.getSubtasks(taskId, userId),
       // Get tagged contacts
-      db.select({
-        id: contacts.id,
-        displayName: contacts.displayName,
-        primaryEmail: contacts.primaryEmail,
-      })
-      .from(taskContactTags)
-      .innerJoin(contacts, eq(taskContactTags.contactId, contacts.id))
-      .where(eq(taskContactTags.taskId, taskId))
-      .then(results => results.map(result => {
-        const contact: { id: string; displayName: string; primaryEmail?: string } = {
-          id: result.id,
-          displayName: result.displayName,
-        };
-        if (result.primaryEmail) {
-          contact.primaryEmail = result.primaryEmail;
-        }
-        return contact;
-      })),
+      db
+        .select({
+          id: contacts.id,
+          displayName: contacts.displayName,
+          primaryEmail: contacts.primaryEmail,
+        })
+        .from(taskContactTags)
+        .innerJoin(contacts, eq(taskContactTags.contactId, contacts.id))
+        .where(eq(taskContactTags.taskId, taskId))
+        .then((results) =>
+          results.map((result) => {
+            const contact: { id: string; displayName: string; primaryEmail?: string } = {
+              id: result.id,
+              displayName: result.displayName,
+            };
+            if (result.primaryEmail) {
+              contact.primaryEmail = result.primaryEmail;
+            }
+            return contact;
+          }),
+        ),
     ]);
 
     // Get zone if project has one
-    let zone: { id: number; name: string; color: string | null; iconName: string | null } | null = null;
-    if (project?.zoneId) {
-      const [zoneData] = await db
-        .select()
-        .from(zones)
-        .where(eq(zones.id, project.zoneId));
+    let zone: { id: number; name: string; color: string | null; iconName: string | null } | null =
+      null;
+    if (project && "success" in project && project.success && project.data?.zoneId) {
+      const [zoneData] = await db.select().from(zones).where(eq(zones.id, project.data.zoneId));
       zone = zoneData ?? null;
     }
 
     return {
       task,
-      project,
+      project: project && "success" in project && project.success ? project.data : null,
       parentTask,
       subtasks,
       taggedContacts: taggedContactsData,
@@ -681,7 +743,10 @@ export class MomentumRepository {
       id: goal.id,
       userId: goal.userId,
       contactId: goal.contactId,
-      goalType: goal.goalType as "practitioner_business" | "practitioner_personal" | "client_wellness",
+      goalType: goal.goalType as
+        | "practitioner_business"
+        | "practitioner_personal"
+        | "client_wellness",
       name: goal.name,
       status: goal.status as "on_track" | "at_risk" | "achieved" | "abandoned",
       targetDate: goal.targetDate,
@@ -695,7 +760,7 @@ export class MomentumRepository {
     return {
       id: log.id,
       userId: log.userId,
-      logDate: new Date(log.logDate),
+      logDate: log.logDate,
       details: log.details as Record<string, unknown>,
       createdAt: log.createdAt,
     };

@@ -30,8 +30,6 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@omnicrm/contracts": ["./packages/contracts/src"],
-      "@contracts/*": ["./packages/contracts/src/*"],
       "@packages/testing": ["./packages/testing/src"],
       "@repo": ["./packages/repo/src"]
     }

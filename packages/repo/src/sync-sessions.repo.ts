@@ -1,10 +1,8 @@
-import { eq, and, desc } from "drizzle-orm";
-import { syncSessions } from "./schema";
-import { getDb } from "./db";
-import type {
-  SyncSession,
-  CreateSyncSession
-} from "./schema";
+import { eq, and, desc, notInArray } from "drizzle-orm";
+import { syncSessions } from "@/server/db/schema";
+import { getDb } from "@/server/db/client";
+import type { SyncSession, CreateSyncSession } from "@/server/db/schema";
+import { ok, err, DbResult } from "@/lib/utils/result";
 
 // Local type aliases for repository layer
 type SyncSessionDTO = SyncSession;
@@ -22,91 +20,61 @@ export class SyncSessionsRepository {
    */
   static async listSyncSessions(
     userId: string,
-    filters?: SyncSessionFilters
-  ): Promise<SyncSessionDTO[]> {
-    const db = await getDb();
+    filters?: SyncSessionFilters,
+  ): Promise<DbResult<SyncSessionDTO[]>> {
+    try {
+      const db = await getDb();
 
-    // Build conditions array
-    const conditions = [eq(syncSessions.userId, userId)];
+      // Build conditions array
+      const conditions = [eq(syncSessions.userId, userId)];
 
-    if (filters?.service) {
-      conditions.push(eq(syncSessions.service, filters.service));
+      if (filters?.service) {
+        conditions.push(eq(syncSessions.service, filters.service));
+      }
+
+      if (filters?.status) {
+        conditions.push(eq(syncSessions.status, filters.status));
+      }
+
+      const query = db
+        .select({
+          id: syncSessions.id,
+          userId: syncSessions.userId,
+          service: syncSessions.service,
+          status: syncSessions.status,
+          progressPercentage: syncSessions.progressPercentage,
+          currentStep: syncSessions.currentStep,
+          totalItems: syncSessions.totalItems,
+          importedItems: syncSessions.importedItems,
+          processedItems: syncSessions.processedItems,
+          failedItems: syncSessions.failedItems,
+          startedAt: syncSessions.startedAt,
+          completedAt: syncSessions.completedAt,
+          errorDetails: syncSessions.errorDetails,
+          preferences: syncSessions.preferences,
+        })
+        .from(syncSessions)
+        .where(and(...conditions))
+        .orderBy(desc(syncSessions.startedAt));
+
+      const rows = await query;
+
+      return ok(rows.map((row) => row));
+    } catch (error) {
+      return err({
+        code: "DB_QUERY_FAILED",
+        message: error instanceof Error ? error.message : "Failed to list sync sessions",
+        details: error,
+      });
     }
-
-    if (filters?.status) {
-      conditions.push(eq(syncSessions.status, filters.status));
-    }
-
-    const query = db
-      .select({
-        id: syncSessions.id,
-        userId: syncSessions.userId,
-        service: syncSessions.service,
-        status: syncSessions.status,
-        progressPercentage: syncSessions.progressPercentage,
-        currentStep: syncSessions.currentStep,
-        totalItems: syncSessions.totalItems,
-        importedItems: syncSessions.importedItems,
-        processedItems: syncSessions.processedItems,
-        failedItems: syncSessions.failedItems,
-        startedAt: syncSessions.startedAt,
-        completedAt: syncSessions.completedAt,
-        errorDetails: syncSessions.errorDetails,
-        preferences: syncSessions.preferences,
-        createdAt: syncSessions.createdAt,
-        updatedAt: syncSessions.updatedAt,
-      })
-      .from(syncSessions)
-      .where(and(...conditions))
-      .orderBy(desc(syncSessions.startedAt));
-
-    const rows = await query;
-
-    return rows.map(row => row);
   }
 
   /**
    * Get a single sync session by ID
    */
-  static async getSyncSessionById(userId: string, sessionId: string): Promise<SyncSessionDTO | null> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: syncSessions.id,
-        userId: syncSessions.userId,
-        service: syncSessions.service,
-        status: syncSessions.status,
-        progressPercentage: syncSessions.progressPercentage,
-        currentStep: syncSessions.currentStep,
-        totalItems: syncSessions.totalItems,
-        importedItems: syncSessions.importedItems,
-        processedItems: syncSessions.processedItems,
-        failedItems: syncSessions.failedItems,
-        startedAt: syncSessions.startedAt,
-        completedAt: syncSessions.completedAt,
-        errorDetails: syncSessions.errorDetails,
-        preferences: syncSessions.preferences,
-        createdAt: syncSessions.createdAt,
-        updatedAt: syncSessions.updatedAt,
-      })
-      .from(syncSessions)
-      .where(and(eq(syncSessions.userId, userId), eq(syncSessions.id, sessionId)))
-      .limit(1);
-
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return rows[0];
-  }
-
-  /**
-   * Get the latest sync session for a service
-   */
-  static async getLatestSyncSession(
+  static async getSyncSessionById(
     userId: string,
-    service: string
+    sessionId: string,
   ): Promise<SyncSessionDTO | null> {
     const db = await getDb();
 
@@ -126,19 +94,46 @@ export class SyncSessionsRepository {
         completedAt: syncSessions.completedAt,
         errorDetails: syncSessions.errorDetails,
         preferences: syncSessions.preferences,
-        createdAt: syncSessions.createdAt,
-        updatedAt: syncSessions.updatedAt,
+      })
+      .from(syncSessions)
+      .where(and(eq(syncSessions.userId, userId), eq(syncSessions.id, sessionId)))
+      .limit(1);
+
+    return rows[0] || null;
+  }
+
+  /**
+   * Get the latest sync session for a service
+   */
+  static async getLatestSyncSession(
+    userId: string,
+    service: string,
+  ): Promise<SyncSessionDTO | null> {
+    const db = await getDb();
+
+    const rows = await db
+      .select({
+        id: syncSessions.id,
+        userId: syncSessions.userId,
+        service: syncSessions.service,
+        status: syncSessions.status,
+        progressPercentage: syncSessions.progressPercentage,
+        currentStep: syncSessions.currentStep,
+        totalItems: syncSessions.totalItems,
+        importedItems: syncSessions.importedItems,
+        processedItems: syncSessions.processedItems,
+        failedItems: syncSessions.failedItems,
+        startedAt: syncSessions.startedAt,
+        completedAt: syncSessions.completedAt,
+        errorDetails: syncSessions.errorDetails,
+        preferences: syncSessions.preferences,
       })
       .from(syncSessions)
       .where(and(eq(syncSessions.userId, userId), eq(syncSessions.service, service)))
       .orderBy(desc(syncSessions.startedAt))
       .limit(1);
 
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return rows[0];
+    return rows[0] || null;
   }
 
   /**
@@ -163,56 +158,70 @@ export class SyncSessionsRepository {
         completedAt: syncSessions.completedAt,
         errorDetails: syncSessions.errorDetails,
         preferences: syncSessions.preferences,
-        createdAt: syncSessions.createdAt,
-        updatedAt: syncSessions.updatedAt,
       })
       .from(syncSessions)
       .where(
         and(
           eq(syncSessions.userId, userId),
-          // Status is not a terminal state
-          // Using `not in` equivalent with multiple conditions
-          eq(syncSessions.status, "started") // This would need to be expanded for multiple statuses
-        )
+          // Status is not a terminal state - exclude completed, failed, cancelled
+          notInArray(syncSessions.status, ["completed", "failed", "cancelled"]),
+        ),
       )
       .orderBy(desc(syncSessions.startedAt));
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
   /**
    * Create a new sync session
    */
-  static async createSyncSession(userId: string, data: CreateSyncSessionDTO): Promise<SyncSessionDTO> {
-    const db = await getDb();
+  static async createSyncSession(
+    userId: string,
+    data: CreateSyncSessionDTO,
+  ): Promise<DbResult<SyncSessionDTO>> {
+    try {
+      const db = await getDb();
 
-    const [newSession] = await db
-      .insert(syncSessions)
-      .values({
-        userId: userId,
-        service: data.service,
-        preferences: data.preferences ?? {},
-      })
-      .returning({
-        id: syncSessions.id,
-        userId: syncSessions.userId,
-        service: syncSessions.service,
-        status: syncSessions.status,
-        progressPercentage: syncSessions.progressPercentage,
-        currentStep: syncSessions.currentStep,
-        totalItems: syncSessions.totalItems,
-        importedItems: syncSessions.importedItems,
-        processedItems: syncSessions.processedItems,
-        failedItems: syncSessions.failedItems,
-        startedAt: syncSessions.startedAt,
-        completedAt: syncSessions.completedAt,
-        errorDetails: syncSessions.errorDetails,
-        preferences: syncSessions.preferences,
-        createdAt: syncSessions.createdAt,
-        updatedAt: syncSessions.updatedAt,
+      const [newSession] = await db
+        .insert(syncSessions)
+        .values({
+          userId: userId,
+          service: data.service,
+          status: "pending",
+          preferences: data.preferences ?? {},
+        })
+        .returning({
+          id: syncSessions.id,
+          userId: syncSessions.userId,
+          service: syncSessions.service,
+          status: syncSessions.status,
+          progressPercentage: syncSessions.progressPercentage,
+          currentStep: syncSessions.currentStep,
+          totalItems: syncSessions.totalItems,
+          importedItems: syncSessions.importedItems,
+          processedItems: syncSessions.processedItems,
+          failedItems: syncSessions.failedItems,
+          startedAt: syncSessions.startedAt,
+          completedAt: syncSessions.completedAt,
+          errorDetails: syncSessions.errorDetails,
+          preferences: syncSessions.preferences,
+        });
+
+      if (!newSession) {
+        return err({
+          code: "DB_INSERT_FAILED",
+          message: "Failed to create sync session - no data returned",
+        });
+      }
+
+      return ok(newSession);
+    } catch (error) {
+      return err({
+        code: "DB_INSERT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to create sync session",
+        details: error,
       });
-
-    return newSession;
+    }
   }
 
   /**
@@ -221,7 +230,7 @@ export class SyncSessionsRepository {
   static async updateSyncSession(
     userId: string,
     sessionId: string,
-    data: UpdateSyncSessionDTO
+    data: UpdateSyncSessionDTO,
   ): Promise<SyncSessionDTO | null> {
     const db = await getDb();
 
@@ -233,16 +242,19 @@ export class SyncSessionsRepository {
 
     // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
     const updateValues = {
-      updatedAt: new Date(),
       ...(updateData.status !== undefined && { status: updateData.status }),
-      ...(updateData.progressPercentage !== undefined && { progressPercentage: updateData.progressPercentage }),
+      ...(updateData.progressPercentage !== undefined && {
+        progressPercentage: updateData.progressPercentage,
+      }),
       ...(updateData.currentStep !== undefined && { currentStep: updateData.currentStep ?? null }),
       ...(updateData.totalItems !== undefined && { totalItems: updateData.totalItems }),
       ...(updateData.importedItems !== undefined && { importedItems: updateData.importedItems }),
       ...(updateData.processedItems !== undefined && { processedItems: updateData.processedItems }),
       ...(updateData.failedItems !== undefined && { failedItems: updateData.failedItems }),
       ...(updateData.completedAt !== undefined && { completedAt: updateData.completedAt ?? null }),
-      ...(updateData.errorDetails !== undefined && { errorDetails: updateData.errorDetails ?? null }),
+      ...(updateData.errorDetails !== undefined && {
+        errorDetails: updateData.errorDetails ?? null,
+      }),
     };
 
     const [updatedSession] = await db
@@ -264,8 +276,6 @@ export class SyncSessionsRepository {
         completedAt: syncSessions.completedAt,
         errorDetails: syncSessions.errorDetails,
         preferences: syncSessions.preferences,
-        createdAt: syncSessions.createdAt,
-        updatedAt: syncSessions.updatedAt,
       });
 
     if (!updatedSession) {
@@ -288,7 +298,7 @@ export class SyncSessionsRepository {
       importedItems?: number;
       processedItems?: number;
       failedItems?: number;
-    }
+    },
   ): Promise<SyncSessionDTO | null> {
     const db = await getDb();
 
@@ -296,7 +306,6 @@ export class SyncSessionsRepository {
       .update(syncSessions)
       .set({
         ...progress,
-        updatedAt: new Date(),
       })
       .where(and(eq(syncSessions.userId, userId), eq(syncSessions.id, sessionId)))
       .returning({
@@ -314,8 +323,6 @@ export class SyncSessionsRepository {
         completedAt: syncSessions.completedAt,
         errorDetails: syncSessions.errorDetails,
         preferences: syncSessions.preferences,
-        createdAt: syncSessions.createdAt,
-        updatedAt: syncSessions.updatedAt,
       });
 
     if (!updatedSession) {
@@ -331,7 +338,7 @@ export class SyncSessionsRepository {
   static async markSyncSessionFailed(
     userId: string,
     sessionId: string,
-    errorDetails: Record<string, unknown>
+    errorDetails: Record<string, unknown>,
   ): Promise<SyncSessionDTO | null> {
     return this.updateSyncSession(userId, sessionId, {
       status: "failed",
@@ -344,7 +351,7 @@ export class SyncSessionsRepository {
    */
   static async markSyncSessionCompleted(
     userId: string,
-    sessionId: string
+    sessionId: string,
   ): Promise<SyncSessionDTO | null> {
     return this.updateSyncSession(userId, sessionId, {
       status: "completed",
@@ -357,7 +364,7 @@ export class SyncSessionsRepository {
    */
   static async cancelSyncSession(
     userId: string,
-    sessionId: string
+    sessionId: string,
   ): Promise<SyncSessionDTO | null> {
     return this.updateSyncSession(userId, sessionId, {
       status: "cancelled",

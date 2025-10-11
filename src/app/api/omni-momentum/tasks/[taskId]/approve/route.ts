@@ -1,4 +1,4 @@
-import { momentumService } from "@/server/services/momentum.service";
+import { productivityService } from "@/server/services/productivity.service";
 import { TaskSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 
@@ -21,7 +21,7 @@ export const POST = async (req: Request, { params }: { params: { taskId: string 
     const taskId = z.string().uuid().parse(params.taskId);
 
     // Approve task using service
-    const approvedTask = await momentumService.approveTask(taskId, userId);
+    const approvedTask = await productivityService.approveTask(taskId, userId);
 
     if (!approvedTask) {
       return new Response(JSON.stringify({ error: "Task not found" }), {

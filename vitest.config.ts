@@ -10,14 +10,6 @@ export default defineConfig({
     alias: [
       { find: "@", replacement: path.resolve(__dirname, "src") },
       { find: /^@\//, replacement: path.resolve(__dirname, "src") + "/" },
-      {
-        find: "@omnicrm/contracts",
-        replacement: path.resolve(__dirname, "packages/contracts/src"),
-      },
-      {
-        find: /^@contracts\//,
-        replacement: path.resolve(__dirname, "packages/contracts/src") + "/",
-      },
       { find: "@packages/testing", replacement: path.resolve(__dirname, "packages/testing/src") },
       { find: "@repo", replacement: path.resolve(__dirname, "packages/repo/src") },
     ],

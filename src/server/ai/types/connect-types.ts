@@ -6,20 +6,7 @@ export type {
   InboxProcessingContext,
 } from "@/server/db/business-schemas";
 
-export interface EmailClassification {
-  primaryCategory: string;
-  subCategory: string;
-  confidence: number;
-  businessRelevance: number;
-  reasoning: string;
-  extractedMetadata: {
-    senderDomain?: string;
-    hasAppointmentLanguage?: boolean;
-    hasPaymentLanguage?: boolean;
-    isFromClient?: boolean;
-    urgencyLevel?: "low" | "medium" | "high" | "urgent";
-  };
-}
+// EmailClassification moved to business-schemas to prevent duplication
 
 export interface WeeklyDigestInsight {
   summary: string;

@@ -122,19 +122,17 @@ export async function updateProjectService(
   const repo = createProductivityRepository(db);
 
   try {
-    // Business logic: normalize the details field if provided
-    const updateData: Record<string, unknown> = {};
+    // Business logic: Filter undefined values and normalize details
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined)
+    );
 
-    if (data["name"] !== undefined) updateData["name"] = data["name"];
-    if (data["zoneId"] !== undefined) updateData["zoneId"] = data["zoneId"];
-    if (data["dueDate"] !== undefined) updateData["dueDate"] = data["dueDate"];
-    if (data["status"] !== undefined) updateData["status"] = data["status"];
-
-    if (data["details"] !== undefined) {
-      updateData["details"] = sanitizeJsonb(data["details"]);
+    // Business logic: Sanitize details field if present
+    if (cleanData["details"] !== undefined) {
+      cleanData["details"] = sanitizeJsonb(cleanData["details"]);
     }
 
-    await repo.updateProject(projectId, userId, updateData);
+    await repo.updateProject(projectId, userId, cleanData);
 
     // Return updated project
     return await repo.getProject(projectId, userId);

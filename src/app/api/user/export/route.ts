@@ -1,10 +1,6 @@
 /** GET /api/user/export — Complete user data export for GDPR compliance (auth required). */
 import { handleAuth } from "@/lib/api";
-import {
-  exportAllUserDataService,
-  generateExportFilename,
-  getExportHeaders,
-} from "@/server/services/user-export.service";
+import { exportAllUserDataService } from "@/server/services/user-export.service";
 import { UserExportRequestSchema, UserExportResponseSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 

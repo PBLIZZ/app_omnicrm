@@ -2,6 +2,37 @@
 export { getDb, db, getSql, closeDb } from "@/server/db/client";
 export type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
+// Productivity types (explicit types to avoid Drizzle circular reference issues)
+export type {
+  Task,
+  TaskListItem,
+  TaskWithProject,
+  TaskWithSubtasks,
+  TaskWithParent,
+  TaskWithRelations,
+  Project,
+  ProjectListItem,
+  ProjectWithZone,
+  Zone,
+  Goal,
+  GoalListItem,
+  DailyPulseLog,
+  DailyPulseLogListItem,
+  InboxItem,
+  InboxItemListItem,
+  TaskContactTag,
+  CreateTask,
+  UpdateTask,
+  CreateProject,
+  UpdateProject,
+  CreateGoal,
+  UpdateGoal,
+  CreateDailyPulseLog,
+  UpdateDailyPulseLog,
+  CreateInboxItem,
+  UpdateInboxItem,
+} from "./types/productivity.types";
+
 // Repository classes
 export { AuthUserRepository, createAuthUserRepository } from "./auth-user.repo";
 export { ContactsRepository, createContactsRepository } from "./contacts.repo";

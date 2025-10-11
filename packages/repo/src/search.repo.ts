@@ -67,7 +67,7 @@ export class SearchRepository {
           id: row.id,
           type: "contact",
           title: row.displayName,
-          content: [row.primaryEmail, row.primaryPhone].filter(Boolean).join(" "),
+          content: "", // Let service layer format content from metadata
           metadata: {
             email: row.primaryEmail,
             phone: row.primaryPhone,
@@ -283,7 +283,7 @@ export class SearchRepository {
           id: contact.id,
           type: "contact",
           title: contact.displayName,
-          content: [contact.primaryEmail, contact.primaryPhone].filter(Boolean).join(" "),
+          content: "", // Let service layer format content from metadata
           metadata: {
             email: contact.primaryEmail,
             phone: contact.primaryPhone,

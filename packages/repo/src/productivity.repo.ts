@@ -11,16 +11,16 @@ import {
 } from "@/server/db/schema";
 import { eq, desc, and, asc, isNull, inArray, sql } from "drizzle-orm";
 import type {
-  InboxItem,
-  Project,
-  CreateProject,
-  Task,
-  CreateTask,
+  TaskListItem,
+  ProjectListItem,
   Goal,
-  CreateGoal,
   DailyPulseLog,
+  InboxItem,
+  CreateTask,
+  CreateProject,
+  CreateGoal,
   CreateDailyPulseLog,
-} from "@/server/db/schema";
+} from "./types/productivity.types";
 
 export class ProductivityRepository {
   constructor(private readonly db: DbClient) {}
@@ -28,7 +28,7 @@ export class ProductivityRepository {
   // PROJECTS (Pathways)
   // ============================================================================
 
-  async createProject(userId: string, data: Omit<CreateProject, 'userId'>): Promise<Project> {
+  async createProject(userId: string, data: Omit<CreateProject, 'userId'>): Promise<ProjectListItem> {
     const [project] = await this.db
       .insert(projects)
       .values({ ...data, userId })
@@ -38,13 +38,13 @@ export class ProductivityRepository {
       throw new Error("Insert returned no data");
     }
 
-    return project;
+    return project as ProjectListItem;
   }
 
   async getProjects(
     userId: string,
     filters?: { zoneId?: number | undefined; status?: string[] | undefined },
-  ): Promise<Project[]> {
+  ): Promise<ProjectListItem[]> {
     const whereConditions = [eq(projects.userId, userId)];
 
     if (filters?.zoneId !== undefined) {
@@ -62,22 +62,42 @@ export class ProductivityRepository {
     }
 
     const rows = await this.db
-      .select()
+      .select({
+        id: projects.id,
+        userId: projects.userId,
+        name: projects.name,
+        status: projects.status,
+        dueDate: projects.dueDate,
+        details: projects.details,
+        createdAt: projects.createdAt,
+        updatedAt: projects.updatedAt,
+        zoneId: projects.zoneId,
+      })
       .from(projects)
       .where(and(...whereConditions))
       .orderBy(desc(projects.updatedAt));
 
-    return rows;
+    return rows as ProjectListItem[];
   }
 
-  async getProject(projectId: string, userId: string): Promise<Project | null> {
+  async getProject(projectId: string, userId: string): Promise<ProjectListItem | null> {
     const rows = await this.db
-      .select()
+      .select({
+        id: projects.id,
+        userId: projects.userId,
+        name: projects.name,
+        status: projects.status,
+        dueDate: projects.dueDate,
+        details: projects.details,
+        createdAt: projects.createdAt,
+        updatedAt: projects.updatedAt,
+        zoneId: projects.zoneId,
+      })
       .from(projects)
       .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
       .limit(1);
 
-    return rows[0] ?? null;
+    return rows[0] ? (rows[0] as ProjectListItem) : null;
   }
 
   async updateProject(
@@ -104,7 +124,7 @@ export class ProductivityRepository {
   // to infer it as `any`. This is a known Drizzle ORM limitation with circular references.
   // ESLint warnings for unsafe member access on `tasks` properties are expected and safe.
 
-  async createTask(userId: string, data: Omit<CreateTask, 'userId'>): Promise<Task> {
+  async createTask(userId: string, data: Omit<CreateTask, 'userId'>): Promise<TaskListItem> {
     const [task] = await this.db
       .insert(tasks)
       .values({ ...data, userId })
@@ -114,7 +134,7 @@ export class ProductivityRepository {
       throw new Error("Insert returned no data");
     }
 
-    return task;
+    return task as TaskListItem;
   }
 
   async getTasks(
@@ -125,7 +145,7 @@ export class ProductivityRepository {
       status?: string[] | undefined;
       priority?: string[] | undefined;
     },
-  ): Promise<Task[]> {
+  ): Promise<TaskListItem[]> {
     const whereConditions = [eq(tasks.userId, userId)];
 
     if (filters?.projectId) {
@@ -141,60 +161,119 @@ export class ProductivityRepository {
     }
 
     if (filters?.status && filters.status.length > 0) {
-      whereConditions.push(inArray(tasks.status, filters.status));
+      whereConditions.push(
+        inArray(
+          tasks.status,
+          filters.status as ("todo" | "in_progress" | "done" | "canceled")[],
+        ),
+      );
     }
 
     if (filters?.priority && filters.priority.length > 0) {
-      whereConditions.push(inArray(tasks.priority, filters.priority));
+      whereConditions.push(
+        inArray(
+          tasks.priority,
+          filters.priority as ("low" | "medium" | "high" | "urgent")[],
+        ),
+      );
     }
 
     const rows = await this.db
-      .select()
+      .select({
+        id: tasks.id,
+        userId: tasks.userId,
+        projectId: tasks.projectId,
+        parentTaskId: tasks.parentTaskId,
+        name: tasks.name,
+        status: tasks.status,
+        priority: tasks.priority,
+        dueDate: tasks.dueDate,
+        details: tasks.details,
+        completedAt: tasks.completedAt,
+        createdAt: tasks.createdAt,
+        updatedAt: tasks.updatedAt,
+      })
       .from(tasks)
       .where(and(...whereConditions))
       .orderBy(desc(tasks.updatedAt));
 
-    return rows;
+    return rows as TaskListItem[];
   }
 
-  async getTask(taskId: string, userId: string): Promise<Task | null> {
+  async getTask(taskId: string, userId: string): Promise<TaskListItem | null> {
     const rows = await this.db
-      .select()
+      .select({
+        id: tasks.id,
+        userId: tasks.userId,
+        projectId: tasks.projectId,
+        parentTaskId: tasks.parentTaskId,
+        name: tasks.name,
+        status: tasks.status,
+        priority: tasks.priority,
+        dueDate: tasks.dueDate,
+        details: tasks.details,
+        completedAt: tasks.completedAt,
+        createdAt: tasks.createdAt,
+        updatedAt: tasks.updatedAt,
+      })
       .from(tasks)
       .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)))
       .limit(1);
 
-    return rows[0] ?? null;
+    return rows[0] ? (rows[0] as TaskListItem) : null;
   }
 
-  async getTasksWithProject(userId: string, projectId: string): Promise<Task[]> {
+  async getTasksWithProject(userId: string, projectId: string): Promise<TaskListItem[]> {
     const rows = await this.db
-      .select()
+      .select({
+        id: tasks.id,
+        userId: tasks.userId,
+        projectId: tasks.projectId,
+        parentTaskId: tasks.parentTaskId,
+        name: tasks.name,
+        status: tasks.status,
+        priority: tasks.priority,
+        dueDate: tasks.dueDate,
+        details: tasks.details,
+        completedAt: tasks.completedAt,
+        createdAt: tasks.createdAt,
+        updatedAt: tasks.updatedAt,
+      })
       .from(tasks)
       .where(and(eq(tasks.userId, userId), eq(tasks.projectId, projectId)))
       .orderBy(desc(tasks.updatedAt));
 
-    return rows;
+    return rows as TaskListItem[];
   }
 
-  async getSubtasks(parentTaskId: string, userId: string): Promise<Task[]> {
+  async getSubtasks(parentTaskId: string, userId: string): Promise<TaskListItem[]> {
     const rows = await this.db
-      .select()
+      .select({
+        id: tasks.id,
+        userId: tasks.userId,
+        projectId: tasks.projectId,
+        parentTaskId: tasks.parentTaskId,
+        name: tasks.name,
+        status: tasks.status,
+        priority: tasks.priority,
+        dueDate: tasks.dueDate,
+        details: tasks.details,
+        completedAt: tasks.completedAt,
+        createdAt: tasks.createdAt,
+        updatedAt: tasks.updatedAt,
+      })
       .from(tasks)
       .where(and(eq(tasks.userId, userId), eq(tasks.parentTaskId, parentTaskId)))
       .orderBy(asc(tasks.createdAt));
 
-    return rows;
+    return rows as TaskListItem[];
   }
 
   async updateTask(taskId: string, userId: string, data: Partial<CreateTask>): Promise<void> {
-    // Filter out undefined values for exact optional property types
-    const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined),
-    );
+    // No filtering - service layer provides clean data
     await this.db
       .update(tasks)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)));
   }
 
@@ -257,7 +336,7 @@ export class ProductivityRepository {
       throw new Error("Failed to create goal");
     }
 
-    return goal;
+    return goal as Goal;
   }
 
   async getGoals(
@@ -313,14 +392,10 @@ export class ProductivityRepository {
   }
 
   async updateGoal(goalId: string, userId: string, data: Partial<CreateGoal>): Promise<void> {
-    // Filter out undefined values for exact optional property types
-    const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined),
-    );
-
+    // No filtering - service layer provides clean data
     await this.db
       .update(goals)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(and(eq(goals.id, goalId), eq(goals.userId, userId)));
   }
 
@@ -353,7 +428,7 @@ export class ProductivityRepository {
       throw new Error("Failed to create daily pulse log");
     }
 
-    return log;
+    return log as DailyPulseLog;
   }
 
   async getDailyPulseLogs(userId: string, limit = 30): Promise<DailyPulseLog[]> {
@@ -387,14 +462,10 @@ export class ProductivityRepository {
     userId: string,
     data: Partial<CreateDailyPulseLog>,
   ): Promise<void> {
-    // Filter out undefined values for exact optional property types
-    const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined),
-    );
-
+    // No filtering - service layer provides clean data
     await this.db
       .update(dailyPulseLogs)
-      .set(updateData)
+      .set(data)
       .where(and(eq(dailyPulseLogs.id, logId), eq(dailyPulseLogs.userId, userId)));
   }
 
@@ -429,19 +500,17 @@ export class ProductivityRepository {
       throw new Error("Failed to create inbox item");
     }
 
-    return item;
+    return item as InboxItem;
   }
 
   async getInboxItems(userId: string, status?: string): Promise<InboxItem[]> {
     const whereConditions = [eq(inboxItems.userId, userId)];
 
+    // No validation - assume service/route layer validated the status
     if (status) {
-      const validStatus = ["unprocessed", "processed", "archived"].includes(status);
-      if (validStatus) {
-        whereConditions.push(
-          eq(inboxItems.status, status as "unprocessed" | "processed" | "archived"),
-        );
-      }
+      whereConditions.push(
+        eq(inboxItems.status, status as "unprocessed" | "processed" | "archived"),
+      );
     }
 
     const rows = await this.db
@@ -454,23 +523,18 @@ export class ProductivityRepository {
   }
 
   async updateInboxItem(
-    itemId: string,
     userId: string,
+    itemId: string,
     data: {
-      rawText?: string;
       status?: "unprocessed" | "processed" | "archived";
       createdTaskId?: string;
       processedAt?: Date;
     },
   ): Promise<void> {
-    // Filter out undefined values for exact optional property types
-    const updateData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined),
-    );
-
+    // No filtering - service layer provides clean data
     await this.db
       .update(inboxItems)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(and(eq(inboxItems.id, itemId), eq(inboxItems.userId, userId)));
   }
 
@@ -487,27 +551,14 @@ export class ProductivityRepository {
     return { total: result?.count ?? 0 };
   }
 
-  async getProjectStats(userId: string): Promise<{
-    total: number;
-    active: number;
-    onHold: number;
-    completed: number;
-    archived: number;
-  }> {
+  async getProjectStats(userId: string): Promise<Array<{ status: string | null }>> {
+    // Return raw project status data - let service layer calculate statistics
     const allProjects = await this.db
       .select({ status: projects.status })
       .from(projects)
       .where(eq(projects.userId, userId));
 
-    const stats = {
-      total: allProjects.length,
-      active: allProjects.filter((p) => p.status === "active").length,
-      onHold: allProjects.filter((p) => p.status === "on_hold").length,
-      completed: allProjects.filter((p) => p.status === "completed").length,
-      archived: allProjects.filter((p) => p.status === "archived").length,
-    };
-
-    return stats;
+    return allProjects;
   }
 }
 

@@ -28,7 +28,7 @@ HTTP Request
 │ - Validates input with Zod schema                      │
 │ - Calls your business logic function                   │
 │ - CATCHES errors and converts to HTTP responses        │
-│ - Returns NextResponse with proper status codes        │
+│ - Returns Response with proper status codes            │
 └────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────┐

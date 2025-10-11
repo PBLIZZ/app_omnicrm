@@ -117,7 +117,7 @@ export class ExampleRepository {
 
 #### Repository Rules
 
-- ✅ Returns Promise<T>, Promise<T | null>, or Promise<T[]>
+- ✅ Returns `Promise<T>`, `Promise<T | null>`, or `Promise<T[]>`
 - ✅ Throws generic Error for database failures
 - ✅ Returns null for "not found" (don't throw)
 - ❌ NO AppError

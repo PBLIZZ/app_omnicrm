@@ -8,10 +8,16 @@
  */
 
 import { createProductivityRepository } from "@repo";
-import type { Task } from "@/server/db/schema";
+import type { TaskListItem } from "@repo";
 import { AppError } from "@/lib/errors/app-error";
 import { getDb } from "@/server/db/client";
 import { sanitizeJsonb } from "@/lib/validation/jsonb";
+
+// Helper: Convert Date to string for date columns
+function dateToString(date: Date | null | undefined): string | null {
+  if (!date) return null;
+  return date.toISOString().split('T')[0] as string;
+}
 
 // ============================================================================
 // TASK CRUD OPERATIONS
@@ -31,7 +37,7 @@ export async function createTaskService(
     dueDate?: Date | null | undefined;
     details?: unknown;
   },
-): Promise<Task> {
+): Promise<TaskListItem> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -54,8 +60,9 @@ export async function createTaskService(
       parentTaskId: data.parentTaskId ?? null,
       priority: data.priority ?? "medium",
       status: data.status ?? "todo",
-      dueDate: data.dueDate ?? null,
+      dueDate: dateToString(data.dueDate),
       details: normalizedDetails,
+      completedAt: null,
     });
 
     return task;
@@ -73,7 +80,7 @@ export async function createTaskService(
 /**
  * Get a single task by ID
  */
-export async function getTaskService(userId: string, taskId: string): Promise<Task | null> {
+export async function getTaskService(userId: string, taskId: string): Promise<TaskListItem | null> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -100,7 +107,7 @@ export async function listTasksService(
     status?: string[] | undefined;
     priority?: string[] | undefined;
   },
-): Promise<Task[]> {
+): Promise<TaskListItem[]> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -132,27 +139,22 @@ export async function updateTaskService(
     details?: unknown;
     completedAt?: Date | null | undefined;
   },
-): Promise<Task | null> {
+): Promise<TaskListItem | null> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
   try {
-    // Business logic: normalize the details field if provided
-    const updateData: Record<string, unknown> = {};
+    // Business logic: Filter undefined values and normalize details
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined)
+    );
 
-    if (data["name"] !== undefined) updateData["name"] = data["name"];
-    if (data["projectId"] !== undefined) updateData["projectId"] = data["projectId"];
-    if (data["parentTaskId"] !== undefined) updateData["parentTaskId"] = data["parentTaskId"];
-    if (data["priority"] !== undefined) updateData["priority"] = data["priority"];
-    if (data["status"] !== undefined) updateData["status"] = data["status"];
-    if (data["dueDate"] !== undefined) updateData["dueDate"] = data["dueDate"];
-    if (data["completedAt"] !== undefined) updateData["completedAt"] = data["completedAt"];
-
-    if (data["details"] !== undefined) {
-      updateData["details"] = sanitizeJsonb(data["details"]);
+    // Business logic: Sanitize details field if present
+    if (cleanData["details"] !== undefined) {
+      cleanData["details"] = sanitizeJsonb(cleanData["details"]);
     }
 
-    await repo.updateTask(taskId, userId, updateData);
+    await repo.updateTask(taskId, userId, cleanData);
 
     // Return updated task
     return await repo.getTask(taskId, userId);
@@ -213,7 +215,7 @@ export async function getTaskStatsService(userId: string): Promise<{ total: numb
  */
 export async function getPendingApprovalTasksService(
   userId: string,
-): Promise<{ tasks: Task[]; total: number }> {
+): Promise<{ tasks: TaskListItem[]; total: number }> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -241,7 +243,7 @@ export async function getPendingApprovalTasksService(
 /**
  * Approve a task
  */
-export async function approveTaskService(userId: string, taskId: string): Promise<Task | null> {
+export async function approveTaskService(userId: string, taskId: string): Promise<TaskListItem | null> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -266,7 +268,7 @@ export async function approveTaskService(userId: string, taskId: string): Promis
 /**
  * Reject a task
  */
-export async function rejectTaskService(userId: string, taskId: string): Promise<Task | null> {
+export async function rejectTaskService(userId: string, taskId: string): Promise<TaskListItem | null> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -299,7 +301,7 @@ export async function getProjectTasksService(
   projectId: string,
   userId: string,
   filters?: { status?: string[] | undefined },
-): Promise<Task[]> {
+): Promise<TaskListItem[]> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -336,7 +338,7 @@ export async function getProjectTasksService(
 export async function getSubtasksService(
   userId: string,
   parentTaskId: string,
-): Promise<{ parentTask: Task; subtasks: Task[] }> {
+): Promise<{ parentTask: TaskListItem; subtasks: TaskListItem[] }> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 

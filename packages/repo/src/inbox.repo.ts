@@ -112,11 +112,13 @@ export class InboxRepository {
       updatedAt: new Date(),
     };
 
+    // No business logic - just save what service layer provides
     if (data.status !== undefined) {
       updateValues["status"] = data.status;
-      if (data.status === "processed") {
-        updateValues["processedAt"] = new Date();
-      }
+    }
+
+    if (data.processedAt !== undefined) {
+      updateValues["processedAt"] = data.processedAt;
     }
 
     if (data.createdTaskId !== undefined) {

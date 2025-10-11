@@ -82,11 +82,84 @@ packages/
 
 ### Key Architecture Patterns
 
-#### Database Connection Pattern (CRITICAL)
+**See `docs/REFACTORING_PATTERNS_OCT_2025.md` for complete patterns.**
 
-#### API Layer Pattern
+#### Repository Layer Pattern
 
-All HTTP calls use centralized utilities with automatic CSRF protection:
+```typescript
+// Constructor injection with DbClient
+export class ExampleRepository {
+  constructor(private readonly db: DbClient) {}
+
+  async getExample(id: string, userId: string): Promise<Example | null> {
+    const rows = await this.db.select()...;
+    return rows[0] ?? null; // Returns null for "not found"
+  }
+
+  async createExample(data: CreateExample): Promise<Example> {
+    const [result] = await this.db.insert().returning();
+    if (!result) throw new Error("Insert returned no data"); // Throw generic Error
+    return result;
+  }
+}
+
+// Factory function
+export function createExampleRepository(db: DbClient): ExampleRepository {
+  return new ExampleRepository(db);
+}
+```
+
+#### Service Layer Pattern
+
+```typescript
+// Functional pattern with getDb() and AppError wrapping
+export async function getExampleService(
+  userId: string,
+  exampleId: string
+): Promise<Example | null> {
+  const db = await getDb();
+  const repo = createExampleRepository(db);
+
+  try {
+    return await repo.getExample(exampleId, userId);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get example",
+      "DB_ERROR",
+      "database",
+      false,
+      500 // Status code
+    );
+  }
+}
+```
+
+#### API Route Pattern
+
+```typescript
+// Use standardized handlers from @/lib/api
+import { handleAuth } from "@/lib/api";
+import { ExampleSchema } from "@/server/db/business-schemas";
+
+export const GET = handleAuth(
+  z.object({ exampleId: z.string() }),
+  ExampleSchema,
+  async (data, userId) => {
+    const example = await getExampleService(userId, data.exampleId);
+    if (!example) {
+      throw new AppError("Example not found", "NOT_FOUND", "validation", false, 404);
+    }
+    return example;
+  }
+);
+```
+
+#### Deprecated Patterns (DO NOT USE)
+
+- ❌ `DbResult<T>` wrapper - Use direct throws
+- ❌ Static repository methods - Use constructor injection
+- ❌ Manual `NextRequest`/`NextResponse` - Use standardized handlers
+- ❌ Manual `Response.json()` - Use handlers from `@/lib/api`
 
 #### TypeScript Safety (Zero Tolerance Policy)
 
@@ -255,14 +328,18 @@ const createContactMutation = useMutation({
 ### Zod Validation
 
 ```typescript
-// Define schema
-const ContactSchema = z.object({
+// Business schemas in src/server/db/business-schemas/
+export const CreateContactBodySchema = z.object({
   displayName: z.string().min(1),
   primaryEmail: z.string().email().optional(),
 });
 
 // Infer types
-type Contact = z.infer<typeof ContactSchema>;
+export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
+
+// Database types from schema.ts
+export type Contact = typeof contacts.$inferSelect;
+export type CreateContact = typeof contacts.$inferInsert;
 ```
 
 ## Troubleshooting

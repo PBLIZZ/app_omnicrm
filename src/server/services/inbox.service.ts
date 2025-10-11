@@ -279,6 +279,7 @@ export async function updateInboxItemService(
       rawText: string;
       status: "unprocessed" | "processed" | "archived";
       createdTaskId: string | null;
+      processedAt: Date | null;
     }> = {};
 
     if (rest.rawText !== undefined) {
@@ -287,6 +288,11 @@ export async function updateInboxItemService(
 
     if (rest.status !== undefined && rest.status !== null) {
       updateData.status = rest.status;
+      
+      // Business logic: Set processedAt when status changes to "processed"
+      if (rest.status === "processed") {
+        updateData.processedAt = new Date();
+      }
     }
 
     if (rest.createdTaskId !== undefined) {

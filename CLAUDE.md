@@ -2,44 +2,23 @@
 
 ## Architecture Overview
 
-### Layered Architecture Refactor (October 2025)
+### Layered Architecture (October 2025 - Complete)
 
-The codebase is currently undergoing a complete refactor to implement a strict layered architecture pattern. See `LAYER_ARCHITECTURE_BLUEPRINT_2025.md` for the complete blueprint.
+The codebase follows a strict layered architecture pattern. See `docs/REFACTORING_PATTERNS_OCT_2025.md` for complete implementation patterns.
 
-### Current Refactor Status
+**✅ All Domains Use Standardized Patterns:**
 
-**✅ Completed Domains (DbClient Pattern):**
-
-- **Productivity Suite**: tasks, projects, goals, zones, inbox, daily pulse logs
-  - Repository: `ProductivityRepository` (class with constructor injection)
-  - Business schemas: `src/server/db/business-schemas/productivity.ts`
-  - Type exports: Full coverage in schema.ts
-
-- **Chat/AI**: threads, messages, tool_invocations
-  - Repository: `ChatRepository` (class with constructor injection)
-  - Business schemas: `src/server/db/business-schemas/chat.ts`
-  - Type exports: Full coverage in schema.ts
-
-- **Admin**: jobs, user_integrations, ai_quotas, ai_usage
-  - Repositories: `JobsRepository`, `UserIntegrationsRepository` (static methods pattern)
-  - Business schemas: `src/server/db/business-schemas/admin.ts`
-  - Type exports: Full coverage in schema.ts
-
-**🚧 In Progress (Legacy DbResult Pattern - To Be Migrated):**
-
-- **CRM Core**: contacts, notes, onboarding, storage
-  - Currently use: `await getDb()` + `DbResult<T>` wrapper
-  - Need migration to: Constructor injection + direct throws
-
-**📋 Data Intelligence Domain (Status Unknown):**
-
-- contact_identities, ignored_identifiers, embeddings, documents
-- ai_insights, interactions, raw_events
-- Need assessment: Check if using DbClient or legacy pattern
+- **Repository Layer**: Constructor injection with `DbClient`, throws generic `Error` on failures
+- **Service Layer**: Functional patterns, acquires `DbClient` via `getDb()`, wraps errors as `AppError` with status codes
+- **Route Layer**: Uses standardized handlers from `@/lib/api` (`handleAuth`, `handleGetWithQueryAuth`)
+- **Business Schemas**: Pure Zod validation schemas in `src/server/db/business-schemas/`
+- **Database Types**: Single source of truth in `src/server/db/schema.ts` using `$inferSelect` and `$inferInsert`
 
 ### Layered Architecture Pattern
 
 **Current Standard (October 2025):**
+
+See `docs/REFACTORING_PATTERNS_OCT_2025.md` for complete examples. Quick reference:
 
 ```typescript
 // 1. REPOSITORY LAYER (packages/repo/src/*.repo.ts)
@@ -53,15 +32,28 @@ export class ContactsRepository {
   }
 }
 
+export function createContactsRepository(db: DbClient): ContactsRepository {
+  return new ContactsRepository(db);
+}
+
 // 2. SERVICE LAYER (src/server/services/*.service.ts)
-export async function createContactService(userId: string, input: CreateContactBody): Promise<Contact> {
+export async function createContactService(
+  userId: string,
+  input: CreateContactBody
+): Promise<Contact> {
   const db = await getDb();
-  const repo = new ContactsRepository(db);
+  const repo = createContactsRepository(db);
 
   try {
     return await repo.createContact(userId, { ...input, userId });
   } catch (error) {
-    throw new AppError("Failed to create contact", "DB_ERROR", "database", false);
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to create contact",
+      "DB_ERROR",
+      "database",
+      false,
+      500
+    );
   }
 }
 
@@ -77,37 +69,18 @@ export const POST = handleAuth(
 
 **Key Architectural Principles:**
 
-1. **Repositories**: Accept `DbClient` via constructor, throw on errors (no `DbResult` wrapper)
-2. **Services**: Call `getDb()` to acquire client, instantiate repos, catch and wrap errors as `AppError`
-3. **Handlers**: Use `handleAuth()` or `handleGetWithQueryAuth()`, catch `AppError` and convert to HTTP responses
-4. **Business Schemas**: Pure Zod validation schemas in `src/server/db/business-schemas/`, no transforms
-5. **Database Types**: Single source of truth in `src/server/db/schema.ts`, with `$inferSelect` and `$inferInsert`
+1. **Repositories**: Constructor injection with `DbClient`, throw generic `Error` on failures, return `null` for "not found"
+2. **Services**: Acquire `DbClient` via `getDb()`, use factory functions to create repos, wrap errors as `AppError` with status codes
+3. **Routes**: Use `handleAuth()` or `handleGetWithQueryAuth()`, handlers automatically catch `AppError` and convert to HTTP responses
+4. **Business Schemas**: Pure Zod validation in `src/server/db/business-schemas/`, no transforms
+5. **Database Types**: Single source of truth in `src/server/db/schema.ts` using `$inferSelect` and `$inferInsert`
 
-**Migration Patterns:**
+**❌ Deprecated Patterns (DO NOT USE):**
 
-OLD (Deprecated):
-
-```typescript
-// ❌ OLD - DbResult wrapper pattern
-static async createContact(data: CreateContact): Promise<DbResult<Contact>> {
-  const db = await getDb();
-  const result = await db.insert(contacts).values(data).returning();
-  return ok(result[0]);
-}
-```
-
-NEW (Current Standard):
-
-```typescript
-// ✅ NEW - Direct throw pattern with DbClient injection
-constructor(private readonly db: DbClient) {}
-
-async createContact(userId: string, data: CreateContact): Promise<Contact> {
-  const [contact] = await this.db.insert(contacts).values(data).returning();
-  if (!contact) throw new Error("Insert returned no data");
-  return contact;
-}
-```
+- `DbResult<T>` wrapper - Removed, use direct throws
+- Static repository methods - Use constructor injection
+- Manual `NextRequest`/`NextResponse` - Use standardized handlers
+- Manual `Response.json()` - Use handlers from `@/lib/api`
 
 ### Tech Stack
 

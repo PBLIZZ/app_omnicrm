@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import { NullableDateInputSchema } from "@/lib/validation/common";
 
 // Note: Drizzle imports removed - UI enrichment moved to service-layer mappers
 // Per architecture blueprint: business schemas are pure validation only
@@ -19,25 +20,6 @@ const taskPriorityValues = ["low", "medium", "high", "urgent"] as const;
 const projectStatusValues = ["active", "on_hold", "completed", "archived"] as const;
 
 const detailsSchema = z.record(z.string(), z.unknown());
-const nullableDetailsSchema = z.unknown();
-
-const inputDateSchema = z.union([z.string(), z.number(), z.date(), z.null(), z.undefined()]);
-
-function coerceNullableDate(value: unknown): Date | null | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value === null) {
-    return null;
-  }
-  const date = value instanceof Date ? value : new Date(value as string | number);
-  if (Number.isNaN(date.getTime())) {
-    throw new Error("Invalid date value");
-  }
-  return date;
-}
-
-const dateInputTransform = inputDateSchema.transform(coerceNullableDate);
 
 // ============================================================================
 // BASE TASK & PROJECT SCHEMAS
@@ -51,8 +33,8 @@ export const TaskSchema = z.object({
   name: z.string(),
   status: z.enum(taskStatusValues),
   priority: z.enum(taskPriorityValues),
-  dueDate: z.string().nullable(),
-  details: nullableDetailsSchema,
+  dueDate: z.string().nullable(), // date column returns string
+  details: z.unknown(),
   completedAt: z.date().nullable(),
   createdAt: z.date().nullable(),
   updatedAt: z.date().nullable(),
@@ -66,12 +48,12 @@ export const CreateTaskSchema = z.object({
   parentTaskId: z.string().uuid().nullable().optional(),
   status: z.enum(taskStatusValues).optional(),
   priority: z.enum(taskPriorityValues).optional(),
-  dueDate: dateInputTransform.optional(),
+  dueDate: NullableDateInputSchema.optional(),
   details: detailsSchema.optional(),
 });
 
 export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
-  completedAt: dateInputTransform.optional(),
+  completedAt: NullableDateInputSchema.optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;
@@ -82,8 +64,8 @@ export const ProjectSchema = z.object({
   userId: z.string().uuid(),
   name: z.string(),
   status: z.enum(projectStatusValues),
-  dueDate: z.string().nullable(),
-  details: nullableDetailsSchema,
+  dueDate: z.string().nullable(), // date column returns string
+  details: z.unknown(),
   zoneId: z.number().int().nullable().optional(),
   createdAt: z.date().nullable(),
   updatedAt: z.date().nullable(),
@@ -94,7 +76,7 @@ export type ProjectSchemaOutput = z.infer<typeof ProjectSchema>;
 export const CreateProjectSchema = z.object({
   name: z.string().min(1),
   status: z.enum(projectStatusValues).optional(),
-  dueDate: dateInputTransform.optional(),
+  dueDate: NullableDateInputSchema.optional(),
   details: detailsSchema.optional(),
   zoneId: z.number().int().optional(),
 });

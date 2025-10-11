@@ -9,6 +9,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const _ = require("lodash");
 
 const PROGRESS_FILE = path.join(__dirname, "../docs/api-migration-progress.md");
 
@@ -88,8 +89,9 @@ function updateLeaderboard(content, developer, completedRoutes) {
   }
 
   // Find and update the specific developer row, capturing existing completed count
+  const safeDeveloper = _.escapeRegExp(developer);
   const devPattern = new RegExp(
-    `(\\| \\d+ \\| ${developer} \\| )(\\d+)/(\\d+)( \\| )\\d+%( \\| )[🟢🟡🔴]( \\|)`,
+    `(\\| \\d+ \\| ${safeDeveloper} \\| )(\\d+)/(\\d+)( \\| )\\d+%( \\| )[🟢🟡🔴]( \\|)`,
   );
   const match = content.match(devPattern);
 

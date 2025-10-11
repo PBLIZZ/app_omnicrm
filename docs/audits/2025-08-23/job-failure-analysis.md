@@ -46,7 +46,7 @@ currentErrorRate: >20%      // Based on scaling-manager metrics
 
 ### Top Failing Job Types
 
-1. **sync_gmail** - OAuth token expiry, rate limits
+1. **google_gmail_sync** - OAuth token expiry, rate limits
 2. **embed** - Memory exhaustion, AI API timeouts
 3. **insight** - Database query timeouts
 4. **extract_contacts** - Payload size violations

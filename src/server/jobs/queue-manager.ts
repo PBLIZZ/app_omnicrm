@@ -4,29 +4,11 @@ import { eq, and, inArray } from "drizzle-orm";
 import { enqueue } from "./enqueue";
 import type { JobKind, JobPayloadByKind } from "./types";
 import { v4 as uuidv4 } from "uuid";
-import { ensureError } from "@/lib/utils/error-handler";
 import { logger } from "@/lib/observability";
-
-export interface BatchJobOptions {
-  priority?: "low" | "medium" | "high";
-  delay?: number; // delay in milliseconds
-  maxRetries?: number;
-}
 
 export interface BatchJob {
   payload: Record<string, unknown>;
   options?: BatchJobOptions;
-}
-
-export interface BatchStatus {
-  batchId: string;
-  total: number;
-  completed: number;
-  failed: number;
-  pending: number;
-  status: "in_progress" | "completed" | "failed" | "cancelled";
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export class QueueManager {
@@ -86,7 +68,7 @@ export class QueueManager {
             userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       throw error;
     }
@@ -150,7 +132,7 @@ export class QueueManager {
             batchId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       return null;
     }
@@ -194,7 +176,7 @@ export class QueueManager {
             userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       throw error;
     }
@@ -231,7 +213,7 @@ export class QueueManager {
             userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       return {};
     }

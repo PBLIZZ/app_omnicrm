@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
-import { ClientsSidebar } from "@/app/(authorisedRoute)/omni-clients/_components/ClientsSidebar";
+import { ContactsSidebar } from "@/app/(authorisedRoute)/contacts/_components/ContactsSidebar";
 import { DashboardSidebar } from "@/app/(authorisedRoute)/omni-flow/_components/DashboardSidebar";
 import { MarketingSidebar } from "@/app/(authorisedRoute)/omni-reach/_components/MarketingSidebar";
 import { ConnectSidebar } from "@/app/(authorisedRoute)/omni-connect/_components/ConnectSidebar";
@@ -19,8 +19,8 @@ export function AppSidebarController(): JSX.Element {
       return <DashboardSidebar />;
     }
 
-    if (pathname.startsWith("/omni-clients")) {
-      return <ClientsSidebar />;
+    if (pathname.startsWith("/contacts")) {
+      return <ContactsSidebar />;
     }
 
     if (pathname.startsWith("/omni-momentum")) {

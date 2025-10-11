@@ -1,40 +1,47 @@
+// ===== src/app/api/onboarding/public/submit/route.ts =====
 import { handlePublic } from "@/lib/api-edge-cases";
-import { OnboardingService } from "@/server/services/onboarding.service";
+import {
+  checkRateLimitService,
+  extractClientIpData,
+  processSubmissionService,
+} from "@/server/services/onboarding.service";
 import {
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
-} from "@/server/db/business-schemas";
-import { z } from "zod";
+  type OnboardingSubmitResponse,
+} from "@/server/db/business-schemas/onboarding";
 
 export const POST = handlePublic(
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
-  async (data, request): Promise<z.infer<typeof OnboardingSubmitResponseSchema>> => {
+  async (data, request): Promise<OnboardingSubmitResponse> => {
     // Rate limiting
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    const realIp = request.headers.get("x-real-ip");
-    const clientId = forwardedFor || realIp || "unknown";
+    const clientId =
+      request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
 
-    const { success } = await OnboardingService.checkRateLimit(clientId);
-    if (!success) {
+    const allowed = await checkRateLimitService(clientId);
+    if (!allowed) {
       const error = new Error("Too many requests");
-      (error as any).status = 429;
+      Object.defineProperty(error, "status", { value: 429 });
       throw error;
     }
 
-    // Extract client IP and user agent for consent tracking
-    const clientIpData = OnboardingService.extractClientIpData({
-      "x-forwarded-for": forwardedFor,
-      "x-real-ip": realIp,
+    // Extract client IP data
+    const clientIpData = extractClientIpData({
+      "x-forwarded-for": request.headers.get("x-forwarded-for"),
+      "x-real-ip": request.headers.get("x-real-ip"),
       "user-agent": request.headers.get("user-agent"),
     });
 
-    // Process the onboarding submission using service
-    const result = await OnboardingService.processOnboardingSubmission(data, clientIpData);
+    // Process submission
+    const result = await processSubmissionService(data, clientIpData);
 
     return {
       success: true,
-      data: result,
+      data: {
+        contactId: result.contactId,
+        message: result.message,
+      },
     };
   },
 );

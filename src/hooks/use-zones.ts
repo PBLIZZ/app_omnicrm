@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -24,12 +25,12 @@ import type { Zone, ZoneWithStats } from "@/server/db/business-schemas";
 // TYPES
 // ============================================================================
 
-interface ZonesApiResponse {
+interface ZonesResponse {
   items: Zone[];
   total: number;
 }
 
-interface ZonesWithStatsApiResponse {
+interface ZonesWithStatsResponse {
   items: ZoneWithStats[];
   total: number;
 }
@@ -72,18 +73,31 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
   }
 
   const queryString = queryParams.toString();
-  const apiUrl = `/api/zones${queryString ? `?${queryString}` : ""}`;
+  const apiUrl = `/api/omni-momentum/zones${queryString ? `?${queryString}` : ""}`;
 
   // Fetch zones
   const zonesQuery = useQuery({
     queryKey: queryKeys.zones.list(withStats),
     queryFn: async (): Promise<Zone[] | ZoneWithStats[]> => {
       if (withStats) {
-        const data = await apiClient.get<ZonesWithStatsApiResponse>(apiUrl);
-        return data.items ?? [];
+        const result =
+          await apiClient.get<Result<ZonesWithStatsResponse, { message: string; code: string }>>(
+            apiUrl,
+          );
+        if (isErr(result)) {
+          throw new Error(result.error.message);
+        }
+        if (!result.success) {
+          throw new Error("Invalid result state");
+        }
+        return result.data.items ?? [];
       } else {
-        const data = await apiClient.get<ZonesApiResponse>(apiUrl);
-        return data.items ?? [];
+        const result =
+          await apiClient.get<Result<ZonesResponse, { message: string; code: string }>>(apiUrl);
+        if (!result.success) {
+          throw new Error(result.error.message);
+        }
+        return result.data.items ?? [];
       }
     },
     refetchInterval: autoRefetch ? 300000 : false, // Auto-refresh every 5 minutes (zones change rarely)

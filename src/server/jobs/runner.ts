@@ -4,7 +4,7 @@ import { jobs } from "@/server/db/schema";
 import type { JobRecord } from "./types";
 import { JobDispatcher } from "./dispatcher";
 import { logger } from "@/lib/observability";
-import { ensureError } from "@/lib/utils/error-handler";
+import { ErrorHandler } from "@/lib/errors/app-error";
 
 /**
  * JobRunner is responsible for processing queued jobs from the database.
@@ -100,7 +100,7 @@ export class JobRunner {
                 jobKind: job.kind,
               },
             },
-            ensureError(error),
+            error instanceof Error ? error : new Error(String(error)),
           );
         }
       }
@@ -128,7 +128,7 @@ export class JobRunner {
           operation: "runner_execute",
           additionalData: {},
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
       throw error;
     }
@@ -210,7 +210,7 @@ export class JobRunner {
             duration,
           },
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
 
       // Determine if we should retry or mark as failed
@@ -319,7 +319,7 @@ export class JobRunner {
             userId,
           },
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
       throw error;
     }
@@ -355,7 +355,7 @@ export class JobRunner {
           operation: "runner_execute",
           additionalData: {},
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
       throw error;
     }
@@ -393,7 +393,7 @@ export class JobRunner {
           operation: "runner_execute",
           additionalData: {},
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
       throw error;
     }

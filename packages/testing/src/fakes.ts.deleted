@@ -1,0 +1,519 @@
+/**
+ * @fileoverview Repository fakes using vitest-mock-extended
+ *
+ * Provides pre-configured vi.fn() mocks for all repository functions with:
+ * - Realistic return values using factories
+ * - Easy setup for unit tests
+ * - Type-safe mocking
+ * - Consistent mock patterns across repositories
+ */
+
+import { vi, type MockedFunction } from "vitest";
+import {
+  makeOmniClientWithNotes,
+  makeInteraction,
+  makeContactWithRelations,
+  makePaginatedResponse,
+  makeBatch,
+  type NewInteraction,
+  type Interaction,
+  type OmniClientWithNotesDTO,
+} from "./factories";
+
+// Repository-specific types
+export type ContactListParams = {
+  search?: string;
+  sort?: "displayName" | "createdAt";
+  order?: "asc" | "desc";
+  page: number;
+  pageSize: number;
+  dateRange?: { from?: Date; to?: Date };
+};
+
+export type ContactListItem = {
+  id: string;
+  userId: string;
+  displayName: string;
+  primaryEmail: string | null;
+  primaryPhone: string | null;
+  source: string | null;
+  lifecycleStage: string | null;
+  tags: unknown;
+  confidenceScore: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  notesCount: number;
+  lastNote: string | null;
+};
+
+// Helper to convert DTO to ContactListItem
+function convertToContactListItem(dto: OmniClientWithNotesDTO): ContactListItem {
+  return {
+    ...dto,
+    createdAt: new Date(dto.createdAt),
+    updatedAt: new Date(dto.updatedAt),
+    tags: dto.tags,
+  };
+}
+
+
+// =============================================================================
+// CONTACTS REPOSITORY FAKES
+// =============================================================================
+
+export function createContactsRepoFakes(): ContactsRepoFakes {
+  return {
+    listContacts: vi.fn().mockImplementation(async (userId: string, params: ContactListParams) => {
+      const items = makeBatch(() => makeOmniClientWithNotes({ userId }), params.pageSize || 10);
+      return makePaginatedResponse(items, items.length + 50); // Mock has more total items
+    }),
+
+    createContact: vi
+      .fn()
+      .mockImplementation(async (userId: string, values: CreateContactValues) => {
+        return makeOmniClientWithNotes({
+          userId,
+          displayName: values.displayName,
+          primaryEmail: values.primaryEmail,
+          primaryPhone: values.primaryPhone,
+          source: values.source,
+          notesCount: 0,
+          lastNote: null,
+        });
+      }),
+
+    createContactsBatch: vi.fn().mockImplementation(
+      async (
+        userId: string,
+        contactsData: Array<{
+          displayName: string;
+          primaryEmail?: string | null;
+          primaryPhone?: string | null;
+          source: "gmail_import" | "manual" | "upload";
+        }>,
+      ) => {
+        const created = contactsData.map((data) =>
+          makeOmniClientWithNotes({
+            userId,
+            displayName: data.displayName,
+            primaryEmail: data.primaryEmail ?? null,
+            primaryPhone: data.primaryPhone ?? null,
+            source: data.source,
+            notesCount: 0,
+            lastNote: null,
+          }),
+        );
+        return {
+          created,
+          duplicates: 0,
+          errors: 0,
+        };
+      },
+    ),
+
+    searchContactsOptimized: vi
+      .fn()
+      .mockImplementation(async (userId: string, query: string, limit = 25) => {
+        // Return contacts that match the search query in name or email
+        return makeBatch(
+          () =>
+            makeOmniClientWithNotes({
+              userId,
+              displayName: `${query} Contact`,
+              primaryEmail: `${query.toLowerCase()}@example.com`,
+            }),
+          Math.min(limit, 5), // Return up to 5 search results
+        );
+      }),
+
+    getContactStatsOptimized: vi.fn().mockResolvedValue({
+      total: 100,
+      bySource: {
+        manual: 30,
+        gmail_import: 45,
+        upload: 15,
+        calendar_import: 10,
+      },
+      recentlyAdded: 12,
+      withEmail: 85,
+      withPhone: 65,
+    }),
+  };
+}
+
+// =============================================================================
+// INTERACTIONS REPOSITORY FAKES
+// =============================================================================
+
+interface InteractionRow {
+  id: string;
+  user_id: string;
+  contact_id: string | null;
+  type: string;
+  subject: string | null;
+  body_text: string | null;
+  body_raw: unknown;
+  occurred_at: string;
+  source: string | null;
+  source_id: string | null;
+  source_meta: unknown;
+  batch_id: string | null;
+  created_at: string;
+}
+
+export function createInteractionsRepoFakes(): InteractionsRepoFakes {
+  return {
+    upsert: vi.fn().mockImplementation(async (interaction: NewInteraction) => {
+      return makeInteraction({ ...interaction }).id;
+    }),
+
+    bulkUpsert: vi.fn().mockImplementation(async (interactions: NewInteraction[]) => {
+      return interactions.map(() => makeInteraction().id);
+    }),
+
+    getById: vi.fn().mockImplementation(async (interactionId: string) => {
+      const interaction = makeInteraction({ id: interactionId });
+      return {
+        id: interaction.id,
+        user_id: interaction.userId,
+        contact_id: interaction.contactId,
+        type: interaction.type,
+        subject: interaction.subject,
+        body_text: interaction.bodyText,
+        body_raw: interaction.bodyRaw,
+        occurred_at: interaction.occurredAt,
+        source: interaction.source,
+        source_id: interaction.sourceId,
+        source_meta: interaction.sourceMeta,
+        batch_id: interaction.batchId,
+        created_at: interaction.createdAt,
+      } as InteractionRow;
+    }),
+
+    getByContact: vi
+      .fn()
+      .mockImplementation(async (userId: string, contactId: string, options = {}) => {
+        const limit = options.limit || 50;
+        const interactions = makeBatch(
+          () => makeInteraction({ userId, contactId }),
+          Math.min(limit, 10),
+        );
+        return interactions.map((interaction) => ({
+          id: interaction.id,
+          user_id: interaction.userId,
+          contact_id: interaction.contactId,
+          type: interaction.type,
+          subject: interaction.subject,
+          body_text: interaction.bodyText,
+          body_raw: interaction.bodyRaw,
+          occurred_at: interaction.occurredAt,
+          source: interaction.source,
+          source_id: interaction.sourceId,
+          source_meta: interaction.sourceMeta,
+          batch_id: interaction.batchId,
+          created_at: interaction.createdAt,
+        })) as InteractionRow[];
+      }),
+
+    getUnlinked: vi.fn().mockImplementation(async (userId: string, options = {}) => {
+      const limit = options.limit || 100;
+      const interactions = makeBatch(
+        () => makeInteraction({ userId, contactId: null }),
+        Math.min(limit, 5),
+      );
+      return interactions.map((interaction) => ({
+        id: interaction.id,
+        user_id: interaction.userId,
+        contact_id: null,
+        type: interaction.type,
+        subject: interaction.subject,
+        body_text: interaction.bodyText,
+        body_raw: interaction.bodyRaw,
+        occurred_at: interaction.occurredAt,
+        source: interaction.source,
+        source_id: interaction.sourceId,
+        source_meta: interaction.sourceMeta,
+        batch_id: interaction.batchId,
+        created_at: interaction.createdAt,
+      })) as InteractionRow[];
+    }),
+
+    linkToContact: vi.fn().mockResolvedValue(undefined),
+
+    getRecentForTimeline: vi.fn().mockImplementation(async (userId: string, options = {}) => {
+      const limit = options.limit || 100;
+      const interactions = makeBatch(() => makeInteraction({ userId }), Math.min(limit, 20));
+      return interactions.map((interaction) => ({
+        id: interaction.id,
+        user_id: interaction.userId,
+        contact_id: interaction.contactId,
+        type: interaction.type,
+        subject: interaction.subject,
+        body_text: interaction.bodyText,
+        body_raw: interaction.bodyRaw,
+        occurred_at: interaction.occurredAt,
+        source: interaction.source,
+        source_id: interaction.sourceId,
+        source_meta: interaction.sourceMeta,
+        batch_id: interaction.batchId,
+        created_at: interaction.createdAt,
+      })) as InteractionRow[];
+    }),
+
+    getWithoutEmbeddings: vi.fn().mockImplementation(async (userId: string, limit = 50) => {
+      return makeBatch(
+        () => {
+          const interaction = makeInteraction({ userId });
+          return {
+            id: interaction.id,
+            bodyText: interaction.bodyText,
+          };
+        },
+        Math.min(limit, 10),
+      );
+    }),
+
+    getStats: vi.fn().mockResolvedValue({
+      byType: {
+        email_received: 45,
+        email_sent: 23,
+        meeting_attended: 12,
+        call_logged: 8,
+        note_added: 15,
+      },
+      linking: {
+        linked: 78,
+        unlinked: 25,
+      },
+      bySource: {
+        gmail: 68,
+        calendar: 20,
+        manual: 15,
+      },
+    }),
+  };
+}
+
+// =============================================================================
+// AUTH USER REPOSITORY FAKES
+// =============================================================================
+
+export function createAuthUserRepoFakes(): AuthUserRepoFakes {
+  return {
+    getUserContext: vi.fn().mockImplementation(async (userId: string) => {
+      return {
+        email: `user-${userId.slice(0, 8)}@example.com`,
+      };
+    }),
+
+    userExists: vi.fn().mockResolvedValue(true),
+
+    getUserInfo: vi.fn().mockImplementation(async (userId: string) => {
+      return {
+        id: userId,
+        email: `user-${userId.slice(0, 8)}@example.com`,
+        created_at: new Date().toISOString(),
+      };
+    }),
+  };
+}
+
+// =============================================================================
+// IDENTITIES REPOSITORY FAKES (if exists)
+// =============================================================================
+
+export function createIdentitiesRepoFakes(): IdentitiesRepoFakes {
+  return {
+    // Placeholder for identities repo methods
+  };
+}
+
+// =============================================================================
+// RAW EVENTS REPOSITORY FAKES (if exists)
+// =============================================================================
+
+export function createRawEventsRepoFakes(): RawEventsRepoFakes {
+  return {
+    // Placeholder for raw events repo methods
+  };
+}
+
+// =============================================================================
+// COMBINED REPOSITORY FAKES
+// =============================================================================
+
+/**
+ * All repository fakes in one object for easy setup
+ */
+export interface AllRepoFakes {
+  contacts: ContactsRepoFakes;
+  interactions: InteractionsRepoFakes;
+  authUser: AuthUserRepoFakes;
+  identities: IdentitiesRepoFakes;
+  rawEvents: RawEventsRepoFakes;
+}
+
+/**
+ * Creates all repository fakes with realistic default behaviors
+ */
+export function createAllRepoFakes(): AllRepoFakes {
+  return {
+    contacts: createContactsRepoFakes(),
+    interactions: createInteractionsRepoFakes(),
+    authUser: createAuthUserRepoFakes(),
+    identities: createIdentitiesRepoFakes(),
+    rawEvents: createRawEventsRepoFakes(),
+  };
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Helper to setup repository mocks in vitest tests
+ */
+export function setupRepoMocks() {
+  const fakes = createAllRepoFakes();
+
+  // Mock all repository modules
+  vi.doMock("@repo/contacts", () => fakes.contacts);
+  vi.doMock("@repo", () => ({
+    InteractionsRepository: class {
+      static upsert = fakes.interactions.upsert;
+      static bulkUpsert = fakes.interactions.bulkUpsert;
+      static getById = fakes.interactions.getById;
+      static getByContact = fakes.interactions.getByContact;
+      static getUnlinked = fakes.interactions.getUnlinked;
+      static linkToContact = fakes.interactions.linkToContact;
+      static getRecentForTimeline = fakes.interactions.getRecentForTimeline;
+      static getWithoutEmbeddings = fakes.interactions.getWithoutEmbeddings;
+      static getStats = fakes.interactions.getStats;
+    },
+  }));
+  vi.doMock("@/server/repositories/auth-user.repo", () => fakes.authUser);
+
+  return fakes;
+}
+
+/**
+ * Helper to reset all repository mocks
+ */
+export function resetRepoMocks(fakes: AllRepoFakes) {
+  Object.values(fakes.contacts).forEach((mock) => mock.mockClear());
+  Object.values(fakes.interactions).forEach((mock) => mock.mockClear());
+  Object.values(fakes.authUser).forEach((mock) => mock.mockClear());
+  Object.values(fakes.identities).forEach((mock) => mock.mockClear());
+  Object.values(fakes.rawEvents).forEach((mock) => mock.mockClear());
+}
+
+/**
+ * Helper to configure common test scenarios
+ */
+export function configureCommonScenarios(fakes: AllRepoFakes) {
+  return {
+    /**
+     * Configure empty database scenario
+     */
+    emptyDatabase: () => {
+      fakes.contacts.listContacts.mockResolvedValue({ items: [], total: 0 });
+      fakes.contacts.searchContactsOptimized.mockResolvedValue([]);
+      fakes.interactions.getByContact.mockResolvedValue([]);
+      fakes.interactions.getUnlinked.mockResolvedValue([]);
+    },
+
+    /**
+     * Configure error scenarios
+     */
+    databaseError: () => {
+      const error = new Error("Database connection error");
+      Object.values(fakes.contacts).forEach((mock) => {
+        if (typeof mock.mockRejectedValue === "function") {
+          mock.mockRejectedValue(error);
+        }
+      });
+      Object.values(fakes.interactions).forEach((mock) => {
+        if (typeof mock.mockRejectedValue === "function") {
+          mock.mockRejectedValue(error);
+        }
+      });
+    },
+
+    /**
+     * Configure user not found scenario
+     */
+    userNotFound: (userId: string) => {
+      fakes.authUser.userExists.mockResolvedValue(false);
+      fakes.authUser.getUserContext.mockResolvedValue(null);
+      fakes.authUser.getUserInfo.mockResolvedValue(null);
+    },
+
+    /**
+     * Configure rich contact data scenario
+     */
+    richContactData: (userId: string) => {
+      const { contact, interactions } = makeContactWithRelations({
+        contact: { userId },
+        noteCount: 5,
+        interactionCount: 10,
+      });
+
+      fakes.contacts.listContacts.mockResolvedValue({
+        items: [convertToContactListItem(contact)],
+        total: 1,
+      });
+
+      fakes.interactions.getByContact.mockResolvedValue(
+        interactions.map((interaction: Interaction) => ({
+          id: interaction.id,
+          user_id: interaction.userId,
+          contact_id: interaction.contactId,
+          type: interaction.type,
+          subject: interaction.subject,
+          body_text: interaction.bodyText,
+          body_raw: interaction.bodyRaw,
+          occurred_at: interaction.occurredAt,
+          source: interaction.source,
+          source_id: interaction.sourceId,
+          source_meta: interaction.sourceMeta,
+          batch_id: interaction.batchId,
+          created_at: interaction.createdAt,
+        })) as InteractionRow[],
+      );
+    },
+
+    /**
+     * Configure contact with wellness data scenario
+     */
+    contactWithWellnessData: (userId: string) => {
+      const contact = makeOmniClientWithNotes({
+        userId,
+        lifecycleStage: "Core Client",
+        tags: ["Yoga", "Regular Attendee"],
+        confidenceScore: "0.85",
+      });
+
+      fakes.contacts.listContacts.mockResolvedValue({
+        items: [convertToContactListItem(contact)],
+        total: 1,
+      });
+    },
+
+    /**
+     * Configure data corruption scenario
+     */
+    dataCorruption: () => {
+      const corruptContact = makeOmniClientWithNotes({
+        lifecycleStage: "Core Client",
+        // Simulate corrupted tags field
+        tags: null,
+        confidenceScore: "0.85",
+      });
+
+      fakes.contacts.listContacts.mockResolvedValue({
+        items: [convertToContactListItem(corruptContact)],
+        total: 1,
+      });
+    },
+  };
+}

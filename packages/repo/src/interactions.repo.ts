@@ -1,604 +1,316 @@
-import { eq, and, desc, gte, lte, inArray, count, sql } from "drizzle-orm";
-import { interactions } from "./schema";
-import { getDb } from "./db";
-import type { Interaction, CreateInteraction } from "./schema";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or } from "drizzle-orm";
 
-// Local type aliases for repository layer
-type InteractionDTO = Interaction;
-type CreateInteractionDTO = CreateInteraction;
-type UpdateInteractionDTO = Partial<CreateInteraction>;
+import type { DbClient } from "@/server/db/client";
+import {
+  interactions,
+  type CreateInteraction,
+  type Interaction,
+  type UpdateInteraction,
+} from "@/server/db/schema";
 
-interface InteractionFilters {
+export type InteractionListParams = {
   contactId?: string;
-  type?: string[];
-  source?: string[];
+  types?: string[];
+  sources?: string[];
+  search?: string;
   occurredAfter?: Date;
   occurredBefore?: Date;
-}
+  page?: number;
+  pageSize?: number;
+  sort?: "occurredAt" | "createdAt";
+  order?: "asc" | "desc";
+};
 
-// Additional types for server compatibility
-interface IdRow {
-  id: string;
-}
-
-interface EmbeddingRow {
-  id: string;
-  bodyText: string | null;
-}
-
-interface TypeStatsRow {
-  type: string;
-  count: string;
-}
-
-interface LinkStatsRow {
-  linked: string;
-  unlinked: string;
-}
-
-interface SourceStatsRow {
-  source: string;
-  count: string;
-}
+const sortColumnMap = {
+  occurredAt: interactions.occurredAt,
+  createdAt: interactions.createdAt,
+} as const;
 
 export class InteractionsRepository {
-  /**
-   * List interactions for a user with optional filtering
-   */
-  static async listInteractions(
-    userId: string,
-    filters?: InteractionFilters,
-  ): Promise<InteractionDTO[]> {
-    const db = await getDb();
+  constructor(private readonly db: DbClient) {}
 
-    // Build conditions array
+  /**
+   * List interactions for a user with pagination and filtering.
+   */
+  async listInteractions(
+    userId: string,
+    params: InteractionListParams = {},
+  ): Promise<{ items: Interaction[]; total: number }> {
+    const page = Math.max(params.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), 200);
+    const offset = (page - 1) * pageSize;
+
     const conditions = [eq(interactions.userId, userId)];
 
-    if (filters?.contactId) {
-      conditions.push(eq(interactions.contactId, filters.contactId));
+    if (params.contactId) {
+      conditions.push(eq(interactions.contactId, params.contactId));
     }
 
-    if (filters?.type && filters.type.length > 0) {
-      conditions.push(inArray(interactions.type, filters.type));
+    if (params.types && params.types.length > 0) {
+      conditions.push(inArray(interactions.type, params.types));
     }
 
-    if (filters?.source && filters.source.length > 0) {
-      conditions.push(inArray(interactions.source, filters.source));
+    if (params.sources && params.sources.length > 0) {
+      conditions.push(inArray(interactions.source, params.sources));
     }
 
-    if (filters?.occurredAfter) {
-      conditions.push(gte(interactions.occurredAt, filters.occurredAfter));
+    if (params.occurredAfter) {
+      conditions.push(gte(interactions.occurredAt, params.occurredAfter));
     }
 
-    if (filters?.occurredBefore) {
-      conditions.push(lte(interactions.occurredAt, filters.occurredBefore));
+    if (params.occurredBefore) {
+      conditions.push(lte(interactions.occurredAt, params.occurredBefore));
     }
 
-    const query = db
-      .select({
-        id: interactions.id,
-        userId: interactions.userId,
-        contactId: interactions.contactId,
-        type: interactions.type,
-        subject: interactions.subject,
-        bodyText: interactions.bodyText,
-        bodyRaw: interactions.bodyRaw,
-        occurredAt: interactions.occurredAt,
-        source: interactions.source,
-        sourceId: interactions.sourceId,
-        sourceMeta: interactions.sourceMeta,
-        batchId: interactions.batchId,
-        createdAt: interactions.createdAt,
-      })
-      .from(interactions)
-      .where(and(...conditions))
-      .orderBy(desc(interactions.occurredAt));
+    if (params.search) {
+      const searchTerm = `%${params.search}%`;
+      const searchCondition = or(
+        ilike(interactions.subject, searchTerm),
+        ilike(interactions.bodyText, searchTerm),
+      );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
+    }
 
-    const rows = await query;
+    const whereClause = and(...conditions);
+    const sortKey = params.sort ?? "occurredAt";
+    const order = params.order === "asc" ? asc : desc;
 
-    return rows.map((row) => row);
+    const [rows, totalRow] = await Promise.all([
+      this.db
+        .select()
+        .from(interactions)
+        .where(whereClause)
+        .orderBy(order(sortColumnMap[sortKey]))
+        .limit(pageSize)
+        .offset(offset),
+      this.db.select({ value: count() }).from(interactions).where(whereClause),
+    ]);
+
+    return {
+      items: rows,
+      total: Number(totalRow[0]?.value ?? 0),
+    };
   }
 
   /**
-   * Get a single interaction by ID
+   * Fetch a single interaction by ID.
    */
-  static async getInteractionById(
-    userId: string,
-    interactionId: string,
-  ): Promise<InteractionDTO | null> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: interactions.id,
-        userId: interactions.userId,
-        contactId: interactions.contactId,
-        type: interactions.type,
-        subject: interactions.subject,
-        bodyText: interactions.bodyText,
-        bodyRaw: interactions.bodyRaw,
-        occurredAt: interactions.occurredAt,
-        source: interactions.source,
-        sourceId: interactions.sourceId,
-        sourceMeta: interactions.sourceMeta,
-        batchId: interactions.batchId,
-        createdAt: interactions.createdAt,
-      })
+  async getInteractionById(userId: string, interactionId: string): Promise<Interaction | null> {
+    const rows = await this.db
+      .select()
       .from(interactions)
       .where(and(eq(interactions.userId, userId), eq(interactions.id, interactionId)))
       .limit(1);
 
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return rows[0]!;
+    return rows[0] ?? null;
   }
 
   /**
-   * Get interactions for a specific contact
+   * Find interaction by source + sourceId (used for upsert flows).
    */
-  static async getInteractionsByContactId(
+  async findBySource(
     userId: string,
-    contactId: string,
-  ): Promise<InteractionDTO[]> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: interactions.id,
-        userId: interactions.userId,
-        contactId: interactions.contactId,
-        type: interactions.type,
-        subject: interactions.subject,
-        bodyText: interactions.bodyText,
-        bodyRaw: interactions.bodyRaw,
-        occurredAt: interactions.occurredAt,
-        source: interactions.source,
-        sourceId: interactions.sourceId,
-        sourceMeta: interactions.sourceMeta,
-        batchId: interactions.batchId,
-        createdAt: interactions.createdAt,
-      })
+    source: string,
+    sourceId: string,
+  ): Promise<Interaction | null> {
+    const rows = await this.db
+      .select()
       .from(interactions)
-      .where(and(eq(interactions.userId, userId), eq(interactions.contactId, contactId)))
-      .orderBy(desc(interactions.occurredAt));
+      .where(
+        and(
+          eq(interactions.userId, userId),
+          eq(interactions.source, source),
+          eq(interactions.sourceId, sourceId),
+        ),
+      )
+      .limit(1);
 
-    return rows.map((row) => row);
+    return rows[0] ?? null;
   }
 
   /**
-   * Create a new interaction
+   * Create a new interaction.
    */
-  static async createInteraction(
-    userId: string,
-    data: CreateInteractionDTO,
-  ): Promise<InteractionDTO> {
-    const db = await getDb();
-
-    // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
-    const insertValues = {
-      userId: userId,
+  async createInteraction(data: CreateInteraction & { userId: string }): Promise<Interaction> {
+    const insertValues: CreateInteraction & { userId: string } = {
+      userId: data.userId,
       contactId: data.contactId ?? null,
       type: data.type,
       subject: data.subject ?? null,
       bodyText: data.bodyText ?? null,
-      bodyRaw: data.bodyRaw ?? null,
       occurredAt: data.occurredAt,
       source: data.source ?? null,
       sourceId: data.sourceId ?? null,
       sourceMeta: data.sourceMeta ?? null,
       batchId: data.batchId ?? null,
+      createdAt: data.createdAt,
     };
 
-    const [newInteraction] = await db.insert(interactions).values(insertValues).returning({
-      id: interactions.id,
-      userId: interactions.userId,
-      contactId: interactions.contactId,
-      type: interactions.type,
-      subject: interactions.subject,
-      bodyText: interactions.bodyText,
-      bodyRaw: interactions.bodyRaw,
-      occurredAt: interactions.occurredAt,
-      source: interactions.source,
-      sourceId: interactions.sourceId,
-      sourceMeta: interactions.sourceMeta,
-      batchId: interactions.batchId,
-      createdAt: interactions.createdAt,
-    });
+    const [created] = await this.db.insert(interactions).values(insertValues).returning();
 
-    if (!newInteraction) {
-      throw new Error("Failed to create interaction");
+    if (!created) {
+      throw new Error("Insert returned no data");
     }
 
-    return newInteraction;
+    return created;
   }
 
   /**
-   * Update an existing interaction
+   * Bulk insert interactions for ingestion pipelines.
    */
-  static async updateInteraction(
-    userId: string,
-    interactionId: string,
-    data: UpdateInteractionDTO,
-  ): Promise<InteractionDTO | null> {
-    const db = await getDb();
-
-    // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
-    const updateValues = {
-      ...(data.contactId !== undefined && { contactId: data.contactId ?? null }),
-      ...(data.type !== undefined && { type: data.type }),
-      ...(data.subject !== undefined && { subject: data.subject ?? null }),
-      ...(data.bodyText !== undefined && { bodyText: data.bodyText ?? null }),
-      ...(data.bodyRaw !== undefined && { bodyRaw: data.bodyRaw ?? null }),
-      ...(data.occurredAt !== undefined && { occurredAt: data.occurredAt }),
-      ...(data.source !== undefined && { source: data.source ?? null }),
-      ...(data.sourceId !== undefined && { sourceId: data.sourceId ?? null }),
-      ...(data.sourceMeta !== undefined && { sourceMeta: data.sourceMeta ?? null }),
-      ...(data.batchId !== undefined && { batchId: data.batchId ?? null }),
-    };
-
-    const [updatedInteraction] = await db
-      .update(interactions)
-      .set(updateValues)
-      .where(and(eq(interactions.userId, userId), eq(interactions.id, interactionId)))
-      .returning({
-        id: interactions.id,
-        userId: interactions.userId,
-        contactId: interactions.contactId,
-        type: interactions.type,
-        subject: interactions.subject,
-        bodyText: interactions.bodyText,
-        bodyRaw: interactions.bodyRaw,
-        occurredAt: interactions.occurredAt,
-        source: interactions.source,
-        sourceId: interactions.sourceId,
-        sourceMeta: interactions.sourceMeta,
-        batchId: interactions.batchId,
-        createdAt: interactions.createdAt,
-      });
-
-    if (!updatedInteraction) {
-      return null;
+  async createInteractionsBulk(
+    items: Array<CreateInteraction & { userId: string }>,
+  ): Promise<Interaction[]> {
+    if (items.length === 0) {
+      return [];
     }
 
-    return updatedInteraction;
-  }
-
-  /**
-   * Delete an interaction
-   */
-  static async deleteInteraction(userId: string, interactionId: string): Promise<boolean> {
-    const db = await getDb();
-
-    const result = await db
-      .delete(interactions)
-      .where(and(eq(interactions.userId, userId), eq(interactions.id, interactionId)));
-
-    return result.length > 0;
-  }
-
-  /**
-   * Bulk create interactions (useful for sync operations)
-   */
-  static async bulkCreateInteractions(
-    userId: string,
-    data: CreateInteractionDTO[],
-  ): Promise<InteractionDTO[]> {
-    const db = await getDb();
-
-    const newInteractions = await db
+    const rows = await this.db
       .insert(interactions)
       .values(
-        data.map((item) => ({
-          userId: userId,
+        items.map((item) => ({
+          userId: item.userId,
           contactId: item.contactId ?? null,
           type: item.type,
           subject: item.subject ?? null,
           bodyText: item.bodyText ?? null,
-          bodyRaw: item.bodyRaw ?? null,
           occurredAt: item.occurredAt,
           source: item.source ?? null,
           sourceId: item.sourceId ?? null,
           sourceMeta: item.sourceMeta ?? null,
           batchId: item.batchId ?? null,
+          createdAt: item.createdAt,
         })),
       )
-      .returning({
-        id: interactions.id,
-        userId: interactions.userId,
-        contactId: interactions.contactId,
-        type: interactions.type,
-        subject: interactions.subject,
-        bodyText: interactions.bodyText,
-        bodyRaw: interactions.bodyRaw,
-        occurredAt: interactions.occurredAt,
-        source: interactions.source,
-        sourceId: interactions.sourceId,
-        sourceMeta: interactions.sourceMeta,
-        batchId: interactions.batchId,
-        createdAt: interactions.createdAt,
-      });
+      .returning();
 
-    return newInteractions.map((row) => row);
+    return rows;
   }
 
   /**
-   * Count interactions for a user
+   * Update an interaction's editable fields.
    */
-  static async countInteractions(userId: string, filters?: InteractionFilters): Promise<number> {
-    const db = await getDb();
+  async updateInteraction(
+    userId: string,
+    interactionId: string,
+    updates: UpdateInteraction,
+  ): Promise<Interaction | null> {
+    const sanitized: Record<string, unknown> = {};
 
-    // Build conditions array
+    if (updates.contactId !== undefined) sanitized["contactId"] = updates.contactId;
+    if (updates.type !== undefined) sanitized["type"] = updates.type;
+    if (updates.subject !== undefined) sanitized["subject"] = updates.subject ?? null;
+    if (updates.bodyText !== undefined) sanitized["bodyText"] = updates.bodyText ?? null;
+    if (updates.occurredAt !== undefined) sanitized["occurredAt"] = updates.occurredAt;
+    if (updates.source !== undefined) sanitized["source"] = updates.source ?? null;
+    if (updates.sourceId !== undefined) sanitized["sourceId"] = updates.sourceId ?? null;
+    if (updates.sourceMeta !== undefined) sanitized["sourceMeta"] = updates.sourceMeta ?? null;
+    if (updates.batchId !== undefined) sanitized["batchId"] = updates.batchId ?? null;
+
+    if (Object.keys(sanitized).length === 0) {
+      throw new Error("No fields provided for update");
+    }
+
+    const [updated] = await this.db
+      .update(interactions)
+      .set(sanitized)
+      .where(and(eq(interactions.userId, userId), eq(interactions.id, interactionId)))
+      .returning();
+
+    return updated ?? null;
+  }
+
+  /**
+   * Delete a single interaction by ID.
+   */
+  async deleteInteraction(userId: string, interactionId: string): Promise<number> {
+    const deleted = await this.db
+      .delete(interactions)
+      .where(and(eq(interactions.userId, userId), eq(interactions.id, interactionId)))
+      .returning({ id: interactions.id });
+
+    return deleted.length;
+  }
+
+  /**
+   * Delete all interactions in a batch (used for sync resets).
+   */
+  async deleteInteractionsByBatch(userId: string, batchId: string): Promise<number> {
+    const deleted = await this.db
+      .delete(interactions)
+      .where(and(eq(interactions.userId, userId), eq(interactions.batchId, batchId)))
+      .returning({ id: interactions.id });
+
+    return deleted.length;
+  }
+
+  /**
+   * Count interactions (optionally scoped by contact or type).
+   */
+  async countInteractions(
+    userId: string,
+    criteria: { contactId?: string; types?: string[] } = {},
+  ): Promise<number> {
     const conditions = [eq(interactions.userId, userId)];
 
-    if (filters?.contactId) {
-      conditions.push(eq(interactions.contactId, filters.contactId));
+    if (criteria.contactId) {
+      conditions.push(eq(interactions.contactId, criteria.contactId));
     }
 
-    if (filters?.type && filters.type.length > 0) {
-      conditions.push(inArray(interactions.type, filters.type));
+    if (criteria.types && criteria.types.length > 0) {
+      conditions.push(inArray(interactions.type, criteria.types));
     }
 
-    if (filters?.source && filters.source.length > 0) {
-      conditions.push(inArray(interactions.source, filters.source));
-    }
-
-    if (filters?.occurredAfter) {
-      conditions.push(gte(interactions.occurredAt, filters.occurredAfter));
-    }
-
-    if (filters?.occurredBefore) {
-      conditions.push(lte(interactions.occurredAt, filters.occurredBefore));
-    }
-
-    const result = await db
-      .select({ count: count() })
+    const result = await this.db
+      .select({ value: count() })
       .from(interactions)
       .where(and(...conditions));
 
-    return result[0]?.count ?? 0;
+    return Number(result[0]?.value ?? 0);
   }
 
   /**
-   * Upsert interaction with idempotency on (user_id, source, source_id)
+   * Return aggregated counts grouped by interaction type.
    */
-  static async upsert(
-    interaction: CreateInteractionDTO & { userId: string },
-  ): Promise<string | null> {
-    const db = await getDb();
+  async getTypeBreakdown(userId: string): Promise<Array<{ type: string; total: number }>> {
+    const totalExpr = count(interactions.id).as("total");
 
-    const result = await db.execute(sql`
-      INSERT INTO interactions (
-        user_id, contact_id, type, subject, body_text, body_raw,
-        occurred_at, source, source_id, source_meta, batch_id, created_at
-      ) VALUES (
-        ${interaction.userId}, ${interaction.contactId}, ${interaction.type},
-        ${interaction.subject}, ${interaction.bodyText}, ${JSON.stringify(interaction.bodyRaw)},
-        ${interaction.occurredAt}, ${interaction.source}, ${interaction.sourceId},
-        ${JSON.stringify(interaction.sourceMeta)}, ${interaction.batchId},
-        ${new Date().toISOString()}
-      )
-      ON CONFLICT (user_id, source, source_id) 
-      DO UPDATE SET
-        contact_id = EXCLUDED.contact_id,
-        type = EXCLUDED.type,
-        subject = EXCLUDED.subject,
-        body_text = EXCLUDED.body_text,
-        body_raw = EXCLUDED.body_raw,
-        occurred_at = EXCLUDED.occurred_at,
-        source_meta = EXCLUDED.source_meta,
-        batch_id = EXCLUDED.batch_id
-      RETURNING id
-    `);
+    const rows = await this.db
+      .select({
+        type: interactions.type,
+        total: totalExpr,
+      })
+      .from(interactions)
+      .where(eq(interactions.userId, userId))
+      .groupBy(interactions.type)
+      .orderBy(desc(totalExpr));
 
-    return result.length > 0 ? (result[0] as unknown as IdRow).id : null;
-  }
-
-  /**
-   * Bulk upsert interactions
-   */
-  static async bulkUpsert(
-    interactions: Array<CreateInteractionDTO & { userId: string }>,
-  ): Promise<string[]> {
-    const insertedIds: string[] = [];
-
-    for (const interaction of interactions) {
-      const id = await this.upsert(interaction);
-      if (id) insertedIds.push(id);
-    }
-
-    return insertedIds;
-  }
-
-  /**
-   * Get unlinked interactions (no contact_id)
-   */
-  static async getUnlinked(
-    userId: string,
-    options: {
-      limit?: number;
-      sources?: string[];
-      daysSince?: number;
-    } = {},
-  ): Promise<InteractionDTO[]> {
-    const db = await getDb();
-
-    const daysSince = options.daysSince ?? 7;
-
-    const result = await db.execute(sql`
-      SELECT 
-        id,
-        user_id AS "userId",
-        contact_id AS "contactId",
-        type,
-        subject,
-        body_text AS "bodyText",
-        body_raw AS "bodyRaw",
-        occurred_at AS "occurredAt",
-        source,
-        source_id AS "sourceId",
-        source_meta AS "sourceMeta",
-        batch_id AS "batchId",
-        created_at AS "createdAt"
-      FROM interactions
-      WHERE user_id = ${userId}
-        AND contact_id IS NULL
-        AND created_at > now() - (${daysSince} * interval '1 day')
-        ${options.sources?.length ? sql`AND source = ANY(${options.sources})` : sql``}
-      ORDER BY created_at DESC
-      LIMIT ${options.limit ?? 100}
-    `);
-
-    return result as unknown as InteractionDTO[];
-  }
-
-  /**
-   * Link interaction to contact
-   */
-  static async linkToContact(interactionId: string, contactId: string): Promise<void> {
-    const db = await getDb();
-
-    await db.execute(sql`
-      UPDATE interactions
-      SET contact_id = ${contactId}
-      WHERE id = ${interactionId}
-    `);
-  }
-
-  /**
-   * Get recent interactions for timeline
-   */
-  static async getRecentForTimeline(
-    userId: string,
-    options: {
-      limit?: number;
-      hoursBack?: number;
-      hasContact?: boolean;
-    } = {},
-  ): Promise<InteractionDTO[]> {
-    const db = await getDb();
-
-    const hoursBack = options.hoursBack ?? 24;
-
-    const result = await db.execute(sql`
-      SELECT 
-        id,
-        user_id AS "userId",
-        contact_id AS "contactId",
-        type,
-        subject,
-        body_text AS "bodyText",
-        body_raw AS "bodyRaw",
-        occurred_at AS "occurredAt",
-        source,
-        source_id AS "sourceId",
-        source_meta AS "sourceMeta",
-        batch_id AS "batchId",
-        created_at AS "createdAt"
-      FROM interactions
-      WHERE user_id = ${userId}
-        AND created_at > now() - (INTERVAL '1 hour' * ${hoursBack})
-        ${
-          options.hasContact !== undefined
-            ? options.hasContact
-              ? sql`AND contact_id IS NOT NULL`
-              : sql`AND contact_id IS NULL`
-            : sql``
-        }
-      ORDER BY occurred_at DESC
-      LIMIT ${options.limit ?? 100}
-    `);
-
-    return result as unknown as InteractionDTO[];
-  }
-
-  /**
-   * Get interactions without embeddings
-   */
-  static async getWithoutEmbeddings(
-    userId: string,
-    limit = 50,
-  ): Promise<Array<{ id: string; bodyText: string | null }>> {
-    const db = await getDb();
-
-    const result = await db.execute(sql`
-      SELECT i.id, i.body_text AS "bodyText"
-      FROM interactions i
-      LEFT JOIN embeddings e ON e.owner_type = 'interaction' AND e.owner_id = i.id
-      WHERE i.user_id = ${userId}
-        AND i.body_text IS NOT NULL
-        AND i.body_text != ''
-        AND e.id IS NULL
-      ORDER BY i.created_at DESC
-      LIMIT ${limit}
-    `);
-
-    return (result as unknown as EmbeddingRow[]).map((row) => ({
-      id: row.id,
-      bodyText: row.bodyText,
+    return rows.map((row) => ({
+      type: row.type ?? "unknown",
+      total: Number(row.total),
     }));
   }
 
   /**
-   * Get interaction statistics
+   * Fetch the most recent interaction for a contact.
    */
-  static async getStats(userId: string): Promise<{
-    byType: Record<string, number>;
-    linking: { linked: number; unlinked: number };
-    bySource: Record<string, number>;
-  }> {
-    const db = await getDb();
+  async latestInteractionForContact(
+    userId: string,
+    contactId: string,
+  ): Promise<Interaction | null> {
+    const rows = await this.db
+      .select()
+      .from(interactions)
+      .where(and(eq(interactions.userId, userId), eq(interactions.contactId, contactId)))
+      .orderBy(desc(interactions.occurredAt))
+      .limit(1);
 
-    // Get counts by type
-    const typeStats = await db.execute(sql`
-      SELECT type, count(*) as count
-      FROM interactions
-      WHERE user_id = ${userId}
-        AND created_at > now() - interval '30 days'
-      GROUP BY type
-      ORDER BY count DESC
-    `);
-
-    // Get linked vs unlinked counts
-    const linkStats = await db.execute(sql`
-      SELECT 
-        count(*) FILTER (WHERE contact_id IS NOT NULL) as linked,
-        count(*) FILTER (WHERE contact_id IS NULL) as unlinked
-      FROM interactions
-      WHERE user_id = ${userId}
-        AND created_at > now() - interval '30 days'
-    `);
-
-    // Get source distribution
-    const sourceStats = await db.execute(sql`
-      SELECT source, count(*) as count
-      FROM interactions
-      WHERE user_id = ${userId}
-        AND created_at > now() - interval '30 days'
-      GROUP BY source
-      ORDER BY count DESC
-    `);
-
-    return {
-      byType: (typeStats as unknown as TypeStatsRow[]).reduce(
-        (acc: Record<string, number>, row: TypeStatsRow) => {
-          acc[row.type] = parseInt(row.count, 10);
-          return acc;
-        },
-        {},
-      ),
-      linking: {
-        linked: parseInt((linkStats[0] as unknown as LinkStatsRow)?.linked ?? "0", 10),
-        unlinked: parseInt((linkStats[0] as unknown as LinkStatsRow)?.unlinked ?? "0", 10),
-      },
-      bySource: (sourceStats as unknown as SourceStatsRow[]).reduce(
-        (acc: Record<string, number>, row: SourceStatsRow) => {
-          acc[row.source] = parseInt(row.count, 10);
-          return acc;
-        },
-        {},
-      ),
-    };
+    return rows[0] ?? null;
   }
+}
+
+export function createInteractionsRepository(db: DbClient): InteractionsRepository {
+  return new InteractionsRepository(db);
 }

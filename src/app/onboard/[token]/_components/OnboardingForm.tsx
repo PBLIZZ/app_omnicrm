@@ -89,6 +89,7 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
+  const [uploadedPhotoSize, setUploadedPhotoSize] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<OnboardingFormData>({
@@ -134,16 +135,16 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
       };
 
       let first_name: string;
-      let last_name: string;
+      let _last_name: string;
 
       if (nameParts.length === 1) {
         // Single name: use as first_name, leave last_name empty
         first_name = sanitizeName(nameParts[0] || "");
-        last_name = "";
+        _last_name = "";
       } else {
         // Multiple parts: first part is first_name, rest is last_name
         first_name = sanitizeName(nameParts[0] || "");
-        last_name = sanitizeName(nameParts.slice(1).join(" "));
+        _last_name = sanitizeName(nameParts.slice(1).join(" "));
       }
 
       // Validate that we have a valid first name after sanitization
@@ -160,8 +161,7 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
       const submissionData = {
         token,
         client: {
-          first_name,
-          last_name,
+          display_name: data.displayName.trim(), // Use the full name as display_name
           primary_email: data.primaryEmail || "",
           primary_phone: data.primaryPhone || "",
           date_of_birth: data.dateOfBirth || "",
@@ -199,6 +199,7 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
           signature_image_url: "",
         },
         photo_path: uploadedPhotoUrl || null,
+        photo_size: uploadedPhotoSize || undefined,
       };
 
       // Debug: Log the submission data
@@ -262,7 +263,13 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
           <CardDescription>Upload a clear photo for your profile (optional)</CardDescription>
         </CardHeader>
         <CardContent>
-          <PhotoUploadSection token={token} onPhotoUploaded={setUploadedPhotoUrl} />
+          <PhotoUploadSection
+            token={token}
+            onPhotoUploaded={(url, size) => {
+              setUploadedPhotoUrl(url);
+              setUploadedPhotoSize(size ?? null);
+            }}
+          />
         </CardContent>
       </Card>
 

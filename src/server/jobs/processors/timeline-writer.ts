@@ -3,7 +3,6 @@ import { and, eq, isNotNull, inArray } from "drizzle-orm";
 import { interactions, contactTimeline } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
 import type { JobRecord } from "../types";
-import { ensureError } from "@/lib/utils/error-handler";
 
 // Type definitions for interactions used in timeline processing
 interface InteractionData {
@@ -21,15 +20,6 @@ interface InteractionData {
 }
 
 // Type definitions
-export interface TimelineEvent {
-  userId: string;
-  contactId: string;
-  eventType: string;
-  title: string;
-  description?: string | null;
-  eventData?: Record<string, unknown> | null;
-  occurredAt: string;
-}
 
 interface TimelineJobPayload {
   mode?: "single" | "batch";
@@ -104,7 +94,7 @@ export async function runTimeline(job: JobRecord): Promise<void> {
           jobId: job.id,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }
@@ -187,7 +177,7 @@ async function processBatchInteractions(
             interactionId: interaction.id,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }
@@ -353,7 +343,6 @@ async function insertTimelineEvent(event: TimelineEvent): Promise<void> {
     occurredAt: new Date(event.occurredAt),
   });
 }
-
 
 // Standalone utility functions (preferred over class methods)
 

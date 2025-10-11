@@ -1,137 +1,84 @@
-import { eq, and } from "drizzle-orm";
-import { userIntegrations } from "./schema";
-import { getDb } from "./db";
-import type {
-  UserIntegration,
-  CreateUserIntegration
-} from "./schema";
+import { and, eq, gt, lte, type InferSelectModel } from "drizzle-orm";
 
-// Local type aliases for repository layer
-type UserIntegrationDTO = UserIntegration & { hasValidToken?: boolean };
-type CreateUserIntegrationDTO = CreateUserIntegration;
-type UpdateUserIntegrationDTO = Partial<CreateUserIntegration>;
+import { userIntegrations, type CreateUserIntegration } from "@/server/db/schema";
+import type { DbClient } from "@/server/db/client";
+
+type IntegrationRow = InferSelectModel<typeof userIntegrations>;
+export type UserIntegrationDTO = IntegrationRow & { hasValidToken: boolean };
+type CreateUserIntegrationDTO = Omit<CreateUserIntegration, "userId">;
+type UpdateUserIntegrationDTO = Partial<Omit<CreateUserIntegration, "userId">>;
+
+function toDto(row: IntegrationRow): UserIntegrationDTO {
+  const hasValidToken =
+    row.expiryDate == null ? true : Date.now() < new Date(row.expiryDate).getTime();
+
+  return {
+    ...row,
+    hasValidToken,
+  };
+}
 
 export class UserIntegrationsRepository {
-  /**
-   * List integrations for a user
-   */
-  static async listUserIntegrations(userId: string): Promise<UserIntegrationDTO[]> {
-    const db = await getDb();
+  constructor(private readonly db: DbClient) {}
 
-    const rows = await db
-      .select({
-        provider: userIntegrations.provider,
-        service: userIntegrations.service,
-        expiryDate: userIntegrations.expiryDate,
-        createdAt: userIntegrations.createdAt,
-        updatedAt: userIntegrations.updatedAt,
-      })
+  async listUserIntegrations(userId: string): Promise<UserIntegrationDTO[]> {
+    const rows = (await this.db
+      .select()
       .from(userIntegrations)
-      .where(eq(userIntegrations.userId, userId));
+      .where(eq(userIntegrations.userId, userId))) as IntegrationRow[];
 
-    // Map to DTO format with derived hasValidToken field
-    return rows.map(row => ({
-      provider: row.provider as "google",
-      service: row.service as "auth" | "gmail" | "calendar" | "drive",
-      expiryDate: row.expiryDate,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      hasValidToken: row.expiryDate ? new Date() < new Date(row.expiryDate) : true,
-    }));
+    return rows.map(toDto);
   }
 
-  /**
-   * Get integration by user, provider, and service
-   */
-  static async getUserIntegration(
+  async getUserIntegration(
     userId: string,
     provider: string,
-    service: string
+    service: string,
   ): Promise<UserIntegrationDTO | null> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        provider: userIntegrations.provider,
-        service: userIntegrations.service,
-        expiryDate: userIntegrations.expiryDate,
-        createdAt: userIntegrations.createdAt,
-        updatedAt: userIntegrations.updatedAt,
-      })
+    const rows = (await this.db
+      .select()
       .from(userIntegrations)
       .where(
         and(
           eq(userIntegrations.userId, userId),
           eq(userIntegrations.provider, provider),
-          eq(userIntegrations.service, service)
-        )
+          eq(userIntegrations.service, service),
+        ),
       )
-      .limit(1);
-
-    if (rows.length === 0) {
-      return null;
-    }
+      .limit(1)) as IntegrationRow[];
 
     const row = rows[0];
-    if (!row) {
-      return null;
-    }
-    return {
-      provider: row.provider as "google",
-      service: row.service as "auth" | "gmail" | "calendar" | "drive",
-      expiryDate: row.expiryDate,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      hasValidToken: row.expiryDate ? new Date() < new Date(row.expiryDate) : true,
-    };
+    return row ? toDto(row) : null;
   }
 
-  /**
-   * Get all integrations for a specific provider
-   */
-  static async getUserIntegrationsByProvider(
+  async getUserIntegrationsByProvider(
     userId: string,
-    provider: string
+    provider: string,
   ): Promise<UserIntegrationDTO[]> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        userId: userIntegrations.userId,
-        provider: userIntegrations.provider,
-        service: userIntegrations.service,
-        accessToken: userIntegrations.accessToken,
-        refreshToken: userIntegrations.refreshToken,
-        expiryDate: userIntegrations.expiryDate,
-        createdAt: userIntegrations.createdAt,
-        updatedAt: userIntegrations.updatedAt,
-      })
+    const rows = (await this.db
+      .select()
       .from(userIntegrations)
       .where(
-        and(
-          eq(userIntegrations.userId, userId),
-          eq(userIntegrations.provider, provider)
-        )
-      );
+        and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)),
+      )) as IntegrationRow[];
 
-    return rows.map(row => row);
+    return rows.map(toDto);
   }
 
-  /**
-   * Create or update user integration (upsert)
-   */
-  static async upsertUserIntegration(userId: string, data: CreateUserIntegrationDTO): Promise<UserIntegrationDTO> {
-    const db = await getDb();
-
-    const [result] = await db
+  async upsertUserIntegration(
+    userId: string,
+    data: CreateUserIntegrationDTO,
+  ): Promise<UserIntegrationDTO> {
+    const [row] = (await this.db
       .insert(userIntegrations)
       .values({
-        userId: userId,
+        userId,
         provider: data.provider,
         service: data.service,
         accessToken: data.accessToken,
         refreshToken: data.refreshToken ?? null,
         expiryDate: data.expiryDate ?? null,
+        config: data.config ?? null,
       })
       .onConflictDoUpdate({
         target: [userIntegrations.userId, userIntegrations.provider, userIntegrations.service],
@@ -139,198 +86,134 @@ export class UserIntegrationsRepository {
           accessToken: data.accessToken,
           refreshToken: data.refreshToken ?? null,
           expiryDate: data.expiryDate ?? null,
+          config: data.config ?? null,
           updatedAt: new Date(),
         },
       })
-      .returning({
-        userId: userIntegrations.userId,
-        provider: userIntegrations.provider,
-        service: userIntegrations.service,
-        accessToken: userIntegrations.accessToken,
-        refreshToken: userIntegrations.refreshToken,
-        expiryDate: userIntegrations.expiryDate,
-        createdAt: userIntegrations.createdAt,
-        updatedAt: userIntegrations.updatedAt,
-      });
+      .returning()) as IntegrationRow[];
 
-    return result;
+    if (!row) {
+      throw new Error("Failed to upsert user integration");
+    }
+
+    return toDto(row);
   }
 
-  /**
-   * Update user integration
-   */
-  static async updateUserIntegration(
+  async updateUserIntegration(
     userId: string,
     provider: string,
     service: string,
-    data: UpdateUserIntegrationDTO
+    data: UpdateUserIntegrationDTO,
   ): Promise<UserIntegrationDTO | null> {
-    const db = await getDb();
-
-    // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
-    const updateValues = {
-      updatedAt: new Date(),
-      ...(data.provider !== undefined && { provider: data.provider }),
-      ...(data.service !== undefined && { service: data.service }),
-      ...(data.accessToken !== undefined && { accessToken: data.accessToken }),
-      ...(data.refreshToken !== undefined && { refreshToken: data.refreshToken ?? null }),
-      ...(data.expiryDate !== undefined && { expiryDate: data.expiryDate ?? null }),
-    };
-
-    const [updatedIntegration] = await db
-      .update(userIntegrations)
-      .set(updateValues)
-      .where(
-        and(
-          eq(userIntegrations.userId, userId),
-          eq(userIntegrations.provider, provider),
-          eq(userIntegrations.service, service)
-        )
-      )
-      .returning({
-        userId: userIntegrations.userId,
-        provider: userIntegrations.provider,
-        service: userIntegrations.service,
-        accessToken: userIntegrations.accessToken,
-        refreshToken: userIntegrations.refreshToken,
-        expiryDate: userIntegrations.expiryDate,
-        createdAt: userIntegrations.createdAt,
-        updatedAt: userIntegrations.updatedAt,
-      });
-
-    if (!updatedIntegration) {
-      return null;
+    if (Object.keys(data).length === 0) {
+      throw new Error("No integration fields provided for update");
     }
 
-    return updatedIntegration;
+    const updatePayload: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (data.provider !== undefined) updatePayload["provider"] = data.provider;
+    if (data.service !== undefined) updatePayload["service"] = data.service;
+    if (data.accessToken !== undefined) updatePayload["accessToken"] = data.accessToken;
+    if (data.refreshToken !== undefined) updatePayload["refreshToken"] = data.refreshToken ?? null;
+    if (data.expiryDate !== undefined) updatePayload["expiryDate"] = data.expiryDate ?? null;
+    if (data.config !== undefined) updatePayload["config"] = data.config ?? null;
+
+    const [updated] = (await this.db
+      .update(userIntegrations)
+      .set(updatePayload)
+      .where(
+        and(
+          eq(userIntegrations.userId, userId),
+          eq(userIntegrations.provider, provider),
+          eq(userIntegrations.service, service),
+        ),
+      )
+      .returning()) as IntegrationRow[];
+
+    return updated ? toDto(updated) : null;
   }
 
-  /**
-   * Delete user integration
-   */
-  static async deleteUserIntegration(
-    userId: string,
-    provider: string,
-    service: string
-  ): Promise<boolean> {
-    const db = await getDb();
-
-    const result = await db
+  async deleteUserIntegration(userId: string, provider: string, service: string): Promise<boolean> {
+    const deleted = (await this.db
       .delete(userIntegrations)
       .where(
         and(
           eq(userIntegrations.userId, userId),
           eq(userIntegrations.provider, provider),
-          eq(userIntegrations.service, service)
-        )
-      );
+          eq(userIntegrations.service, service),
+        ),
+      )
+      .returning({ id: userIntegrations.userId })) as Array<{ id: string }>;
 
-    return result.length > 0;
+    return deleted.length > 0;
   }
 
-  /**
-   * Delete all integrations for a user and provider
-   */
-  static async deleteUserIntegrationsByProvider(
-    userId: string,
-    provider: string
-  ): Promise<number> {
-    const db = await getDb();
-
-    const result = await db
+  async deleteUserIntegrationsByProvider(userId: string, provider: string): Promise<number> {
+    const deleted = (await this.db
       .delete(userIntegrations)
-      .where(
-        and(
-          eq(userIntegrations.userId, userId),
-          eq(userIntegrations.provider, provider)
-        )
-      );
+      .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)))
+      .returning({ id: userIntegrations.userId })) as Array<{ id: string }>;
 
-    return result.length;
+    return deleted.length;
   }
 
-  /**
-   * Check if user has active integration for provider/service
-   */
-  static async hasActiveIntegration(
-    userId: string,
-    provider: string,
-    service: string
-  ): Promise<boolean> {
+  async hasActiveIntegration(userId: string, provider: string, service: string): Promise<boolean> {
     const integration = await this.getUserIntegration(userId, provider, service);
-
     if (!integration) {
       return false;
     }
 
-    // Check if token is not expired (if expiryDate exists)
-    if (integration.expiryDate) {
-      return new Date() < integration.expiryDate;
-    }
-
-    // If no expiry date, assume it's active
-    return true;
+    return integration.expiryDate == null
+      ? true
+      : Date.now() < new Date(integration.expiryDate).getTime();
   }
 
-  /**
-   * Get integrations that are expiring soon (within next hour)
-   */
-  static async getExpiringIntegrations(userId: string): Promise<UserIntegrationDTO[]> {
-    const db = await getDb();
+  async getExpiringIntegrations(userId: string): Promise<UserIntegrationDTO[]> {
+    const now = new Date();
     const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
 
-    const rows = await db
-      .select({
-        userId: userIntegrations.userId,
-        provider: userIntegrations.provider,
-        service: userIntegrations.service,
-        accessToken: userIntegrations.accessToken,
-        refreshToken: userIntegrations.refreshToken,
-        expiryDate: userIntegrations.expiryDate,
-        createdAt: userIntegrations.createdAt,
-        updatedAt: userIntegrations.updatedAt,
-      })
+    const rows = (await this.db
+      .select()
       .from(userIntegrations)
       .where(
         and(
           eq(userIntegrations.userId, userId),
-          // Token expires within the next hour
-          eq(userIntegrations.expiryDate, oneHourFromNow)
-        )
-      );
+          gt(userIntegrations.expiryDate, now),
+          lte(userIntegrations.expiryDate, oneHourFromNow),
+        ),
+      )) as IntegrationRow[];
 
-    return rows.map(row => row);
+    return rows.map(toDto);
   }
 
-  /**
-   * INTERNAL: Get raw integration data with sensitive tokens for Google client
-   * This method exposes sensitive data and should only be used by the Google client layer
-   */
-  static async getRawIntegrationData(userId: string, provider: string): Promise<Array<{
-    userId: string;
-    provider: string;
-    service: string;
-    accessToken: string;
-    refreshToken: string | null;
-    expiryDate: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }>> {
-    const db = await getDb();
-
-    const rows = await db
+  async getRawIntegrationData(
+    userId: string,
+    provider: string,
+  ): Promise<
+    Array<{
+      userId: string;
+      provider: string;
+      service: string | null;
+      accessToken: string;
+      refreshToken: string | null;
+      expiryDate: Date | null;
+      createdAt: Date | null;
+      updatedAt: Date | null;
+    }>
+  > {
+    const rows = (await this.db
       .select()
       .from(userIntegrations)
-      .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)));
+      .where(
+        and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, provider)),
+      )) as IntegrationRow[];
 
     return rows;
   }
 
-  /**
-   * INTERNAL: Update raw integration tokens for Google client
-   * This method handles sensitive data and should only be used by the Google client layer
-   */
-  static async updateRawTokens(
+  async updateRawTokens(
     userId: string,
     provider: string,
     service: string,
@@ -338,22 +221,36 @@ export class UserIntegrationsRepository {
       accessToken?: string;
       refreshToken?: string | null;
       expiryDate?: Date | null;
-    }
+    },
   ): Promise<void> {
-    const db = await getDb();
+    if (
+      updates.accessToken === undefined &&
+      updates.refreshToken === undefined &&
+      updates.expiryDate === undefined
+    ) {
+      return;
+    }
 
-    await db
+    await this.db
       .update(userIntegrations)
       .set({
-        ...updates,
+        ...(updates.accessToken !== undefined ? { accessToken: updates.accessToken } : {}),
+        ...(updates.refreshToken !== undefined
+          ? { refreshToken: updates.refreshToken ?? null }
+          : {}),
+        ...(updates.expiryDate !== undefined ? { expiryDate: updates.expiryDate ?? null } : {}),
         updatedAt: new Date(),
       })
       .where(
         and(
           eq(userIntegrations.userId, userId),
           eq(userIntegrations.provider, provider),
-          eq(userIntegrations.service, service)
-        )
+          eq(userIntegrations.service, service),
+        ),
       );
   }
+}
+
+export function createUserIntegrationsRepository(db: DbClient): UserIntegrationsRepository {
+  return new UserIntegrationsRepository(db);
 }

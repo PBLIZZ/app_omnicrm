@@ -1,13 +1,11 @@
 // New file for processing email intelligence
 
-import { getDb } from "@/server/db/client";
-import { rawEvents } from "@/server/db/schema";
-import { and, eq } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import { categorizeEmail } from "@/server/ai/connect/categorize-email";
 import { extractWisdom } from "@/server/ai/connect/extract-wisdom";
 import { matchToContacts } from "@/server/ai/connect/match-to-contacts";
 import { EmailIntelligence } from "@/server/ai/types/connect-types";
+import { getRawEventByIdService } from "@/server/services/raw-events.service";
 
 interface GmailPayload {
   subject: string;
@@ -28,23 +26,7 @@ export async function processEmailIntelligence(
   rawEventId: string,
 ): Promise<EmailIntelligence> {
   try {
-    const db = await getDb();
-
-    const rawEvent = await db
-      .select()
-      .from(rawEvents)
-      .where(and(eq(rawEvents.id, rawEventId), eq(rawEvents.userId, userId)))
-      .limit(1);
-
-    if (rawEvent.length === 0) {
-      throw new Error(`Raw event not found: ${rawEventId}`);
-    }
-
-    const event = rawEvent[0];
-
-    if (!event) {
-      throw new Error(`Raw event is null or undefined: ${rawEventId}`);
-    }
+    const event = await getRawEventByIdService(userId, rawEventId);
 
     const payload = event.payload as GmailPayload;
 
@@ -72,10 +54,13 @@ export async function processEmailIntelligence(
       },
     });
 
-    const [classification, contactMatch] = await Promise.all([
+    const results = await Promise.all([
       categorizeEmail(userId, emailData),
       matchToContacts(userId, emailData),
     ]);
+
+    const classification = results[0];
+    const contactMatch = results[1];
 
     const wisdom = await extractWisdom(userId, { ...emailData, classification });
 

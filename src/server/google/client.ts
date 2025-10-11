@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { UserIntegrationsRepository } from "@repo";
+import { getDb } from "@/server/db/client";
 import { decryptString, encryptString, isEncrypted } from "@/server/utils/crypto";
 import type { GmailClient } from "./gmail";
 
@@ -21,7 +22,8 @@ export function makeCalendarClient(auth: InstanceType<typeof google.auth.OAuth2>
 }
 
 export async function getGoogleClients(userId: string): Promise<GoogleApisClients> {
-  const rows = await UserIntegrationsRepository.getRawIntegrationData(userId, "google");
+  const db = await getDb();
+  const rows = await UserIntegrationsRepository.getRawIntegrationData(db, userId, "google");
 
   console.warn(
     `getGoogleClients: Found ${rows?.length || 0} Google integrations for user ${userId}`,
@@ -72,7 +74,7 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
     // Backfill encryption once read (row-scoped)
     if (!isEncrypted(r.accessToken) || (r.refreshToken && !isEncrypted(r.refreshToken))) {
-      void UserIntegrationsRepository.updateRawTokens(userId, "google", r.service, {
+      void UserIntegrationsRepository.updateRawTokens(db, userId, "google", r.service, {
         accessToken: isEncrypted(r.accessToken) ? r.accessToken : encryptString(decryptedAccess),
         refreshToken:
           r.refreshToken == null
@@ -91,7 +93,7 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
     auth.on("tokens", async (tokens) => {
       if (!(tokens.access_token || tokens.refresh_token)) return;
-      await UserIntegrationsRepository.updateRawTokens(userId, "google", r.service, {
+      await UserIntegrationsRepository.updateRawTokens(db, userId, "google", r.service, {
         accessToken:
           tokens.access_token != null ? encryptString(tokens.access_token) : r.accessToken,
         refreshToken:

@@ -38,19 +38,19 @@ export async function generateText<T>(
   if (!userId || typeof userId !== "string") {
     throw new Error("userId must be a non-empty string");
   }
-  
+
   if (!options.model || typeof options.model !== "string") {
     throw new Error("model must be a non-empty string");
   }
-  
+
   if (!Array.isArray(options.messages) || options.messages.length === 0) {
     throw new Error("messages must be a non-empty array");
   }
-  
+
   if (options.temperature !== undefined && (options.temperature < 0 || options.temperature > 2)) {
     throw new Error("temperature must be between 0 and 2");
   }
-  
+
   if (options.maxTokens !== undefined && (options.maxTokens < 1 || options.maxTokens > 4000)) {
     throw new Error("maxTokens must be between 1 and 4000");
   }
@@ -103,7 +103,10 @@ export async function generateText<T>(
       throw new Error(`LLM API error: ${response.status} ${error}`);
     }
 
-    const rawData = await response.json();
+    const rawData = (await response.json()) as {
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+      [key: string]: unknown;
+    };
     // Add parsing and validation here as needed
 
     return {
@@ -120,10 +123,13 @@ interface InsightRequest {
   subjectType: string;
   subjectId: string;
   kind: string;
-  context: any;
+  context: Record<string, unknown>;
 }
 
-export async function generateContactSummary(userId: string, request: InsightRequest) {
+export async function generateContactSummary(
+  userId: string,
+  request: InsightRequest,
+): Promise<InsightResponse> {
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -173,7 +179,10 @@ ${JSON.stringify(request.context, null, 2)}`,
   }
 }
 
-export async function generateNextSteps(userId: string, request: InsightRequest) {
+export async function generateNextSteps(
+  userId: string,
+  request: InsightRequest,
+): Promise<InsightResponse> {
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -223,7 +232,10 @@ ${JSON.stringify(request.context, null, 2)}`,
   }
 }
 
-export async function generateRiskAssessment(userId: string, request: InsightRequest) {
+export async function generateRiskAssessment(
+  userId: string,
+  request: InsightRequest,
+): Promise<InsightResponse> {
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -273,7 +285,10 @@ ${JSON.stringify(request.context, null, 2)}`,
   }
 }
 
-export async function generatePersonaInsight(userId: string, request: InsightRequest) {
+export async function generatePersonaInsight(
+  userId: string,
+  request: InsightRequest,
+): Promise<InsightResponse> {
   const messages: ChatMessage[] = [
     {
       role: "system",

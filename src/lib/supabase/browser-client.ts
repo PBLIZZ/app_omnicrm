@@ -1,14 +1,17 @@
 "use client";
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logger } from "@/lib/observability/unified-logger";
 
 let client: SupabaseClient<unknown> | null = null;
 
 // Debug logging helper
 function debugLog(message: string, data?: unknown): void {
   if (process.env.NODE_ENV === "development") {
-    // Using console.warn instead of console.log for ESLint compliance
-    console.warn(`[SUPABASE-CLIENT-DEBUG] ${message}`, data ? data : "");
+    logger.debug(`[SUPABASE-CLIENT-DEBUG] ${message}`, {
+      operation: "supabase_client",
+      additionalData: data ? { data } : undefined
+    });
   }
 }
 

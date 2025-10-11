@@ -26,6 +26,11 @@ const baseSchema = z.object({
   APP_ORIGINS: z.string().optional(),
 });
 
+export type Env = z.infer<typeof baseSchema> & {
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string;
+  SUPABASE_SECRET_KEY: string | undefined;
+};
+
 // Type-safe global access interface
 interface GlobalWithBuffer {
   Buffer?: {
@@ -86,9 +91,7 @@ function validateEncryptionKey(value: string): void {
   );
 }
 
-export type Env = z.infer<typeof baseSchema> & { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string };
-
-export const env: Env = (() => {
+export const env: Env = ((): Env => {
   const parsed = baseSchema.parse(process.env);
 
   // Publishable key resolution (single source of truth)

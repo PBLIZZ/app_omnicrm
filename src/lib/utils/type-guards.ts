@@ -5,6 +5,8 @@
  * when dealing with unknown data from APIs, user input, or external sources.
  */
 
+import type { JobStatusData } from "@/server/db/business-schemas/jobs";
+
 // ============================================================================
 // BASIC TYPE GUARDS
 // ============================================================================
@@ -105,40 +107,6 @@ export function getStringArray(obj: unknown, key: string): string[] | undefined 
 }
 
 // ============================================================================
-// API RESPONSE VALIDATION
-// ============================================================================
-
-/**
- * Type guard for standard API response envelope
- */
-export interface ApiEnvelope<T = unknown> {
-  ok: boolean;
-  data?: T;
-  error?: string;
-  details?: unknown;
-}
-
-export function isApiEnvelope(value: unknown): value is ApiEnvelope {
-  if (!isObject(value)) return false;
-  const ok = getBoolean(value, "ok");
-  return typeof ok === "boolean";
-}
-
-export function isSuccessApiEnvelope<T>(
-  value: unknown,
-): value is ApiEnvelope<T> & { ok: true; data: T } {
-  return isApiEnvelope(value) && value.ok === true && "data" in value;
-}
-
-export function isErrorApiEnvelope(
-  value: unknown,
-): value is ApiEnvelope & { ok: false; error: string } {
-  return isApiEnvelope(value) && value.ok === false;
-}
-
-
-
-// ============================================================================
 // ERROR HANDLING UTILITIES
 // ============================================================================
 
@@ -147,23 +115,6 @@ export function isErrorApiEnvelope(
  */
 export function isError(value: unknown): value is Error {
   return value instanceof Error;
-}
-
-/**
- * Safely extract error message from unknown error
- */
-export function getErrorMessage(error: unknown): string {
-  if (isError(error)) {
-    return error.message;
-  }
-  if (isString(error)) {
-    return error;
-  }
-  if (isObject(error)) {
-    const message = getString(error, "message");
-    if (message) return message;
-  }
-  return "Unknown error occurred";
 }
 
 // ============================================================================
@@ -189,41 +140,6 @@ export function validationError<T>(errors: string[]): ValidationResult<T> {
 // ============================================================================
 // DOMAIN-SPECIFIC TYPE GUARDS
 // ============================================================================
-
-/**
- * Type guard for Contact Insights data
- */
-export interface ContactInsightsData {
-  summary: string;
-  tags: string[];
-  stage: string;
-  confidenceScore: number;
-  lastUpdated: string;
-  insights: Array<{
-    type: string;
-    content: string;
-    confidence: number;
-  }>;
-}
-
-export function isContactInsights(value: unknown): value is ContactInsightsData {
-  if (!isObject(value)) return false;
-
-  const summary = getString(value, "summary");
-  const tags = getStringArray(value, "tags");
-  const stage = getString(value, "stage");
-  const confidenceScore = getNumber(value, "confidenceScore");
-  const lastUpdated = getString(value, "lastUpdated");
-  const insights = getArray(value, "insights");
-
-  return !!(summary && tags && stage &&
-           typeof confidenceScore === "number" &&
-           lastUpdated && insights &&
-           insights.every(insight => isObject(insight) &&
-             getString(insight, "type") &&
-             getString(insight, "content") &&
-             typeof getNumber(insight, "confidence") === "number"));
-}
 
 /**
  * Type guard for sync session progress data
@@ -265,23 +181,19 @@ export function isSyncProgress(value: unknown): value is SyncProgressData {
   const processedItems = getNumber(progress, "processedItems");
   const failedItems = getNumber(progress, "failedItems");
 
-  return !!(typeof percentage === "number" && currentStep &&
-           typeof totalItems === "number" && typeof importedItems === "number" &&
-           typeof processedItems === "number" && typeof failedItems === "number");
+  return !!(
+    typeof percentage === "number" &&
+    currentStep &&
+    typeof totalItems === "number" &&
+    typeof importedItems === "number" &&
+    typeof processedItems === "number" &&
+    typeof failedItems === "number"
+  );
 }
 
 /**
  * Type guard for job status data
  */
-export interface JobStatusData {
-  id: string;
-  kind: string;
-  status: "queued" | "processing" | "done" | "error";
-  batchId?: string;
-  createdAt: string;
-  message?: string;
-}
-
 export function isJobStatus(value: unknown): value is JobStatusData {
   if (!isObject(value)) return false;
 
@@ -302,4 +214,3 @@ export function isJobStatus(value: unknown): value is JobStatusData {
 export function isJobStatusArray(value: unknown): value is JobStatusData[] {
   return isArray(value) && value.every(isJobStatus);
 }
-

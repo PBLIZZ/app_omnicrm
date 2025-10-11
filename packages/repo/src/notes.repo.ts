@@ -1,151 +1,96 @@
 import { eq, and, desc, ilike } from "drizzle-orm";
-import { notes } from "./schema";
-import { getDb } from "./db";
-import type {
-  Note,
-  CreateNote
-} from "./schema";
+import { notes, type Note, type CreateNote } from "@/server/db/schema";
+import type { DbClient } from "@/server/db/client";
 
-// Local type aliases for repository layer
-type NoteDTO = Note;
-type CreateNoteDTO = CreateNote;
-type UpdateNoteDTO = Partial<CreateNote>;
-
+/**
+ * Notes Repository
+ *
+ * Pure database operations - no business logic, no validation.
+ * Uses DbClient constructor injection pattern.
+ * Throws errors on failure - no Result wrapper.
+ */
 
 export class NotesRepository {
+  constructor(private readonly db: DbClient) {}
+
   /**
    * List notes for a user with optional contact filtering
    */
-  static async listNotes(userId: string, contactId?: string): Promise<NoteDTO[]> {
-    const db = await getDb();
-
-    // Build conditions array
+  async listNotes(userId: string, contactId?: string): Promise<Note[]> {
     const conditions = [eq(notes.userId, userId)];
 
     if (contactId) {
       conditions.push(eq(notes.contactId, contactId));
     }
 
-    const query = db
-      .select({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      })
+    const rows = await this.db
+      .select()
       .from(notes)
       .where(and(...conditions))
       .orderBy(desc(notes.createdAt));
 
-    const rows = await query;
-
-    return rows.map(row => row);
+    return rows;
   }
 
   /**
    * Get a single note by ID
    */
-  static async getNoteById(userId: string, noteId: string): Promise<NoteDTO | null> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      })
+  async getNoteById(userId: string, noteId: string): Promise<Note | null> {
+    const rows = await this.db
+      .select()
       .from(notes)
       .where(and(eq(notes.userId, userId), eq(notes.id, noteId)))
       .limit(1);
 
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return rows[0];
+    return rows.length > 0 && rows[0] ? rows[0] : null;
   }
 
   /**
    * Get notes for a specific contact
    */
-  static async getNotesByContactId(userId: string, contactId: string): Promise<NoteDTO[]> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      })
+  async getNotesByContactId(userId: string, contactId: string): Promise<Note[]> {
+    const rows = await this.db
+      .select()
       .from(notes)
       .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)))
       .orderBy(desc(notes.createdAt));
 
-    return rows.map(row => row);
+    return rows;
   }
 
   /**
    * Search notes by content
    */
-  static async searchNotes(userId: string, searchTerm: string): Promise<NoteDTO[]> {
-    const db = await getDb();
-
-    const rows = await db
-      .select({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      })
+  async searchNotes(userId: string, searchTerm: string): Promise<Note[]> {
+    const rows = await this.db
+      .select()
       .from(notes)
-      .where(
-        and(
-          eq(notes.userId, userId),
-          ilike(notes.content, `%${searchTerm}%`)
-        )
-      )
+      .where(and(eq(notes.userId, userId), ilike(notes.contentPlain, `%${searchTerm}%`)))
       .orderBy(desc(notes.createdAt));
 
-    return rows.map(row => row);
+    return rows;
   }
 
   /**
    * Create a new note
    */
-  static async createNote(userId: string, data: CreateNoteDTO): Promise<NoteDTO> {
-    const db = await getDb();
-
-    const [newNote] = await db
+  async createNote(data: CreateNote): Promise<Note> {
+    const [newNote] = await this.db
       .insert(notes)
       .values({
-        userId,
-        contactId: data.contactId || null,
-        title: data.title || null,
-        content: data.content,
+        userId: data.userId,
+        contactId: data.contactId ?? null,
+        contentPlain: data.contentPlain,
+        contentRich: data.contentRich ?? {},
+        tags: data.tags ?? [],
+        piiEntities: data.piiEntities ?? [],
+        sourceType: data.sourceType ?? "typed",
       })
-      .returning({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      });
+      .returning();
+
+    if (!newNote) {
+      throw new Error("Insert returned no data");
+    }
 
     return newNote;
   }
@@ -153,78 +98,36 @@ export class NotesRepository {
   /**
    * Update an existing note
    */
-  static async updateNote(
+  async updateNote(
     userId: string,
     noteId: string,
-    data: UpdateNoteDTO
-  ): Promise<NoteDTO | null> {
-    const db = await getDb();
-
-    // Convert undefined to null for database nullable fields with exactOptionalPropertyTypes
-    const updateValues = {
-      updatedAt: new Date(),
-      ...(data.title !== undefined && { title: data.title ?? null }),
-      ...(data.content !== undefined && { content: data.content }),
-    };
-
-    const [updatedNote] = await db
+    updates: Partial<CreateNote>,
+  ): Promise<Note | null> {
+    const [updatedNote] = await this.db
       .update(notes)
-      .set(updateValues)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
       .where(and(eq(notes.userId, userId), eq(notes.id, noteId)))
-      .returning({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      });
+      .returning();
 
-    if (!updatedNote) {
-      return null;
-    }
-
-    return updatedNote;
+    return updatedNote ?? null;
   }
 
   /**
    * Delete a note
    */
-  static async deleteNote(userId: string, noteId: string): Promise<boolean> {
-    const db = await getDb();
-
-    const result = await db
+  async deleteNote(userId: string, noteId: string): Promise<boolean> {
+    const result = await this.db
       .delete(notes)
-      .where(and(eq(notes.userId, userId), eq(notes.id, noteId)));
+      .where(and(eq(notes.userId, userId), eq(notes.id, noteId)))
+      .returning({ id: notes.id });
 
     return result.length > 0;
   }
+}
 
-  /**
-   * Bulk create notes (useful for AI-generated insights)
-   */
-  static async bulkCreateNotes(userId: string, data: CreateNoteDTO[]): Promise<NoteDTO[]> {
-    const db = await getDb();
-
-    const newNotes = await db
-      .insert(notes)
-      .values(data.map(item => ({
-        userId,
-        contactId: item.contactId || null,
-        title: item.title || null,
-        content: item.content,
-      })))
-      .returning({
-        id: notes.id,
-        userId: notes.userId,
-        contactId: notes.contactId,
-        title: notes.title,
-        content: notes.content,
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-      });
-
-    return newNotes.map(row => row);
-  }
+export function createNotesRepository(db: DbClient): NotesRepository {
+  return new NotesRepository(db);
 }

@@ -1,11 +1,6 @@
 import type { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 
-export interface RequestContext {
-  reqId?: string | undefined;
-  userId?: string | undefined;
-}
-
 // Non-throwing user id resolver for logging context
 async function tryGetUserId(): Promise<string | undefined> {
   try {

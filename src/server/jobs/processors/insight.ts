@@ -5,14 +5,11 @@ import { eq, desc, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import {
-  generateContactSummary,
   generateNextSteps,
   generateRiskAssessment,
   generatePersonaInsight,
 } from "@/server/ai/core/llm.service"; // Added /core
-import type { NewAiInsight } from "@/server/db/types";
-import { ensureError } from "@/lib/utils/error-handler";
-import { generateContactInsights } from "@/server/ai/clients/generate-contact-insights";
+import { generateContactInsights } from "@/server/ai/contacts/generate-contact-insights";
 
 // Extended insight types from insight-writer
 type InsightKind =
@@ -28,28 +25,8 @@ type InsightKind =
 type InsightSubjectType = "contact" | "segment" | "inbox";
 
 // Generated insight structure from insight-writer
-export interface GeneratedInsight {
-  title: string;
-  summary: string;
-  confidence: number;
-  tags: string[];
-  priority: "low" | "medium" | "high" | "critical";
-  props?: Record<string, unknown>;
-  actions?: Array<{
-    type: string;
-    label: string;
-    payload: Record<string, unknown>;
-  }>;
-}
 
 // Insight generation task structure
-export interface InsightGenerationTask {
-  userId: string;
-  subjectType: InsightSubjectType;
-  subjectId: string | null;
-  kind: InsightKind;
-  context?: Record<string, unknown> | undefined;
-}
 
 // Context types for different insight kinds
 interface SummaryContext {
@@ -128,7 +105,7 @@ export class InsightWriter {
           operation: "jobs.insight.generate",
           additionalData: {
             taskKind: task.kind,
-            userId: task.userId?.slice(0, 8) + "..." || "unknown",
+            userId: task.userId?.slice(0, 8) + "..." ?? "unknown",
           },
         },
         error instanceof Error ? error : undefined,
@@ -757,7 +734,7 @@ export async function runInsight(job: JobRecord<"insight">): Promise<void> {
           jobId: job.id,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }

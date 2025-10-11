@@ -61,7 +61,7 @@ export function IntelligenceDashboardCard({
 
   // Use real data if available, fallback to mock data
   const realDigests = weeklyDigests;
-  
+
   // Show stats if we have email data, even without AI insights
   const hasEmailData = connection.status.emailCount && connection.status.emailCount > 0;
   const shouldShowStats = hasEmailData || weeklyDigests.length > 0 || mockWikiItems.length > 0;
@@ -125,10 +125,9 @@ export function IntelligenceDashboardCard({
               <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="font-semibold mb-2">Email Intelligence Hub</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                {!hasEmailData 
+                {!hasEmailData
                   ? "Connect and sync your Gmail to start building your email intelligence."
-                  : "AI insights will appear here as your emails are processed."
-                }
+                  : "AI insights will appear here as your emails are processed."}
               </p>
               {hasEmailData && (
                 <Button variant="outline" size="sm" onClick={onGenerateNewDigest}>
@@ -280,7 +279,7 @@ export function IntelligenceDashboardCard({
                             <h4 className="font-semibold">{item.title}</h4>
                             <p className="text-sm text-gray-600">{item.summary}</p>
                             <div className="flex flex-wrap gap-1">
-                              {item.tags.map((tag) => (
+                              {item.tags.map((tag: string) => (
                                 <Badge key={tag} variant="outline" className="text-xs">
                                   {tag}
                                 </Badge>
@@ -370,7 +369,7 @@ export function IntelligenceDashboardCard({
                   Key Insights
                 </h4>
                 <ul className="space-y-1">
-                  {selectedDigest.keyInsights.map((insight, index) => (
+                  {selectedDigest.keyInsights.map((insight: string, index: number) => (
                     <li key={index} className="text-sm text-gray-600 flex items-start gap-2">
                       <span className="text-green-500 mt-1">•</span>
                       {insight}
@@ -386,7 +385,7 @@ export function IntelligenceDashboardCard({
                   Action Items
                 </h4>
                 <ul className="space-y-1">
-                  {selectedDigest.actionItems.map((action, index) => (
+                  {selectedDigest.actionItems.map((action: string, index: number) => (
                     <li key={index} className="text-sm text-gray-600 flex items-start gap-2">
                       <span className="text-blue-500 mt-1">→</span>
                       {action}
@@ -399,7 +398,7 @@ export function IntelligenceDashboardCard({
               <div>
                 <h4 className="font-semibold mb-2">Top Contacts This Week</h4>
                 <div className="flex flex-wrap gap-2">
-                  {selectedDigest.topContacts.map((contact, index) => (
+                  {selectedDigest.topContacts.map((contact: string, index: number) => (
                     <Badge key={index} variant="secondary">
                       {contact}
                     </Badge>

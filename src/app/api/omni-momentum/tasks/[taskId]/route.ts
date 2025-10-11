@@ -1,6 +1,9 @@
-import { NextRequest } from "next/server";
 import { handleAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
+import {
+  getTaskService,
+  updateTaskService,
+  deleteTaskService,
+} from "@/server/services/productivity.service";
 import { UpdateTaskSchema, TaskSchema } from "@/server/db/business-schemas";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -14,57 +17,62 @@ import { z } from "zod";
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     taskId: string;
-  };
+  }>;
 }
 
 /**
  * GET /api/omni-momentum/tasks/[taskId] - Get task by ID
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  const handler = handleAuth(z.object({}), TaskSchema, async (_, userId) => {
-    const task = await momentumService.getTask(params.taskId, userId);
+export async function GET(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
+    z.object({}),
+    TaskSchema,
+    async (_, userId): Promise<z.infer<typeof TaskSchema>> => {
+      const task = await getTaskService(userId, params.taskId);
 
-    if (!task) {
-      notFound();
-    }
+      if (!task) {
+        notFound();
+      }
 
-    return task;
-  });
-
-  return handler(request);
+      return task;
+    },
+  )(request);
 }
 
 /**
  * PUT /api/omni-momentum/tasks/[taskId] - Update task
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const handler = handleAuth(UpdateTaskSchema, TaskSchema, async (data, userId) => {
-    const task = await momentumService.updateTask(params.taskId, userId, data);
-
-    if (!task) {
-      notFound();
-    }
-
-    return task;
-  });
-
-  return handler(request);
+export async function PUT(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
+    UpdateTaskSchema,
+    TaskSchema,
+    async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
+      const task = await updateTaskService(userId, params.taskId, data);
+      
+      if (!task) {
+        notFound();
+      }
+      
+      return task;
+    },
+  )(request);
 }
 
 /**
  * DELETE /api/omni-momentum/tasks/[taskId] - Delete task
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const handler = handleAuth(
+export async function DELETE(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
     z.object({}),
     z.object({ success: z.boolean() }),
-    async (_, userId) => {
-      await momentumService.deleteTask(params.taskId, userId);
+    async (_, userId): Promise<{ success: boolean }> => {
+      await deleteTaskService(userId, params.taskId);
       return { success: true };
     },
-  );
-
-  return handler(request);
+  )(request);
 }

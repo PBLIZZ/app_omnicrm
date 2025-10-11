@@ -5,369 +5,517 @@
  * quickly capture thoughts/tasks and let AI automatically categorize them into
  * life-business zones and convert them into actionable tasks.
  */
-
-import { InboxRepository, ZonesRepository } from "@repo";
-import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
+import { createInboxRepository, createZonesRepository } from "@repo";
+import type { InboxFilters as RepoInboxFilters, InboxItem as RepoInboxItem } from "@repo";
 import { logger } from "@/lib/observability";
+import { AppError } from "@/lib/errors/app-error";
 import type {
-  InboxItem,
-  CreateInboxItem,
-  UpdateInboxItem,
   InboxProcessingResultDTO,
-  ProcessInboxItem,
   BulkProcessInboxDTO,
+  ProcessInboxItemDTO,
+  UpdateInboxItem,
   VoiceInboxCaptureDTO,
-  InboxFilters,
-  ZoneDTO,
-} from "@/server/db/business-schemas/business-schema";
+} from "@/server/db/business-schemas/productivity";
+import type { InboxItem, Zone } from "@/server/db/schema";
+import { getDb } from "@/server/db/client";
 import { categorizeInboxItem } from "@/server/ai/connect/categorize-inbox-item";
+import type { InboxProcessingContext } from "@/server/db/business-schemas";
+import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
 
-// AI Processing Types
-export interface InboxAICategorization {
-  suggestedZone: string;
-  suggestedPriority: "low" | "medium" | "high" | "urgent";
-  suggestedProject?: string;
-  extractedTasks: Array<{
-    name: string;
-    description?: string;
-    estimatedMinutes?: number;
-    dueDate?: Date;
-  }>;
-  confidence: number;
-  reasoning: string;
+export interface InboxFilters extends RepoInboxFilters {
+  hasAiSuggestions?: boolean;
 }
 
-export interface InboxProcessingContext {
-  userContext?: {
-    currentEnergy: number;
-    availableTime: number;
-    preferences: {
-      preferredZone?: string;
-      workingHours?: {
-        start: string;
-        end: string;
-      };
-    };
+type QuickCaptureInput = {
+  rawText: string;
+  status?: "unprocessed" | "processed" | "archived" | undefined;
+  createdTaskId?: string | null | undefined;
+};
+
+/**
+ * Map InboxItem with default values for required fields
+ */
+function mapToInboxItem(rawItem: RepoInboxItem): InboxItem {
+  return {
+    id: rawItem.id,
+    userId: rawItem.userId,
+    rawText: rawItem.rawText,
+    status: rawItem.status ?? "unprocessed",
+    createdTaskId: rawItem.createdTaskId,
+    processedAt: rawItem.processedAt,
+    createdAt: rawItem.createdAt ?? new Date(),
+    updatedAt: rawItem.updatedAt ?? new Date(),
   };
-  zones: ZoneDTO[];
 }
 
-export class InboxService {
-  /**
-   * Build processing context with zones and user context
-   * @param zones - Available zones for categorization
-   * @param userContextData - Optional user context data
-   * @returns InboxProcessingContext with zones and optional user context
-   */
-  private static buildProcessingContext(
-    zones: ZoneDTO[],
-    userContextData?: any,
-  ): InboxProcessingContext {
-    const processingContext: InboxProcessingContext = { zones };
+/**
+ * Build processing context for AI categorization
+ */
+function buildProcessingContext(zones: Zone[]): InboxProcessingContext {
+  return {
+    zones,
+  };
+}
 
-    if (userContextData !== undefined) {
-      const prefs: { preferredZone?: string; workingHours?: { start: string; end: string } } = {};
+const transformInboxItem = mapToInboxItem;
 
-      if (userContextData && "preferences" in userContextData && userContextData.preferences) {
-        const preferences = userContextData.preferences;
-        if (preferences.preferredZone) {
-          prefs.preferredZone = preferences.preferredZone;
-        }
-        if (
-          preferences.workingHours &&
-          preferences.workingHours.start &&
-          preferences.workingHours.end
-        ) {
-          prefs.workingHours = {
-            start: preferences.workingHours.start,
-            end: preferences.workingHours.end,
-          };
-        }
+/**
+ * Quick capture - Create a new inbox item
+ */
+export async function quickCaptureService(
+  userId: string,
+  data: QuickCaptureInput,
+): Promise<InboxItem> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+
+  try {
+    const rawItem = await inboxRepo.createInboxItem({
+      ...data,
+      userId,
+    });
+
+    return transformInboxItem(rawItem);
+  } catch (error) {
+    await logger.error("Failed to create inbox item", {
+      operation: "inbox_quick_capture",
+      additionalData: { userId, error },
+    });
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to create inbox item",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * Voice capture with transcription
+ */
+export async function voiceCaptureService(
+  userId: string,
+  data: VoiceInboxCaptureDTO,
+): Promise<InboxItem> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+
+  try {
+    const rawItem = await inboxRepo.createInboxItem({
+      rawText: data.transcription ?? "",
+      userId,
+    });
+
+    return transformInboxItem(rawItem);
+  } catch (error) {
+    await logger.error("Failed to create voice inbox item", {
+      operation: "inbox_voice_capture",
+      additionalData: { userId, error },
+    });
+    throw new AppError(
+      error instanceof Error ? error.message : "Error creating voice inbox item",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * List inbox items with filtering
+ */
+export async function listInboxItemsService(
+  userId: string,
+  filters?: InboxFilters,
+): Promise<InboxItem[]> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+
+  try {
+    const { hasAiSuggestions: _ignored, ...repoFilters } = filters ?? {};
+    const rawItems = await inboxRepo.listInboxItems(userId, repoFilters as RepoInboxFilters);
+
+    return rawItems.map((item) => transformInboxItem(item));
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Error listing inbox items",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * Extract supported filter parameters from the query object
+ */
+export function extractFilterParams(query: {
+  status?: ("unprocessed" | "processed" | "archived")[] | undefined;
+  search?: string | undefined;
+  createdAfter?: Date | undefined;
+  createdBefore?: Date | undefined;
+  hasAiSuggestions?: boolean | undefined;
+  stats?: boolean | undefined;
+}): InboxFilters {
+  const { stats: _stats, hasAiSuggestions, ...rest } = query ?? {};
+
+  const filters: InboxFilters = {};
+
+  if (Array.isArray(rest.status) && rest.status.length > 0) {
+    filters.status = rest.status;
+  }
+
+  if (typeof rest.search === "string" && rest.search.trim().length > 0) {
+    filters.search = rest.search;
+  }
+
+  if (rest.createdAfter instanceof Date) {
+    filters.createdAfter = rest.createdAfter;
+  }
+
+  if (rest.createdBefore instanceof Date) {
+    filters.createdBefore = rest.createdBefore;
+  }
+
+  if (typeof hasAiSuggestions === "boolean") {
+    filters.hasAiSuggestions = hasAiSuggestions;
+  }
+
+  return filters;
+}
+
+/**
+ * Get inbox statistics including recent activity count
+ */
+export async function getInboxStatsService(userId: string): Promise<{
+  unprocessed: number;
+  processed: number;
+  archived: number;
+  total: number;
+  recentActivity: number;
+}> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+
+  try {
+    const stats = await inboxRepo.getInboxStats(userId);
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentItems = await inboxRepo.listInboxItems(userId, {
+      createdAfter: oneDayAgo,
+    });
+
+    return {
+      ...stats,
+      recentActivity: recentItems.length,
+    };
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Error fetching inbox statistics",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * Delete an inbox item
+ */
+export async function deleteInboxItemService(userId: string, itemId: string): Promise<boolean> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+
+  try {
+    return await inboxRepo.deleteInboxItem(userId, itemId);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Error deleting inbox item",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * Get single inbox item
+ */
+export async function getInboxItemService(
+  userId: string,
+  itemId: string,
+): Promise<InboxItem | null> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+
+  try {
+    const rawItem = await inboxRepo.getInboxItemById(userId, itemId);
+    return rawItem ? transformInboxItem(rawItem) : null;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Error getting inbox item",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * Update an inbox item
+ */
+export async function updateInboxItemService(
+  userId: string,
+  itemId: string,
+  data: UpdateInboxItem,
+): Promise<InboxItem | null> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+
+  try {
+    const { id: _ignoredId, ...rest } = data;
+
+    const updateData: Partial<{
+      rawText: string;
+      status: "unprocessed" | "processed" | "archived";
+      createdTaskId: string | null;
+      processedAt: Date | null;
+    }> = {};
+
+    if (rest.rawText !== undefined) {
+      updateData.rawText = rest.rawText;
+    }
+
+    if (rest.status !== undefined && rest.status !== null) {
+      updateData.status = rest.status;
+      
+      // Business logic: Set processedAt when status changes to "processed"
+      if (rest.status === "processed") {
+        updateData.processedAt = new Date();
       }
-
-      const userContext: NonNullable<InboxProcessingContext["userContext"]> = {
-        currentEnergy: userContextData.currentEnergy ?? 50,
-        availableTime: userContextData.availableTime ?? 60,
-        preferences: prefs,
-      };
-      processingContext.userContext = userContext;
     }
 
-    return processingContext;
-  }
-
-  /**
-   * Quick capture - Create a new inbox item
-   */
-  static async quickCapture(userId: string, data: CreateInboxItem): Promise<InboxItem> {
-    try {
-      const item = await InboxRepository.createInboxItem({
-        ...data,
-        userId,
-      });
-
-      await logger.info("Inbox item created via quick capture", {
-        operation: "inbox_quick_capture",
-        additionalData: {
-          userId,
-          itemId: item.id,
-          textLength: data.rawText.length,
-        },
-      });
-
-      return item;
-    } catch (error) {
-      await logger.error("Failed to create inbox item", {
-        operation: "inbox_quick_capture",
-        additionalData: { userId, error },
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Voice capture with transcription
-   */
-  static async voiceCapture(userId: string, data: VoiceInboxCaptureDTO): Promise<InboxItem> {
-    try {
-      const item = await InboxRepository.createInboxItem({
-        rawText: data.transcription,
-        userId,
-      });
-
-      await logger.info("Inbox item created via voice capture", {
-        operation: "inbox_voice_capture",
-        additionalData: {
-          userId,
-          itemId: item.id,
-          confidence: data.confidence,
-          audioQuality: data.audioMetadata?.quality,
-          audioDuration: data.audioMetadata?.duration,
-        },
-      });
-
-      return item;
-    } catch (error) {
-      await logger.error("Failed to create voice inbox item", {
-        operation: "inbox_voice_capture",
-        additionalData: { userId, error },
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * List inbox items with filtering
-   */
-  static async listInboxItems(userId: string, filters?: InboxFilters): Promise<InboxItem[]> {
-    return await InboxRepository.listInboxItems(userId, filters);
-  }
-
-  /**
-   * Extract filter parameters from query object, removing stats parameter
-   */
-  static extractFilterParams(queryParams?: Record<string, unknown>): InboxFilters {
-    if (!queryParams) {
-      return {};
+    if (rest.createdTaskId !== undefined) {
+      updateData.createdTaskId = rest.createdTaskId;
     }
 
-    // Remove 'stats' parameter and return remaining as filters
-    const filterEntries = Object.entries(queryParams).filter(([key]) => key !== "stats");
-    return Object.fromEntries(filterEntries) as InboxFilters;
+    const rawItem = await inboxRepo.updateInboxItem(userId, itemId, updateData);
+    return rawItem ? transformInboxItem(rawItem) : null;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Error updating inbox item",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
+}
 
-  /**
-   * Get inbox statistics
-   */
-  static async getInboxStats(userId: string): Promise<{
-    unprocessed: number;
-    processed: number;
-    archived: number;
-    total: number;
-  }> {
-    return await InboxRepository.getInboxStats(userId);
-  }
+/**
+ * AI-powered processing of a single inbox item
+ */
+export async function processInboxItemService(
+  userId: string,
+  data: ProcessInboxItemDTO,
+): Promise<InboxProcessingResultDTO> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+  const zonesRepo = createZonesRepository(db);
 
-  /**
-   * AI-powered processing of inbox item into tasks
-   */
-  static async processInboxItem(
-    userId: string,
-    data: ProcessInboxItem,
-  ): Promise<InboxProcessingResultDTO> {
+  try {
+    // Check OpenRouter configuration first
     assertOpenRouterConfigured();
 
-    try {
-      // Get the inbox item
-      const item = await InboxRepository.getInboxItemById(userId, data.id);
-      if (!item) {
-        throw new Error("Inbox item not found");
-      }
-
-      // Get available zones for categorization
-      const zones = await ZonesRepository.listZones();
-
-      // Process with AI
-      const processingContext = this.buildProcessingContext(zones, data.userContext);
-
-      const categorization = await categorizeInboxItem(userId, item.rawText, processingContext);
-
-      await logger.info("Inbox item processed with AI", {
-        operation: "inbox_ai_processing",
-        additionalData: {
-          userId,
-          itemId: data.id,
-          confidence: categorization.confidence,
-          suggestedZone: categorization.suggestedZone,
-          extractedTasksCount: categorization.extractedTasks.length,
-        },
-      });
-
-      return {
-        ...categorization,
-        extractedTasks: categorization.extractedTasks.map((t) => ({
-          ...t,
-          dueDate: (() => {
-            if (
-              typeof t.dueDate !== "undefined" &&
-              t.dueDate !== null &&
-              !isNaN(Date.parse(String(t.dueDate)))
-            ) {
-              return new Date(t.dueDate);
-            }
-            return undefined;
-          })(),
-        })),
-      } as InboxProcessingResultDTO;
-    } catch (error) {
-      await logger.error("Failed to process inbox item with AI", {
-        operation: "inbox_ai_processing",
-        additionalData: { userId, itemId: data.id, error },
-      });
-      throw error;
+    const rawItem = await inboxRepo.getInboxItemById(userId, data.itemId);
+    if (!rawItem) {
+      throw new AppError("Inbox item not found", "NOT_FOUND", "database", false, 404);
     }
-  }
 
-  /**
-   * Bulk process multiple inbox items
-   */
-  static async bulkProcessInbox(
-    userId: string,
-    data: BulkProcessInboxDTO,
-  ): Promise<{
-    processed: InboxItem[];
-    results?: InboxProcessingResultDTO[];
-  }> {
-    try {
-      if (data.action === "archive") {
-        const processed = await InboxRepository.bulkUpdateStatus(userId, data.itemIds, "archived");
-        return { processed };
-      }
+    const rawZones = await zonesRepo.listZones();
+    const processingContext = buildProcessingContext(rawZones);
 
-      if (data.action === "delete") {
-        await InboxRepository.bulkDeleteInboxItems(userId, data.itemIds);
-        return { processed: [] };
-      }
+    const categorization = await categorizeInboxItem(userId, rawItem.rawText, processingContext);
 
-      if (data.action === "process") {
-        // AI process each item
-        const zones = await ZonesRepository.listZones();
-        const items = [];
-        const results = [];
-
-        for (const itemId of data.itemIds) {
-          const item = await InboxRepository.getInboxItemById(userId, itemId);
-          if (item && item.status === "unprocessed") {
-            const processingContext = this.buildProcessingContext(zones, data.userContext);
-
-            const categorization = await categorizeInboxItem(
-              userId,
-              item.rawText,
-              processingContext,
-            );
-            // Convert date strings to Date objects for type safety
-            const result: InboxProcessingResultDTO = {
-              ...categorization,
-              suggestedProject: categorization.suggestedProject ?? undefined,
-              extractedTasks: categorization.extractedTasks.map((task) => ({
-                ...task,
-                dueDate: (() => {
-                  if (
-                    typeof task.dueDate !== "undefined" &&
-                    task.dueDate !== null &&
-                    !isNaN(Date.parse(String(task.dueDate)))
-                  ) {
-                    return new Date(task.dueDate);
-                  }
-                  return undefined;
-                })(),
-              })),
-            };
-            results.push(result);
-
-            // Mark as processed (without creating task yet - that's handled in task creation flow)
-            const processed = await InboxRepository.markAsProcessed(userId, itemId);
-            if (processed) {
-              items.push(processed);
-            }
-          }
-        }
-
-        await logger.info("Bulk inbox processing completed", {
-          operation: "inbox_bulk_process",
-          additionalData: {
-            userId,
-            requestedCount: data.itemIds.length,
-            processedCount: items.length,
-          },
+    switch (data.action) {
+      case "archive":
+        await inboxRepo.updateInboxItem(userId, data.itemId, {
+          status: "archived",
         });
+        break;
+      case "delete":
+        await inboxRepo.deleteInboxItem(userId, data.itemId);
+        break;
+      case "create_task":
+      default:
+        await inboxRepo.markAsProcessed(userId, data.itemId, data.taskData?.projectId);
+        break;
+    }
 
-        return { processed: items, results };
+    const normalized: InboxProcessingResultDTO = {
+      ...categorization,
+      suggestedProject: categorization.suggestedProject ?? null,
+      extractedTasks: categorization.extractedTasks.map((task) => ({
+        ...task,
+        dueDate:
+          task.dueDate != null
+            ? task.dueDate instanceof Date
+              ? task.dueDate
+              : new Date(task.dueDate)
+            : null,
+      })),
+    };
+
+    return normalized;
+  } catch (error) {
+    await logger.error("Failed to process inbox item", {
+      operation: "inbox_ai_processing",
+      additionalData: { userId, itemId: data.itemId, error },
+    });
+
+    // Handle specific error types
+    if (error instanceof Error) {
+      // OpenRouter not configured
+      if (error.message.includes("OpenRouter") || error.message.includes("not configured")) {
+        throw new AppError(
+          "AI processing is not available",
+          "SERVICE_UNAVAILABLE",
+          "system",
+          true,
+          503,
+        );
       }
 
-      throw new Error(`Invalid bulk action: ${data.action}`);
-    } catch (error) {
-      await logger.error("Failed to bulk process inbox items", {
-        operation: "inbox_bulk_process",
-        additionalData: { userId, action: data.action, error },
-      });
-      throw error;
+      // AI processing failures
+      if (error.message.includes("categorize") || error.message.includes("AI")) {
+        throw new AppError(
+          "AI processing temporarily unavailable",
+          "SERVICE_UNAVAILABLE",
+          "system",
+          true,
+          503,
+        );
+      }
     }
-  }
 
-  /**
-   * Mark inbox item as processed with optional task reference
-   */
-  static async markAsProcessed(
-    userId: string,
-    itemId: string,
-    createdTaskId?: string,
-  ): Promise<InboxItem | null> {
-    return await InboxRepository.markAsProcessed(userId, itemId, createdTaskId);
+    // Generic error
+    throw new AppError(
+      error instanceof Error ? error.message : "Error processing inbox item",
+      "DB_ERROR",
+      "database",
+      false,
+      500,
+    );
   }
+}
 
-  /**
-   * Delete an inbox item
-   */
-  static async deleteInboxItem(userId: string, itemId: string): Promise<boolean> {
-    return await InboxRepository.deleteInboxItem(userId, itemId);
+/**
+ * Bulk process inbox items
+ */
+export async function bulkProcessInboxService(
+  userId: string,
+  data: BulkProcessInboxDTO,
+): Promise<{ processed: InboxItem[]; results?: InboxProcessingResultDTO[] }> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
+
+  try {
+    if (data.itemIds.length === 0) {
+      return { processed: [] };
+    }
+
+    if (data.action === "archive") {
+      const updated = await inboxRepo.bulkUpdateStatus(userId, data.itemIds, "archived");
+      return { processed: updated.map((item) => transformInboxItem(item)) };
+    }
+
+    if (data.action === "delete") {
+      await inboxRepo.bulkDeleteInboxItems(userId, data.itemIds);
+      return { processed: [] };
+    }
+
+    assertOpenRouterConfigured();
+
+    const zonesRepo = createZonesRepository(db);
+    const rawZones = await zonesRepo.listZones();
+    const processingContext = buildProcessingContext(rawZones);
+
+    const processed: InboxItem[] = [];
+    const results: InboxProcessingResultDTO[] = [];
+
+    for (const itemId of data.itemIds) {
+      const rawItem = await inboxRepo.getInboxItemById(userId, itemId);
+      if (!rawItem || rawItem.status === "archived") {
+        continue;
+      }
+
+      const categorization = await categorizeInboxItem(userId, rawItem.rawText, processingContext);
+
+      const normalized: InboxProcessingResultDTO = {
+        ...categorization,
+        suggestedProject: categorization.suggestedProject ?? null,
+        extractedTasks: categorization.extractedTasks.map((task) => ({
+          ...task,
+          dueDate:
+            task.dueDate != null
+              ? task.dueDate instanceof Date
+                ? task.dueDate
+                : new Date(task.dueDate)
+              : null,
+        })),
+      };
+
+      results.push(normalized);
+
+      const marked = await inboxRepo.markAsProcessed(userId, itemId);
+      if (marked) {
+        processed.push(transformInboxItem(marked));
+      }
+    }
+
+    return { processed, results };
+  } catch (error) {
+    await logger.error("Failed to bulk process inbox items", {
+      operation: "inbox_bulk_process",
+      additionalData: { userId, action: data.action, error },
+    });
+    throw new AppError(
+      error instanceof Error ? error.message : "Error bulk processing inbox items",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
+}
 
-  /**
-   * Get single inbox item
-   */
-  static async getInboxItem(userId: string, itemId: string): Promise<InboxItem | null> {
-    return await InboxRepository.getInboxItemById(userId, itemId);
-  }
+/**
+ * Mark an inbox item as processed
+ */
+export async function markAsProcessedService(
+  userId: string,
+  itemId: string,
+  createdTaskId?: string,
+): Promise<InboxItem | null> {
+  const db = await getDb();
+  const inboxRepo = createInboxRepository(db);
 
-  /**
-   * Update an inbox item
-   */
-  static async updateInboxItem(
-    userId: string,
-    itemId: string,
-    data: UpdateInboxItem,
-  ): Promise<InboxItem | null> {
-    return await InboxRepository.updateInboxItem(userId, itemId, data);
+  try {
+    const rawItem = await inboxRepo.markAsProcessed(userId, itemId, createdTaskId);
+    return rawItem ? transformInboxItem(rawItem) : null;
+  } catch (error) {
+    await logger.error(
+      "Error marking inbox item as processed",
+      {
+        operation: "inbox_mark_processed",
+        userId,
+        additionalData: { itemId },
+      },
+      error instanceof Error ? error : undefined,
+    );
+    throw new AppError(
+      error instanceof Error ? error.message : "Error marking inbox item as processed",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
 }

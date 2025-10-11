@@ -5,6 +5,8 @@
  */
 
 // Task schemas
+// Base types (Task, CreateTask, UpdateTask) are re-exported from schema.ts
+// Note: TaskWithUI removed - UI enrichment handled in service layer
 export {
   TaskSchema,
   CreateTaskSchema,
@@ -13,10 +15,14 @@ export {
   type Task,
   type CreateTask,
   type UpdateTask,
+  type CreateTaskInput,
+  type UpdateTaskInput,
   type TaskFilters,
-} from "./tasks";
+} from "./productivity";
 
 // Project schemas
+// Base types (Project, CreateProject, UpdateProject) are re-exported from schema.ts
+// Note: ProjectWithUI removed - UI enrichment handled in service layer
 export {
   ProjectSchema,
   CreateProjectSchema,
@@ -25,15 +31,26 @@ export {
   type Project,
   type CreateProject,
   type UpdateProject,
+  type CreateProjectInput,
+  type UpdateProjectInput,
   type ProjectFilters,
-} from "./projects";
+} from "./productivity";
 
 // Calendar schemas
+// Note: Calendar events are now stored in raw_events with provider='calendar'
 export {
-  CalendarEventSchema,
+  CalendarOAuthQuerySchema,
+  CalendarItemSchema,
+  ClientSchema,
+  AppointmentSchema,
+  WeeklyStatsSchema,
   type CalendarEvent,
-  type InsertCalendarEvent,
-} from "./business-schema";
+  type CalendarOAuthQuery,
+  type CalendarItem,
+  type Client,
+  type Appointment,
+  type WeeklyStats,
+} from "./calendar";
 
 export {
   CalendarSyncRequestSchema,
@@ -51,11 +68,6 @@ export {
   type CalendarSyncBlockingRequest,
   type CalendarSyncBlockingResponse,
   type CalendarImportRequest,
-  type CalendarStatusResponse,
-  type CalendarEventsQuery,
-  type CalendarEventsResponse,
-  type CalendarListQuery,
-  type CalendarListResponse,
 } from "./calendar";
 
 // Google preferences schemas
@@ -65,11 +77,10 @@ export {
   GooglePrefsUpdateSchema,
   GoogleStatusQuerySchema,
   GoogleStatusResponseSchema,
-  type GooglePrefsQuery,
-  type GooglePrefsResponse,
-  type GooglePrefsUpdate,
-  type GoogleStatusQuery,
-  type GoogleStatusResponse,
+  GoogleErrorCodeEnum,
+  GoogleServiceErrorSchema,
+  type GoogleErrorCode,
+  type GoogleServiceError,
 } from "./google-prefs";
 
 // Contact schemas
@@ -78,32 +89,45 @@ export * from "./contacts";
 // Note schemas
 export * from "./notes";
 
+// Data Intelligence schemas
+export * from "./ai-insights";
+export * from "./contact-identities";
+export * from "./documents";
+export * from "./embeddings";
+export * from "./ignored-identifiers";
+export * from "./interactions";
+export * from "./raw-events";
+
 // Gmail schemas
 export * from "./gmail";
-
-// Google OAuth schemas
-export * from "./google-auth";
+export {
+  EmailClassificationSchema,
+  EmailPreviewSchema,
+  PreviewRangeSchema,
+  ConnectConnectionStatusSchema,
+  JobSchema,
+  ConnectDashboardStateSchema,
+  SearchResultSchema,
+  ContactDataSchema,
+  EmailInsightsSchema,
+} from "./gmail";
+export type {
+  EmailClassification,
+  EmailPreview,
+  PreviewRange,
+  ConnectConnectionStatus,
+  Job,
+  ConnectDashboardState,
+  SearchResult,
+  EmailInsights,
+} from "./gmail";
 
 // Job Processing & Background Tasks
 export {
-  JobStatusQuerySchema,
-  ComprehensiveJobStatusDTOSchema,
-  ProcessManualSchema,
-  JobProcessingResultSchema,
-  SimpleJobProcessSchema,
-  CalendarEventsJobResultSchema,
-  RawEventsJobResultSchema,
-  NormalizeJobResultSchema,
   CronJobInputSchema,
   CronJobResultSchema,
-  type JobStatusQuery,
-  type ComprehensiveJobStatusDTO,
-  type ProcessManualRequest,
-  type JobProcessingResult,
-  type SimpleJobProcess,
-  type CalendarEventsJobResult,
-  type RawEventsJobResult,
-  type NormalizeJobResult,
+  SimpleJobProcessSchema,
+  JobProcessingResultSchema,
   type CronJobInput,
   type CronJobResult,
 } from "./jobs";
@@ -114,27 +138,29 @@ export {
   SyncProgressResponseSchema,
   SyncCancelResponseSchema,
   SyncSessionErrorSchema,
-  type SyncProgressQuery,
-  type SyncProgressResponse,
-  type SyncCancelResponse,
-  type SyncSessionError,
+  UserSyncPrefsUpdateSchema,
+  SyncSessionSchema,
+  NewSyncSessionSchema,
+  DrivePreferencesSchema,
+  type DrivePreferences,
 } from "./sync-progress";
 
 // Inbox Management
-export * from "./inbox";
+// Base types (InboxItem, CreateInboxItem, UpdateInboxItem) are re-exported from schema.ts
+export * from "./productivity";
 
 // Re-export specific types for convenience
 export type {
   InboxProcessingResultDTO,
   InboxProcessingContext,
   ProcessInboxItemDTO,
-} from "./inbox";
+} from "./productivity";
 
-// Search Functionality
-export * from "./search";
+// Search Functionality - DEPRECATED - Moved to deprecated-search-files/
+// Will be reimplemented as Spotlight-style global search
 
 // Zones Management
-export * from "./zones";
+export * from "./productivity";
 
 // User Management & Admin
 export {
@@ -142,10 +168,6 @@ export {
   UserExportResponseSchema,
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,
-  type UserExportRequest,
-  type UserExportResponse,
-  type UserDeletionRequest,
-  type UserDeletionResponse,
 } from "./user-management";
 
 // Onboarding Management
@@ -155,52 +177,23 @@ export {
   ListTokensQuerySchema,
   ListTokensResponseSchema,
   TokenIdParamsSchema,
-  DeleteTokenRequestSchema,
+  TokenInfoSchema,
   DeleteTokenResponseSchema,
   TrackAccessRequestSchema,
   TrackAccessResponseSchema,
-  SignedUploadRequestSchema,
-  SignedUploadResponseSchema,
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
-  type GenerateTokenRequest,
-  type GenerateTokenResponse,
-  type ListTokensQuery,
-  type ListTokensResponse,
-  type TokenIdParams,
-  type DeleteTokenRequest,
-  type DeleteTokenResponse,
-  type TrackAccessRequest,
-  type TrackAccessResponse,
-  type SignedUploadRequest,
-  type SignedUploadResponse,
-  type OnboardingSubmitRequest,
-  type OnboardingSubmitResponse,
 } from "./onboarding";
 
 // Storage Management
 export {
-  UploadUrlRequestSchema,
-  UploadUrlResponseSchema,
   FileUrlQuerySchema,
   FileUrlResponseSchema,
-  type UploadUrlRequest,
-  type UploadUrlResponse,
-  type FileUrlQuery,
-  type FileUrlResponse,
+  BatchFileUrlRequestSchema,
+  BatchFileUrlResponseSchema,
 } from "./storage";
 
-// Error Handling & Utils
-export {
-  ErrorRetryRequestSchema,
-  ErrorRetryResponseSchema,
-  ErrorSummaryQuerySchema,
-  ErrorSummaryResponseSchema,
-  type ErrorRetryRequest,
-  type ErrorRetryResponse,
-  type ErrorSummaryQuery,
-  type ErrorSummaryResponse,
-} from "./errors";
+// Error Handling schemas have been removed as part of error tracking service simplification
 
 // Admin Operations
 export {
@@ -210,31 +203,26 @@ export {
   ReplayResponseSchema,
   DashboardQuerySchema,
   DashboardResponseSchema,
-  type EmailIntelligenceTrigger,
   type EmailIntelligenceResponse,
-  type ReplayInput,
   type ReplayResponse,
-  type DashboardQuery,
   type DashboardResponse,
 } from "./admin";
 
-// Chat & AI Features
+// Zone schemas
+// Base types (Zone, CreateZone, UpdateZone) are re-exported from schema.ts
+// Note: ZoneWithUI and ZoneWithStats removed - UI enrichment handled in service layer
 export {
-  ChatRequestSchema,
-  ChatResponseSchema,
-  GmailSearchRequestSchema,
-  GmailSearchResponseSchema,
-  GmailInsightsQuerySchema,
-  GmailInsightsResponseSchema,
-  GmailIngestTestInputSchema,
-  type ChatRequest,
-  type ChatResponse,
-  type GmailSearchRequest,
-  type GmailSearchResponse,
-  type GmailInsightsQuery,
-  type GmailInsightsResponse,
-  type GmailIngestTestInput,
-} from "./chat";
+  ZonesQuerySchema,
+  ZoneFiltersSchema,
+  ZonesListResponseSchema,
+  ZonesWithStatsResponseSchema,
+  ZoneDetailsResponseSchema,
+  type Zone,
+  type CreateZone,
+  type UpdateZone,
+  type ZonesListResponse,
+  type ZonesWithStatsResponse,
+} from "./productivity";
 
 // Health & System Monitoring
 export {
@@ -243,5 +231,4 @@ export {
   GoogleSignInQuerySchema,
   type HealthResponse,
   type DbPingResponse,
-  type GoogleSignInQuery,
 } from "./health";

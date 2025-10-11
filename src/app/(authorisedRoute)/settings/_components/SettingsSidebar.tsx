@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 
 import {
   SidebarContent,
@@ -15,7 +14,7 @@ import {
 
 // Icons for the settings navigation
 import { User, CreditCard, Bell, Mail, Calendar as CalendarIcon, FileText } from "lucide-react";
-import { getSyncStatus } from "@/lib/api/sync.api";
+import { useSyncStatus } from "@/hooks/use-sync-status";
 
 // Navigation items for the settings section
 const settingsNavItems = [
@@ -27,11 +26,7 @@ const settingsNavItems = [
 
 export function SettingsSidebar(): JSX.Element {
   const pathname = usePathname();
-  const { data: syncStatus } = useQuery({
-    queryKey: ["sync", "status"],
-    queryFn: getSyncStatus,
-    staleTime: 30_000,
-  });
+  const { data: syncStatus } = useSyncStatus();
 
   return (
     <SidebarContent>
@@ -64,9 +59,16 @@ export function SettingsSidebar(): JSX.Element {
                 {syncStatus?.serviceTokens?.gmail ? (
                   <span className="text-green-600">Connected</span>
                 ) : (
-                  <a href="/api/google/gmail/oauth" className="text-blue-600 hover:underline">
+                  <button
+                    onClick={async () => {
+                      const response = await fetch("/api/google/gmail/connect", { method: "POST" });
+                      const data = await response.json();
+                      if (data.url) window.location.href = data.url;
+                    }}
+                    className="text-blue-600 hover:underline"
+                  >
                     Connect
-                  </a>
+                  </button>
                 )}
               </div>
             </div>

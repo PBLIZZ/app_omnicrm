@@ -69,7 +69,7 @@ export function validateCsrfToken(token: string): boolean {
  * Extract CSRF token from request headers
  */
 export function extractCsrfToken(headers: Headers): string | null {
-  return headers.get("x-csrf-token") || null;
+  return headers.get("x-csrf-token") ?? null;
 }
 
 /**

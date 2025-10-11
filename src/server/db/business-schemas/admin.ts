@@ -66,9 +66,8 @@ export const DashboardResponseSchema = z.object({
 // Type Exports
 // =============================================================================
 
-export type EmailIntelligenceTrigger = z.infer<typeof EmailIntelligenceTriggerSchema>;
 export type EmailIntelligenceResponse = z.infer<typeof EmailIntelligenceResponseSchema>;
-export type ReplayInput = z.infer<typeof ReplayInputSchema>;
+
 export type ReplayResponse = z.infer<typeof ReplayResponseSchema>;
-export type DashboardQuery = z.infer<typeof DashboardQuerySchema>;
+
 export type DashboardResponse = z.infer<typeof DashboardResponseSchema>;

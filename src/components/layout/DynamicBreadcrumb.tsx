@@ -46,8 +46,8 @@ export function DynamicBreadcrumb(): JSX.Element {
           // Handle specific route patterns
           if (segment === "contacts") {
             label = "Contacts";
-          } else if (segment === "omni-clients") {
-            label = "Omni-Clients";
+          } else if (segment === "contacts") {
+            label = "Contacts";
           } else if (segment === "edit") {
             label = "Edit Contact";
           } else if (segment === "new") {

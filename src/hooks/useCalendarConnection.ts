@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr } from "@/lib/utils/result";
 // Direct error handling (no abstraction)
 const createErrorHandler = (context: string) => (error: unknown) => {
   const message = error instanceof Error ? error.message : "An unknown error occurred";
@@ -33,18 +34,6 @@ export interface CalendarConnectionStatus {
   hasRefreshToken?: boolean;
 }
 
-export interface UseCalendarConnectionResult {
-  // Connection state
-  isConnecting: boolean;
-  isRefreshing: boolean;
-  error: string | null;
-
-  // Actions
-  connect: () => void;
-  refreshTokens: () => Promise<void>;
-  clearError: () => void;
-}
-
 export function useCalendarConnection(): UseCalendarConnectionResult {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +41,8 @@ export function useCalendarConnection(): UseCalendarConnectionResult {
   // OAuth connection mutation
   const connectMutation = useMutation({
     mutationFn: async () => {
-      // Redirect to Google Calendar OAuth
-      window.location.href = "/api/google/calendar/oauth";
+      // Redirect to new Calendar connect endpoint
+      window.location.href = "/api/google/calendar/connect";
     },
     onError: (err) => {
       setError("Failed to start Google Calendar OAuth");
@@ -64,16 +53,25 @@ export function useCalendarConnection(): UseCalendarConnectionResult {
   // Token refresh mutation
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<{
-        success: boolean;
-        message?: string;
-      }>("/api/google/calendar/refresh", {});
+      const result = await apiClient.post<
+        Result<
+          {
+            success: boolean;
+            message?: string;
+          },
+          { message: string; code: string }
+        >
+      >("/api/google/calendar/refresh", {});
 
-      if (!response.success) {
-        throw new Error(response.message ?? "Failed to refresh tokens");
+      if (isErr(result)) {
+        throw new Error(result.error.message);
       }
 
-      return response;
+      if (!result.data.success) {
+        throw new Error(result.data.message ?? "Failed to refresh tokens");
+      }
+
+      return result.data;
     },
     onMutate: () => {
       toast.info("Refreshing Google Calendar tokens...");

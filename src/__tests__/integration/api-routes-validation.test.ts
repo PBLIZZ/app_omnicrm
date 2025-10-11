@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 // Import API route handlers
 import { GET as healthGet } from "@/app/api/health/route";
-import { GET as omniClientsGet, POST as omniClientsPost } from "@/app/api/omni-clients/route";
+import { GET as contactsGet, POST as contactsPost } from "@/app/api/contacts/route";
 import { PUT as consentPut } from "@/app/api/settings/consent/route";
 
 // Mock auth utilities
@@ -75,12 +75,12 @@ describe("API Routes Validation Tests", () => {
     });
   });
 
-  describe("OmniClients API (/api/omni-clients)", () => {
+  describe("Contacts API (/api/contacts)", () => {
     it("lists omni clients with proper structure", async () => {
-      const request = new NextRequest("http://localhost:3000/api/omni-clients?page=1&pageSize=10");
+      const request = new NextRequest("http://localhost:3000/api/contacts?page=1&pageSize=10");
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsGet(request, routeContext);
+      const response = await contactsGet(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -93,10 +93,10 @@ describe("API Routes Validation Tests", () => {
     });
 
     it("supports pagination parameters", async () => {
-      const request = new NextRequest("http://localhost:3000/api/omni-clients?page=2&pageSize=25");
+      const request = new NextRequest("http://localhost:3000/api/contacts?page=2&pageSize=25");
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsGet(request, routeContext);
+      const response = await contactsGet(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -113,14 +113,14 @@ describe("API Routes Validation Tests", () => {
         tags: ["test", "api"],
       };
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients", {
+      const request = new NextRequest("http://localhost:3000/api/contacts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(clientData),
       });
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsPost(request, routeContext);
+      const response = await contactsPost(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(201);
@@ -136,14 +136,14 @@ describe("API Routes Validation Tests", () => {
         // Missing required displayName
       };
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients", {
+      const request = new NextRequest("http://localhost:3000/api/contacts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsPost(request, routeContext);
+      const response = await contactsPost(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -229,10 +229,10 @@ describe("API Routes Validation Tests", () => {
       const { getServerUserId } = await import("@/server/auth/user");
       vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("No session"));
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients");
+      const request = new NextRequest("http://localhost:3000/api/contacts");
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsGet(request, routeContext);
+      const response = await contactsGet(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(401);
@@ -261,14 +261,14 @@ describe("API Routes Validation Tests", () => {
     it("error responses follow consistent format", async () => {
       const invalidData = { invalid: "data" };
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients", {
+      const request = new NextRequest("http://localhost:3000/api/contacts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsPost(request, routeContext);
+      const response = await contactsPost(request, routeContext);
       const data = await response.json();
 
       expect(data).toHaveProperty("ok", false);

@@ -4,8 +4,8 @@ import { getDb } from "@/server/db/client";
 import { rawEvents, calendarEvents } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
 import { drizzleAdminGuard } from "@/server/db/admin";
-import type { RawEvent } from "@/server/db/types";
-import { ensureError } from "@/lib/utils/error-handler";
+import type { RawEvent } from "@/server/db/schema";
+import { ErrorHandler } from "@/lib/errors/app-error";
 
 // Type guards for safe payload parsing
 interface BatchJobPayload {
@@ -181,7 +181,7 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
               rawEventId: event.id,
             },
           },
-          ensureError(error),
+          error instanceof Error ? error : new Error(String(error)),
         );
         itemsSkipped++;
       }
@@ -211,7 +211,7 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
           batchId,
         },
       },
-      ensureError(error),
+      ErrorHandler.fromError(error),
     );
     throw error;
   }
@@ -500,7 +500,7 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
             rawEventId: row.id,
           },
         },
-        ensureError(error),
+        ErrorHandler.fromError(error),
       );
       itemsSkipped++;
     }

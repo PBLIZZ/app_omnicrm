@@ -1,16 +1,15 @@
 /**
- * Error category constants
+ * Simplified Error Category Constants
+ *
+ * Reduced to 4 basic types for minimal complexity
  */
 
 export const ERROR_CATEGORIES = {
-  AUTH: "auth",
-  RATE_LIMIT: "rate_limit",
+  DATABASE: "database",
+  AUTHENTICATION: "authentication",
   NETWORK: "network",
+  VALIDATION: "validation",
   SYSTEM: "system",
-  DATA_FORMAT: "data_format",
-  PROCESSING: "processing",
-  PERMISSION: "permission",
-  CONFIGURATION: "configuration",
 } as const;
 
 export type ErrorCategory = (typeof ERROR_CATEGORIES)[keyof typeof ERROR_CATEGORIES];

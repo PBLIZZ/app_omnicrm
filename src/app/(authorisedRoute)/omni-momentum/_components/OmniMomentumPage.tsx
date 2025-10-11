@@ -10,14 +10,22 @@ import {
   Button,
   Textarea,
 } from "@/components/ui";
-import { Zap, Mic, Send, Sparkles, Plus } from "lucide-react";
+import {
+  Zap,
+  Mic,
+  Send,
+  Sparkles,
+  Plus,
+  Inbox,
+  CheckSquare,
+  Archive,
+  TrendingUp,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 // ✅ Following DTO/Repository architecture - hooks use repository pattern internally
 import { useInbox, useInboxStats } from "@/hooks/use-inbox";
 import { useZones } from "@/hooks/use-zones";
 import { TodaysFocusSection } from "./TodaysFocusSection";
-// ✅ Using validated DTO from @omnicrm/contracts package (Phase 5-6 DTO Migration)
-import type { CreateInboxItem } from "@/server/db/business-schemas/business-schema";
 
 /**
  * QuickCaptureInput - The "Dump Everything" Interface
@@ -46,13 +54,8 @@ function QuickCaptureInput(): JSX.Element {
     try {
       setIsProcessing(true);
 
-      // ✅ Runtime validation via DTO schema ensures type safety (Phase 5-6 DTO Migration)
-      const data: CreateInboxItem = {
-        rawText: rawText.trim(),
-      };
-
       // ✅ Using void to explicitly handle Promise without await (ESLint no-floating-promises compliance)
-      void quickCapture(data);
+      void quickCapture({ rawText: rawText.trim() });
       setRawText("");
 
       toast({
@@ -149,49 +152,88 @@ function QuickCaptureInput(): JSX.Element {
 function SimpleInboxStats(): JSX.Element {
   const { data: stats, isLoading } = useInboxStats();
 
+  const loadingSkeleton = (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[1, 2, 3, 4].map((i) => (
+        <Card key={i} className="animate-pulse border-muted">
+          <CardContent className="p-5 space-y-3">
+            <div className="h-4 w-24 bg-muted-foreground/20 rounded" />
+            <div className="h-9 w-20 bg-muted-foreground/20 rounded" />
+            <div className="h-3 w-32 bg-muted-foreground/10 rounded" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+
   if (isLoading || !stats) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="p-4">
-              <div className="h-8 bg-gray-200 rounded" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
+    return loadingSkeleton;
   }
 
+  const totalItems = stats.total ?? 0;
+  const processingRate = totalItems > 0 ? Math.round((stats.processed / totalItems) * 100) : 0;
+  const awaitingItems = stats.unprocessed ?? 0;
+  const processedItems = stats.processed ?? 0;
+  const archivedItems = stats.archived ?? 0;
+  const activeBacklog = awaitingItems + processedItems;
+
+  const cards = [
+    {
+      title: "Inbox Awaiting",
+      value: awaitingItems,
+      subtitle: "Needs triage",
+      accent: "bg-blue-500/10",
+      iconBg: "bg-blue-500/90",
+      icon: Inbox,
+    },
+    {
+      title: "Organized Items",
+      value: processedItems,
+      subtitle: `${processingRate}% of total processed` as const,
+      accent: "bg-emerald-500/10",
+      iconBg: "bg-emerald-500/90",
+      icon: CheckSquare,
+    },
+    {
+      title: "Archived",
+      value: archivedItems,
+      subtitle: "Filed away",
+      accent: "bg-slate-500/10",
+      iconBg: "bg-slate-500/90",
+      icon: Archive,
+    },
+    {
+      title: "Processing Momentum",
+      value: `${processingRate}%` as const,
+      subtitle: activeBacklog > 0 ? `${activeBacklog} active this week` : "Capture something new",
+      accent: "bg-purple-500/10",
+      iconBg: "bg-purple-500/90",
+      icon: TrendingUp,
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-blue-600">{stats.unprocessed}</div>
-          <div className="text-sm text-blue-600">To Process</div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-green-50 border-green-200">
-        <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-green-600">{stats.processed}</div>
-          <div className="text-sm text-green-600">Organized</div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-gray-50 border-gray-200">
-        <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-gray-600">{stats.archived}</div>
-          <div className="text-sm text-gray-600">Archived</div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-purple-50 border-purple-200">
-        <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-purple-600">{stats.total}</div>
-          <div className="text-sm text-purple-600">Total Items</div>
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {cards.map(({ title, value, subtitle, accent, iconBg, icon: Icon }) => (
+        <Card key={title} className={`border border-transparent ${accent}`}>
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  {title}
+                </p>
+                <div className="text-3xl font-semibold text-foreground">
+                  {typeof value === "number" ? value.toLocaleString() : value}
+                </div>
+              </div>
+              <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white ${iconBg}`}>
+                <Icon className="h-5 w-5" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

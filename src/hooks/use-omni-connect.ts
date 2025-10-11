@@ -12,6 +12,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr, isOk } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -19,7 +20,10 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   if (error instanceof Error && error.message.includes("403")) return false;
 
   // Retry network errors up to 3 times
-  if (error instanceof Error && (error.message.includes("fetch") || error.message.includes("network"))) {
+  if (
+    error instanceof Error &&
+    (error.message.includes("fetch") || error.message.includes("network"))
+  ) {
     return retryCount < 3;
   }
 
@@ -28,52 +32,33 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
 };
 import type {
   EmailPreview,
-  PreviewRange,
   ConnectConnectionStatus,
   ConnectDashboardState,
   Job,
-} from "@/app/(authorisedRoute)/omni-connect/_components/types";
-
-export interface UseOmniConnectResult {
-  // Main dashboard data
-  data: ConnectDashboardState | undefined;
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
-
-  // Backward compatibility methods for existing components
-  connection: {
-    status: ConnectConnectionStatus;
-    stats: ConnectConnectionStatus | undefined;
-    isLoading: boolean;
-    error: Error | null;
-    connect: () => void;
-    isConnecting: boolean;
-    refetch: () => void;
-  };
-
-  emails: {
-    emails: EmailPreview[];
-    previewRange: PreviewRange | null;
-    isLoading: boolean;
-    error: Error | null;
-    refetch: () => void;
-  };
-}
+} from "@/server/db/business-schemas";
 
 export function useOmniConnect(): UseOmniConnectResult {
   // Main unified query
   const { data, error, isLoading, refetch } = useQuery({
     queryKey: queryKeys.omniConnect.dashboard(),
     queryFn: async (): Promise<ConnectDashboardState> => {
-      return apiClient.get("/api/omni-connect/dashboard");
+      const result = await apiClient.get<
+        Result<ConnectDashboardState, { message: string; code: string }>
+      >("/api/omni-connect/dashboard");
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
+      }
+      return result.data;
     },
     staleTime: 30000, // 30 seconds - refetch in background after this
     retry: (failureCount, error) => shouldRetry(error, failureCount),
-    // Optimistic loading: assume connected state initially for better UX
+    // Initial data - assume disconnected until we know otherwise
     initialData: {
       connection: {
-        isConnected: true,
+        isConnected: false,
         emailCount: 0,
         contactCount: 0,
       },
@@ -130,8 +115,8 @@ export function useOmniConnect(): UseOmniConnectResult {
   // OAuth connection mutation
   const connectMutation = useMutation({
     mutationFn: async () => {
-      // Redirect to Gmail OAuth
-      window.location.href = "/api/google/gmail/oauth";
+      // Redirect to connect endpoint (GET request - no CSRF needed)
+      window.location.href = "/api/google/gmail/connect";
     },
   });
 

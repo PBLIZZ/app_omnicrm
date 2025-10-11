@@ -24,9 +24,9 @@ export function CalendarSidebar(): JSX.Element {
 
   const handleCreateEvent = async (eventData: CalendarEventCreateData): Promise<void> => {
     try {
-      const result = await post<unknown>("/api/google/calendar/create", eventData);
-      const parsedData = safeParseApiData(result);
-      const htmlLink = getHtmlLink(parsedData.data);
+      const result = await post<{ data?: { htmlLink?: string } }>("/api/google/calendar/create", eventData);
+      const parsedData = safeParseApiData<{ data?: { htmlLink?: string } }>(result);
+      const htmlLink = getHtmlLink(parsedData.data ?? {});
       toast({
         title: "Event Created",
         description: `View in Google Calendar: ${htmlLink}`,

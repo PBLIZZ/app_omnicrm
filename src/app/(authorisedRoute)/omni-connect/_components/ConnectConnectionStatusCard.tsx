@@ -31,9 +31,21 @@ export function ConnectConnectionStatusCard({
     <Card data-testid="connection-status-card">
       <CardHeader className="pb-1">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600" data-testid="connection-status">
-            <LucideCircleCheckBig className="h-4 w-4" />
-            Gmail Connected
+          <CardTitle 
+            className={`text-sm font-medium flex items-center gap-2 ${status.isConnected ? 'text-green-600' : 'text-muted-foreground'}`} 
+            data-testid="connection-status"
+          >
+            {status.isConnected ? (
+              <>
+                <LucideCircleCheckBig className="h-4 w-4" />
+                Gmail Connected
+              </>
+            ) : (
+              <>
+                <AlertCircle className="h-4 w-4" />
+                Gmail Not Connected
+              </>
+            )}
           </CardTitle>
           {onSyncNow && status.isConnected && (
             <Badge

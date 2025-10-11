@@ -1,101 +1,206 @@
 /**
- * Chat System Schemas
+ * Chat API Business Schemas
  *
- * Domain schemas for chat/RAG functionality
+ * For base types, import from @/server/db/schema:
+ * - Thread, Message, ToolInvocation (select types)
+ * - CreateThread, CreateMessage, CreateToolInvocation (insert types)
+ * - UpdateThread, UpdateMessage, UpdateToolInvocation (partial insert types)
+ *
+ * Generated from Drizzle schema using drizzle-zod.
+ *
+ * This file contains ONLY API-specific schemas and business logic validations.
  */
 
 import { z } from "zod";
+import { createSelectSchema } from "drizzle-zod";
+import { threads, messages, toolInvocations } from "@/server/db/schema";
 
-// =============================================================================
-// Chat Request/Response Schemas
-// =============================================================================
+// Re-export base types from schema for convenience
+export type {
+  Thread,
+  CreateThread,
+  UpdateThread,
+  Message,
+  CreateMessage,
+  UpdateMessage,
+  ToolInvocation,
+  CreateToolInvocation,
+  UpdateToolInvocation,
+  ThreadWithMessages,
+  MessageWithTools,
+} from "@/server/db/schema";
 
-export const ChatRequestSchema = z.object({
-  message: z.string().optional(),
-  history: z
-    .array(
-      z.object({
-        role: z.enum(["user", "assistant", "system"]),
-        content: z.string(),
-      }),
-    )
-    .optional(),
+// Create Zod schemas from Drizzle tables for API validation
+const ThreadDataSchema = createSelectSchema(threads);
+const MessageDataSchema = createSelectSchema(messages);
+const ToolInvocationDataSchema = createSelectSchema(toolInvocations);
+
+// Export base schemas for single entity responses
+export const ThreadSchema = ThreadDataSchema.extend({
+  title: z.string().nullable(),
 });
 
-export const ChatResponseSchema = z.object({
-  response: z.string(),
-  conversationId: z.string().optional(),
-  sources: z.array(z.object({
-    title: z.string(),
-    content: z.string(),
-    url: z.string().optional(),
-  })).optional(),
+export const MessageSchema = MessageDataSchema.extend({
+  content: z.unknown(), // JSONB field
 });
 
-// =============================================================================
-// Gmail Search Schemas
-// =============================================================================
-
-export const GmailSearchRequestSchema = z.object({
-  query: z.string().min(1).max(1000),
-  limit: z.number().min(1).max(50).default(10),
+export const ToolInvocationSchema = ToolInvocationDataSchema.extend({
+  args: z.unknown(), // JSONB field
+  result: z.unknown().nullable(), // JSONB field
+  latencyMs: z.number().int().nullable(),
 });
 
-export const GmailSearchResponseSchema = z.object({
-  results: z.array(z.object({
-    id: z.string(),
-    subject: z.string().nullable(),
-    from: z.string().nullable(),
-    to: z.string().nullable(),
-    date: z.string(),
-    snippet: z.string().optional(),
-    relevanceScore: z.number().optional(),
-  })),
-  totalCount: z.number(),
-  query: z.string(),
+// ============================================================================
+// API REQUEST SCHEMAS - THREADS
+// ============================================================================
+
+/**
+ * POST /api/chat/threads - Create thread
+ */
+export const CreateThreadBodySchema = z.object({
+  title: z.string().optional(),
 });
 
-// =============================================================================
-// Gmail Insights Schemas
-// =============================================================================
+export type CreateThreadBody = z.infer<typeof CreateThreadBodySchema>;
 
-export const GmailInsightsQuerySchema = z.object({
-  // Add any query parameters if needed
+/**
+ * PATCH /api/chat/threads/[id] - Update thread
+ */
+export const UpdateThreadBodySchema = z.object({
+  title: z.string().nullish(),
 });
 
-export const GmailInsightsResponseSchema = z.object({
-  insights: z.array(
-    z.object({
-      type: z.string(),
-      title: z.string(),
-      description: z.string(),
-      confidence: z.number(),
-      data: z.record(z.unknown()).optional(),
-    }),
-  ),
-  summary: z
-    .object({
-      totalEmails: z.number(),
-      timeRange: z.string(),
-      topSenders: z.array(z.string()),
-    })
-    .optional(),
+export type UpdateThreadBody = z.infer<typeof UpdateThreadBodySchema>;
+
+/**
+ * GET /api/chat/threads - Query parameters
+ */
+export const GetThreadsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sort: z.enum(["createdAt", "updatedAt"]).default("updatedAt"),
+  order: z.enum(["asc", "desc"]).default("desc"),
 });
 
-// =============================================================================
-// Test Schemas
-// =============================================================================
+export type GetThreadsQuery = z.infer<typeof GetThreadsQuerySchema>;
 
-export const GmailIngestTestInputSchema = z.object({});
+// ============================================================================
+// API REQUEST SCHEMAS - MESSAGES
+// ============================================================================
 
-// =============================================================================
-// Type Exports
-// =============================================================================
+/**
+ * POST /api/chat/threads/[threadId]/messages - Create message
+ */
+export const CreateMessageBodySchema = z.object({
+  role: z.enum(["user", "assistant", "system"]),
+  content: z.unknown(), // JSONB content (can be text, structured data, etc.)
+});
 
-export type ChatRequest = z.infer<typeof ChatRequestSchema>;
-export type ChatResponse = z.infer<typeof ChatResponseSchema>;
-export type GmailSearchRequest = z.infer<typeof GmailSearchRequestSchema>;
-export type GmailSearchResponse = z.infer<typeof GmailSearchResponseSchema>;
-export type GmailInsightsQuery = z.infer<typeof GmailInsightsQuerySchema>;
-export type GmailInsightsResponse = z.infer<typeof GmailInsightsResponseSchema>;
-export type GmailIngestTestInput = z.infer<typeof GmailIngestTestInputSchema>;
+export type CreateMessageBody = z.infer<typeof CreateMessageBodySchema>;
+
+/**
+ * GET /api/chat/threads/[threadId]/messages - Query parameters
+ */
+export const GetMessagesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  order: z.enum(["asc", "desc"]).default("asc"), // Usually chronological for chat
+});
+
+export type GetMessagesQuery = z.infer<typeof GetMessagesQuerySchema>;
+
+// ============================================================================
+// API REQUEST SCHEMAS - TOOL INVOCATIONS
+// ============================================================================
+
+/**
+ * POST /api/chat/messages/[messageId]/tools - Create tool invocation
+ */
+export const CreateToolInvocationBodySchema = z.object({
+  tool: z.string().min(1),
+  args: z.unknown(), // JSONB args
+  result: z.unknown().optional(), // JSONB result
+  latencyMs: z.number().int().positive().optional(),
+});
+
+export type CreateToolInvocationBody = z.infer<typeof CreateToolInvocationBodySchema>;
+
+// ============================================================================
+// API RESPONSE SCHEMAS
+// ============================================================================
+
+/**
+ * GET /api/chat/threads - List response
+ */
+export const ThreadListResponseSchema = z.object({
+  items: z.array(ThreadDataSchema),
+  pagination: z.object({
+    page: z.number(),
+    pageSize: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+    hasNext: z.boolean(),
+    hasPrev: z.boolean(),
+  }),
+});
+
+export type ThreadListResponse = z.infer<typeof ThreadListResponseSchema>;
+
+/**
+ * GET /api/chat/threads/[id] - Single thread with messages
+ */
+export const ThreadWithMessagesSchema = ThreadDataSchema.extend({
+  messages: z.array(MessageDataSchema),
+});
+
+export type ThreadWithMessagesResponse = z.infer<typeof ThreadWithMessagesSchema>;
+
+/**
+ * GET /api/chat/threads/[threadId]/messages - Messages list
+ */
+export const MessageListResponseSchema = z.object({
+  items: z.array(MessageDataSchema),
+  pagination: z.object({
+    page: z.number(),
+    pageSize: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+    hasNext: z.boolean(),
+    hasPrev: z.boolean(),
+  }),
+});
+
+export type MessageListResponse = z.infer<typeof MessageListResponseSchema>;
+
+/**
+ * GET /api/chat/messages/[id] - Single message with tool invocations
+ */
+export const MessageWithToolsSchema = MessageDataSchema.extend({
+  toolInvocations: z.array(ToolInvocationDataSchema),
+});
+
+export type MessageWithToolsResponse = z.infer<typeof MessageWithToolsSchema>;
+
+/**
+ * Success response for single entity operations
+ */
+export const ThreadResponseSchema = z.object({
+  item: ThreadDataSchema,
+});
+
+export const MessageResponseSchema = z.object({
+  item: MessageDataSchema,
+});
+
+export const ToolInvocationResponseSchema = z.object({
+  item: ToolInvocationDataSchema,
+});
+
+/**
+ * Delete response
+ */
+export const DeleteResponseSchema = z.object({
+  deleted: z.boolean(),
+});
+
+export type DeleteResponse = z.infer<typeof DeleteResponseSchema>;

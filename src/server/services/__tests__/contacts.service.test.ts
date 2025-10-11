@@ -56,7 +56,6 @@ describe("ContactsService", () => {
             confidenceScore: "0.8",
             createdAt: new Date(),
             updatedAt: new Date(),
-            notesCount: 0,
             lastNote: null,
           },
         ],

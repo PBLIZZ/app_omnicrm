@@ -21,14 +21,13 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
 };
 import type {
   InboxItem,
-  CreateInboxItem,
   UpdateInboxItem,
   InboxProcessingResultDTO,
   ProcessInboxItemDTO,
   BulkProcessInboxDTO,
   VoiceInboxCaptureDTO,
-  InboxFilters,
-} from "@/server/db/business-schemas";
+} from "@/server/db/business-schemas/productivity";
+import type { InboxFilters } from "@/server/services/inbox.service";
 
 // ============================================================================
 // TYPES
@@ -66,6 +65,12 @@ interface BulkProcessResponse {
   };
 }
 
+type QuickCapturePayload = {
+  rawText: string;
+  status?: "unprocessed" | "processed" | "archived";
+  createdTaskId?: string | null;
+};
+
 interface UseInboxReturn {
   // Query data
   items: InboxItem[];
@@ -75,7 +80,7 @@ interface UseInboxReturn {
   error: unknown;
 
   // Actions
-  quickCapture: (data: CreateInboxItem) => void;
+  quickCapture: (data: QuickCapturePayload) => void;
   voiceCapture: (data: VoiceInboxCaptureDTO) => void;
   processItem: (data: ProcessInboxItemDTO) => Promise<InboxProcessingResultDTO>;
   bulkProcess: (data: BulkProcessInboxDTO) => Promise<BulkProcessResponse["result"]>;
@@ -123,7 +128,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   }
 
   const queryString = queryParams.toString();
-  const apiUrl = `/api/inbox${queryString ? `?${queryString}` : ""}`;
+  const apiUrl = `/api/omni-momentum/inbox${queryString ? `?${queryString}` : ""}`;
 
   // ============================================================================
   // QUERIES
@@ -133,7 +138,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   const inboxQuery = useQuery({
     queryKey: queryKeys.inbox.list(filters),
     queryFn: async (): Promise<InboxItem[]> => {
-      const data = await apiClient.get<InboxApiResponse>(apiUrl);
+      const response = await fetch(apiUrl, { credentials: "same-origin" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
       return data.items ?? [];
     },
     refetchInterval: autoRefetch ? 30000 : false, // Auto-refresh every 30 seconds
@@ -144,7 +151,11 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   const statsQuery = useQuery({
     queryKey: queryKeys.inbox.stats(),
     queryFn: async (): Promise<InboxStats> => {
-      const data = await apiClient.get<InboxStatsApiResponse>("/api/inbox?stats=true");
+      const response = await fetch("/api/omni-momentum/inbox?stats=true", {
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
       return data.stats;
     },
     refetchInterval: autoRefetch ? 60000 : false, // Auto-refresh every minute
@@ -157,8 +168,8 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
 
   // Quick capture
   const quickCaptureMutation = useMutation({
-    mutationFn: async (data: CreateInboxItem): Promise<InboxItem> => {
-      const result = await apiClient.post<{ item: InboxItem }>("/api/inbox", {
+    mutationFn: async (data: QuickCapturePayload): Promise<InboxItem> => {
+      const result = await apiClient.post<{ item: InboxItem }>("/api/omni-momentum/inbox", {
         type: "quick_capture",
         data,
       });
@@ -174,6 +185,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       const previousStats = queryClient.getQueryData<InboxStats>(queryKeys.inbox.stats());
 
       // Optimistically update items
+      const now = new Date();
       const tempItem: InboxItem = {
         id: `temp-${Date.now()}`,
         userId: "",
@@ -181,8 +193,8 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
         status: "unprocessed",
         createdTaskId: null,
         processedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       };
 
       queryClient.setQueryData<InboxItem[]>(queryKeys.inbox.list(filters), (old) => [
@@ -238,7 +250,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Voice capture
   const voiceCaptureMutation = useMutation({
     mutationFn: async (data: VoiceInboxCaptureDTO): Promise<InboxItem> => {
-      const result = await apiClient.post<{ item: InboxItem }>("/api/inbox", {
+      const result = await apiClient.post<{ item: InboxItem }>("/api/omni-momentum/inbox", {
         type: "voice_capture",
         data,
       });
@@ -264,7 +276,10 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Process item with AI
   const processItemMutation = useMutation({
     mutationFn: async (data: ProcessInboxItemDTO): Promise<InboxProcessingResultDTO> => {
-      const result = await apiClient.post<InboxProcessingResponse>("/api/inbox/process", data);
+      const result = await apiClient.post<InboxProcessingResponse>(
+        "/api/omni-momentum/inbox/process",
+        data,
+      );
       return result.result;
     },
     onError: (error) => {
@@ -296,7 +311,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Bulk process
   const bulkProcessMutation = useMutation({
     mutationFn: async (data: BulkProcessInboxDTO): Promise<BulkProcessResponse["result"]> => {
-      const result = await apiClient.post<BulkProcessResponse>("/api/inbox", {
+      const result = await apiClient.post<BulkProcessResponse>("/api/omni-momentum/inbox", {
         type: "bulk_process",
         data,
       });
@@ -330,10 +345,13 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       itemId: string;
       data: UpdateInboxItem;
     }): Promise<InboxItem> => {
-      const result = await apiClient.patch<{ item: InboxItem }>(`/api/inbox/${itemId}`, {
-        action: "update_status",
-        data,
-      });
+      const result = await apiClient.patch<{ item: InboxItem }>(
+        `/api/omni-momentum/inbox/${itemId}`,
+        {
+          action: "update_status",
+          data,
+        },
+      );
       return result.item;
     },
     onSuccess: (updatedItem) => {
@@ -362,10 +380,13 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       itemId: string;
       createdTaskId?: string;
     }): Promise<InboxItem> => {
-      const result = await apiClient.patch<{ item: InboxItem }>(`/api/inbox/${itemId}`, {
-        action: "mark_processed",
-        data: createdTaskId ? { createdTaskId } : undefined,
-      });
+      const result = await apiClient.patch<{ item: InboxItem }>(
+        `/api/omni-momentum/inbox/${itemId}`,
+        {
+          action: "mark_processed",
+          data: createdTaskId ? { createdTaskId } : undefined,
+        },
+      );
       return result.item;
     },
     onSuccess: (updatedItem) => {
@@ -391,7 +412,7 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
   // Delete item
   const deleteItemMutation = useMutation({
     mutationFn: async (itemId: string): Promise<void> => {
-      await apiClient.delete(`/api/inbox/${itemId}`);
+      await apiClient.delete<void>(`/api/omni-momentum/inbox/${itemId}`);
     },
     onMutate: async (itemId) => {
       // Cancel outgoing refetches
@@ -502,8 +523,10 @@ export function useInboxStats() {
   return useQuery({
     queryKey: queryKeys.inbox.stats(),
     queryFn: async (): Promise<InboxStats> => {
-      const data = await apiClient.get<InboxStatsApiResponse>("/api/inbox?stats=true");
-      return data.stats;
+      const result = await apiClient.get<InboxStatsApiResponse>(
+        "/api/omni-momentum/inbox?stats=true",
+      );
+      return result.stats;
     },
     refetchInterval: 60000, // Auto-refresh every minute
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -523,8 +546,10 @@ export function useUnprocessedInboxItems(limit?: number) {
         queryParams.set("limit", limit.toString());
       }
 
-      const data = await apiClient.get<InboxApiResponse>(`/api/inbox?${queryParams.toString()}`);
-      return data.items ?? [];
+      const result = await apiClient.get<InboxApiResponse>(
+        `/api/omni-momentum/inbox?${queryParams.toString()}`,
+      );
+      return result.items ?? [];
     },
     refetchInterval: 10000, // More frequent refresh for unprocessed items
     retry: (failureCount, error) => shouldRetry(error, failureCount),

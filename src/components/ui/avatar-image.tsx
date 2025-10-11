@@ -34,14 +34,25 @@ export function AvatarImage({ src, alt, size = "md", className = "" }: AvatarIma
     xl: { width: 128, height: 128 },
   }[size] || { width: 40, height: 40 };
 
-  // Generate signed URL for private images if needed
-  const { data: fileUrlData } = useFileUrl(src || "", {
-    enabled:
-      !!src &&
-      (src.includes("contact-profile-photo") || src.includes("contacts/")) &&
-      !src.includes("?token="),
+  // Generate signed URL for private images from Supabase Storage
+  // Only supports client-photos bucket (from onboarding system)
+  const shouldFetchSignedUrl = !!src && src.includes("client-photos/") && !src.includes("?token=");
+  const { data: fileUrlData, error: fileUrlError, isLoading } = useFileUrl(src ?? null, {
+    enabled: shouldFetchSignedUrl,
     staleTime: 55 * 60 * 1000,
   });
+
+  // Debug logging for troubleshooting
+  useEffect(() => {
+    if (shouldFetchSignedUrl) {
+      console.log("[AvatarImage] Fetching signed URL:", {
+        src,
+        isLoading,
+        hasSignedUrl: !!fileUrlData?.signedUrl,
+        error: fileUrlError || fileUrlData?.error,
+      });
+    }
+  }, [src, shouldFetchSignedUrl, isLoading, fileUrlData, fileUrlError]);
 
   // Determine the actual URL to use
   const actualImageUrl = useMemo(() => {
@@ -51,15 +62,11 @@ export function AvatarImage({ src, alt, size = "md", className = "" }: AvatarIma
     }
 
     // If src is a storage path but we don't have signed URL yet, don't render
-    if (
-      src &&
-      (src.includes("contact-profile-photo") || src.includes("contacts/")) &&
-      !src.includes("?token=")
-    ) {
+    if (src && src.includes("client-photos/") && !src.includes("?token=")) {
       return null;
     }
 
-    // Otherwise use the original src
+    // Otherwise use the original src (for full URLs)
     return src;
   }, [src, fileUrlData?.signedUrl]);
 

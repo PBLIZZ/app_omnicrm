@@ -25,13 +25,6 @@ function allowRequest(key: string): boolean {
 }
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
-  // Handle /contacts -> /omni-clients redirect
-  if (req.nextUrl.pathname.startsWith("/contacts")) {
-    const newPathname = req.nextUrl.pathname.replace("/contacts", "/omni-clients");
-    const redirectUrl = new URL(newPathname + req.nextUrl.search, req.url);
-    return NextResponse.redirect(redirectUrl);
-  }
-
   // Generate a per-request nonce and forward it to the app via request headers
   const forwardHeaders = new Headers(req.headers);
   const cspNonce = randomNonce(18);

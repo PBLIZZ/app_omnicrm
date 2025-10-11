@@ -3,6 +3,17 @@
 import { generateText, ChatMessage } from "@/server/ai/core/llm.service";
 import { EmailClassification } from "@/server/ai/types/connect-types";
 
+interface EmailWisdom {
+  insights: string[];
+  actionItems: string[];
+  wellnessTags: string[];
+  marketingOpportunities: string[];
+  businessOpportunities: string[];
+  senderMood: string;
+  recommendFollowUp: boolean;
+  followUpReason?: string;
+}
+
 const buildExtractWisdomPrompt = ({
   subject,
   bodyText,
@@ -44,17 +55,6 @@ Focus on actionable insights that can help improve client relationships and busi
   ];
 };
 
-export interface EmailWisdom {
-  keyInsights: string[];
-  actionItems: string[];
-  wellnessTags: string[];
-  marketingTips?: string[];
-  businessOpportunities?: string[];
-  clientMood?: "positive" | "neutral" | "concerned" | "frustrated" | "excited";
-  followUpRecommended?: boolean;
-  followUpReason?: string;
-}
-
 export async function extractWisdom(
   userId: string,
   emailData: {
@@ -65,7 +65,10 @@ export async function extractWisdom(
     classification: EmailClassification;
   },
 ): Promise<EmailWisdom> {
-  const { subject = "", bodyText = "", senderName = "", classification } = emailData;
+  const subject = emailData.subject ?? "";
+  const bodyText = emailData.bodyText ?? "";
+  const senderName = emailData.senderName ?? "";
+  const classification = emailData.classification;
 
   // Input validation
   if (!subject || !bodyText || !senderName) {

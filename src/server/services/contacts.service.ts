@@ -1,63 +1,159 @@
-// src/server/services/contacts.service.ts
-// Unified contacts service using the unified repository pattern
-import { ContactsRepository } from "@repo";
-import type { Contact, CreateContact } from "@/server/db/business-schemas/business-schema";
+/**
+ * Contacts Service Layer
+ *
+ * Business logic and orchestration.
+ * - Unwraps DbResult from repos → throws AppError
+ * - Data enrichment (add computed fields)
+ * - Business rule validation
+ */
+
+import { createContactsRepository, createNotesRepository } from "@repo";
+import type { Contact, Note } from "@/server/db/schema";
+import { AppError } from "@/lib/errors/app-error";
+import { logger } from "@/lib/observability";
+import {
+  getBatchSignedUrlsService,
+  logBatchPhotoAccessService,
+} from "@/server/services/storage.service";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
+import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
+import type { ContactWithLastNote as ContactWithLastNoteType } from "@/server/db/business-schemas/contacts";
+import { getContactSuggestions } from "../ai/contacts/suggest-contacts";
+
+// ============================================================================
+// SERVICE LAYER TYPES (Data enrichment)
+// ============================================================================
+
+/**
+ * Contact enriched with last note preview
+ * Used by list endpoint to show note snippets
+ * Re-exported from business schemas for consistency
+ */
+export type ContactWithLastNote = ContactWithLastNoteType;
+
+/**
+ * Contact with full notes array
+ * Used by detail view
+ */
+export type ContactWithNotes = Contact & {
+  notes: Array<{
+    id: string;
+    userId: string;
+    contactId: string | null;
+    contentRich: unknown;
+    contentPlain: string;
+    piiEntities: unknown;
+    tags: string[];
+    sourceType: "typed" | "voice" | "upload";
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+};
 
 export type ContactListParams = {
-  search?: string;
-  sort?: "displayName" | "createdAt" | "updatedAt";
-  order?: "asc" | "desc";
+  search?: string | undefined;
+  sort?: "displayName" | "createdAt" | "updatedAt" | undefined;
+  order?: "asc" | "desc" | undefined;
   page: number;
   pageSize: number;
-  dateRange?: { from?: Date; to?: Date };
+  dateRange?: { from?: Date; to?: Date } | undefined;
 };
 
-export type CreateContactInput = {
-  displayName: string;
-  primaryEmail?: string | null;
-  primaryPhone?: string | null;
-  source: "manual" | "gmail_import" | "upload" | "calendar_import";
-  lifecycleStage?:
-    | "Prospect"
-    | "New Client"
-    | "Core Client"
-    | "Referring Client"
-    | "VIP Client"
-    | "Lost Client"
-    | "At Risk Client"
-    | null;
-  tags?: string[] | null;
-  confidenceScore?: string | null;
-};
-
-// Enhanced type that includes the extra fields from omni-clients repo
-export type ContactListItem = Contact & {
-  notesCount: number;
-  lastNote: string | null;
-};
-
-// Helper to convert empty strings to null
-function emptyToNull(value: string | undefined | null): string | null {
-  if (value === undefined || value === null || value.trim() === "") {
-    return null;
-  }
-  return value;
+export interface BulkDeleteRequest {
+  ids: string[];
 }
 
-// Helper to get notes data for multiple contacts efficiently
-async function getNotesDataForContacts(
+export interface BulkDeleteResponse {
+  deleted: number;
+  errors: { id: string; error: string }[];
+}
+
+// ============================================================================
+// PUBLIC API - CONTACT SUGGESTIONS
+// ============================================================================
+
+/**
+ * Get contact suggestions from calendar events
+ * Note: Requires calendar sync to be active
+ */
+export async function getContactSuggestionsService(userId: string): Promise<Array<unknown>> {
+  // Call AI suggestion logic directly (it returns the array, not a Result)
+  const suggestions = await getContactSuggestions(userId);
+  return suggestions;
+}
+
+/**
+ * Count contacts for user with optional search filter
+ */
+export async function countContactsService(userId: string, search?: string): Promise<number> {
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+
+  try {
+    return await repo.countContacts(userId, search);
+  } catch (_error) {
+    throw new AppError("Failed to count contacts", "DB_ERROR", "database", false);
+  }
+}
+
+/**
+ * Create contacts from approved suggestion IDs
+ *
+ * Implementation:
+ * 1. Get all suggestions from calendar
+ * 2. Filter by provided IDs
+ * 3. Transform to contact data
+ * 4. Batch create contacts
+ */
+export async function createContactsFromSuggestionsService(
+  userId: string,
+  suggestionIds: string[],
+): Promise<{ createdCount: number; contacts: Contact[] }> {
+  // 1. Get all suggestions
+  const allSuggestions = await getContactSuggestions(userId);
+
+  // 2. Filter to only requested IDs
+  const selectedSuggestions = allSuggestions.filter((s) => suggestionIds.includes(s.id));
+
+  if (selectedSuggestions.length === 0) {
+    return { createdCount: 0, contacts: [] };
+  }
+
+  // 3. Transform suggestions to contact data
+  const contactsData = selectedSuggestions.map((suggestion) => ({
+    displayName: suggestion.displayName,
+    primaryEmail: suggestion.email,
+    source: suggestion.source,
+    lifecycleStage: "Prospect",
+    tags: ["calendar_import"],
+  }));
+
+  // 4. Batch create contacts
+  const batchResult = await createContactsBatchService(userId, contactsData);
+
+  return {
+    createdCount: batchResult.created.length,
+    contacts: batchResult.created,
+  };
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get last note preview (first 500 chars) for each contact
+ */
+async function getLastNotePreviewForContacts(
   userId: string,
   contactIds: string[],
-): Promise<Map<string, { count: number; lastNote: string | null }>> {
+): Promise<Map<string, string | null>> {
   if (contactIds.length === 0) {
     return new Map();
   }
 
   const db = await getDb();
-
-  // Use database-level aggregation to get count and last note for each contact
   const uuidArray = sql`ARRAY[${sql.join(
     contactIds.map((id) => sql`${id}`),
     sql`, `,
@@ -66,206 +162,443 @@ async function getNotesDataForContacts(
   let notesData;
   try {
     notesData = await db.execute(sql`
-      SELECT 
+      SELECT DISTINCT ON (contact_id)
         contact_id,
-        COUNT(*) as count,
-        (SELECT content FROM notes n2 
-         WHERE n2.contact_id = n.contact_id 
-         AND n2.user_id = ${userId}
-         ORDER BY n2.created_at DESC 
-         LIMIT 1) as last_note
-      FROM notes n
+        LEFT(content_plain, 500) as last_note_preview
+      FROM notes
       WHERE user_id = ${userId} 
       AND contact_id = ANY(${uuidArray})
-      GROUP BY contact_id
+      ORDER BY contact_id, created_at DESC
     `);
   } catch (error) {
-    console.error("Database error in getNotesCounts:", {
+    console.error("Database error in getLastNotePreview:", {
       error: error instanceof Error ? error.message : String(error),
       userId,
       contactIds: contactIds.length,
     });
-    // Return empty map on database error to prevent breaking the UI
     return new Map();
   }
 
-  // Build result map from aggregated data
-  const result = new Map<string, { count: number; lastNote: string | null }>();
+  const result = new Map<string, string | null>();
 
-  // Initialize all contact IDs with zero counts
+  // Initialize all contacts with null
   for (const contactId of contactIds) {
-    result.set(contactId, { count: 0, lastNote: null });
+    result.set(contactId, null);
   }
 
-  // Update with actual data from database
-  for (const row of notesData as Array<{
-    contact_id: string;
-    count: string | number;
-    last_note: string | null;
-  }>) {
-    const contactId = row.contact_id;
-    const count = parseInt(String(row.count), 10);
-    const lastNote = row.last_note;
-
-    result.set(contactId, { count, lastNote });
+  // Validate and process database rows
+  const validatedRows = validateNotesQueryRows(notesData);
+  for (const row of validatedRows) {
+    const preview = typeof row.last_note_preview === "string" ? row.last_note_preview : null;
+    result.set(row.contact_id, preview);
   }
 
   return result;
 }
 
+// ============================================================================
+// CONTACT CRUD OPERATIONS
+// ============================================================================
+
 /**
- * List contacts with optional search filtering
- * Delegates to unified repository for core functionality
+ * List contacts with pagination and enrichment
  */
 export async function listContactsService(
   userId: string,
   params: ContactListParams,
-): Promise<{ items: ContactListItem[]; total: number }> {
-  // Use unified repo with full pagination and search support
-  const repoParams: Parameters<typeof ContactsRepository.listContacts>[1] = {
-    page: params.page,
-    pageSize: params.pageSize,
+): Promise<{
+  items: ContactWithLastNote[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
   };
-  if (params.search !== undefined) repoParams.search = params.search;
-  if (params.sort !== undefined) repoParams.sort = params.sort;
-  if (params.order !== undefined) repoParams.order = params.order;
+}> {
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
   try {
-    // Call repository and explicitly type the result
-    const repoResult = (await ContactsRepository.listContacts(userId, repoParams)) as {
-      items: Contact[];
-      total: number;
-    };
-
-    // Ensure we have valid items array and total
-    const contactItems: Contact[] = Array.isArray(repoResult.items) ? repoResult.items : [];
-    const total: number = typeof repoResult.total === "number" ? repoResult.total : 0;
-
-    // Get notes data for all contacts in a single query
-    const contactIds = contactItems.map((c) => c.id);
-    const notesData = await getNotesDataForContacts(userId, contactIds);
-
-    // Transform each contact to include notes info
-    const transformedItems: ContactListItem[] = contactItems.map((contact) => {
-      const notesInfo = notesData.get(contact.id) || { count: 0, lastNote: null };
-
-      return {
-        id: contact.id,
-        photoUrl: contact.photoUrl,
-        userId: contact.userId,
-        displayName: contact.displayName,
-        primaryEmail: contact.primaryEmail,
-        primaryPhone: contact.primaryPhone,
-        source: contact.source,
-        lifecycleStage: contact.lifecycleStage,
-        tags: contact.tags,
-        confidenceScore: contact.confidenceScore,
-        createdAt: contact.createdAt,
-        updatedAt: contact.updatedAt,
-        notesCount: notesInfo.count,
-        lastNote: notesInfo.lastNote,
-      };
+    // 1. Get contacts from repo
+    const { items: contacts, total } = await repo.listContacts(userId, {
+      page: params.page,
+      pageSize: params.pageSize,
+      ...(params.search !== undefined && { search: params.search }),
+      ...(params.sort !== undefined && { sort: params.sort }),
+      ...(params.order !== undefined && { order: params.order }),
     });
 
+    // 2. Enrich with last notes
+    const contactIds = contacts.map((c) => c.id);
+    const lastNotePreviews = await getLastNotePreviewForContacts(userId, contactIds);
+
+    // 3. Batch generate signed URLs for photos
+    const photoPaths = contacts.filter((c) => c.photoUrl).map((c) => c.photoUrl as string);
+
+    let photoUrls: Record<string, string | null> = {};
+    if (photoPaths.length > 0) {
+      const batchResult = await getBatchSignedUrlsService(photoPaths, 14400); // 4 hours
+      photoUrls = batchResult.urls;
+
+      // Log photo access for HIPAA/GDPR compliance (best-effort)
+      const contactPhotos = contacts
+        .filter((c) => c.photoUrl)
+        .map((c) => ({ contactId: c.id, photoPath: c.photoUrl as string }));
+
+      await logBatchPhotoAccessService(userId, contactPhotos);
+    }
+
+    // 4. Transform with enrichments
+    const itemsWithEnrichments: ContactWithLastNote[] = contacts.map((contact) => ({
+      ...contact,
+      lastNote: lastNotePreviews.get(contact.id) ?? null,
+      photoUrl: contact.photoUrl ? (photoUrls[contact.photoUrl] ?? contact.photoUrl) : null,
+    }));
+
+    // 5. Calculate pagination
+    const totalPages = Math.ceil(total / params.pageSize);
+
     return {
-      items: transformedItems,
-      total,
+      items: itemsWithEnrichments,
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        total,
+        totalPages,
+        hasNext: params.page < totalPages,
+        hasPrev: params.page > 1,
+      },
     };
   } catch (error) {
-    console.error("Error listing contacts:", error);
-    return { items: [], total: 0 };
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to list contacts",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
 }
 
 /**
- * Create a new contact using unified repository
+ * Get single contact by ID
+ */
+export async function getContactByIdService(userId: string, contactId: string): Promise<Contact> {
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+
+  try {
+    const contact = await repo.getContactById(userId, contactId);
+
+    if (!contact) {
+      throw new AppError("contact not found", "CONTACT_NOT_FOUND", "validation", false);
+    }
+
+    return normalizeContactNulls(contact);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get contact",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * Get contact with all notes
+ * Replaces repo.getContactWithNotes - composed from two repo calls
+ */
+export async function getContactWithNotesService(
+  userId: string,
+  contactId: string,
+): Promise<ContactWithNotes> {
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+  const notesRepo = createNotesRepository(db);
+
+  try {
+    // 1. Get contact
+    const contact = await repo.getContactById(userId, contactId);
+
+    if (!contact) {
+      throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
+    }
+
+    // 2. Get notes separately
+    let notes: Note[] = [];
+    try {
+      notes = await notesRepo.listNotes(userId, contactId);
+    } catch (error) {
+      // Notes fetch failed - return contact with empty notes rather than error
+      console.warn("Failed to fetch notes for contact:", error);
+      notes = [];
+    }
+
+    // 3. Combine
+    return {
+      ...contact,
+      notes,
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get contact with notes",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * Create new contact
  */
 export async function createContactService(
   userId: string,
-  input: CreateContactInput,
-): Promise<ContactListItem | null> {
-  const createData: CreateContact = {
-    displayName: input.displayName,
-    primaryEmail: emptyToNull(input.primaryEmail),
-    primaryPhone: emptyToNull(input.primaryPhone),
-    source: input.source,
-    lifecycleStage: input.lifecycleStage ?? null,
-    tags: input.tags ?? null,
-    confidenceScore: input.confidenceScore ?? null,
-  };
+  input: {
+    displayName: string;
+    primaryEmail?: string | undefined;
+    primaryPhone?: string | undefined;
+    photoUrl?: string | undefined;
+    source?: string | undefined;
+    lifecycleStage?: string | undefined;
+    tags?: string[] | undefined;
+    confidenceScore?: string | undefined;
+    dateOfBirth?: string | undefined;
+    emergencyContactName?: string | undefined;
+    emergencyContactPhone?: string | undefined;
+    clientStatus?: string | undefined;
+    referralSource?: string | undefined;
+    address?: unknown;
+    healthContext?: unknown;
+    preferences?: unknown;
+  },
+): Promise<Contact> {
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-  const contact = await ContactsRepository.createContact({ ...createData, userId });
+  try {
+    const contact = await repo.createContact({
+      userId,
+      displayName: input.displayName,
+      primaryEmail: input.primaryEmail ?? null,
+      primaryPhone: input.primaryPhone ?? null,
+      photoUrl: input.photoUrl ?? null,
+      source: input.source ?? null,
+      lifecycleStage: input.lifecycleStage ?? null,
+      tags: input.tags ?? null,
+      confidenceScore: input.confidenceScore ?? null,
+      dateOfBirth: input.dateOfBirth ?? null,
+      emergencyContactName: input.emergencyContactName ?? null,
+      emergencyContactPhone: input.emergencyContactPhone ?? null,
+      clientStatus: input.clientStatus ?? null,
+      referralSource: input.referralSource ?? null,
+      address: input.address ?? null,
+      healthContext: input.healthContext ?? null,
+      preferences: input.preferences ?? null,
+    });
 
-  if (!contact) {
-    return null;
+    // Transform null to undefined for exactOptionalPropertyTypes compatibility
+    return normalizeContactNulls(contact);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to create contact",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
+}
 
-  // Transform to ContactListItem format
+/**
+ * Helper: Convert null values to undefined for schema compatibility
+ * Required because exactOptionalPropertyTypes treats null and undefined as distinct
+ */
+function normalizeContactNulls(contact: Contact): Contact {
   return {
     ...contact,
-    notesCount: 0, // New contact has no notes
-    lastNote: null, // New contact has no notes
-  };
+    primaryEmail: contact.primaryEmail ?? undefined,
+    primaryPhone: contact.primaryPhone ?? undefined,
+    photoUrl: contact.photoUrl ?? undefined,
+    source: contact.source ?? undefined,
+    lifecycleStage: contact.lifecycleStage ?? undefined,
+    clientStatus: contact.clientStatus ?? undefined,
+    referralSource: contact.referralSource ?? undefined,
+    confidenceScore: contact.confidenceScore ?? undefined,
+    dateOfBirth: contact.dateOfBirth ?? undefined,
+    emergencyContactName: contact.emergencyContactName ?? undefined,
+    emergencyContactPhone: contact.emergencyContactPhone ?? undefined,
+    address: contact.address ?? undefined,
+    healthContext: contact.healthContext ?? undefined,
+    preferences: contact.preferences ?? undefined,
+    tags: contact.tags ?? undefined,
+  } as Contact;
 }
 
 /**
- * Get contact by ID using unified repository
- */
-export async function getContactByIdService(
-  userId: string,
-  contactId: string,
-): Promise<Contact | null> {
-  return await ContactsRepository.getContactById(userId, contactId);
-}
-
-/**
- * Update contact using unified repository
+ * Update contact
  */
 export async function updateContactService(
   userId: string,
   contactId: string,
-  updateData: Partial<CreateContactInput>,
-): Promise<Contact | null> {
-  return await ContactsRepository.updateContact(userId, contactId, updateData);
+  updates: {
+    displayName?: string | undefined;
+    primaryEmail?: string | null | undefined;
+    primaryPhone?: string | null | undefined;
+    photoUrl?: string | null | undefined;
+    source?: string | null | undefined;
+    lifecycleStage?: string | null | undefined;
+    tags?: string[] | null | undefined;
+    confidenceScore?: string | null | undefined;
+    dateOfBirth?: string | null | undefined;
+    emergencyContactName?: string | null | undefined;
+    emergencyContactPhone?: string | null | undefined;
+    clientStatus?: string | null | undefined;
+    referralSource?: string | null | undefined;
+    address?: unknown;
+    healthContext?: unknown;
+    preferences?: unknown;
+  },
+): Promise<Contact> {
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+
+  try {
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, v]) => v !== undefined),
+    ) as Partial<typeof updates>;
+    const contact = await repo.updateContact(userId, contactId, cleanUpdates);
+
+    if (!contact) {
+      throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
+    }
+
+    return normalizeContactNulls(contact);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to update contact",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
 }
 
 /**
- * Delete contact using unified repository
+ * Delete contact
  */
 export async function deleteContactService(userId: string, contactId: string): Promise<boolean> {
-  return await ContactsRepository.deleteContact(userId, contactId);
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+
+  try {
+    return await repo.deleteContact(userId, contactId);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to delete contact",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
 }
 
 /**
- * Find contact by email using unified repository
+ * Find contact by email
  */
 export async function findContactByEmailService(
   userId: string,
   email: string,
 ): Promise<Contact | null> {
-  return await ContactsRepository.findContactByEmail(userId, email);
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+
+  try {
+    const contact = await repo.findContactByEmail(userId, email);
+    return contact ? normalizeContactNulls(contact) : null;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to find contact by email",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+// ============================================================================
+// BULK OPERATIONS
+// ============================================================================
+
+/**
+ * Bulk delete contacts
+ */
+export async function deleteContactsBulk(
+  userId: string,
+  request: BulkDeleteRequest,
+): Promise<BulkDeleteResponse> {
+  const { ids } = request;
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+
+  try {
+    const deletedCount = await repo.deleteContactsByIds(userId, ids);
+
+    // Log for audit
+    await logger.info("Bulk deleted contacts", {
+      operation: "contacts_bulk_delete",
+      additionalData: {
+        userId: userId.slice(0, 8) + "...",
+        deletedCount,
+        requestedIds: ids.length,
+      },
+    });
+
+    return {
+      deleted: deletedCount,
+      errors: [],
+    };
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to bulk delete contacts",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
 }
 
 /**
- * Batch create contacts (simplified version for now)
+ * Batch create contacts
  */
 export async function createContactsBatchService(
   userId: string,
-  contactsData: Array<CreateContactInput>,
-): Promise<{ created: ContactListItem[]; duplicates: number; errors: number }> {
-  const created: ContactListItem[] = [];
+  contactsData: Array<{
+    displayName: string;
+    primaryEmail?: string;
+    primaryPhone?: string;
+    source?: string;
+    lifecycleStage?: string;
+    tags?: string[];
+  }>,
+): Promise<{
+  created: Contact[];
+  duplicates: number;
+  errors: number;
+}> {
+  const created: Contact[] = [];
   let duplicates = 0;
   let errors = 0;
 
-  // Simple implementation - could be optimized in unified repo later
   for (const contactData of contactsData) {
     try {
       // Check for duplicates by email
       if (contactData.primaryEmail) {
-        const existing = await ContactsRepository.findContactByEmail(
-          userId,
-          contactData.primaryEmail,
-        );
+        const existing = await findContactByEmailService(userId, contactData.primaryEmail);
         if (existing) {
           duplicates++;
           continue;
@@ -273,9 +606,7 @@ export async function createContactsBatchService(
       }
 
       const contact = await createContactService(userId, contactData);
-      if (contact) {
-        created.push(contact);
-      }
+      created.push(contact);
     } catch (error) {
       errors++;
       console.error("Error creating contact in batch:", error);

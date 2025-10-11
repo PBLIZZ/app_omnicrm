@@ -3,10 +3,11 @@ import { NextRequest } from "next/server";
 import { getDb } from "@/server/db/client";
 import { contacts } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
+import { logger } from "@/lib/observability/unified-logger";
 
 // Import API route handlers
 import { GET as healthGet } from "@/app/api/health/route";
-import { GET as omniClientsGet, POST as omniClientsPost } from "@/app/api/omni-clients/route";
+import { GET as contactsGet, POST as contactsPost } from "@/app/api/contacts/route";
 import { PUT as consentPut } from "@/app/api/settings/consent/route";
 
 // Import auth utilities
@@ -75,7 +76,11 @@ describe("API Endpoints Integration Tests", () => {
             break;
         }
       } catch (error) {
-        console.warn(`Cleanup failed for ${table}:${id}:`, error);
+        const errorInstance = error instanceof Error ? error : new Error(String(error));
+        logger.debug(`Cleanup failed for ${table}:${id}`, {
+          operation: "test_cleanup",
+          additionalData: { table, id }
+        }, errorInstance);
       }
     }
     cleanupIds.length = 0;
@@ -130,7 +135,7 @@ describe("API Endpoints Integration Tests", () => {
     });
   });
 
-  describe("OmniClients API (/api/omni-clients)", () => {
+  describe("Contacts API (/api/contacts)", () => {
     beforeEach(() => {
       // Mock authenticated user
       vi.mocked(getServerUserId).mockResolvedValue(testUserId);
@@ -145,10 +150,10 @@ describe("API Endpoints Integration Tests", () => {
         source: "manual",
       });
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients?page=1&pageSize=10");
+      const request = new NextRequest("http://localhost:3000/api/contacts?page=1&pageSize=10");
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsGet(request, routeContext);
+      const response = await contactsGet(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -185,10 +190,10 @@ describe("API Endpoints Integration Tests", () => {
         if (contact) cleanupIds.push({ table: "contacts", id: contact.id });
       });
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients?search=Searchable");
+      const request = new NextRequest("http://localhost:3000/api/contacts?search=Searchable");
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsGet(request, routeContext);
+      const response = await contactsGet(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -209,14 +214,14 @@ describe("API Endpoints Integration Tests", () => {
         tags: ["test", "api"],
       };
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients", {
+      const request = new NextRequest("http://localhost:3000/api/contacts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(clientData),
       });
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsPost(request, routeContext);
+      const response = await contactsPost(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(201);
@@ -237,14 +242,14 @@ describe("API Endpoints Integration Tests", () => {
         // Missing required displayName
       };
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients", {
+      const request = new NextRequest("http://localhost:3000/api/contacts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsPost(request, routeContext);
+      const response = await contactsPost(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -256,10 +261,10 @@ describe("API Endpoints Integration Tests", () => {
       // Mock unauthenticated user for this test
       mockGetServerUserId.mockRejectedValueOnce(new Error("No session"));
 
-      const request = new NextRequest("http://localhost:3000/api/omni-clients");
+      const request = new NextRequest("http://localhost:3000/api/contacts");
       const routeContext = { params: Promise.resolve({}) };
 
-      const response = await omniClientsGet(request, routeContext);
+      const response = await contactsGet(request, routeContext);
       const data = await response.json();
 
       expect(response.status).toBe(401);

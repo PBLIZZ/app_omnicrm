@@ -29,7 +29,7 @@ export {
  *
  * @example
  * ```typescript
- * import { ContactInputSchema, ContactSchema } from "@/server/db/business-schema";
+ * import { ContactInputSchema, ContactSchema } from "@/server/db/business-schemas/contacts";
  * import { handle } from "@/lib/api";
  * import { contactsRepo } from "@omnicrm/repo";
  *
@@ -43,8 +43,8 @@ export function handle<TIn, TOut>(
   input: z.ZodType<TIn>,
   output: z.ZodType<TOut>,
   fn: (parsed: TIn) => Promise<TOut>,
-) {
-  return async (req: Request) => {
+): (req: Request) => Promise<Response> {
+  return async (req: Request): Promise<Response> => {
     try {
       const body = await req.json();
       const parsed = input.parse(body);
@@ -84,26 +84,25 @@ export function handleAuth<TIn, TOut>(
   input: z.ZodType<TIn>,
   output: z.ZodType<TOut>,
   fn: (parsed: TIn, userId: string) => Promise<TOut>,
-) {
-  return async (req: Request) => {
+): (req: Request) => Promise<Response> {
+  return async (req: Request): Promise<Response> => {
     try {
       // Lazy import to avoid circular dependencies
       const { getServerUserId } = await import("../server/auth/user");
+      const { cookies } = await import("next/headers");
 
-      const userId = await getServerUserId();
+      const cookieStore = await cookies();
+      const userId = await getServerUserId(cookieStore);
 
       // Check if there's a JSON body to parse
-      let body = {};
+      let body: unknown = undefined;
       const contentType = req.headers.get("content-type");
-      const contentLength = req.headers.get("content-length");
 
-      if (
-        contentType?.includes("application/json") &&
-        contentLength &&
-        parseInt(contentLength) > 0
-      ) {
+      if (contentType?.includes("application/json")) {
         try {
-          body = await req.json();
+          const rawBody = await req.text();
+          // Treat empty string as undefined for void schemas, otherwise parse
+          body = rawBody === "" ? undefined : JSON.parse(rawBody);
         } catch (error) {
           if (
             error instanceof SyntaxError ||
@@ -133,6 +132,23 @@ export function handleAuth<TIn, TOut>(
         status: 200,
       });
     } catch (error) {
+      // Lazy import ApiError for error handling
+      const { ApiError } = await import("./api/errors");
+
+      // Handle ApiError with proper status codes
+      if (error instanceof ApiError) {
+        return new Response(
+          JSON.stringify({
+            error: error.message,
+            details: error.details,
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: error.status,
+          },
+        );
+      }
+
       if (error instanceof z.ZodError) {
         return new Response(
           JSON.stringify({
@@ -233,8 +249,10 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
     try {
       // Lazy import to avoid circular dependencies
       const { getServerUserId } = await import("../server/auth/user");
+      const { cookies } = await import("next/headers");
 
-      const userId = await getServerUserId();
+      const cookieStore = await cookies();
+      const userId = await getServerUserId(cookieStore);
       const url = new URL(req.url);
       const queryParams = Object.fromEntries(url.searchParams.entries());
       const parsed = querySchema.parse(queryParams);
@@ -264,6 +282,79 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           headers: { "content-type": "application/json" },
           status: 401,
+        });
+      }
+
+      throw error;
+    }
+  };
+}
+/**
+ * Authenticated API Handler for routes with dynamic URL parameters.
+ * Supports Next.js 15+ async params pattern.
+ */
+export function handleAuthWithParams<TIn, TOut, TParams extends Record<string, string>>(
+  input: z.ZodType<TIn>,
+  output: z.ZodType<TOut>,
+  fn: (parsed: TIn, userId: string, params: TParams) => Promise<TOut>,
+): (req: Request, context: { params: Promise<TParams> }) => Promise<Response> {
+  return async (req: Request, context: { params: Promise<TParams> }): Promise<Response> => {
+    try {
+      const { getServerUserId } = await import("../server/auth/user");
+      const { cookies } = await import("next/headers");
+
+      const cookieStore = await cookies();
+      const userId = await getServerUserId(cookieStore);
+
+      // ✅ AWAIT the params (Next.js 15+)
+      const params = await context.params;
+
+      let body: unknown = undefined;
+      const contentType = req.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        try {
+          const rawBody = await req.text();
+          body = rawBody === "" ? undefined : JSON.parse(rawBody);
+        } catch (error) {
+          if (error instanceof SyntaxError) {
+            return new Response(
+              JSON.stringify({ error: "Malformed JSON", details: error.message }),
+              { status: 400, headers: { "content-type": "application/json" } },
+            );
+          }
+          throw error;
+        }
+      }
+
+      const parsed = input.parse(body);
+      const result = await fn(parsed, userId, params);
+      const validated = output.parse(result);
+
+      return new Response(JSON.stringify(validated), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      });
+    } catch (error) {
+      const { ApiError } = await import("./api/errors");
+
+      if (error instanceof ApiError) {
+        return new Response(JSON.stringify({ error: error.message, details: error.details }), {
+          status: error.status,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      if (error instanceof z.ZodError) {
+        return new Response(JSON.stringify({ error: "Validation failed", details: error.issues }), {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      if (error instanceof Error && "status" in error && error.status === 401) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
         });
       }
 

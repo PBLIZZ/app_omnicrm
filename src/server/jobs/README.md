@@ -83,7 +83,7 @@ Purpose: keep ingestion boring and reliable under load.
 1. **Define job type** in `types.ts`:
 
    ```typescript
-   export type JobKind = "sync" | "normalize" | "extract_contacts" | "your_new_job";
+   export type JobKind = "google_gmail_sync" | "normalize_google_email" | "extract_contacts" | "your_new_job";
    ```
 
 2. **Create processor** in `processors/your-processor.ts`:

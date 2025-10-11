@@ -4,14 +4,17 @@
  * Handles all Supabase storage operations including signed URL generation
  * for file downloads and uploads. Centralizes storage bucket interactions
  * and provides consistent error handling.
+ *
+ * Features:
+ * - Single file signed URL generation
+ * - Batch signed URL generation (optimized for table views)
+ * - Photo access audit logging (HIPAA/GDPR compliance)
  */
 
 import { supabaseServerAdmin, supabaseServerPublishable } from "@/server/db/supabase/server";
-
-export interface SignedUrlResult {
-  signedUrl: string | null;
-  error?: string;
-}
+import { getDb } from "@/server/db/client";
+import { photoAccessAudit } from "@/server/db/schema";
+import { AppError } from "@/lib/errors/app-error";
 
 export interface UploadUrlResult {
   signedUrl: string | null;
@@ -19,11 +22,27 @@ export interface UploadUrlResult {
   error?: string;
 }
 
-export class StorageService {
-  /**
-   * Get signed URL for downloading a file from storage
-   */
-  static async getFileSignedUrl(filePath: string): Promise<SignedUrlResult> {
+export interface SignedUrlResult {
+  signedUrl: string | null;
+}
+
+export interface BatchSignedUrlResult {
+  urls: Record<string, string | null>;
+  errors?: Record<string, string> | undefined;
+}
+
+export interface PhotoAccessAuditParams {
+  userId: string;
+  contactId: string;
+  photoPath: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+/**
+ * Get signed URL for downloading a file from storage
+ */
+export async function getFileSignedUrlService(filePath: string): Promise<SignedUrlResult> {
     try {
       // If already an absolute URL (e.g., public or already signed), just echo it back
       if (/^https?:\/\//i.test(filePath)) {
@@ -36,83 +55,198 @@ export class StorageService {
       const pathInBucket = rest.join("/");
 
       if (!bucket || !pathInBucket) {
-        return {
-          signedUrl: null,
-          error: "filePath must be of the form 'bucket/path/to/file'",
-        };
+        throw new AppError(
+          "filePath must be 'bucket/path/to/file'",
+          "INVALID_PATH",
+          "validation",
+          false,
+        );
       }
 
       const client = supabaseServerAdmin ?? supabaseServerPublishable;
       if (!client) {
-        return {
-          signedUrl: null,
-          error: "Supabase client unavailable on server",
-        };
+        throw new AppError(
+          "Supabase client unavailable on server",
+          "CONFIG_ERROR",
+          "database",
+          false,
+        );
       }
 
-      const { data, error } = await client.storage
-        .from(bucket)
-        .createSignedUrl(pathInBucket, 3600);
+      const { data, error } = await client.storage.from(bucket).createSignedUrl(pathInBucket, 3600);
 
       if (error) {
-        return {
-          signedUrl: null,
-          error: "failed_to_create_signed_url",
-        };
+        throw new AppError(`Storage error: ${error.message}`, "STORAGE_ERROR", "database", true);
       }
 
-      return { signedUrl: data?.signedUrl ?? null };
+      return {
+        signedUrl: data.signedUrl,
+      };
     } catch (error) {
-      console.error("Error creating signed URL:", error);
-      return {
-        signedUrl: null,
-        error: "unexpected_error",
-      };
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(
+        "Unexpected error creating signed URL",
+        "UNEXPECTED_ERROR",
+        "database",
+        true,
+      );
     }
-  }
+}
 
-  /**
-   * Get signed URL for uploading a file to storage
-   */
-  static async getUploadSignedUrl(
-    fileName: string,
-    contentType: string,
-    folderPath?: string,
-    bucket = "contacts"
-  ): Promise<UploadUrlResult> {
+/**
+ * Batch generate signed URLs for multiple files
+ * Optimized for table views where multiple photos need URLs at once
+ *
+ * @param filePaths - Array of file paths in format "bucket/path/to/file.ext"
+ * @param expiresIn - Expiration time in seconds (default: 14400 = 4 hours)
+ * @returns Map of filePath -> signedUrl
+ */
+export async function getBatchSignedUrlsService(
+  filePaths: string[],
+  expiresIn = 14400,
+): Promise<BatchSignedUrlResult> {
+    const urls: Record<string, string | null> = {};
+    const errors: Record<string, string> = {};
+
+    if (filePaths.length === 0) {
+      return { urls, errors };
+    }
+
     try {
-      const path = folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName;
-
       const client = supabaseServerAdmin ?? supabaseServerPublishable;
       if (!client) {
-        return {
-          signedUrl: null,
-          path,
-          error: "Supabase server client not available",
-        };
+        filePaths.forEach((path) => {
+          urls[path] = null;
+          errors[path] = "Supabase client unavailable";
+        });
+        return { urls, errors };
       }
 
-      const { data, error } = await client.storage.from(bucket).createSignedUploadUrl(path);
+      // Group paths by bucket for efficient batch processing
+      const pathsByBucket = new Map<string, { original: string; inBucket: string }[]>();
 
-      if (error) {
-        return {
-          signedUrl: null,
-          path,
-          error: "Failed to create signed upload URL",
-        };
+      for (const filePath of filePaths) {
+        // Skip already absolute URLs
+        if (/^https?:\/\//i.test(filePath)) {
+          urls[filePath] = filePath;
+          continue;
+        }
+
+        const normalized = filePath.replace(/^\/+/, "");
+        const [bucket, ...rest] = normalized.split("/");
+        const pathInBucket = rest.join("/");
+
+        if (!bucket || !pathInBucket) {
+          urls[filePath] = null;
+          errors[filePath] = "Invalid path format";
+          continue;
+        }
+
+        if (!pathsByBucket.has(bucket)) {
+          pathsByBucket.set(bucket, []);
+        }
+        pathsByBucket.get(bucket)?.push({ original: filePath, inBucket: pathInBucket });
       }
 
-      return {
-        signedUrl: data?.signedUrl ?? null,
-        path,
-      };
-    } catch (error: unknown) {
-      console.error("Error creating signed upload URL:", error);
-      return {
-        signedUrl: null,
-        path: folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName,
-        error: "unexpected_error",
-      };
+      // Process each bucket
+      for (const [bucket, paths] of pathsByBucket) {
+        try {
+          // Supabase supports batch signed URL creation
+          const { data, error } = await client.storage.from(bucket).createSignedUrls(
+            paths.map((p) => p.inBucket),
+            expiresIn,
+          );
+
+          if (error) {
+            paths.forEach(({ original }) => {
+              urls[original] = null;
+              errors[original] = error.message || "Failed to create signed URL";
+            });
+            continue;
+          }
+
+          if (data) {
+            data.forEach((result, index) => {
+              const original = paths[index]?.original;
+              if (original) {
+                if (result.error) {
+                  urls[original] = null;
+                  errors[original] = result.error;
+                } else {
+                  urls[original] = result.signedUrl;
+                }
+              }
+            });
+          }
+        } catch (bucketError) {
+          paths.forEach(({ original }) => {
+            urls[original] = null;
+            errors[original] = "Unexpected error processing bucket";
+          });
+          console.error(`[StorageService] Error processing bucket ${bucket}:`, bucketError);
+        }
+      }
+
+      return { urls, errors: Object.keys(errors).length > 0 ? errors : undefined };
+    } catch (error) {
+      console.error("[StorageService] Unexpected error in batch signed URLs:", error);
+      filePaths.forEach((path) => {
+        urls[path] = null;
+        errors[path] = "Unexpected error";
+      });
+      return { urls, errors };
     }
-  }
+}
+
+/**
+ * Log photo access for HIPAA/GDPR compliance
+ * Called whenever a client photo URL is generated or accessed
+ */
+export async function logPhotoAccessService(params: PhotoAccessAuditParams): Promise<void> {
+    try {
+      const db = await getDb();
+      await db.insert(photoAccessAudit).values({
+        id: crypto.randomUUID(),
+        userId: params.userId,
+        contactId: params.contactId,
+        photoPath: params.photoPath,
+        accessedAt: new Date(),
+        ipAddress: params.ipAddress ?? null,
+        userAgent: params.userAgent ?? null,
+      });
+    } catch (error) {
+      // Best-effort logging; don't fail the request if audit fails
+      console.error("[StorageService] Failed to log photo access:", error);
+    }
+}
+
+/**
+ * Batch log photo access for multiple contacts
+ * Used when generating batch signed URLs for table views
+ */
+export async function logBatchPhotoAccessService(
+  userId: string,
+  contactPhotos: Array<{ contactId: string; photoPath: string }>,
+  ipAddress?: string,
+  userAgent?: string,
+): Promise<void> {
+    try {
+      const db = await getDb();
+      const auditRecords = contactPhotos.map(({ contactId, photoPath }) => ({
+        id: crypto.randomUUID(),
+        userId,
+        contactId,
+        photoPath,
+        accessedAt: new Date(),
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      }));
+
+      await db.insert(photoAccessAudit).values(auditRecords);
+    } catch (error) {
+      // Best-effort logging; don't fail the request if audit fails
+      console.error("[StorageService] Failed to batch log photo access:", error);
+    }
 }

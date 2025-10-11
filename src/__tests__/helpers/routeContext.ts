@@ -5,8 +5,6 @@
  * This utility creates the proper context structure expected by route handlers.
  */
 
-export type RouteParams = Record<string, string | string[] | undefined>;
-
 /**
  * Creates a proper RouteContext for API route handler tests
  * @param params - Route parameters (e.g., { sessionId: "session-123" })

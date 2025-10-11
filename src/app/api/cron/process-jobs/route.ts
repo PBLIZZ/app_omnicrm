@@ -1,7 +1,7 @@
 import { handleCron } from "@/lib/api-edge-cases";
 import { JobRunner } from "@/server/jobs/runner";
 import { logger } from "@/lib/observability/unified-logger";
-import { ensureError } from "@/lib/utils/error-handler";
+import { ErrorHandler } from "@/lib/errors/app-error";
 import { CronJobInputSchema, CronJobResultSchema } from "@/server/db/business-schemas";
 
 /**
@@ -13,7 +13,13 @@ import { CronJobInputSchema, CronJobResultSchema } from "@/server/db/business-sc
  * Authentication: Uses CRON_SECRET header validation (handled by handleCron)
  * Migrated to new pattern: ✅ handleCron with proper schema validation
  */
-export const POST = handleCron(CronJobInputSchema, CronJobResultSchema, async () => {
+export const POST = handleCron(CronJobInputSchema, CronJobResultSchema, async (): Promise<{
+  success: boolean;
+  message: string;
+  processed: number;
+  failed: number;
+  error?: string;
+}> => {
   // Authentication is handled by handleCron - no need to check CRON_SECRET here
   // Note: data and request parameters not needed for this endpoint
 
@@ -48,7 +54,7 @@ export const POST = handleCron(CronJobInputSchema, CronJobResultSchema, async ()
         operation: "cron.process_jobs.error",
         additionalData: {},
       },
-      ensureError(error),
+      ErrorHandler.fromError(error),
     );
 
     return {

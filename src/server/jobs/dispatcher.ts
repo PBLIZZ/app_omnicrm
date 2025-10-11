@@ -7,7 +7,6 @@ import { runNormalizeGoogleEmail, runNormalizeGoogleEvent } from "./processors/n
 import { runEmbed } from "./processors/embed";
 import { runInsight } from "./processors/insight";
 import { runExtractContacts } from "./processors/extract-contacts";
-import { ensureError } from "@/lib/utils/error-handler";
 
 /**
  * JobDispatcher handles routing jobs to their appropriate processors.
@@ -24,17 +23,6 @@ export class JobDispatcher {
     google_calendar_sync: (job: JobRecord) => runCalendarSync(job, job.userId),
     google_gmail_sync: (job: JobRecord) => runGmailSync(job, job.userId),
 
-    // Normalization processors - smart routing based on provider
-    normalize: (job: JobRecord) => {
-      const payload = job.payload as { provider?: string };
-      if (payload?.provider === "gmail") {
-        return runNormalizeGoogleEmail(job);
-      } else if (payload?.provider === "google_calendar") {
-        return runNormalizeGoogleEvent(job);
-      } else {
-        return runNormalizeGoogleEvent(job); // Default to calendar for backward compatibility
-      }
-    },
     normalize_google_email: runNormalizeGoogleEmail,
     normalize_google_event: runNormalizeGoogleEvent,
 
@@ -50,13 +38,14 @@ export class JobDispatcher {
    * Dispatch a job to its appropriate processor
    */
   static async dispatch(job: JobRecord): Promise<void> {
-    const handler = this.handlers[job.kind];
+    const kind = job.kind as JobKind;
+    const handler = this.handlers[kind];
 
     if (!handler) {
-      throw new Error(`No handler registered for job kind: ${job.kind}`);
+      throw new Error(`No handler registered for job kind: ${kind}`);
     }
 
-    await logger.info(`Dispatching job ${job.kind}`, {
+    await logger.info(`Dispatching job ${kind}`, {
       operation: "job_dispatch",
       additionalData: {
         jobId: job.id,
@@ -88,7 +77,7 @@ export class JobDispatcher {
             userId: job.userId,
           },
         },
-        ensureError(error),
+        error instanceof Error ? error : new Error(String(error)),
       );
       throw error;
     }

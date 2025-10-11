@@ -1,334 +1,301 @@
 /**
- * Unified calendar and appointment type definitions
- * Consolidates all calendar-related interfaces to prevent type conflicts
+ * OmniRhythm Component Types
  *
- * Contains strict TypeScript interfaces that eliminate all `any` types
- * and provide proper type safety for calendar operations.
+ * Types for rhythm and productivity tracking components
  */
 
-// Base calendar event interface
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  location?: string | undefined;
-  attendees?: Array<{ email: string; name?: string }> | undefined;
-  eventType?: string | undefined;
-  businessCategory?: string | undefined;
-  description?: string | undefined;
-}
+/**
+ * Rhythm Pattern
+ */
 
-// Enhanced appointment interface with business intelligence
-export interface Appointment {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  location?: string | undefined;
-  attendees?: Array<{ email: string; name?: string }> | undefined;
-  eventType?: string | undefined;
-  businessCategory?: string | undefined;
-  description?: string | undefined;
-  clientContext?:
-    | {
-        clientId?: string;
-        clientName?: string;
-        sessionNumber?: number;
-        lastSessionDate?: string;
-        totalSessions?: number;
-        notes?: string;
-        preparationNeeded?: string[];
-        estimatedRevenue?: number;
-      }
-    | undefined;
-  businessInsights?:
-    | {
-        isHighValue?: boolean;
-        isRepeatClient?: boolean;
-        requiresPreparation?: boolean;
-        suggestedActions?: string[];
-      }
-    | undefined;
-}
+/**
+ * Productivity Metric
+ */
 
-// Calendar sync and connection types
-export type CalendarItem = {
-  id: string;
-  summary: string;
-  primary: boolean;
-  accessRole: string;
-};
-
-// Client management types
-export interface Client {
+/**
+ * Contact
+ */
+export interface Contact {
   id: string;
   name: string;
-  email: string;
-  avatar?: string;
+  status: "active" | "inactive" | "prospect";
   totalSessions: number;
   totalSpent: number;
+  satisfaction: number;
   lastSessionDate: string;
   nextSessionDate?: string;
-  status: "active" | "inactive" | "prospect";
-  satisfaction: number; // 1-5 stars
-  preferences?: {
-    preferredTimes?: string[];
-    preferredServices?: string[];
-    goals?: string[];
-  };
 }
 
-// Session and milestone tracking
+/**
+ * Session Milestone
+ */
 export interface SessionMilestone {
   id: string;
-  clientId: string;
-  sessionNumber: number;
+  contactId: string;
+  title: string;
+  description: string;
   date: string;
-  type: "completed" | "scheduled" | "cancelled" | "no-show";
-  duration: number;
-  revenue: number;
-  notes?: string;
-  feedback?: string;
+  type: "session" | "milestone" | "achievement" | "completed" | "scheduled" | "cancelled";
+  sessionNumber?: number;
+  revenue?: number;
 }
 
-// Preparation workflow types
+/**
+ * Contact Session Timeline Props
+ */
+export interface ContactSessionTimelineProps {
+  contacts: Contact[];
+  milestones: SessionMilestone[];
+  isLoading?: boolean;
+}
+
+/**
+ * Preparation Task
+ */
 export interface PreparationTask {
   id: string;
   title: string;
   description: string;
-  completed: boolean;
+  category: "preparation" | "research" | "follow-up" | "documentation" | "client" | "administrative" | "followup";
   priority: "low" | "medium" | "high";
-  estimatedTime: number; // minutes
-  category: "client" | "preparation" | "followup" | "administrative";
-  dueDate?: Date;
+  estimatedMinutes?: number;
+  estimatedTime?: number;
+  isRequired: boolean;
+  completed?: boolean;
+  dueDate?: Date | string;
 }
 
-export interface UpcomingAppointment {
+/**
+ * Attendee
+ */
+export interface Attendee {
+  name?: string;
+  email: string;
+}
+
+/**
+ * Contact Context
+ */
+export interface ContactContext {
+  contactName?: string;
+  lastSession?: string;
+  lastSessionDate?: string;
+  totalSessions?: number;
+  sessionNumber?: number;
+  preferences?: string[];
+  notes?: string;
+  preparationNeeded?: string[];
+}
+
+/**
+ * Appointment
+ */
+export interface Appointment {
   id: string;
-  title: string;
-  clientName: string;
-  date: string;
   startTime: string;
   endTime: string;
-  serviceType: string;
+  contactName?: string;
+  clientName?: string;
+  type: string;
+  eventType?: string;
+  title?: string;
   preparationTasks: PreparationTask[];
+  attendees?: Attendee[];
+  description?: string;
+  contactContext?: ContactContext;
+  location?: string;
+  serviceType?: string;
+  date?: string;
   clientNotes?: string;
   lastSessionNotes?: string;
 }
 
-// Component props interfaces
+/**
+ * Preparation Workflow Props
+ */
+export interface PreparationWorkflowProps {
+  upcomingAppointments: Appointment[];
+  isLoading?: boolean;
+}
+
+/**
+ * Today Intelligence Panel Props
+ */
 export interface TodayIntelligencePanelProps {
   appointments: Appointment[];
   isLoading?: boolean;
 }
 
+/**
+ * Weekly Stats
+ */
+export interface WeeklyStats {
+  totalAppointments: number;
+  totalRevenue: number;
+  totalHours: number;
+  busiestDay: string;
+  averageSessionLength: number;
+  averageSessionValue?: number;
+  avgSessionLength?: number;
+  utilizationRate?: number;
+  clientRetention?: number;
+  clientSatisfaction?: number;
+  newClients: number;
+  returningClients: number;
+}
+
+/**
+ * Weekly Business Flow Props
+ */
 export interface WeeklyBusinessFlowProps {
   appointments: Appointment[];
   weeklyStats?: WeeklyStats;
   isLoading?: boolean;
 }
 
-export interface ClientSessionTimelineProps {
-  clients: Client[];
-  milestones: SessionMilestone[];
+/**
+ * Business Metrics Props
+ */
+export interface BusinessMetricsProps {
+  appointments?: Appointment[];
+  weeklyStats?: WeeklyStats;
   isLoading?: boolean;
+  totalSessions?: number;
+  totalRevenue?: number;
+  newClients?: number;
+  busiestDay?: string;
+  utilizationRate?: number;
+  clientRetention?: number;
 }
 
-export interface PreparationWorkflowProps {
-  upcomingAppointments: UpcomingAppointment[];
-  isLoading?: boolean;
+/**
+ * Client
+ */
+export interface Client {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  status: "active" | "inactive" | "prospect";
+  totalSessions?: number;
+  lastSession?: string;
+  nextSession?: string;
+  tags?: string[];
+  notes?: string;
+  totalSpent?: number;
+  satisfaction?: number;
 }
 
+/**
+ * Calendar Connection Card Props
+ */
+export interface CalendarConnectionCardProps {
+  isConnected: boolean;
+  isConnecting: boolean;
+  isSyncing: boolean;
+  importedEventsCount: number;
+  lastSync?: Date | string | null;
+  error?: string | null;
+  onConnect: () => void;
+  onSync: () => void;
+  sessionsNext7Days: number;
+  sessionsThisMonth: number;
+}
+
+/**
+ * Calendar Event Create Data
+ */
+export interface CalendarEventCreateData {
+  summary: string;
+  description?: string;
+  start: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  end: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  attendees?: Array<{ email: string }>;
+  location?: string;
+  reminders?: {
+    useDefault: boolean;
+    overrides?: Array<{
+      method: string;
+      minutes: number;
+    }>;
+  };
+}
+
+/**
+ * Calendar Item
+ */
+export interface CalendarItem {
+  id: string;
+  summary: string;
+  description?: string;
+  primary?: boolean;
+  accessRole?: string;
+}
+
+/**
+ * Quick Actions Props
+ */
 export interface QuickActionsProps {
   onNewSession?: () => void;
+  onNewSelfCare?: () => void;
+  onViewCalendar?: () => void;
+  onQuickNote?: () => void;
   onScheduleFollowup?: () => void;
   onGenerateInsights?: () => void;
   onSendMessage?: () => void;
   onViewHistory?: () => void;
 }
 
+/**
+ * Rhythm Header Props
+ */
 export interface RhythmHeaderProps {
   onLoadInsights?: () => void;
   onProcessJobs?: () => void;
   onSearch?: (query: string) => void;
 }
 
-// Calendar event creation data interface for strict typing (Google Calendar API format)
-export interface CalendarEventCreateData {
-  summary: string; // Google Calendar uses 'summary' instead of 'title'
-  description?: string;
-  location?: string;
-  start: {
-    dateTime: string; // ISO string
-    timeZone: string;
-  };
-  end: {
-    dateTime: string; // ISO string
-    timeZone: string;
-  };
-  attendees?: Array<{ email: string; name?: string }>;
-  calendarId?: string;
-  isAllDay?: boolean;
-  visibility?: "default" | "public" | "private" | "confidential";
-  eventType?: string;
-  businessCategory?: string;
-}
-
-// Google Calendar API response interface
-export interface GoogleCalendarEventResponse {
-  id: string;
-  htmlLink: string;
-  summary: string;
-  description?: string;
-  location?: string;
-  start: {
-    dateTime?: string;
-    date?: string;
-    timeZone?: string;
-  };
-  end: {
-    dateTime?: string;
-    date?: string;
-    timeZone?: string;
-  };
-  attendees?: Array<{
-    email: string;
-    displayName?: string;
-    responseStatus?: "needsAction" | "declined" | "tentative" | "accepted";
-  }>;
-  status?: "confirmed" | "tentative" | "cancelled";
-}
-
+/**
+ * Session Modal Props
+ */
 export interface SessionModalProps {
-  onCreateEvent: (eventData: CalendarEventCreateData) => Promise<void>;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onSubmit?: (data: CalendarEventCreateData) => void;
+  onCreateEvent?: (data: CalendarEventCreateData) => Promise<void>;
+  isSubmitting?: boolean;
 }
 
+/**
+ * Self Care Modal Props
+ */
 export interface SelfCareModalProps {
-  onCreateEvent: (eventData: CalendarEventCreateData) => Promise<void>;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onSubmit?: (data: CalendarEventCreateData) => void;
+  onCreateEvent?: (data: CalendarEventCreateData) => Promise<void>;
+  isSubmitting?: boolean;
 }
 
-export interface CalendarConnectionCardProps {
-  isConnected: boolean;
-  isConnecting: boolean;
-  isSyncing: boolean;
-  isEmbedding?: boolean;
-  upcomingEventsCount?: number;
-  importedEventsCount?: number;
-  lastSync?: string | null | undefined;
-  syncStatus?: string;
-  error?: string | null;
-  onConnect: () => void;
-  onSync: () => void;
-  sessionsNext7Days?: number;
-  sessionsThisMonth?: number;
+/**
+ * Utility Functions
+ */
+export function getHtmlLink(event: { htmlLink?: string }): string {
+  return event.htmlLink ?? "";
 }
 
-export interface BusinessMetricsProps {
-  totalSessions: number;
-  totalRevenue: number;
-  newClients: number;
-  busiestDay: string;
-  utilizationRate: number;
-  clientRetention: number;
-  isLoading?: boolean;
+export function safeParseApiData<T>(data: unknown): T {
+  return data as T;
 }
 
-// Weekly stats interface (matches rhythm-intelligence.service.ts)
-export interface WeeklyStats {
-  totalAppointments: number;
-  totalRevenue: number;
-  totalHours: number;
-  busiestDay: string;
-  clientRetention: number;
-  newClients: number;
-  averageSessionValue: number;
-  avgSessionLength: number;
-  utilizationRate: number;
-}
-
-// Type guard to check if a CalendarEvent has business intelligence data
-export function isAppointment(event: CalendarEvent): event is Appointment {
-  return "clientContext" in event || "businessInsights" in event;
-}
-
-// Type guard to check if API response has expected structure
-export function isGoogleCalendarResponse(data: unknown): data is GoogleCalendarEventResponse {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "id" in data &&
-    "htmlLink" in data &&
-    typeof (data as Record<string, unknown>)["id"] === "string" &&
-    typeof (data as Record<string, unknown>)["htmlLink"] === "string"
-  );
-}
-
-// Type guard to check if error response has expected structure
-export function hasErrorMessage(
-  error: unknown,
-): error is { error?: { message?: string }; message?: string } {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (("error" in error &&
-      typeof (error as Record<string, unknown>)["error"] === "object" &&
-      (error as Record<string, unknown>)["error"] !== null &&
-      "message" in ((error as Record<string, unknown>)["error"] as Record<string, unknown>)) ||
-      ("message" in error && typeof (error as Record<string, unknown>)["message"] === "string"))
-  );
-}
-
-// Helper function to safely extract error message from unknown error
-export function getErrorMessage(error: unknown): string {
-  if (hasErrorMessage(error)) {
-    // First try to get nested error.message
-    if (error.error?.message) {
-      return error.error.message;
-    }
-    // Fallback to direct message
-    if (error.message) {
-      return error.message;
-    }
-  }
-
-  // Final fallback for Error instances
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "An unknown error occurred";
-}
-
-// Helper function to safely extract HTML link from API response
-export function getHtmlLink(data: unknown): string {
-  if (isGoogleCalendarResponse(data)) {
-    return data.htmlLink;
-  }
-  return "Check your calendar";
-}
-
-// Helper function to convert CalendarEvent to Appointment
-export function toAppointment(event: CalendarEvent): Appointment {
-  return {
-    ...event,
-    clientContext: undefined,
-    businessInsights: undefined,
-  };
-}
-
-// Helper function to convert CalendarEvent array to Appointment array
-export function toAppointments(events: CalendarEvent[]): Appointment[] {
-  return events.map(toAppointment);
-}
-
-// Helper function to safely parse API response data
-export function safeParseApiData(data: unknown): { data?: GoogleCalendarEventResponse } {
-  if (typeof data === "object" && data !== null && "data" in data) {
-    const typedData = data as Record<string, unknown>;
-    if (isGoogleCalendarResponse(typedData["data"])) {
-      return { data: typedData["data"] };
-    }
-  }
-  return {};
-}
+/**
+ * Rhythm Dashboard Props
+ */

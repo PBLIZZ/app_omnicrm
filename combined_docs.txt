@@ -1,0 +1,841 @@
+===== supabase/sql/35_merge_calendar_events_into_interactions.sql =====
+-- =========================
+-- 35_merge_calendar_events_into_interactions.sql
+-- Phase 1: Add calendar-specific columns to interactions table
+-- This allows interactions to store calendar event data alongside emails, calls, etc.
+-- =========================
+
+-- Step 1: Add calendar-specific columns to interactions table
+ALTER TABLE public.interactions 
+  ADD COLUMN IF NOT EXISTS start_time timestamptz,
+  ADD COLUMN IF NOT EXISTS end_time timestamptz,
+  ADD COLUMN IF NOT EXISTS location text,
+  ADD COLUMN IF NOT EXISTS attendees jsonb,
+  ADD COLUMN IF NOT EXISTS event_status text,  -- renamed from 'status' to avoid confusion
+  ADD COLUMN IF NOT EXISTS time_zone text,
+  ADD COLUMN IF NOT EXISTS is_all_day boolean,
+  ADD COLUMN IF NOT EXISTS visibility text,
+  ADD COLUMN IF NOT EXISTS event_category text,  -- renamed from 'eventType' to avoid conflict with 'type'
+  ADD COLUMN IF NOT EXISTS keywords jsonb,
+  ADD COLUMN IF NOT EXISTS google_updated timestamptz,
+  ADD COLUMN IF NOT EXISTS last_synced timestamptz;
+
+-- Add comments for documentation
+COMMENT ON COLUMN public.interactions.start_time IS 'Start time for calendar events';
+COMMENT ON COLUMN public.interactions.end_time IS 'End time for calendar events';
+COMMENT ON COLUMN public.interactions.event_status IS 'Calendar event status (confirmed, tentative, cancelled)';
+COMMENT ON COLUMN public.interactions.event_category IS 'Calendar event category/type';
+
+-- Step 2: Populate calendar columns from source_meta for existing calendar_event records
+UPDATE public.interactions
+SET 
+  start_time = (source_meta->>'startTime')::timestamptz,
+  end_time = (source_meta->>'endTime')::timestamptz,
+  location = source_meta->>'location',
+  attendees = source_meta->'attendees',
+  event_status = source_meta->>'status',
+  time_zone = source_meta->>'timeZone',
+  is_all_day = (source_meta->>'isAllDay')::boolean,
+  visibility = COALESCE(source_meta->>'visibility', 'default'),
+  event_category = source_meta->>'eventType',
+  keywords = source_meta->'keywords',
+  last_synced = (source_meta->>'lastSynced')::timestamptz
+WHERE type = 'calendar_event' 
+  AND source_meta IS NOT NULL;
+
+-- Step 3: Add check constraint to ensure calendar events have start/end times
+ALTER TABLE public.interactions 
+  ADD CONSTRAINT interactions_calendar_times_check 
+  CHECK (
+    (type = 'calendar_event' AND start_time IS NOT NULL AND end_time IS NOT NULL)
+    OR type != 'calendar_event'
+  );
+
+-- Step 4: Add indexes for calendar queries
+-- Note: These must be run separately outside a transaction using execute_sql
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS interactions_user_start_time_idx 
+--   ON public.interactions(user_id, start_time DESC) 
+--   WHERE start_time IS NOT NULL;
+-- 
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS interactions_attendees_gin 
+--   ON public.interactions USING gin(attendees) 
+--   WHERE attendees IS NOT NULL;
+
+
+
+===== supabase/sql/36_migrate_calendar_events_data.sql =====
+-- =========================
+-- 36_migrate_calendar_events_data.sql
+-- Phase 2: Migrate data from calendar_events table to interactions table
+-- =========================
+
+-- Migrate calendar_events to interactions
+INSERT INTO interactions (
+  user_id, type, subject, body_text, occurred_at,
+  source, source_id, source_meta,
+  start_time, end_time, location, attendees,
+  event_status, time_zone, is_all_day, visibility,
+  event_category, keywords, google_updated, last_synced,
+  created_at
+)
+SELECT 
+  user_id,
+  'calendar_event' as type,
+  title as subject,
+  description as body_text,
+  start_time as occurred_at,  -- Use start_time as the occurrence time
+  'google_calendar' as source,
+  google_event_id as source_id,
+  jsonb_build_object('migrated_from', 'calendar_events') as source_meta,
+  start_time,
+  end_time,
+  location,
+  attendees,
+  status as event_status,
+  time_zone,
+  is_all_day,
+  visibility,
+  event_type as event_category,  -- Map eventType to event_category
+  keywords,
+  google_updated,
+  last_synced,
+  created_at
+FROM calendar_events
+ON CONFLICT (user_id, source, source_id) DO NOTHING;  -- Skip duplicates if any
+
+-- Verify migration
+SELECT 
+  'calendar_events' as source_table,
+  COUNT(*) as count 
+FROM calendar_events
+UNION ALL
+SELECT 
+  'interactions (calendar type)' as source_table,
+  COUNT(*) as count 
+FROM interactions 
+WHERE type = 'calendar_event';
+
+
+
+===== supabase/sql/37_backup_calendar_events_table.sql =====
+-- =========================
+-- 37_backup_calendar_events_table.sql
+-- Phase 3: Rename calendar_events table as backup (keep for 1 week)
+-- Safe to drop after 2025-10-13
+-- =========================
+
+-- Rename table instead of dropping (safety measure)
+ALTER TABLE calendar_events RENAME TO calendar_events_backup_20251006;
+
+-- Add comment
+COMMENT ON TABLE calendar_events_backup_20251006 IS 
+  'Backup of calendar_events table. Migrated to interactions on 2025-10-06. Safe to drop after 2025-10-13.';
+
+
+
+===== supabase/sql/38_wipe_interaction_tables.sql =====
+-- =========================
+-- 38_wipe_interaction_tables.sql
+-- WIPE interactions and raw_events tables
+-- Description: Clears all existing data from interactions and raw_events tables
+-- to prepare for the new schema. This is a destructive operation.
+-- WARNING: This will delete all interaction and raw event data!
+-- =========================
+
+-- Wipe all data from interactions table
+TRUNCATE TABLE public.interactions CASCADE;
+
+-- Wipe all data from raw_events table
+TRUNCATE TABLE public.raw_events CASCADE;
+
+-- Add comments to document the wipe
+COMMENT ON TABLE public.interactions IS 'Interaction records (wiped and refactored on 2025-10-07)';
+COMMENT ON TABLE public.raw_events IS 'Raw event records (wiped and refactored on 2025-10-07)';
+
+
+
+===== supabase/sql/39_refactor_interactions_table.sql =====
+-- =========================
+-- 39_refactor_interactions_table.sql
+-- REFACTOR interactions table
+-- Description: Adds new columns and constraints to the interactions table
+-- to support the unified data model.
+-- =========================
+
+-- Add new columns for enhanced interaction tracking
+ALTER TABLE public.interactions
+  ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN IF NOT EXISTS priority TEXT,
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+
+-- Add check constraint for status
+ALTER TABLE public.interactions
+  DROP CONSTRAINT IF EXISTS interactions_status_check;
+
+ALTER TABLE public.interactions
+  ADD CONSTRAINT interactions_status_check
+  CHECK (status IN ('active', 'archived', 'deleted'));
+
+-- Add check constraint for priority
+ALTER TABLE public.interactions
+  DROP CONSTRAINT IF EXISTS interactions_priority_check;
+
+ALTER TABLE public.interactions
+  ADD CONSTRAINT interactions_priority_check
+  CHECK (priority IS NULL OR priority IN ('low', 'medium', 'high', 'urgent'));
+
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS interactions_status_idx
+  ON public.interactions (user_id, status, occurred_at DESC);
+
+CREATE INDEX IF NOT EXISTS interactions_tags_gin
+  ON public.interactions USING gin(tags)
+  WHERE tags IS NOT NULL AND array_length(tags, 1) > 0;
+
+CREATE INDEX IF NOT EXISTS interactions_metadata_gin
+  ON public.interactions USING gin(metadata)
+  WHERE metadata IS NOT NULL AND metadata != '{}'::jsonb;
+
+-- Add comments
+COMMENT ON COLUMN public.interactions.metadata IS 'Additional flexible metadata for interactions';
+COMMENT ON COLUMN public.interactions.tags IS 'User-defined tags for categorization';
+COMMENT ON COLUMN public.interactions.priority IS 'Priority level for the interaction';
+COMMENT ON COLUMN public.interactions.status IS 'Current status of the interaction (active, archived, deleted)';
+
+
+
+===== supabase/sql/40_refactor_raw_events_table.sql =====
+-- =========================
+-- 40_refactor_raw_events_table.sql
+-- REFACTOR raw_events table
+-- Description: Adds new columns and constraints to the raw_events table
+-- to support better event tracking and processing.
+-- =========================
+
+-- Add new columns for enhanced raw event tracking
+ALTER TABLE public.raw_events
+  ADD COLUMN IF NOT EXISTS processing_status TEXT DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS processing_attempts INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS processing_error TEXT,
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+
+-- Add check constraint for processing_status
+ALTER TABLE public.raw_events
+  DROP CONSTRAINT IF EXISTS raw_events_processing_status_check;
+
+ALTER TABLE public.raw_events
+  ADD CONSTRAINT raw_events_processing_status_check
+  CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed', 'skipped'));
+
+-- Create indexes for processing workflow
+CREATE INDEX IF NOT EXISTS raw_events_processing_status_idx
+  ON public.raw_events (user_id, processing_status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS raw_events_pending_idx
+  ON public.raw_events (user_id, provider, created_at)
+  WHERE processing_status = 'pending';
+
+CREATE INDEX IF NOT EXISTS raw_events_failed_idx
+  ON public.raw_events (user_id, processing_attempts DESC, created_at DESC)
+  WHERE processing_status = 'failed';
+
+-- Add comments
+COMMENT ON COLUMN public.raw_events.processing_status IS 'Current processing state of the raw event';
+COMMENT ON COLUMN public.raw_events.processing_attempts IS 'Number of times processing has been attempted';
+COMMENT ON COLUMN public.raw_events.processing_error IS 'Error message from last failed processing attempt';
+COMMENT ON COLUMN public.raw_events.processed_at IS 'Timestamp when the event was successfully processed';
+
+
+
+===== supabase/sql/41_create_jobs_table.sql =====
+-- =========================
+-- 41_create_jobs_table.sql
+-- CREATE jobs TABLE
+-- Description: Creates a unified, generic table for managing all asynchronous background
+-- tasks. This table is designed to handle everything from data syncing and normalization
+-- to AI processing and report generation, replacing the need for specialized tables like
+-- sync_sessions and sync_audit.
+-- =========================
+
+-- Drop the old version if it exists to ensure a clean slate with the new structure.
+DROP TABLE IF EXISTS public.jobs CASCADE;
+
+-- Create the new jobs table
+CREATE TABLE public.jobs (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  payload JSONB,
+  result JSONB,
+  last_error TEXT,
+  attempts INT NOT NULL DEFAULT 0,
+  batch_id UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT jobs_pkey PRIMARY KEY (id),
+  CONSTRAINT jobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT jobs_status_check CHECK (status IN (
+    'queued',   -- Waiting to be picked up by a worker.
+    'running',  -- Actively being processed.
+    'completed',-- Successfully finished.
+    'failed',   -- Failed after exhausting retries.
+    'archived'  -- Old job, kept for logging but not active.
+  ))
+);
+
+-- Add comments to clarify the purpose of each column
+COMMENT ON COLUMN public.jobs.kind IS 'The type of job to be performed, e.g., ''sync.google.gmail'', ''normalize.interactions'', ''generate.ai.insight''.';
+COMMENT ON COLUMN public.jobs.status IS 'The current state of the job in its lifecycle.';
+COMMENT ON COLUMN public.jobs.payload IS 'The input data required for the job to run, e.g., { "raw_event_id": "uuid-goes-here" }.';
+COMMENT ON COLUMN public.jobs.result IS 'The output data from a successfully completed job.';
+COMMENT ON COLUMN public.jobs.last_error IS 'The error message from the last failed attempt.';
+COMMENT ON COLUMN public.jobs.attempts IS 'The number of times this job has been attempted.';
+COMMENT ON COLUMN public.jobs.batch_id IS 'An optional ID to group multiple jobs together as part of a single, larger operation.';
+
+-- Create indexes for efficient querying by workers and for monitoring.
+
+-- Index for workers to find queued jobs to process.
+CREATE INDEX IF NOT EXISTS jobs_find_queued_idx
+  ON public.jobs (status, created_at)
+  WHERE (status = 'queued');
+
+-- Index for querying jobs by user and status.
+CREATE INDEX IF NOT EXISTS jobs_user_status_idx
+  ON public.jobs (user_id, status, created_at DESC);
+
+-- Index for looking up jobs belonging to a specific batch.
+CREATE INDEX IF NOT EXISTS jobs_batch_id_idx
+  ON public.jobs (batch_id)
+  WHERE (batch_id IS NOT NULL);
+
+-- Index for general user-based lookups.
+CREATE INDEX IF NOT EXISTS jobs_user_id_idx
+  ON public.jobs (user_id);
+
+
+
+===== supabase/sql/42_consolidate_sync_and_error_tables.sql =====
+-- =========================
+-- 42_consolidate_sync_and_error_tables.sql
+-- CONSOLIDATE Sync, Preferences, and Error Tables
+-- Description: Merges sync preferences into user_integrations, and deprecates
+-- the sync_sessions, sync_audit, and raw_event_errors tables in favor of the
+-- new, more robust 'jobs' table.
+-- =========================
+
+-- Step 1: Add a 'config' column to user_integrations to hold all sync settings.
+-- This column will store sync preferences, last sync timestamps, etc.
+ALTER TABLE public.user_integrations
+  ADD COLUMN IF NOT EXISTS config JSONB DEFAULT '{}'::jsonb;
+
+-- Step 2: Migrate existing sync preferences into the new 'config' column.
+-- We will create a JSON object from the user_sync_prefs table and store it
+-- on the primary 'auth' integration record for that user.
+UPDATE public.user_integrations AS ui
+SET
+  config = jsonb_build_object(
+    'calendar_include_organizer_self', usp.calendar_include_organizer_self,
+    'calendar_include_private', usp.calendar_include_private,
+    'calendar_time_window_days', usp.calendar_time_window_days,
+    'drive_ingestion_mode', usp.drive_ingestion_mode,
+    'drive_folder_ids', usp.drive_folder_ids,
+    'gmail_time_range_days', usp.gmail_time_range_days,
+    'calendar_ids', usp.calendar_ids,
+    'calendar_future_days', usp.calendar_future_days,
+    'drive_max_size_mb', usp.drive_max_size_mb,
+    'initial_sync_completed', usp.initial_sync_completed,
+    'initial_sync_date', usp.initial_sync_date
+  )
+FROM public.user_sync_prefs AS usp
+WHERE
+  ui.user_id = usp.user_id
+  AND ui.provider = 'google'
+  AND ui.service = 'auth';
+
+-- Step 3: Drop the now-obsolete tables.
+-- Their functionality is now fully covered by user_integrations.config and the jobs table.
+DROP TABLE IF EXISTS public.user_sync_prefs CASCADE;
+DROP TABLE IF EXISTS public.sync_sessions CASCADE;
+DROP TABLE IF EXISTS public.sync_audit CASCADE;
+DROP TABLE IF EXISTS public.raw_event_errors CASCADE;
+
+-- Add comments to document the changes.
+COMMENT ON COLUMN public.user_integrations.config IS 'Stores all integration-specific configurations, including sync preferences, last sync timestamps, and other settings. Migrated from user_sync_prefs on 2025-10-07.';
+COMMENT ON TABLE public.jobs IS 'Single source of truth for all background processing, replacing sync_sessions and sync_audit. Errors are logged in the last_error and result columns.';
+
+
+
+===== supabase/sql/43_jobs_table_rls.sql =====
+-- =========================
+-- 43_jobs_table_rls.sql
+-- Apply Row Level Security (RLS) policies to jobs table
+-- Description: Ensures users can only access their own jobs.
+-- Pattern: Owner full CRUD (select, insert, update, delete)
+-- =========================
+
+-- Enable RLS on jobs table
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS jobs_select_own ON public.jobs;
+DROP POLICY IF EXISTS jobs_insert_own ON public.jobs;
+DROP POLICY IF EXISTS jobs_update_own ON public.jobs;
+DROP POLICY IF EXISTS jobs_delete_own ON public.jobs;
+
+-- Create RLS policies for authenticated users to access only their own jobs
+
+-- SELECT: Users can view their own jobs
+CREATE POLICY jobs_select_own ON public.jobs
+  FOR SELECT TO authenticated 
+  USING (user_id = auth.uid());
+
+-- INSERT: Users can create jobs for themselves
+CREATE POLICY jobs_insert_own ON public.jobs
+  FOR INSERT TO authenticated 
+  WITH CHECK (user_id = auth.uid());
+
+-- UPDATE: Users can update their own jobs
+CREATE POLICY jobs_update_own ON public.jobs
+  FOR UPDATE TO authenticated 
+  USING (user_id = auth.uid()) 
+  WITH CHECK (user_id = auth.uid());
+
+-- DELETE: Users can delete their own jobs
+CREATE POLICY jobs_delete_own ON public.jobs
+  FOR DELETE TO authenticated 
+  USING (user_id = auth.uid());
+
+-- Add comment to document RLS setup
+COMMENT ON TABLE public.jobs IS 'Single source of truth for all background processing. RLS enabled: users can only access their own jobs. Service role bypasses RLS for system operations.';
+
+
+
+===== supabase/sql/44_remove_contact_id_from_raw_events.sql =====
+-- =========================
+-- 44_remove_contact_id_from_raw_events.sql
+-- Remove contact_id column from raw_events table
+-- Description: Contact linking now happens in the interactions table, not raw_events.
+-- Raw events are the lossless ingestion layer; contact association is a normalized concern.
+-- =========================
+
+-- Drop the contact_id column from raw_events
+ALTER TABLE public.raw_events
+  DROP COLUMN IF EXISTS contact_id CASCADE;
+
+-- Update table comment to clarify purpose
+COMMENT ON TABLE public.raw_events IS 'Lossless ingestion layer for external events. Stores complete original data from providers (Gmail, Calendar, Drive) before normalization. Contact linking happens in the interactions table.';
+
+
+
+===== supabase/sql/45_add_provider_enum.sql =====
+-- =========================
+-- 45_add_provider_enum.sql
+-- Create provider enum and convert raw_events.provider to use it
+-- Description: Adds type safety for provider values (gmail, calendar, drive, upload)
+-- =========================
+
+-- Step 1: Create the provider enum type
+CREATE TYPE public.provider_type AS ENUM (
+  'gmail',
+  'calendar', 
+  'drive',
+  'upload'
+);
+
+-- Step 2: Add a temporary column with the enum type
+ALTER TABLE public.raw_events
+  ADD COLUMN provider_enum public.provider_type;
+
+-- Step 3: Migrate existing data to the new enum column
+UPDATE public.raw_events
+SET provider_enum = provider::public.provider_type;
+
+-- Step 4: Drop the old text column
+ALTER TABLE public.raw_events
+  DROP COLUMN provider;
+
+-- Step 5: Rename the enum column to 'provider'
+ALTER TABLE public.raw_events
+  RENAME COLUMN provider_enum TO provider;
+
+-- Step 6: Make the column NOT NULL
+ALTER TABLE public.raw_events
+  ALTER COLUMN provider SET NOT NULL;
+
+-- Add comment
+COMMENT ON COLUMN public.raw_events.provider IS 'The external service or integration that this raw event was imported from (gmail, calendar, drive, upload)';
+
+
+
+===== supabase/sql/046_add_contact_extraction_status.sql =====
+-- Migration 46: ADD contact_extraction_status TO raw_events
+-- Description: Adds the contact_extraction_status column to enable the efficient, multi-stage
+-- contact identification workflow. This column tracks the processing state of each raw event
+-- through the contact extraction pipeline.
+
+-- Step 1: Add the contact_extraction_status column
+ALTER TABLE public.raw_events
+  ADD COLUMN IF NOT EXISTS contact_extraction_status TEXT;
+
+-- Step 2: Add a CHECK constraint to ensure only valid status values are used.
+-- This enforces the state machine we designed.
+ALTER TABLE public.raw_events
+  ADD CONSTRAINT contact_extraction_status_check
+  CHECK (contact_extraction_status IN (
+    'NO_IDENTIFIERS',    -- Processed: No potential contact info found.
+    'IDENTIFIERS_FOUND', -- Processed: Has potential contact info, needs matching.
+    'PENDING',           -- Processed: Blocked on user approval for a new contact.
+    'YES',               -- Processed: Matched to an existing contact.
+    'REJECTED'           -- Processed: User rejected the suggested contact.
+  ));
+
+-- Step 3: Create a highly efficient partial index for the triage job.
+-- The job to find new, unprocessed events will be extremely fast using this index.
+CREATE INDEX IF NOT EXISTS raw_events_pending_extraction_idx
+  ON public.raw_events (user_id, created_at)
+  WHERE (contact_extraction_status IS NULL);
+
+-- Step 4: Create an index for finding events that have identifiers but need matching
+CREATE INDEX IF NOT EXISTS raw_events_identifiers_found_idx
+  ON public.raw_events (user_id, created_at)
+  WHERE (contact_extraction_status = 'IDENTIFIERS_FOUND');
+
+-- Step 5: Create an index for finding events that are pending user approval
+CREATE INDEX IF NOT EXISTS raw_events_pending_approval_idx
+  ON public.raw_events (user_id, created_at)
+  WHERE (contact_extraction_status = 'PENDING');
+
+-- Step 6: Create an index for finding events that are ready for interaction creation
+CREATE INDEX IF NOT EXISTS raw_events_ready_for_interactions_idx
+  ON public.raw_events (user_id, created_at)
+  WHERE (contact_extraction_status = 'YES');
+
+-- Add a comment to document the new column and workflow
+COMMENT ON COLUMN public.raw_events.contact_extraction_status IS 'Tracks the contact extraction workflow state: NULL (unprocessed), NO_IDENTIFIERS (no contacts found), IDENTIFIERS_FOUND (has contacts, needs matching), PENDING (awaiting user approval), YES (matched to contact), REJECTED (user rejected). Added Oct 7, 2025.';
+
+
+
+===== supabase/sql/047_create_ignored_identifiers_table.sql =====
+-- Migration 47: CREATE ignored_identifiers TABLE
+-- Description: Creates a table to store identifiers that the user has explicitly
+-- marked as irrelevant. This prevents the system from repeatedly creating
+-- 'contact_approval' tasks for the same non-contact identifiers (e.g., no-reply@ emails).
+
+-- Drop the table if it exists to ensure a clean slate
+DROP TABLE IF EXISTS public.ignored_identifiers CASCADE;
+
+-- Create the ignored_identifiers table
+CREATE TABLE public.ignored_identifiers (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  kind TEXT NOT NULL, -- 'email', 'phone', 'handle', etc.
+  value TEXT NOT NULL, -- The actual identifier, e.g., 'no-reply@company.com'
+  reason TEXT, -- Optional: why this was ignored (e.g., 'marketing email', 'system notification')
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT ignored_identifiers_pkey PRIMARY KEY (id),
+  CONSTRAINT ignored_identifiers_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  -- Ensure each user can only ignore an identifier once
+  CONSTRAINT ignored_identifiers_user_kind_value_unique UNIQUE (user_id, kind, value),
+  
+  -- Ensure kind matches the same values as contact_identities for consistency
+  CONSTRAINT ignored_identifiers_kind_check CHECK (
+    kind = ANY (ARRAY[
+      'email'::text,
+      'phone'::text,
+      'handle'::text,
+      'provider_id'::text
+    ])
+  )
+);
+
+-- Create indexes for efficient querying
+-- Index for fast lookup during contact extraction process
+CREATE INDEX IF NOT EXISTS ignored_identifiers_user_kind_value_idx
+  ON public.ignored_identifiers (user_id, kind, value);
+
+-- Index for user management UI (show all ignored identifiers for a user)
+CREATE INDEX IF NOT EXISTS ignored_identifiers_user_created_idx
+  ON public.ignored_identifiers (user_id, created_at DESC);
+
+-- Index for kind-based queries (e.g., show all ignored emails)
+CREATE INDEX IF NOT EXISTS ignored_identifiers_user_kind_idx
+  ON public.ignored_identifiers (user_id, kind);
+
+-- Add comments to document the table purpose
+COMMENT ON TABLE public.ignored_identifiers IS 'A blocklist of identifiers (emails, phones, handles) that the user has marked as not belonging to a contact. The contact extraction process checks this table to avoid creating repeated suggestions for irrelevant identifiers like no-reply emails, system notifications, etc. Created Oct 7, 2025.';
+
+COMMENT ON COLUMN public.ignored_identifiers.kind IS 'The type of identifier: email, phone, handle, or provider_id. Must match contact_identities.kind values for consistency.';
+
+COMMENT ON COLUMN public.ignored_identifiers.value IS 'The actual identifier value that should be ignored, e.g., no-reply@company.com or +1-800-SPAM-CALL.';
+
+COMMENT ON COLUMN public.ignored_identifiers.reason IS 'Optional human-readable reason why this identifier was ignored, for user reference and debugging.';
+
+
+
+===== supabase/sql/048_add_contact_identities_descriptions.sql =====
+-- Migration 48: ADD COLUMN DESCRIPTIONS to contact_identities
+-- Description: Adds comprehensive column descriptions to the contact_identities table
+-- to document the purpose and usage of each field following industry standards.
+
+-- Add descriptions to all columns in contact_identities table
+COMMENT ON TABLE public.contact_identities IS 'Maps contact identifiers (emails, phones, handles) to contact records. This table serves as the bridge between raw data sources and verified contacts, enabling efficient contact matching and deduplication across multiple communication channels.';
+
+COMMENT ON COLUMN public.contact_identities.id IS 'Primary key: Unique identifier for each contact identity record.';
+
+COMMENT ON COLUMN public.contact_identities.user_id IS 'Foreign key: References the user who owns this contact identity mapping.';
+
+COMMENT ON COLUMN public.contact_identities.contact_id IS 'Foreign key: References the contact record this identifier belongs to. Multiple identifiers can map to the same contact (e.g., work email, personal email, phone).';
+
+COMMENT ON COLUMN public.contact_identities.kind IS 'Type of identifier found: "email" (email address), "phone" (phone number), "handle" (social media username), "provider_id" (platform-specific identifier like Google contact ID).';
+
+COMMENT ON COLUMN public.contact_identities.value IS 'The actual identifier value: email address (e.g., john@example.com), phone number (e.g., +1234567890), social media handle (e.g., @johndoe), or provider-specific ID. Stored in plain text following industry standards with application-level security.';
+
+COMMENT ON COLUMN public.contact_identities.provider IS 'Source system where this identifier was discovered: "gmail" (Gmail emails), "google_calendar" (Calendar events), "manual" (user input), "upload" (document upload), "session_attendance" (attendance list), "drive" (Google Drive document), or NULL for manually entered identifiers.';
+
+COMMENT ON COLUMN public.contact_identities.created_at IS 'Timestamp when this identity mapping was first created in the system.';
+
+
+
+===== supabase/sql/49_simplify_interactions_table.sql =====
+-- =========================
+-- 49_simplify_interactions_table.sql
+-- SIMPLIFY interactions table - remove redundant columns
+-- Description: Interactions must be linked to contacts. All provider-specific data
+-- goes into sourceMeta JSONB. Raw events remain the lossless ingestion layer.
+-- =========================
+
+-- Step 1: Make contactId NOT NULL after cleaning up
+-- First, delete any interactions without contacts (they shouldn't exist)
+DELETE FROM public.interactions WHERE contact_id IS NULL;
+
+-- Make contactId required
+ALTER TABLE public.interactions 
+  ALTER COLUMN contact_id SET NOT NULL;
+
+-- Step 2: Drop redundant columns (calendar data stays in sourceMeta)
+ALTER TABLE public.interactions
+  DROP COLUMN IF EXISTS start_time,
+  DROP COLUMN IF EXISTS end_time,
+  DROP COLUMN IF EXISTS location,
+  DROP COLUMN IF EXISTS attendees,
+  DROP COLUMN IF EXISTS event_status,
+  DROP COLUMN IF EXISTS time_zone,
+  DROP COLUMN IF EXISTS is_all_day,
+  DROP COLUMN IF EXISTS visibility,
+  DROP COLUMN IF EXISTS event_category,
+  DROP COLUMN IF EXISTS keywords,
+  DROP COLUMN IF EXISTS google_updated,
+  DROP COLUMN IF EXISTS last_synced,
+  DROP COLUMN IF EXISTS body_raw;
+
+-- Step 3: Drop calendar_events backup table (no longer needed)
+DROP TABLE IF EXISTS public.calendar_events_backup_20251006;
+
+-- Step 4: Add constraint comment
+COMMENT ON COLUMN public.interactions.contact_id IS 
+  'Required: Interactions must be linked to a contact. Unlinked events stay in raw_events.';
+
+-- Step 5: Update table comment
+COMMENT ON TABLE public.interactions IS 
+  'Normalized interactions (emails, calendar events, calls, meetings) that are linked to contacts. All provider-specific data stored in sourceMeta JSONB. Raw events table holds lossless ingestion data.';
+
+
+
+===== supabase/sql/050_refactor_raw_events_and_interactions.sql =====
+-- =========================
+-- 050_refactor_raw_events_and_interactions.sql
+-- REFACTOR raw_events and interactions tables for contact extraction workflow
+-- Description: 
+-- 1. Add extracted_at timestamp to raw_events
+-- 2. Make interactions.source_id NOT NULL for deduplication
+-- 3. Drop redundant columns from interactions (metadata, priority, status, tags)
+-- 4. Enforce contact_id NOT NULL with CASCADE delete in interactions
+-- 5. Drop obsolete indexes from interactions
+-- =========================
+
+-- ============================================================================
+-- PART 1: raw_events - Add extracted_at timestamp
+-- ============================================================================
+
+-- Add extracted_at column to track when contact extraction was completed
+ALTER TABLE public.raw_events
+  ADD COLUMN IF NOT EXISTS extracted_at TIMESTAMPTZ;
+
+-- Add comment to document the column
+COMMENT ON COLUMN public.raw_events.extracted_at IS 
+  'Timestamp when contact extraction was completed for this event. Used for auditing and analytics. Added Oct 7, 2025.';
+
+-- Update the table comment to reflect the complete workflow
+COMMENT ON TABLE public.raw_events IS 
+  'Refactored on Oct 7, 2025. This table is the immutable, unfiltered source of all ingested data. contact_extraction_status tracks the contact identification workflow: NULL (unprocessed), NO_IDENTIFIERS (no contacts found), IDENTIFIERS_FOUND (has contacts, needs matching), PENDING (awaiting user approval), YES (matched to contact), REJECTED (user rejected). extracted_at tracks when processing completed.';
+
+-- ============================================================================
+-- PART 2: interactions - Make source_id NOT NULL (for deduplication)
+-- ============================================================================
+
+-- First, delete any interactions without source_id (shouldn't exist, but safety first)
+DELETE FROM public.interactions WHERE source_id IS NULL;
+
+-- Make source_id NOT NULL to enforce deduplication
+ALTER TABLE public.interactions
+  ALTER COLUMN source_id SET NOT NULL;
+
+-- Add comment to document the requirement
+COMMENT ON COLUMN public.interactions.source_id IS 
+  'Required: Unique identifier from the source system (e.g., Gmail message ID, Calendar event ID). Used for deduplication. NOT NULL enforced Oct 7, 2025.';
+
+-- ============================================================================
+-- PART 3: interactions - Drop redundant columns
+-- ============================================================================
+
+-- Drop columns that are no longer needed (metadata moved to source_meta)
+ALTER TABLE public.interactions
+  DROP COLUMN IF EXISTS metadata,
+  DROP COLUMN IF EXISTS priority,
+  DROP COLUMN IF EXISTS status,
+  DROP COLUMN IF EXISTS tags;
+
+-- ============================================================================
+-- PART 4: interactions - Enforce contact_id NOT NULL with CASCADE
+-- ============================================================================
+
+-- First, ensure no orphaned interactions exist
+DELETE FROM public.interactions WHERE contact_id IS NULL;
+
+-- Drop the existing foreign key constraint
+ALTER TABLE public.interactions 
+  DROP CONSTRAINT IF EXISTS interactions_contact_fk;
+
+ALTER TABLE public.interactions 
+  DROP CONSTRAINT IF EXISTS interactions_contact_id_fkey;
+
+-- Make contact_id NOT NULL
+ALTER TABLE public.interactions 
+  ALTER COLUMN contact_id SET NOT NULL;
+
+-- Re-add the foreign key constraint with ON DELETE CASCADE
+-- If a contact is deleted, all their interactions are deleted too
+ALTER TABLE public.interactions
+  ADD CONSTRAINT interactions_contact_id_fkey
+  FOREIGN KEY (contact_id) 
+  REFERENCES public.contacts(id) 
+  ON DELETE CASCADE;
+
+-- Update comment to document the requirement
+COMMENT ON COLUMN public.interactions.contact_id IS 
+  'Required: Interactions must be linked to a contact. Unlinked events stay in raw_events. ON DELETE CASCADE enforced Oct 7, 2025.';
+
+-- ============================================================================
+-- PART 5: interactions - Drop obsolete indexes
+-- ============================================================================
+
+-- Drop indexes that are no longer valid or needed
+DROP INDEX IF EXISTS public.interactions_body_raw_gin;
+DROP INDEX IF EXISTS public.interactions_user_start_time_idx;
+DROP INDEX IF EXISTS public.interactions_attendees_gin;
+DROP INDEX IF EXISTS public.interactions_user_unlinked_idx;
+
+-- ============================================================================
+-- PART 6: Update table comments
+-- ============================================================================
+
+-- Update interactions table comment to reflect its new, focused purpose
+COMMENT ON TABLE public.interactions IS 
+  'Refactored on Oct 7, 2025. This table now ONLY stores verified interactions linked to a contact (contact_id is NOT NULL with CASCADE delete). All provider-specific metadata is stored in the source_meta JSONB field. source_id is NOT NULL for deduplication. Redundant columns (metadata, priority, status, tags) have been removed.';
+
+-- ============================================================================
+-- SUMMARY
+-- ============================================================================
+-- Changes applied:
+-- 1. ✅ Added extracted_at to raw_events for audit trail
+-- 2. ✅ Made interactions.source_id NOT NULL for deduplication
+-- 3. ✅ Dropped metadata, priority, status, tags from interactions
+-- 4. ✅ Enforced contact_id NOT NULL with CASCADE delete in interactions
+-- 5. ✅ Dropped obsolete indexes from interactions
+-- 6. ✅ Updated all relevant comments for documentation
+-- ============================================================================
+
+
+
+===== supabase/sql/051_add_rls_to_ignored_identifiers.sql =====
+-- =========================
+-- 051_add_rls_to_ignored_identifiers.sql
+-- ADD RLS policies to ignored_identifiers table
+-- Description: Enables Row Level Security and creates policies to ensure users
+-- can only access their own ignored identifiers.
+-- =========================
+
+-- Step 1: Enable Row Level Security
+ALTER TABLE public.ignored_identifiers ENABLE ROW LEVEL SECURITY;
+
+-- Step 2: Drop existing policies if any (for idempotency)
+DROP POLICY IF EXISTS "Users can view their own ignored identifiers" ON public.ignored_identifiers;
+DROP POLICY IF EXISTS "Users can insert their own ignored identifiers" ON public.ignored_identifiers;
+DROP POLICY IF EXISTS "Users can update their own ignored identifiers" ON public.ignored_identifiers;
+DROP POLICY IF EXISTS "Users can delete their own ignored identifiers" ON public.ignored_identifiers;
+DROP POLICY IF EXISTS "Service role has full access to ignored identifiers" ON public.ignored_identifiers;
+
+-- Step 3: Create RLS policies for authenticated users
+
+-- SELECT policy: Users can only view their own ignored identifiers
+CREATE POLICY "Users can view their own ignored identifiers"
+  ON public.ignored_identifiers
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- INSERT policy: Users can only create ignored identifiers for themselves
+CREATE POLICY "Users can insert their own ignored identifiers"
+  ON public.ignored_identifiers
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- UPDATE policy: Users can only update their own ignored identifiers
+CREATE POLICY "Users can update their own ignored identifiers"
+  ON public.ignored_identifiers
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- DELETE policy: Users can only delete their own ignored identifiers
+CREATE POLICY "Users can delete their own ignored identifiers"
+  ON public.ignored_identifiers
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Step 4: Create service role policy for backend operations
+-- The service role needs full access for system operations like bulk imports
+
+CREATE POLICY "Service role has full access to ignored identifiers"
+  ON public.ignored_identifiers
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+-- Step 5: Add comment to document the RLS setup
+COMMENT ON TABLE public.ignored_identifiers IS 
+  'A blocklist of identifiers (emails, phones, handles) that the user has marked as not belonging to a contact. The contact extraction process checks this table to avoid creating repeated suggestions for irrelevant identifiers like no-reply emails, system notifications, etc. Created Oct 7, 2025. RLS enabled Oct 7, 2025.';
+
+-- ============================================================================
+-- SUMMARY
+-- ============================================================================
+-- RLS Configuration for ignored_identifiers:
+-- 1. ✅ Row Level Security ENABLED
+-- 2. ✅ SELECT policy: Users can view only their own ignored identifiers
+-- 3. ✅ INSERT policy: Users can create only for themselves
+-- 4. ✅ UPDATE policy: Users can update only their own records
+-- 5. ✅ DELETE policy: Users can delete only their own records
+-- 6. ✅ Service role has full access for system operations
+-- ============================================================================
+
+
+

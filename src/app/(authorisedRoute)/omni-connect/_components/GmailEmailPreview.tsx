@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Mail, RefreshCw, Paperclip } from "lucide-react";
 import { format } from "date-fns";
-import { EmailPreview } from "./types";
+import type { EmailPreview } from "./types";
 
 interface GmailEmailPreviewProps {
   emails: EmailPreview[];
@@ -89,7 +89,11 @@ export function GmailEmailPreview({
                 Your Gmail token may have expired. Please reconnect your account.
               </p>
               <button
-                onClick={() => window.open("/api/google/gmail/oauth", "_self")}
+                onClick={async () => {
+                  const response = await fetch("/api/google/gmail/connect", { method: "POST" });
+                  const data = await response.json();
+                  if (data.url) window.location.href = data.url;
+                }}
                 className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
               >
                 Reconnect Gmail

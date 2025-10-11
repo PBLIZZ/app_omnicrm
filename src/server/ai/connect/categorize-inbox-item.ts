@@ -4,7 +4,10 @@ import { logger } from "@/lib/observability";
 import { InboxProcessingResultDTO, InboxProcessingContext } from "@/server/db/business-schemas";
 
 // Prompt function defined inline until separate file is created
-function buildCategorizeInboxItemPrompt(rawText: string, context: InboxProcessingContext) {
+function buildCategorizeInboxItemPrompt(
+  rawText: string,
+  context: InboxProcessingContext,
+): Array<{ role: "system" | "user"; content: string }> {
   const availableZones = context.zones.map((zone) => zone.name).join(", ");
 
   return [

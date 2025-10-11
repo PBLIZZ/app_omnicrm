@@ -1,8 +1,7 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
+import { getProjectTasksService } from "@/server/services/productivity.service";
 import { TaskFiltersSchema, TaskSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
-import { NextRequest } from "next/server";
 
 /**
  * Project Tasks API Route
@@ -13,23 +12,21 @@ import { NextRequest } from "next/server";
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     projectId: string;
-  };
+  }>;
 }
 
 /**
  * GET /api/omni-momentum/projects/[projectId]/tasks - Get tasks within project
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  // Create a handler that passes the projectId to the service
-  const handler = handleGetWithQueryAuth(
+export async function GET(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleGetWithQueryAuth(
     TaskFiltersSchema,
     z.array(TaskSchema),
-    async (filters, userId) => {
-      return await momentumService.getProjectTasks(params.projectId, userId, filters);
+    async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
+      return await getProjectTasksService(params.projectId, userId, filters);
     },
-  );
-
-  return handler(request);
+  )(request);
 }

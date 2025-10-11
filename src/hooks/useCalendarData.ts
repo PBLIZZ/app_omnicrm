@@ -13,6 +13,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr, isOk } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -20,53 +21,17 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   if (error instanceof Error && error.message.includes("403")) return false;
 
   // Retry network errors up to 3 times
-  if (error instanceof Error && (error.message.includes("fetch") || error.message.includes("network"))) {
+  if (
+    error instanceof Error &&
+    (error.message.includes("fetch") || error.message.includes("network"))
+  ) {
     return retryCount < 3;
   }
 
   // Retry other errors up to 2 times
   return retryCount < 2;
 };
-import type { CalendarEvent, Client } from "@/app/(authorisedRoute)/omni-rhythm/_components/types";
-
-export interface CalendarStats {
-  upcomingEventsCount: number;
-  upcomingEvents: CalendarEvent[];
-  lastSync: string | null;
-  importedCount?: number;
-}
-
-export interface CalendarConnectionStatus {
-  isConnected: boolean;
-  upcomingEventsCount: number;
-  reason?: string;
-  hasRefreshToken?: boolean;
-  autoRefreshed?: boolean;
-  lastSync?: string;
-}
-
-export interface UseCalendarDataResult {
-  // Main data
-  events: CalendarEvent[];
-  clients: Client[];
-  connectionStatus: CalendarConnectionStatus | undefined;
-
-  // Loading states
-  isEventsLoading: boolean;
-  isClientsLoading: boolean;
-  isStatusLoading: boolean;
-
-  // Error states
-  eventsError: Error | null;
-  clientsError: Error | null;
-  statusError: Error | null;
-
-  // Actions
-  refetchEvents: () => void;
-  refetchClients: () => void;
-  refetchStatus: () => void;
-  refreshAll: () => void;
-}
+import type { CalendarEvent, Client } from "@/server/db/business-schemas";
 
 export function useCalendarData(): UseCalendarDataResult {
   // Calendar events query
@@ -78,17 +43,29 @@ export function useCalendarData(): UseCalendarDataResult {
   } = useQuery<CalendarEvent[]>({
     queryKey: queryKeys.calendar.events(),
     queryFn: async (): Promise<CalendarEvent[]> => {
-      const response = await apiClient.get<{
-        events: CalendarEvent[];
-        isConnected: boolean;
-        totalCount: number;
-      }>("/api/google/calendar/events");
+      const result = await apiClient.get<
+        Result<
+          {
+            events: CalendarEvent[];
+            isConnected: boolean;
+            totalCount: number;
+          },
+          { message: string; code: string }
+        >
+      >("/api/google/calendar/events");
 
-      if (!response.isConnected) {
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
+      }
+
+      if (!result.data.isConnected) {
         return [];
       }
 
-      const items = Array.isArray(response.events) ? response.events : [];
+      const items = Array.isArray(result.data.events) ? result.data.events : [];
       return items.map(mapCalendarEvent);
     },
     staleTime: 60_000,
@@ -104,8 +81,15 @@ export function useCalendarData(): UseCalendarDataResult {
   } = useQuery<Client[]>({
     queryKey: queryKeys.calendar.clients(),
     queryFn: async (): Promise<Client[]> => {
-      const json = await apiClient.get("/api/omni-clients");
-      return mapClientsData(json);
+      const result =
+        await apiClient.get<Result<unknown, { message: string; code: string }>>("/api/contacts");
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
+      }
+      return mapClientsData(result.data);
     },
     staleTime: 60_000,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -121,20 +105,33 @@ export function useCalendarData(): UseCalendarDataResult {
     queryKey: queryKeys.google.calendar.status(),
     queryFn: async (): Promise<CalendarConnectionStatus> => {
       // Use unified status API with auto-refresh and caching
-      const response = await apiClient.get<{
-        services: {
-          calendar: {
-            connected: boolean;
-            integration?: {
-              hasRefreshToken?: boolean;
+      const result = await apiClient.get<
+        Result<
+          {
+            services: {
+              calendar: {
+                connected: boolean;
+                integration?: {
+                  hasRefreshToken?: boolean;
+                };
+                autoRefreshed?: boolean;
+                lastSync?: string;
+              };
             };
-            autoRefreshed?: boolean;
-            lastSync?: string;
-          };
-        };
-        upcomingEventsCount?: number;
-      }>("/api/google/status");
+            upcomingEventsCount?: number;
+          },
+          { message: string; code: string }
+        >
+      >("/api/google/status");
 
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
+      }
+
+      const response = result.data;
       const calendarService = response.services?.calendar;
       if (!calendarService) {
         return { isConnected: false, upcomingEventsCount: 0, reason: "api_error" };
@@ -158,9 +155,9 @@ export function useCalendarData(): UseCalendarDataResult {
     },
     staleTime: 15_000,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
-    // Optimistic loading: assume connected state initially for better UX
+    // Initial data - assume disconnected until we know otherwise
     initialData: {
-      isConnected: true,
+      isConnected: false,
       upcomingEventsCount: 0,
       reason: "loading",
     },
@@ -232,7 +229,7 @@ function mapClientsData(json: unknown): Client[] {
   const isRecord = (v: unknown): v is Record<string, unknown> =>
     typeof v === "object" && v !== null;
 
-  // Handle omni-clients API response structure
+  // Handle contacts API response structure
   let contactsArray: unknown[] = [];
 
   // The new API returns { data: { items: [...] } } structure
@@ -276,7 +273,7 @@ function mapClientData(contact: unknown): Client {
   const id = getString(c, "id") ?? getString(c, "userId") ?? `contact-${Math.random()}`;
   const displayName = getString(c, "displayName") ?? getString(c, "name") ?? "Unknown Client";
   const email = getString(c, "primaryEmail") ?? getString(c, "email") ?? "";
-  const totalSessions = getNumber(c, "notesCount") ?? getNumber(c, "totalSessions") ?? 0;
+  const totalSessions = getNumber(c, "totalSessions") ?? 0;
   const totalSpent = getNumber(c, "totalSpent") ?? 0;
   const lastSessionDate =
     getString(c, "updatedAt") ?? getString(c, "lastSessionDate") ?? new Date().toISOString();

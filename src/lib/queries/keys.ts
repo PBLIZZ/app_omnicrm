@@ -46,16 +46,11 @@ export const queryKeys = {
 
   // Contacts and related data
   contacts: {
-    all: ["contacts"] as const,
-    list: () => ["/api/contacts-new"] as const,
-    byId: (id: string) => ["contacts", id] as const,
-    notes: (contactId: string) => ["contacts", contactId, "notes"] as const,
-  },
-
-  // Client management
-  clients: {
-    all: ["clients"] as const,
-    list: () => ["/api/omni-clients"] as const,
+    all: ["/api/contacts"] as const,
+    list: (filters?: { search?: string; page?: number; pageSize?: number }) => ["/api/contacts", filters] as const,
+    detail: (id: string) => ["/api/contacts", "detail", id] as const,
+    byId: (id: string) => ["/api/contacts", id] as const,
+    notes: (contactId: string) => ["/api/contacts", contactId, "notes"] as const,
   },
 
   // Chat and messaging
@@ -132,10 +127,7 @@ export const queryKeyUtils = {
   /**
    * Invalidate all contact-related queries
    */
-  invalidateContacts: () => [
-    { queryKey: queryKeys.contacts.all },
-    { queryKey: queryKeys.clients.all },
-  ],
+  invalidateContacts: () => ({ queryKey: queryKeys.contacts.all }),
 
   /**
    * Invalidate after sync operations (refresh status and data)
@@ -187,7 +179,6 @@ export type QueryKey =
   | ReturnType<typeof queryKeys.calendar.clients>
   | ReturnType<typeof queryKeys.omniConnect.dashboard>
   | ReturnType<typeof queryKeys.contacts.list>
-  | ReturnType<typeof queryKeys.clients.list>
   | ReturnType<typeof queryKeys.contacts.byId>
   | ReturnType<typeof queryKeys.contacts.notes>
   | ReturnType<typeof queryKeys.chat.messages>

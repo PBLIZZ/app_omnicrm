@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Route } from "next";
 
@@ -17,16 +17,6 @@ import {
 } from "@/components/ui/sidebar";
 
 // Define the structure for navigation items
-export interface NavItem {
-  title: string;
-  url: string;
-  icon?: LucideIcon;
-  isActive?: boolean;
-  items?: {
-    title: string;
-    url: string;
-  }[];
-}
 
 export function NavMain({ items }: { items: NavItem[] }): JSX.Element {
   return (

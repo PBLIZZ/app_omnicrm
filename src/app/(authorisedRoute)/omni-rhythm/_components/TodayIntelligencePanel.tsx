@@ -15,7 +15,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { format, isToday, isTomorrow, addDays, startOfWeek, endOfWeek } from "date-fns";
-import { Appointment, TodayIntelligencePanelProps } from "./types";
+import { Appointment, Attendee, TodayIntelligencePanelProps } from "./types";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export function TodayIntelligencePanel({
@@ -27,7 +27,10 @@ export function TodayIntelligencePanel({
 
   // Group appointments by time periods and sort them chronologically
   const groupedAppointments = groupAppointmentsByTimePeriod(appointments, now);
-  const totalAppointments = groupedAppointments.today.length + groupedAppointments.tomorrow.length + groupedAppointments.restOfWeek.length;
+  const totalAppointments =
+    groupedAppointments.today.length +
+    groupedAppointments.tomorrow.length +
+    groupedAppointments.restOfWeek.length;
 
   // State for collapsible sections
   const [isRestOfWeekOpen, setIsRestOfWeekOpen] = useState(false);
@@ -75,7 +78,8 @@ export function TodayIntelligencePanel({
           Weekly Intelligence
         </CardTitle>
         <CardDescription>
-          {todayString} - {totalAppointments} appointment{totalAppointments !== 1 ? "s" : ""} this week
+          {todayString} - {totalAppointments} appointment{totalAppointments !== 1 ? "s" : ""} this
+          week
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -183,7 +187,7 @@ function AppointmentCard({
   appointment,
   showDate = false,
   isExpanded = false,
-  onToggleExpansion
+  onToggleExpansion,
 }: {
   appointment: Appointment;
   showDate?: boolean;
@@ -228,7 +232,9 @@ function AppointmentCard({
             {appointment.location && (
               <div className="flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
-                <span className="truncate max-w-48" title={appointment.location}>{appointment.location}</span>
+                <span className="truncate max-w-48" title={appointment.location}>
+                  {appointment.location}
+                </span>
               </div>
             )}
             {appointment.attendees && appointment.attendees.length > 0 && (
@@ -237,7 +243,8 @@ function AppointmentCard({
                 className="flex items-center gap-1 hover:text-foreground transition-colors"
               >
                 <Users className="h-3 w-3" />
-                {appointment.attendees.length} attendee{appointment.attendees.length !== 1 ? "s" : ""}
+                {appointment.attendees.length} attendee
+                {appointment.attendees.length !== 1 ? "s" : ""}
               </button>
             )}
           </div>
@@ -272,7 +279,7 @@ function AppointmentCard({
         <div className="bg-muted/30 rounded p-2 text-xs">
           <div className="font-medium mb-1">Attendees:</div>
           <div className="space-y-1">
-            {appointment.attendees.map((attendee, index) => (
+            {appointment.attendees.map((attendee: Attendee, index: number) => (
               <div key={index} className="flex items-center gap-1">
                 <User className="h-3 w-3" />
                 <span>{attendee.name || attendee.email}</span>
@@ -292,52 +299,55 @@ function AppointmentCard({
             </div>
           )}
 
-          {/* Client Context */}
-          {appointment.clientContext && (
+          {/* Contact Context */}
+          {appointment.contactContext && (
             <div className="bg-violet-50 dark:bg-violet-950/20 rounded p-2">
               <div className="flex items-center gap-2 mb-1">
                 <User className="h-3 w-3 text-violet-600" />
                 <span className="font-medium text-violet-900 dark:text-violet-100 text-sm">
-                  {appointment.clientContext.clientName ?? "Client"}
+                  {appointment.contactContext.contactName ?? "Contact"}
                 </span>
-                {appointment.clientContext.sessionNumber && appointment.clientContext.sessionNumber > 0 && (
-                  <Badge variant="outline" className="text-xs">
-                    Session #{appointment.clientContext.sessionNumber}
-                  </Badge>
-                )}
+                {appointment.contactContext.sessionNumber &&
+                  appointment.contactContext.sessionNumber > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      Session #{appointment.contactContext.sessionNumber}
+                    </Badge>
+                  )}
               </div>
 
-              {appointment.clientContext.totalSessions && (
+              {appointment.contactContext.totalSessions && (
                 <div className="text-xs text-violet-700 dark:text-violet-300 mb-1">
-                  Total Sessions: {appointment.clientContext.totalSessions}
-                  {appointment.clientContext.lastSessionDate && (
+                  Total Sessions: {appointment.contactContext.totalSessions}
+                  {appointment.contactContext.lastSessionDate && (
                     <span className="ml-2">
-                      Last: {format(new Date(appointment.clientContext.lastSessionDate), "MMM d")}
+                      Last: {format(new Date(appointment.contactContext.lastSessionDate), "MMM d")}
                     </span>
                   )}
                 </div>
               )}
 
-              {appointment.clientContext.preparationNeeded &&
-                appointment.clientContext.preparationNeeded.length > 0 && (
+              {appointment.contactContext.preparationNeeded &&
+                appointment.contactContext.preparationNeeded.length > 0 && (
                   <div className="text-xs">
                     <div className="flex items-center gap-1 font-medium text-violet-900 dark:text-violet-100 mb-1">
                       <AlertCircle className="h-3 w-3" />
                       Preparation Needed:
                     </div>
                     <ul className="text-violet-800 dark:text-violet-200 space-y-0.5 ml-4">
-                      {appointment.clientContext.preparationNeeded.map((item, index) => (
-                        <li key={index} className="list-disc">
-                          {item}
-                        </li>
-                      ))}
+                      {appointment.contactContext.preparationNeeded.map(
+                        (item: string, index: number) => (
+                          <li key={index} className="list-disc">
+                            {item}
+                          </li>
+                        ),
+                      )}
                     </ul>
                   </div>
                 )}
 
-              {appointment.clientContext.notes && (
+              {appointment.contactContext.notes && (
                 <div className="text-xs text-violet-800 dark:text-violet-200 mt-1">
-                  <span className="font-medium">Notes:</span> {appointment.clientContext.notes}
+                  <span className="font-medium">Notes:</span> {appointment.contactContext.notes}
                 </div>
               )}
             </div>
@@ -354,17 +364,17 @@ function AppointmentCard({
 function calculateReturningClients(appointments: Appointment[]): number {
   const attendeeMap = new Map<string, number>();
 
-  appointments.forEach(appointment => {
+  appointments.forEach((appointment) => {
     if (appointment.attendees) {
-      appointment.attendees.forEach(attendee => {
+      appointment.attendees.forEach((attendee: Attendee) => {
         const email = attendee.email.toLowerCase();
-        attendeeMap.set(email, (attendeeMap.get(email) || 0) + 1);
+        attendeeMap.set(email, (attendeeMap.get(email) ?? 0) + 1);
       });
     }
   });
 
   // Count attendees who appear in more than one event
-  return Array.from(attendeeMap.values()).filter(count => count > 1).length;
+  return Array.from(attendeeMap.values()).filter((count) => count > 1).length;
 }
 
 function calculateEstimatedRevenue(appointments: Appointment[]): number {
@@ -420,16 +430,22 @@ function calculateTotalHours(appointments: Appointment[]): number {
 function getEventCategory(appointment: Appointment): string | undefined {
   if (appointment.eventType) return appointment.eventType;
 
-  const text = `${appointment.title} ${appointment.description || ''}`.toLowerCase();
+  const text = `${appointment.title} ${appointment.description ?? ""}`.toLowerCase();
 
   // Q&A sessions and community events are classes, not appointments
-  if (/\b(q&a|q\s*&\s*a|question.{0,5}answer|community|group|class|lesson)\b/.test(text)) return 'class';
-  if (/\b(consultation|consult|private session|1-on-1|one-on-one)\b/.test(text)) return 'consultation';
-  if (/\b(workshop|seminar|training)\b/.test(text)) return 'workshop';
-  if (/\b(retreat|intensive)\b/.test(text)) return 'retreat';
-  if (/\b(meeting|call|phone|zoom)\b/.test(text)) return 'meeting';
+  if (/\b(q&a|q\s*&\s*a|question.{0,5}answer|community|group|class|lesson)\b/.test(text))
+    return "class";
+  if (/\b(consultation|consult|private session|1-on-1|one-on-one)\b/.test(text))
+    return "consultation";
+  if (/\b(workshop|seminar|training)\b/.test(text)) return "workshop";
+  if (/\b(retreat|intensive)\b/.test(text)) return "retreat";
+  if (/\b(meeting|call|phone|zoom)\b/.test(text)) return "meeting";
   // Only individual treatments should be appointments (not group events)
-  if (/\b(appointment|treatment|massage|therapy)\b/.test(text) && !/\b(group|class|community)\b/.test(text)) return 'appointment';
+  if (
+    /\b(appointment|treatment|massage|therapy)\b/.test(text) &&
+    !/\b(group|class|community)\b/.test(text)
+  )
+    return "appointment";
 
   return undefined;
 }
@@ -437,28 +453,31 @@ function getEventCategory(appointment: Appointment): string | undefined {
 // Helper function to extract wellness tags from event content
 function getEventTags(appointment: Appointment): string[] {
   const tags: string[] = [];
-  const text = `${appointment.title} ${appointment.description || ''}`.toLowerCase();
+  const text = `${appointment.title} ${appointment.description ?? ""}`.toLowerCase();
 
   // Wellness service tags
-  if (/\b(yoga|vinyasa|hatha|yin)\b/.test(text)) tags.push('yoga');
-  if (/\b(massage|bodywork|therapeutic)\b/.test(text)) tags.push('massage');
-  if (/\b(meditation|mindfulness|breathing)\b/.test(text)) tags.push('meditation');
-  if (/\b(pilates|barre)\b/.test(text)) tags.push('pilates');
-  if (/\b(reiki|energy|healing)\b/.test(text)) tags.push('reiki');
-  if (/\b(acupuncture|tcm)\b/.test(text)) tags.push('acupuncture');
-  if (/\b(nutrition|diet|wellness coaching)\b/.test(text)) tags.push('nutrition');
-  if (/\b(therapy|counseling|psychology)\b/.test(text)) tags.push('therapy');
+  if (/\b(yoga|vinyasa|hatha|yin)\b/.test(text)) tags.push("yoga");
+  if (/\b(massage|bodywork|therapeutic)\b/.test(text)) tags.push("massage");
+  if (/\b(meditation|mindfulness|breathing)\b/.test(text)) tags.push("meditation");
+  if (/\b(pilates|barre)\b/.test(text)) tags.push("pilates");
+  if (/\b(reiki|energy|healing)\b/.test(text)) tags.push("reiki");
+  if (/\b(acupuncture|tcm)\b/.test(text)) tags.push("acupuncture");
+  if (/\b(nutrition|diet|wellness coaching)\b/.test(text)) tags.push("nutrition");
+  if (/\b(therapy|counseling|psychology)\b/.test(text)) tags.push("therapy");
 
   // Intensity/level tags
-  if (/\b(beginner|intro|new)\b/.test(text)) tags.push('beginner');
-  if (/\b(advanced|intensive|master)\b/.test(text)) tags.push('advanced');
-  if (/\b(gentle|restorative|relaxing)\b/.test(text)) tags.push('gentle');
+  if (/\b(beginner|intro|new)\b/.test(text)) tags.push("beginner");
+  if (/\b(advanced|intensive|master)\b/.test(text)) tags.push("advanced");
+  if (/\b(gentle|restorative|relaxing)\b/.test(text)) tags.push("gentle");
 
   return tags.slice(0, 3); // Limit to 3 tags for UI cleanliness
 }
 
 // Helper function to group appointments by time periods and sort chronologically
-function groupAppointmentsByTimePeriod(appointments: Appointment[], currentDate: Date): {
+function groupAppointmentsByTimePeriod(
+  appointments: Appointment[],
+  currentDate: Date,
+): {
   today: Appointment[];
   tomorrow: Appointment[];
   restOfWeek: Appointment[];
@@ -478,7 +497,11 @@ function groupAppointmentsByTimePeriod(appointments: Appointment[], currentDate:
       today.push(appointment);
     } else if (isTomorrow(appointmentDate)) {
       tomorrow.push(appointment);
-    } else if (appointmentDate >= weekStart && appointmentDate <= weekEnd && appointmentDate > tomorrowDate) {
+    } else if (
+      appointmentDate >= weekStart &&
+      appointmentDate <= weekEnd &&
+      appointmentDate > tomorrowDate
+    ) {
       restOfWeek.push(appointment);
     }
   });
@@ -512,7 +535,7 @@ function AppointmentSection({
   bgColor,
   expandedEvents,
   onToggleExpansion,
-  hideTitle = false
+  hideTitle = false,
 }: AppointmentSectionProps): JSX.Element {
   return (
     <div className={`rounded-lg p-3 ${bgColor}`}>

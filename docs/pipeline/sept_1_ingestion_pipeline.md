@@ -262,8 +262,10 @@ export class JobDispatcher {
         return runCalendarSync(job, job.userId);
       case "google_gmail_sync":
         return runGmailSync(job, job.userId);
-      case "normalize":
-        return runNormalize(job, job.userId);
+      case "normalize_google_email":
+        return runNormalizeGoogleEmail(job, job.userId);
+      case "normalize_google_event":
+        return runNormalizeGoogleEvent(job, job.userId);
       case "embed":
         return runEmbed(job, job.userId);
       case "insight":

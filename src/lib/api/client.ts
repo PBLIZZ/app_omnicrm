@@ -10,6 +10,8 @@
  */
 
 import { toast } from "sonner";
+import { type Result, isOk, isErr } from "@/lib/utils/result";
+import { logger } from "@/lib/observability/unified-logger";
 
 // ============================================================================
 // CSRF TOKEN UTILITIES
@@ -129,9 +131,11 @@ export async function apiRequest<T = unknown>(
     if (csrfToken) {
       (headers as Record<string, string>)["x-csrf-token"] = csrfToken;
     } else if (process.env.NODE_ENV === "development") {
-      console.warn(
-        `No CSRF token found in cookies for ${method} request. This may cause authentication issues.`,
-      );
+      logger.debug(`No CSRF token found in cookies for ${method} request`, {
+        operation: "csrf_token_check",
+        method,
+        additionalData: { warning: "This may cause authentication issues" }
+      });
     }
   }
 
@@ -163,18 +167,23 @@ export async function apiRequest<T = unknown>(
     // Parse response
     const responseData = (await response.json()) as unknown;
 
-    // Check if response is in envelope format (direct pattern)
-    if (responseData && typeof responseData === "object" && "ok" in responseData) {
-      const envelope = responseData as { ok: boolean; data?: T; error?: string; details?: unknown };
+    // Check if response is in Result format
+    if (responseData && typeof responseData === "object" && "success" in responseData) {
+      const result = responseData as Result<T, { message: string }>;
 
-      // Handle API envelope errors
-      if (!envelope.ok) {
-        const error = new Error(envelope.error ?? "Unknown error");
+      // Handle Result pattern errors
+      if (isErr(result)) {
+        const error = new Error(result.error.message ?? "Unknown error");
         throw error;
       }
 
-      return envelope.data as T;
+      if (isOk(result)) {
+        return result.data;
+      }
     }
+
+    // Legacy envelope pattern has been deprecated in favor of Result<T, E>
+    // All API responses should now use the Result pattern
 
     // Response is direct JSON, return as-is
     return responseData as T;
@@ -313,7 +322,8 @@ export async function safeRequest<T>(
     return await requestFn();
   } catch (error) {
     if (logError) {
-      console.error("API request failed, using fallback:", error);
+      const errorInstance = error instanceof Error ? error : new Error(String(error));
+      logger.error("API request failed, using fallback", { operation: "safe_request" }, errorInstance);
     }
 
     if (showErrorToast && error instanceof Error) {

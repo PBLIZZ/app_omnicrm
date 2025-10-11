@@ -42,7 +42,7 @@ export function PreferencesSection({ control, errors }: PreferencesSectionProps)
   ];
 
   const handleSessionTimeChange = (value: SessionTime, checked: boolean) => {
-    const currentValues = sessionTimeController.field.value || [];
+    const currentValues = sessionTimeController.field.value ?? [];
     if (checked) {
       if (!currentValues.includes(value)) {
         sessionTimeController.field.onChange([...currentValues, value]);
@@ -53,7 +53,7 @@ export function PreferencesSection({ control, errors }: PreferencesSectionProps)
   };
 
   const handleCommunicationChange = (value: CommunicationPref, checked: boolean) => {
-    const currentValues = communicationController.field.value || [];
+    const currentValues = communicationController.field.value ?? [];
     if (checked) {
       if (!currentValues.includes(value)) {
         communicationController.field.onChange([...currentValues, value]);
@@ -80,7 +80,7 @@ export function PreferencesSection({ control, errors }: PreferencesSectionProps)
               <div key={option.value} className="flex items-center space-x-2">
                 <Checkbox
                   id={`sessionTime-${option.value}`}
-                  checked={(sessionTimeController.field.value || []).includes(option.value)}
+                  checked={(sessionTimeController.field.value ?? []).includes(option.value)}
                   onCheckedChange={(checked) =>
                     handleSessionTimeChange(option.value, checked as boolean)
                   }
@@ -104,7 +104,7 @@ export function PreferencesSection({ control, errors }: PreferencesSectionProps)
               <div key={option.value} className="flex items-center space-x-2">
                 <Checkbox
                   id={`communication-${option.value}`}
-                  checked={(communicationController.field.value || []).includes(option.value)}
+                  checked={(communicationController.field.value ?? []).includes(option.value)}
                   onCheckedChange={(checked) =>
                     handleCommunicationChange(option.value, checked as boolean)
                   }

@@ -1,65 +1,34 @@
-import { momentumService } from "@/server/services/momentum.service";
+import { handleAuth } from "@/lib/api";
+import { ApiError } from "@/lib/api/errors";
 import { TaskSchema } from "@/server/db/business-schemas";
+import { approveTaskService } from "@/server/services/productivity.service";
 import { z } from "zod";
 
-/**
- * Task Approval API Route
- *
- * POST /api/omni-momentum/tasks/[taskId]/approve
- * Approves an AI-generated task, changing its status from pending_approval to approved
- * This is part of the AI workflow where users review and approve suggested tasks
- */
+interface RouteParams {
+  params: Promise<{ taskId: string }>;
+}
 
-export const POST = async (req: Request, { params }: { params: { taskId: string } }) => {
-  try {
-    // Lazy import to avoid circular dependencies
-    const { getServerUserId } = await import("@/server/auth/user");
+export async function POST(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
+    z.void(),
+    TaskSchema,
+    async (_, userId): Promise<z.infer<typeof TaskSchema>> => {
+      try {
+        const approvedTask = await approveTaskService(userId, params.taskId);
 
-    const userId = await getServerUserId();
+        if (!approvedTask) {
+          throw ApiError.notFound("Task not found");
+        }
 
-    // Validate taskId from URL params
-    const taskId = z.string().uuid().parse(params.taskId);
+        return approvedTask;
+      } catch (error) {
+        if (error instanceof ApiError) {
+          throw error;
+        }
 
-    // Approve task using service
-    const approvedTask = await momentumService.approveTask(taskId, userId);
-
-    if (!approvedTask) {
-      return new Response(JSON.stringify({ error: "Task not found" }), {
-        headers: { "content-type": "application/json" },
-        status: 404,
-      });
-    }
-
-    // Validate response
-    const validated = TaskSchema.parse(approvedTask);
-
-    return new Response(JSON.stringify(validated), {
-      headers: { "content-type": "application/json" },
-      status: 200,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new Response(
-        JSON.stringify({
-          error: "Validation failed",
-          details: error.issues,
-        }),
-        {
-          headers: { "content-type": "application/json" },
-          status: 400,
-        },
-      );
-    }
-
-    // Handle auth errors
-    if (error instanceof Error && "status" in error && error.status === 401) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { "content-type": "application/json" },
-        status: 401,
-      });
-    }
-
-    // Re-throw unexpected errors to be handled by global error boundary
-    throw error;
-  }
-};
+        throw ApiError.internalServerError("Failed to approve task", error);
+      }
+    },
+  )(request);
+}

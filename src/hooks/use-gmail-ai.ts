@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { Result, isErr, isOk } from "@/lib/utils/result";
 
 interface SearchResult {
   subject: string;
@@ -45,11 +46,19 @@ export function useGmailAI(): {
   // Search Gmail mutation
   const searchMutation = useMutation({
     mutationFn: async (query: string): Promise<SearchResult[]> => {
-      const data = await apiClient.post<{ results: SearchResult[] }>("/api/gmail/search", {
+      const result = await apiClient.post<
+        Result<{ results: SearchResult[] }, { message: string; code: string }>
+      >("/api/gmail/search", {
         query,
         limit: 5,
       });
-      return data.results ?? [];
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
+      }
+      return result.data.results ?? [];
     },
     onSuccess: (results) => {
       setSearchResults(results);
@@ -60,7 +69,7 @@ export function useGmailAI(): {
   });
 
   // Define API response type for insights
-  interface InsightsApiResponse {
+  interface InsightsResponse {
     insights: Insights;
   }
 
@@ -68,10 +77,20 @@ export function useGmailAI(): {
   const loadInsights = async (): Promise<void> => {
     setIsLoadingInsights(true);
     try {
-      const data = await apiClient.get<InsightsApiResponse>("/api/gmail/insights");
-      setInsights(data.insights);
-    } catch {
-      toast.error("Failed to load insights");
+      const result =
+        await apiClient.get<Result<InsightsResponse, { message: string; code: string }>>(
+          "/api/gmail/insights",
+        );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!isOk(result)) {
+        throw new Error("Invalid result state");
+      }
+      setInsights(result.data.insights);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to load insights";
+      toast.error(errorMessage);
     } finally {
       setIsLoadingInsights(false);
     }

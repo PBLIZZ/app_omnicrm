@@ -1,5 +1,5 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
+import { listTasksService, createTaskService } from "@/server/services/productivity.service";
 import { CreateTaskSchema, TaskFiltersSchema, TaskSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 
@@ -19,9 +19,9 @@ import { z } from "zod";
 export const GET = handleGetWithQueryAuth(
   TaskFiltersSchema,
   z.array(TaskSchema),
-  async (filters, userId) => {
-    return await momentumService.getTasks(userId, filters);
-  }
+  async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
+    return await listTasksService(userId, filters);
+  },
 );
 
 /**
@@ -30,7 +30,7 @@ export const GET = handleGetWithQueryAuth(
 export const POST = handleAuth(
   CreateTaskSchema,
   TaskSchema,
-  async (data, userId) => {
-    return await momentumService.createTask(userId, data);
-  }
+  async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
+    return await createTaskService(userId, data);
+  },
 );

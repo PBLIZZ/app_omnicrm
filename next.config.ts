@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
     // Disable ESLint during builds - we'll run it separately
     ignoreDuringBuilds: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "etdhqniblvwgueykywqd.supabase.co",
+        pathname: "/storage/v1/object/**",
+      },
+    ],
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Prevent client-side bundling of node: modules

@@ -12,13 +12,15 @@ import {
 } from "@/components/ui/sidebar";
 import { Home, Users, Calendar1, Megaphone, Bot, Mail, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useOmniClientCount } from "@/hooks/use-omni-client-count";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/client";
+import { type ContactListResponse } from "@/server/db/business-schemas/contacts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Only include sections that have a page.tsx under (authorisedRoute), excluding Settings
 const mainNavItems = [
   { title: "omniFlow", href: "/omni-flow" as const, icon: Home },
-  { title: "omniClients", href: "/omni-clients" as const, icon: Users },
+  { title: "contacts", href: "/contacts" as const, icon: Users },
   { title: "omniMomentum", href: "/omni-momentum" as const, icon: Zap },
   { title: "omniRhythm", href: "/omni-rhythm" as const, icon: Calendar1 },
   { title: "omniConnect", href: "/omni-connect" as const, icon: Mail },
@@ -28,8 +30,24 @@ const mainNavItems = [
 
 export function SidebarMainSectionNav(): JSX.Element {
   const pathname = usePathname() ?? "/";
-  const omniClientCount = useOmniClientCount();
   const { state } = useSidebar();
+
+  // Share the same query as the dashboard for consistent contact count
+  const { data } = useQuery({
+    queryKey: ["contacts", "dashboard", "recent"],
+    queryFn: async (): Promise<ContactListResponse> => {
+      const params = new URLSearchParams({
+        page: "1",
+        pageSize: "50",
+        sort: "createdAt",
+        order: "desc",
+      });
+      return apiClient.get<ContactListResponse>(`/api/contacts?${params.toString()}`);
+    },
+    staleTime: 30_000,
+  });
+
+  const contactCount = data?.pagination?.total ?? 0;
 
   return (
     <SidebarGroup>
@@ -38,7 +56,7 @@ export function SidebarMainSectionNav(): JSX.Element {
         {mainNavItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
-          const count = item.href === "/omni-clients" ? omniClientCount : 0;
+          const count = item.href === "/contacts" ? contactCount : 0;
           return (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton asChild isActive={isActive} tooltip={item.title} data-nav="main">

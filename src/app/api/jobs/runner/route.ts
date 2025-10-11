@@ -1,6 +1,7 @@
 import { handleAuth } from "@/lib/api";
-import { JobProcessingService } from "@/server/services/job-processing.service";
+import { processUserSpecificJobsService } from "@/server/services/job-processing.service";
 import { SimpleJobProcessSchema, JobProcessingResultSchema } from "@/server/db/business-schemas";
+import { JobProcessingResult } from "@/server/db/business-schemas/jobs";
 
 /**
  * POST /api/jobs/runner - Process user-specific jobs
@@ -8,8 +9,8 @@ import { SimpleJobProcessSchema, JobProcessingResultSchema } from "@/server/db/b
 export const POST = handleAuth(
   SimpleJobProcessSchema,
   JobProcessingResultSchema,
-  async (_, userId) => {
-    const result = await JobProcessingService.processUserSpecificJobs(userId);
+  async (_, userId): Promise<JobProcessingResult> => {
+    const result = await processUserSpecificJobsService(userId);
 
     return {
       message: `Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`,
@@ -17,7 +18,7 @@ export const POST = handleAuth(
       processed: result.processed,
       succeeded: result.succeeded,
       failed: result.failed,
-      errors: result.errors.length > 0 ? result.errors : undefined,
+      errors: result.errors.length > 0 ? result.errors.map(String) : undefined,
     };
   },
 );

@@ -1,6 +1,6 @@
 // Enhanced batch script
 
-import { ContactSuggestion, getContactSuggestions } from "@/server/ai/clients/suggest-contacts";
+import { ContactSuggestion, getContactSuggestions } from "@/server/ai/contacts/suggest-contacts";
 import { logger } from "@/lib/observability";
 
 export async function batchSuggestContacts(userId: string): Promise<{

@@ -19,7 +19,7 @@ export function WeeklyBusinessFlow({
 
   // Group appointments by day
   const appointmentsByDay = appointments.reduce(
-    (acc, appointment) => {
+    (acc: Record<string, Appointment[]>, appointment: Appointment) => {
       const dayKey = format(new Date(appointment.startTime), "yyyy-MM-dd");
       acc[dayKey] ??= [];
       acc[dayKey].push(appointment);
@@ -96,7 +96,7 @@ export function WeeklyBusinessFlow({
 
                 {dayAppointments.length > 0 ? (
                   <div className="space-y-1">
-                    {dayAppointments.slice(0, 2).map((appointment) => (
+                    {dayAppointments.slice(0, 2).map((appointment: Appointment) => (
                       <div
                         key={appointment.id}
                         className={`text-xs p-1 rounded truncate ${
@@ -167,7 +167,7 @@ export function WeeklyBusinessFlow({
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Avg Session</span>
                 <span className="font-medium">
-                  {(weeklyStats ?? defaultStats).avgSessionLength}min
+                  {(weeklyStats ?? defaultStats).averageSessionLength}min
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -212,7 +212,7 @@ export function WeeklyBusinessFlow({
           </Button>
           <Button size="sm" variant="outline" className="flex-1">
             <Users className="h-4 w-4 mr-2" />
-            Client Outreach
+            Contact Outreach
           </Button>
           <Button size="sm" variant="outline" className="flex-1">
             <TrendingUp className="h-4 w-4 mr-2" />
@@ -295,7 +295,8 @@ function calculateWeeklyStats(appointments: Appointment[]): WeeklyStats {
     busiestDay,
     clientRetention: 85, // Placeholder
     newClients: Math.floor(totalAppointments * 0.3), // Placeholder
-    avgSessionLength: Math.round(avgSessionLength),
+    returningClients: Math.floor(totalAppointments * 0.7), // Placeholder
+    averageSessionLength: Math.round(avgSessionLength),
     averageSessionValue,
     utilizationRate,
   };

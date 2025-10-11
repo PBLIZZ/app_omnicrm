@@ -213,7 +213,6 @@ export const queryCache = new QueryCache();
 // Cache key generators for consistent naming
 export const cacheKeys = {
   // User preferences (high cache hit rate expected)
-  userSyncPrefs: (userId: string) => `user_sync_prefs:${userId}`,
   userIntegrations: (userId: string, provider?: string, service?: string) =>
     `user_integrations:${userId}${provider ? `:${provider}` : ""}${service ? `:${service}` : ""}`,
 
@@ -291,7 +290,6 @@ export const cacheInvalidation = {
     } else {
       await queryCache.deletePattern(`last_sync:${userId}*`);
     }
-    await queryCache.delete(cacheKeys.userSyncPrefs(userId));
     logger
       .info("Sync caches invalidated", {
         operation: "cache_invalidate",
@@ -342,17 +340,10 @@ export const cacheWarming = {
   warmUserPreferences: async (userId: string) => {
     try {
       const { getDb } = await import("@/server/db/client");
-      const { userSyncPrefs, userIntegrations } = await import("@/server/db/schema");
+      const { userIntegrations } = await import("@/server/db/schema");
       const { eq } = await import("drizzle-orm");
 
       const db = await getDb();
-
-      // Warm sync preferences
-      await queryCache.get(
-        cacheKeys.userSyncPrefs(userId),
-        () => db.select().from(userSyncPrefs).where(eq(userSyncPrefs.userId, userId)).limit(1),
-        900, // 15 minutes TTL
-      );
 
       // Warm user integrations
       await queryCache.get(

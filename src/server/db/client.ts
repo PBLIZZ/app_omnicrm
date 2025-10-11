@@ -2,7 +2,7 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import * as schema from "./schema";
+import * as schema from "@/server/db/schema";
 
 let dbInstance: PostgresJsDatabase<typeof schema> | null = null;
 let dbInitPromise: Promise<PostgresJsDatabase<typeof schema>> | null = null;
@@ -15,6 +15,8 @@ interface TestOverrides {
 }
 
 let testOverrides: TestOverrides = {};
+
+export type DbClient = PostgresJsDatabase<typeof schema>;
 
 export function __setDbDriversForTest(overrides: TestOverrides): void {
   testOverrides = overrides;
@@ -165,15 +167,15 @@ export const db: PostgresJsDatabase<typeof schema> = new Proxy(
   {} as PostgresJsDatabase<typeof schema>,
   {
     get(target, propertyKey: string | symbol) {
-        void target;
-        return (...args: unknown[]) =>
-          getDb().then((resolvedDb: PostgresJsDatabase<typeof schema>) => {
-            const member = (resolvedDb as unknown as Record<string | symbol, unknown>)[propertyKey];
-            return typeof member === "function"
-              ? (member as (...a: unknown[]) => unknown).apply(resolvedDb, args)
-              : member;
-          });
-      },
+      void target;
+      return (...args: unknown[]) =>
+        getDb().then((resolvedDb: PostgresJsDatabase<typeof schema>) => {
+          const member = (resolvedDb as unknown as Record<string | symbol, unknown>)[propertyKey];
+          return typeof member === "function"
+            ? (member as (...a: unknown[]) => unknown).apply(resolvedDb, args)
+            : member;
+        });
+    },
   },
 );
 

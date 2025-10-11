@@ -1,5 +1,5 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
+import { getPendingApprovalTasksService } from "@/server/services/productivity.service";
 import { z } from "zod";
 
 /**
@@ -29,8 +29,8 @@ const PendingTasksResponseSchema = z.object({
 export const GET = handleGetWithQueryAuth(
   z.object({}), // No query parameters needed
   PendingTasksResponseSchema,
-  async (query, userId): Promise<z.infer<typeof PendingTasksResponseSchema>> => {
-    const pendingTasks = await momentumService.getPendingApprovalTasks(userId);
-    return pendingTasks;
+  async (_query, userId): Promise<z.infer<typeof PendingTasksResponseSchema>> => {
+    const data = await getPendingApprovalTasksService(userId);
+    return PendingTasksResponseSchema.parse(data);
   },
 );

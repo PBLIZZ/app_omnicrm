@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
+import { Result, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -21,11 +22,11 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
 };
 import type {
   Project,
-  CreateProject,
-  UpdateProject,
+  CreateProjectInput,
+  UpdateProjectInput,
   Task,
-  CreateTask,
-  UpdateTask,
+  CreateTaskInput,
+  UpdateTaskInput,
 } from "@/server/db/business-schemas";
 
 // ============================================================================
@@ -63,14 +64,14 @@ interface UseMomentumReturn {
   tasksError: unknown;
 
   // Project actions
-  createProject: (data: CreateProject) => void;
-  updateProject: (projectId: string, data: UpdateProject) => void;
+  createProject: (data: CreateProjectInput) => void;
+  updateProject: (projectId: string, data: UpdateProjectInput) => void;
   deleteProject: (projectId: string) => void;
 
   // Task actions
-  createTask: (data: CreateTask) => void;
-  createSubtask: (parentTaskId: string, data: CreateTask) => void;
-  updateTask: (taskId: string, data: UpdateTask) => void;
+  createTask: (data: CreateTaskInput) => void;
+  createSubtask: (parentTaskId: string, data: CreateTaskInput) => void;
+  updateTask: (taskId: string, data: UpdateTaskInput) => void;
   deleteTask: (taskId: string) => void;
   approveTask: (taskId: string) => void;
   rejectTask: (taskId: string, deleteTask?: boolean, reason?: string) => void;
@@ -104,9 +105,18 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
 
   // Fetch projects
   const projectsQuery = useQuery({
-    queryKey: queryKeys.momentum.projects(),
+    queryKey: queryKeys.momentum.all,
     queryFn: async (): Promise<Project[]> => {
-      return await apiClient.get<Project[]>("/api/omni-momentum/projects");
+      const result = await apiClient.get<Result<Project[], { message: string; code: string }>>(
+        "/api/omni-momentum/projects",
+      );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data;
     },
     retry: (failureCount, error) => shouldRetry(error, failureCount),
   });
@@ -119,7 +129,14 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       if (projectId) params.append("projectId", projectId);
 
       const url = `/api/omni-momentum/tasks${params.toString() ? `?${params.toString()}` : ""}`;
-      return await apiClient.get<Task[]>(url);
+      const result = await apiClient.get<Result<Task[], { message: string; code: string }>>(url);
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data;
     },
     refetchInterval: autoRefetch ? 30000 : false,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -129,7 +146,16 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   const pendingTasksQuery = useQuery({
     queryKey: queryKeys.momentum.pendingTasks(),
     queryFn: async (): Promise<Task[]> => {
-      return await apiClient.get<Task[]>("/api/omni-momentum/tasks/pending-approval");
+      const result = await apiClient.get<Result<Task[], { message: string; code: string }>>(
+        "/api/omni-momentum/tasks/pending-approval",
+      );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data;
     },
     refetchInterval: autoRefetch ? 60000 : false,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -139,7 +165,16 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   const statsQuery = useQuery({
     queryKey: queryKeys.momentum.stats(),
     queryFn: async (): Promise<MomentumStats> => {
-      return await apiClient.get<MomentumStats>("/api/omni-momentum/stats");
+      const result = await apiClient.get<Result<MomentumStats, { message: string; code: string }>>(
+        "/api/omni-momentum/stats",
+      );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data;
     },
     refetchInterval: autoRefetch ? 60000 : false,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -150,11 +185,21 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   // ============================================================================
 
   const createProjectMutation = useMutation({
-    mutationFn: async (data: CreateProject): Promise<Project> => {
-      return await apiClient.post<Project>("/api/omni-momentum/projects", data);
+    mutationFn: async (data: CreateProjectInput): Promise<Project> => {
+      const result = await apiClient.post<Result<Project, { message: string; code: string }>>(
+        "/api/omni-momentum/projects",
+        data,
+      );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data;
     },
     onSuccess: (newProject) => {
-      queryClient.setQueryData<Project[]>(queryKeys.momentum.projects(), (old) => [
+      queryClient.setQueryData<Project[]>(queryKeys.momentum.all, (old) => [
         newProject,
         ...(old ?? []),
       ]);
@@ -178,13 +223,13 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       data,
     }: {
       projectId: string;
-      data: UpdateProject;
+      data: UpdateProjectInput;
     }): Promise<Project> => {
       return await apiClient.put<Project>(`/api/omni-momentum/projects/${projectId}`, data);
     },
     onSuccess: (updatedProject) => {
       queryClient.setQueryData<Project[]>(
-        queryKeys.momentum.projects(),
+        queryKeys.momentum.all,
         (old) =>
           old?.map((project) => (project.id === updatedProject.id ? updatedProject : project)) ?? [
             updatedProject,
@@ -210,7 +255,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
     },
     onSuccess: (...[, projectId]) => {
       queryClient.setQueryData<Project[]>(
-        queryKeys.momentum.projects(),
+        queryKeys.momentum.all,
         (old) => old?.filter((project) => project.id !== projectId) ?? [],
       );
       toast({
@@ -232,8 +277,18 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   // ============================================================================
 
   const createTaskMutation = useMutation({
-    mutationFn: async (data: CreateTask): Promise<Task> => {
-      return await apiClient.post<Task>("/api/omni-momentum/tasks", data);
+    mutationFn: async (data: CreateTaskInput): Promise<Task> => {
+      const result = await apiClient.post<Result<Task, { message: string; code: string }>>(
+        "/api/omni-momentum/tasks",
+        data,
+      );
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
+      return result.data;
     },
     onSuccess: (newTask) => {
       queryClient.setQueryData<Task[]>(
@@ -261,7 +316,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       data,
     }: {
       parentTaskId: string;
-      data: CreateTask;
+      data: CreateTaskInput;
     }): Promise<Task> => {
       return await apiClient.post<Task>(`/api/omni-momentum/tasks/${parentTaskId}/subtasks`, data);
     },
@@ -285,7 +340,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: async ({ taskId, data }: { taskId: string; data: UpdateTask }): Promise<Task> => {
+    mutationFn: async ({ taskId, data }: { taskId: string; data: UpdateTaskInput }): Promise<Task> => {
       return await apiClient.put<Task>(`/api/omni-momentum/tasks/${taskId}`, data);
     },
     onSuccess: (updatedTask) => {
@@ -418,15 +473,15 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
 
     // Project actions
     createProject: createProjectMutation.mutate,
-    updateProject: (projectId: string, data: UpdateProjectDTO) =>
+    updateProject: (projectId: string, data: UpdateProjectInput) =>
       updateProjectMutation.mutate({ projectId, data }),
     deleteProject: deleteProjectMutation.mutate,
 
     // Task actions
     createTask: createTaskMutation.mutate,
-    createSubtask: (parentTaskId: string, data: CreateTaskDTO) =>
+    createSubtask: (parentTaskId: string, data: CreateTaskInput) =>
       createSubtaskMutation.mutate({ parentTaskId, data }),
-    updateTask: (taskId: string, data: UpdateTaskDTO) =>
+    updateTask: (taskId: string, data: UpdateTaskInput) =>
       updateTaskMutation.mutate({ taskId, data }),
     deleteTask: deleteTaskMutation.mutate,
     approveTask: approveTaskMutation.mutate,

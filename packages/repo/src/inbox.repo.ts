@@ -1,18 +1,15 @@
-import { eq, and, desc, ilike, inArray, sql } from "drizzle-orm";
-import { inboxItems } from "./schema";
-import { getDb } from "./db";
-import type {
-  InboxItem,
-  CreateInboxItem
-} from "./schema";
+import { and, desc, eq, ilike, inArray, sql } from "drizzle-orm";
 
-// Local type aliases for repository layer
+import { inboxItems } from "@/server/db/schema";
+import type { CreateInboxItem, InboxItem } from "@/server/db/schema";
+import type { DbClient } from "@/server/db/client";
+
 type InboxItemDTO = InboxItem;
 type CreateInboxItemDTO = CreateInboxItem;
 type UpdateInboxItemDTO = Partial<CreateInboxItem>;
 type InboxItemStatus = "unprocessed" | "processed" | "archived";
 
-interface InboxFilters {
+export interface InboxFilters {
   status?: InboxItemStatus[];
   search?: string;
   createdAfter?: Date;
@@ -20,35 +17,28 @@ interface InboxFilters {
 }
 
 export class InboxRepository {
-  /**
-   * List inbox items for a user with optional filtering
-   */
-  static async listInboxItems(
-    userId: string,
-    filters?: InboxFilters
-  ): Promise<InboxItemDTO[]> {
-    const db = await getDb();
+  constructor(private readonly db: DbClient) {}
 
-    // Build conditions array
+  async listInboxItems(userId: string, filters: InboxFilters = {}): Promise<InboxItemDTO[]> {
     const conditions = [eq(inboxItems.userId, userId)];
 
-    if (filters?.status && filters.status.length > 0) {
+    if (filters.status?.length) {
       conditions.push(inArray(inboxItems.status, filters.status));
     }
 
-    if (filters?.search) {
+    if (filters.search) {
       conditions.push(ilike(inboxItems.rawText, `%${filters.search}%`));
     }
 
-    if (filters?.createdAfter) {
+    if (filters.createdAfter) {
       conditions.push(sql`${inboxItems.createdAt} >= ${filters.createdAfter}`);
     }
 
-    if (filters?.createdBefore) {
+    if (filters.createdBefore) {
       conditions.push(sql`${inboxItems.createdAt} <= ${filters.createdBefore}`);
     }
 
-    const query = db
+    const rows = await this.db
       .select({
         id: inboxItems.id,
         userId: inboxItems.userId,
@@ -63,18 +53,11 @@ export class InboxRepository {
       .where(and(...conditions))
       .orderBy(desc(inboxItems.createdAt));
 
-    const rows = await query;
-
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
-  /**
-   * Get a single inbox item by ID
-   */
-  static async getInboxItemById(userId: string, itemId: string): Promise<InboxItemDTO | null> {
-    const db = await getDb();
-
-    const rows = await db
+  async getInboxItemById(userId: string, itemId: string): Promise<InboxItemDTO | null> {
+    const [row] = await this.db
       .select({
         id: inboxItems.id,
         userId: inboxItems.userId,
@@ -89,30 +72,19 @@ export class InboxRepository {
       .where(and(eq(inboxItems.userId, userId), eq(inboxItems.id, itemId)))
       .limit(1);
 
-    if (rows.length === 0) {
-      return null;
-    }
-
-    return rows[0];
+    return row ?? null;
   }
 
-  /**
-   * Create a new inbox item
-   */
-  static async createInboxItem(data: CreateInboxItemDTO & { userId: string }): Promise<InboxItemDTO> {
-    const db = await getDb();
-
-    const insertValues = {
-      userId: data.userId,
-      rawText: data.rawText,
-      status: "unprocessed" as const,
-      createdTaskId: null,
-      processedAt: null,
-    };
-
-    const [newItem] = await db
+  async createInboxItem(data: CreateInboxItemDTO & { userId: string }): Promise<InboxItemDTO> {
+    const [newItem] = await this.db
       .insert(inboxItems)
-      .values(insertValues)
+      .values({
+        userId: data.userId,
+        rawText: data.rawText,
+        status: "unprocessed",
+        createdTaskId: null,
+        processedAt: null,
+      })
       .returning({
         id: inboxItems.id,
         userId: inboxItems.userId,
@@ -124,27 +96,36 @@ export class InboxRepository {
         updatedAt: inboxItems.updatedAt,
       });
 
+    if (!newItem) {
+      throw new Error("Failed to create inbox item - no data returned");
+    }
+
     return newItem;
   }
 
-  /**
-   * Update an existing inbox item
-   */
-  static async updateInboxItem(
+  async updateInboxItem(
     userId: string,
     itemId: string,
-    data: UpdateInboxItemDTO
+    data: UpdateInboxItemDTO,
   ): Promise<InboxItemDTO | null> {
-    const db = await getDb();
-
-    const updateValues = {
+    const updateValues: Record<string, unknown> = {
       updatedAt: new Date(),
-      ...(data.status !== undefined && { status: data.status }),
-      ...(data.createdTaskId !== undefined && { createdTaskId: data.createdTaskId ?? null }),
-      ...(data.status === "processed" && { processedAt: new Date() }),
     };
 
-    const [updatedItem] = await db
+    // No business logic - just save what service layer provides
+    if (data.status !== undefined) {
+      updateValues["status"] = data.status;
+    }
+
+    if (data.processedAt !== undefined) {
+      updateValues["processedAt"] = data.processedAt;
+    }
+
+    if (data.createdTaskId !== undefined) {
+      updateValues["createdTaskId"] = data.createdTaskId ?? null;
+    }
+
+    const [updatedItem] = await this.db
       .update(inboxItems)
       .set(updateValues)
       .where(and(eq(inboxItems.userId, userId), eq(inboxItems.id, itemId)))
@@ -159,49 +140,34 @@ export class InboxRepository {
         updatedAt: inboxItems.updatedAt,
       });
 
-    if (!updatedItem) {
-      return null;
-    }
-
-    return updatedItem;
+    return updatedItem ?? null;
   }
 
-  /**
-   * Delete an inbox item
-   */
-  static async deleteInboxItem(userId: string, itemId: string): Promise<boolean> {
-    const db = await getDb();
-
-    const result = await db
+  async deleteInboxItem(userId: string, itemId: string): Promise<boolean> {
+    const deleted = await this.db
       .delete(inboxItems)
-      .where(and(eq(inboxItems.userId, userId), eq(inboxItems.id, itemId)));
+      .where(and(eq(inboxItems.userId, userId), eq(inboxItems.id, itemId)))
+      .returning({ id: inboxItems.id });
 
-    return result.length > 0;
+    return deleted.length > 0;
   }
 
-  /**
-   * Mark multiple inbox items with a status
-   */
-  static async bulkUpdateStatus(
+  async bulkUpdateStatus(
     userId: string,
     itemIds: string[],
-    status: InboxItemStatus
+    status: InboxItemStatus,
   ): Promise<InboxItemDTO[]> {
     if (itemIds.length === 0) {
       return [];
     }
 
-    const db = await getDb();
-
-    const updateValues = {
-      status,
-      updatedAt: new Date(),
-      ...(status === "processed" && { processedAt: new Date() }),
-    };
-
-    const updatedItems = await db
+    const updatedItems = await this.db
       .update(inboxItems)
-      .set(updateValues)
+      .set({
+        status,
+        updatedAt: new Date(),
+        ...(status === "processed" ? { processedAt: new Date() } : {}),
+      })
       .where(and(eq(inboxItems.userId, userId), inArray(inboxItems.id, itemIds)))
       .returning({
         id: inboxItems.id,
@@ -214,51 +180,35 @@ export class InboxRepository {
         updatedAt: inboxItems.updatedAt,
       });
 
-    return updatedItems.map(item => item);
+    return updatedItems.map((item) => item);
   }
 
-  /**
-   * Delete multiple inbox items by IDs
-   */
-  static async bulkDeleteInboxItems(userId: string, itemIds: string[]): Promise<number> {
+  async bulkDeleteInboxItems(userId: string, itemIds: string[]): Promise<number> {
     if (itemIds.length === 0) {
       return 0;
     }
 
-    const db = await getDb();
-
-    // Count items to delete first
-    const countRows = await db
+    const [{ n = 0 } = {}] = await this.db
       .select({ n: sql<number>`count(*)` })
       .from(inboxItems)
       .where(and(eq(inboxItems.userId, userId), inArray(inboxItems.id, itemIds)))
       .limit(1);
-    const n = countRows[0]?.n ?? 0;
 
     if (n === 0) {
       return 0;
     }
 
-    // Delete the items
-    await db
+    await this.db
       .delete(inboxItems)
       .where(and(eq(inboxItems.userId, userId), inArray(inboxItems.id, itemIds)));
 
     return n;
   }
 
-  /**
-   * Count inbox items by status for a user
-   */
-  static async getInboxStats(userId: string): Promise<{
-    unprocessed: number;
-    processed: number;
-    archived: number;
-    total: number;
-  }> {
-    const db = await getDb();
-
-    const result = await db
+  async getInboxStats(
+    userId: string,
+  ): Promise<{ unprocessed: number; processed: number; archived: number; total: number }> {
+    const rows = await this.db
       .select({
         status: inboxItems.status,
         count: sql<number>`count(*)`,
@@ -272,10 +222,10 @@ export class InboxRepository {
       processed: 0,
       archived: 0,
       total: 0,
-    };
+    } satisfies Record<InboxItemStatus | "total", number>;
 
-    for (const row of result) {
-      const status = row.status as InboxItemStatus;
+    for (const row of rows) {
+      const status = (row.status ?? "unprocessed") as InboxItemStatus;
       const count = row.count;
       stats[status] = count;
       stats.total += count;
@@ -284,13 +234,8 @@ export class InboxRepository {
     return stats;
   }
 
-  /**
-   * Get unprocessed inbox items for AI processing
-   */
-  static async getUnprocessedItems(userId: string, limit = 10): Promise<InboxItemDTO[]> {
-    const db = await getDb();
-
-    const rows = await db
+  async getUnprocessedItems(userId: string, limit = 10): Promise<InboxItemDTO[]> {
+    const rows = await this.db
       .select({
         id: inboxItems.id,
         userId: inboxItems.userId,
@@ -306,29 +251,22 @@ export class InboxRepository {
       .orderBy(desc(inboxItems.createdAt))
       .limit(limit);
 
-    return rows.map(row => row);
+    return rows.map((row) => row);
   }
 
-  /**
-   * Mark an inbox item as processed with created task reference
-   */
-  static async markAsProcessed(
+  async markAsProcessed(
     userId: string,
     itemId: string,
-    createdTaskId?: string
+    createdTaskId?: string,
   ): Promise<InboxItemDTO | null> {
-    const db = await getDb();
-
-    const updateValues = {
-      status: "processed" as const,
-      processedAt: new Date(),
-      updatedAt: new Date(),
-      ...(createdTaskId && { createdTaskId }),
-    };
-
-    const [updatedItem] = await db
+    const [updatedItem] = await this.db
       .update(inboxItems)
-      .set(updateValues)
+      .set({
+        status: "processed",
+        processedAt: new Date(),
+        updatedAt: new Date(),
+        ...(createdTaskId ? { createdTaskId } : {}),
+      })
       .where(and(eq(inboxItems.userId, userId), eq(inboxItems.id, itemId)))
       .returning({
         id: inboxItems.id,
@@ -341,10 +279,10 @@ export class InboxRepository {
         updatedAt: inboxItems.updatedAt,
       });
 
-    if (!updatedItem) {
-      return null;
-    }
-
-    return updatedItem;
+    return updatedItem ?? null;
   }
+}
+
+export function createInboxRepository(db: DbClient): InboxRepository {
+  return new InboxRepository(db);
 }

@@ -73,13 +73,16 @@ function isGmailMessagePayload(v: unknown): v is GmailMessagePayload {
   return okId && okLabels && okInternal;
 }
 
+const GMAIL_SYNC_OPERATION = "google_gmail_sync" as const;
+const CALENDAR_SYNC_OPERATION = "google_calendar_sync" as const;
+
 export async function runGmailSync(
   job: unknown,
   userId: string,
   injected?: { gmail?: GmailClient },
 ): Promise<void> {
   await logger.info("gmail_sync_started", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: { userId },
   });
 
@@ -87,7 +90,7 @@ export async function runGmailSync(
   if (!isJobRow(job)) {
     // console.log(`❌ GMAIL SYNC FAILED: Invalid job structure`, job);
     await logger.warn("sync_job_invalid_shape", {
-      operation: "sync_gmail",
+      operation: GMAIL_SYNC_OPERATION,
       additionalData: { userId },
     });
     return;
@@ -98,17 +101,17 @@ export async function runGmailSync(
   // Job validated successfully
   const dbo = await getDb();
   await logger.debug("gmail_sync_db_connected", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: { userId },
   });
 
   await logger.debug("gmail_sync_getting_client", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: { userId },
   });
   const gmail = injected?.gmail ?? (await getGoogleClients(userId)).gmail;
   await logger.debug("gmail_sync_client_obtained", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: { userId },
   });
 
@@ -134,7 +137,7 @@ export async function runGmailSync(
     finalQuery += ` after:${gmailDateFormat}`;
 
     await logger.debug("gmail_sync_incremental_mode", {
-      operation: "sync_gmail",
+      operation: GMAIL_SYNC_OPERATION,
       additionalData: {
         userId,
         lastSyncDate: lastSyncDate.toISOString(),
@@ -146,7 +149,7 @@ export async function runGmailSync(
   } else {
     // This is effectively the FIRST sync. Use 30 day default lookback.
     await logger.debug("gmail_sync_first_sync_mode", {
-      operation: "sync_gmail",
+      operation: GMAIL_SYNC_OPERATION,
       additionalData: {
         userId,
         lookbackDays: 30,
@@ -159,7 +162,7 @@ export async function runGmailSync(
   const batchId = typedJob.payload?.batchId;
 
   await logger.debug("gmail_sync_query_built", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: {
       userId,
       baseQuery,
@@ -183,7 +186,7 @@ export async function runGmailSync(
 
   // Cap total processed per run to keep memory/time bounded
   await logger.debug("gmail_sync_starting_fetch", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: { userId, query: q },
   });
   let ids: string[], pages: number, total: number;
@@ -199,7 +202,7 @@ export async function runGmailSync(
     }
 
     await logger.debug("gmail_sync_ids_fetched", {
-      operation: "sync_gmail",
+      operation: GMAIL_SYNC_OPERATION,
       additionalData: {
         userId,
         totalIdsFound: ids.length,
@@ -212,7 +215,7 @@ export async function runGmailSync(
     await logger.error(
       "gmail_sync_fetch_failed",
       {
-        operation: "sync_gmail",
+        operation: GMAIL_SYNC_OPERATION,
         additionalData: { userId, query: q },
       },
       queryError instanceof Error ? queryError : new Error(String(queryError)),
@@ -220,7 +223,7 @@ export async function runGmailSync(
     await logger.error(
       "gmail_query_failed",
       {
-        operation: "sync_gmail",
+        operation: GMAIL_SYNC_OPERATION,
         additionalData: {
           userId,
           query: q,
@@ -250,7 +253,7 @@ export async function runGmailSync(
         .where(eq(jobs.id, String(typedJob.id)));
     } catch (updateErr) {
       await logger.warn("gmail.sync.init_progress_update_failed", {
-        operation: "sync_gmail",
+        operation: GMAIL_SYNC_OPERATION,
         additionalData: {
           userId,
           error: updateErr instanceof Error ? updateErr.message : String(updateErr),
@@ -260,7 +263,7 @@ export async function runGmailSync(
   }
 
   await logger.info("gmail_sync_start", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: {
       userId,
       candidates: ids.length,
@@ -285,7 +288,7 @@ export async function runGmailSync(
 
   for (let i = 0; i < processedIds.length; i += GMAIL_CHUNK_DEFAULT) {
     if (Date.now() > deadlineMs) {
-      await logger.warn("sync_timeout", { operation: "sync_gmail", additionalData: { userId } });
+      await logger.warn("sync_timeout", { operation: GMAIL_SYNC_OPERATION, additionalData: { userId } });
       break;
     }
 
@@ -342,7 +345,7 @@ export async function runGmailSync(
           await logger.warn(
             "DB insert failed",
             {
-              operation: "sync_gmail",
+              operation: GMAIL_SYNC_OPERATION,
               additionalData: {
                 ...debugContext,
                 op: "gmail.sync.db_insert_failed",
@@ -369,7 +372,7 @@ export async function runGmailSync(
         await logger.warn(
           "Gmail message fetch failed",
           {
-            operation: "sync_gmail",
+            operation: GMAIL_SYNC_OPERATION,
             additionalData: {
               ...debugContext,
               op: "gmail.sync.api_error",
@@ -412,7 +415,7 @@ export async function runGmailSync(
         await logger.warn(
           "Progress update failed",
           {
-            operation: "sync_gmail",
+            operation: GMAIL_SYNC_OPERATION,
             additionalData: {
               ...debugContext,
               op: "gmail.sync.progress_update_failed",
@@ -428,7 +431,7 @@ export async function runGmailSync(
 
   // Simple metrics logging
   await logger.info("Gmail sync metrics", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: {
       ...debugContext,
       op: "gmail.sync.metrics",
@@ -448,7 +451,7 @@ export async function runGmailSync(
   if (itemsInserted > 0) {
     await dbo.insert(jobs).values({
       userId,
-      kind: "normalize",
+      kind: "normalize_google_email",
       payload: {
         batchId,
         provider: "gmail",
@@ -458,7 +461,7 @@ export async function runGmailSync(
   }
 
   await logger.info("Gmail sync completed successfully - normalization queued", {
-    operation: "sync_gmail",
+    operation: GMAIL_SYNC_OPERATION,
     additionalData: {
       op: "gmail_sync_complete",
       userId,
@@ -476,14 +479,14 @@ export async function runCalendarSync(
   injected?: { calendar?: GoogleApisClients["calendar"] },
 ): Promise<void> {
   await logger.info("calendar_sync_started", {
-    operation: "sync_calendar",
+    operation: CALENDAR_SYNC_OPERATION,
     additionalData: { userId },
   });
 
   // Type guard to ensure job has the expected structure
   if (!isJobRow(job)) {
     await logger.warn("Sync job invalid shape", {
-      operation: "sync_calendar",
+      operation: CALENDAR_SYNC_OPERATION,
       additionalData: { op: "calendar.sync.invalid_job", job },
     });
     return;
@@ -542,7 +545,7 @@ export async function runCalendarSync(
       totalPages++;
     } catch (calError) {
       await logger.warn(`Failed to fetch events from calendar ${cal.id}`, {
-        operation: "sync_calendar",
+        operation: CALENDAR_SYNC_OPERATION,
         additionalData: {
           ...debugContext,
           calendarId: cal.id,
@@ -556,7 +559,7 @@ export async function runCalendarSync(
   const pages = totalPages;
   const total = Math.min(items.length, SYNC_MAX_PER_RUN);
   await logger.info("Calendar sync start", {
-    operation: "sync_calendar",
+    operation: CALENDAR_SYNC_OPERATION,
     additionalData: {
       ...debugContext,
       op: "calendar.sync.start",
@@ -574,7 +577,7 @@ export async function runCalendarSync(
     for (const e of slice) {
       if (!e) {
         await logger.debug("Skipped null event", {
-          operation: "sync_calendar",
+          operation: CALENDAR_SYNC_OPERATION,
           additionalData: {
             ...debugContext,
             op: "calendar.sync.skipped_null_event",
@@ -588,7 +591,7 @@ export async function runCalendarSync(
       const startStr = e.start?.dateTime ?? e.start?.date;
       if (!startStr) {
         await logger.info("Skipped event: no start time", {
-          operation: "sync_calendar",
+          operation: CALENDAR_SYNC_OPERATION,
           additionalData: {
             ...debugContext,
             op: "calendar.sync.skipped_no_start_time",
@@ -627,7 +630,7 @@ export async function runCalendarSync(
           // Duplicate is expected, just count as processed but not new
           itemsFetched += 1;
           await logger.info("Skipped event: already exists in database (duplicate)", {
-            operation: "sync_calendar",
+            operation: CALENDAR_SYNC_OPERATION,
             additionalData: {
               ...debugContext,
               op: "calendar.sync.duplicate_skipped",
@@ -639,7 +642,7 @@ export async function runCalendarSync(
         } else {
           // Actual error
           await logger.warn("Failed to insert event due to error", {
-            operation: "sync_calendar",
+            operation: CALENDAR_SYNC_OPERATION,
             additionalData: {
               ...debugContext,
               op: "calendar.sync.insert_failed",
@@ -664,7 +667,7 @@ export async function runCalendarSync(
   const durationMs = Date.now() - startedAt;
   // Minimal structured metrics for Calendar sync run
   await logger.info("Calendar sync metrics", {
-    operation: "sync_calendar",
+    operation: CALENDAR_SYNC_OPERATION,
     additionalData: {
       ...debugContext,
       op: "calendar.sync.metrics",
@@ -682,7 +685,7 @@ export async function runCalendarSync(
   // Enqueue normalization jobs using our new normalizers
   await dbo.insert(jobs).values({
     userId,
-    kind: "normalize",
+    kind: "normalize_google_event",
     payload: {
       batchId,
       provider: "google_calendar",

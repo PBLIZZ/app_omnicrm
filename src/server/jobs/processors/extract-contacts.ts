@@ -3,7 +3,6 @@ import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { contactTimeline } from "@/server/db/schema";
 import type { JobRecord, ContactExtractionPayload } from "../types";
-import { ensureError } from "@/lib/utils/error-handler";
 
 function isContactExtractionPayload(payload: unknown): payload is ContactExtractionPayload {
   return typeof payload === "object" && payload !== null;
@@ -177,7 +176,7 @@ export async function runExtractContacts(job: JobRecord<"extract_contacts">): Pr
           durationMs,
         },
       },
-      ensureError(error),
+      error instanceof Error ? error : new Error(String(error)),
     );
     throw error;
   }

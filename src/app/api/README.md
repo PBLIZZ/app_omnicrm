@@ -1,10 +1,12 @@
-# API Route Patterns Guide - NEW TYPED BOUNDARY PATTERN
+# API Route Patterns Guide
 
-**⚠️ IMPORTANT**: This supersedes all previous API patterns. Use ONLY the patterns documented here.
+**⚠️ IMPORTANT**: Use ONLY the patterns documented here.
 
-## Current Implementation (September 27th 2025)
+## Current Implementation (October 2025)
 
-All API routes use the **Typed Boundary Pattern** with handlers from `@/lib/api` and `@/lib/api-edge-cases`.
+All API routes use standardized handlers from `@/lib/api` and `@/lib/api-edge-cases`.
+
+**Complete Architecture Reference**: See `docs/REFACTORING_PATTERNS_OCT_2025.md` for the full layered architecture pattern (Repository → Service → Route).
 
 ## ✅ Standard Patterns
 
@@ -12,11 +14,15 @@ All API routes use the **Typed Boundary Pattern** with handlers from `@/lib/api`
 
 ```typescript
 import { handleAuth } from "@/lib/api";
-import { CreateContactSchema, ContactSchema } from "@/server/db/business-schemass";
+import { CreateContactBodySchema, ContactSchema } from "@/server/db/business-schemas";
 
-export const POST = handleAuth(CreateContactSchema, ContactSchema, async (data, userId) => {
-  return await contactService.create(userId, data);
-});
+export const POST = handleAuth(
+  CreateContactBodySchema,
+  ContactSchema,
+  async (data, userId) => {
+    return await createContactService(userId, data);
+  }
+);
 ```
 
 ### Authenticated GET with Query Parameters
@@ -25,9 +31,13 @@ export const POST = handleAuth(CreateContactSchema, ContactSchema, async (data, 
 import { handleGetWithQueryAuth } from "@/lib/api";
 import { ContactListQuerySchema, ContactListResponseSchema } from "@/server/db/business-schemas";
 
-export const GET = handleGetWithQueryAuth(ContactListQuerySchema, ContactListResponseSchema, async (query, userId) => {
-  return await contactService.list(userId, query);
-});
+export const GET = handleGetWithQueryAuth(
+  ContactListQuerySchema,
+  ContactListResponseSchema,
+  async (query, userId) => {
+    return await listContactsService(userId, query);
+  }
+);
 ```
 
 ### Simple GET (No Auth)
@@ -166,39 +176,122 @@ export const POST = handleAuth(InputSchema, OutputSchema, async (data, userId) =
 
 **✅ CURRENT DOCS**:
 
-- `/docs/api-migration-quick-reference.md` - Quick migration guide
-- `/docs/api-edge-cases-examples.md` - Edge case patterns
-- `/docs/api-migration-progress.md` - Migration tracking
+- `docs/REFACTORING_PATTERNS_OCT_2025.md` - **Complete architecture patterns (Repository → Service → Route)**
+- `LAYER_ARCHITECTURE_BLUEPRINT_2025.md` - Architecture blueprint
+- `src/app/api/README.md` - This file (API handler patterns)
+- `CLAUDE.md` - AI assistant guidance
+- `AGENTS.md` - Quick reference for agents
 
-**❌ IGNORE ALL OTHER API DOCS** - They reference deprecated patterns.
+## 🔧 Adding New Routes
 
-## 🔧 Adding New Schemas
+### 1. Define Business Schemas
 
-Add to `/src/server/db/business-schemas.ts`:
+Add to `src/server/db/business-schemas/[domain].ts`:
 
 ```typescript
-export const YourRequestSchema = z.object({
+import { z } from "zod";
+import type { YourEntity } from "@/server/db/schema";
+
+// Request schema (excludes userId - added by handler)
+export const CreateYourEntityBodySchema = z.object({
   field1: z.string(),
   field2: z.number().optional(),
 });
 
-export const YourResponseSchema = z.object({
-  id: z.string().uuid(),
-  result: z.string(),
-});
+// Response schema (uses database type)
+export const YourEntitySchema = z.custom<YourEntity>();
 
-export type YourRequest = z.infer<typeof YourRequestSchema>;
-export type YourResponse = z.infer<typeof YourResponseSchema>;
+export type CreateYourEntityBody = z.infer<typeof CreateYourEntityBodySchema>;
+```
+
+### 2. Create Service Function
+
+Add to `src/server/services/your-entity.service.ts`:
+
+```typescript
+import { getDb } from "@/server/db/client";
+import { createYourEntityRepository } from "@repo";
+import { AppError } from "@/lib/errors/app-error";
+import type { YourEntity } from "@/server/db/schema";
+import type { CreateYourEntityBody } from "@/server/db/business-schemas";
+
+export async function createYourEntityService(
+  userId: string,
+  data: CreateYourEntityBody
+): Promise<YourEntity> {
+  const db = await getDb();
+  const repo = createYourEntityRepository(db);
+
+  try {
+    return await repo.createYourEntity(userId, data);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to create entity",
+      "DB_ERROR",
+      "database",
+      false,
+      500
+    );
+  }
+}
+```
+
+### 3. Create API Route
+
+Add to `src/app/api/your-entities/route.ts`:
+
+```typescript
+import { handleAuth } from "@/lib/api";
+import { createYourEntityService } from "@/server/services/your-entity.service";
+import { CreateYourEntityBodySchema, YourEntitySchema } from "@/server/db/business-schemas";
+
+export const POST = handleAuth(
+  CreateYourEntityBodySchema,
+  YourEntitySchema,
+  async (data, userId) => {
+    return await createYourEntityService(userId, data);
+  }
+);
 ```
 
 ## ⚡ Success Criteria
 
 **Route is ready when**:
 
-- ✅ 3 lines of code maximum
-- ✅ Uses typed handler from `@/lib/api`
-- ✅ No manual HTTP handling
+- ✅ Uses standardized handler from `@/lib/api` or `@/lib/api-edge-cases`
+- ✅ Business logic in service layer (not in route)
+- ✅ Business schemas in `src/server/db/business-schemas/`
+- ✅ No manual `Response.json()` or `NextRequest`/`NextResponse`
 - ✅ TypeScript compiles without errors
-- ✅ API endpoint works the same as before
+- ✅ Service throws `AppError` with status codes
 
-**This pattern eliminates 90% of API boilerplate while improving type safety.**
+## 🎯 Layer Responsibilities
+
+**Route Layer** (`src/app/api/`):
+
+- ✅ Use handlers from `@/lib/api`
+- ✅ Call service functions
+- ✅ Check for null when service returns `T | null`
+- ❌ NO business logic
+- ❌ NO database access
+- ❌ NO manual error handling (handlers do this)
+
+**Service Layer** (`src/server/services/`):
+
+- ✅ Acquire `DbClient` via `getDb()`
+- ✅ Use repository factory functions
+- ✅ Wrap errors as `AppError` with status codes
+- ✅ Business logic and data transformation
+- ❌ NO direct database queries (use repositories)
+
+**Repository Layer** (`packages/repo/src/`):
+
+- ✅ Constructor injection with `DbClient`
+- ✅ Pure database operations
+- ✅ Throw generic `Error` on failures
+- ✅ Return `null` for "not found"
+- ❌ NO business logic
+- ❌ NO `AppError` (use generic `Error`)
+- ❌ NO `DbResult` wrapper
+
+**This pattern provides type safety, consistency, and maintainability across all API routes.**

@@ -17,8 +17,6 @@ export const SyncProgressQuerySchema = z.object({
   sessionId: z.string().uuid("Invalid session ID format"),
 });
 
-export type SyncProgressQuery = z.infer<typeof SyncProgressQuerySchema>;
-
 /**
  * Sync Progress Response Schema - detailed progress information
  */
@@ -43,11 +41,9 @@ export const SyncProgressResponseSchema = z.object({
     completedAt: z.string().optional(),
     lastUpdate: z.string(),
   }),
-  errorDetails: z.record(z.unknown()).nullable(),
-  preferences: z.record(z.unknown()),
+  errorDetails: z.record(z.string(), z.unknown()).nullable(),
+  preferences: z.record(z.string(), z.unknown()),
 });
-
-export type SyncProgressResponse = z.infer<typeof SyncProgressResponseSchema>;
 
 /**
  * Sync Cancel Response Schema - for DELETE /api/sync-progress/[sessionId]
@@ -58,8 +54,6 @@ export const SyncCancelResponseSchema = z.object({
   status: z.string(),
 });
 
-export type SyncCancelResponse = z.infer<typeof SyncCancelResponseSchema>;
-
 /**
  * Sync Session Error Response Schema - for error cases
  */
@@ -69,4 +63,72 @@ export const SyncSessionErrorSchema = z.object({
   details: z.string().optional(),
 });
 
-export type SyncSessionError = z.infer<typeof SyncSessionErrorSchema>;
+// ============================================================================
+// USER SYNC PREFERENCES SCHEMAS
+// ============================================================================
+
+/**
+ * User Sync Preferences Update Schema
+ */
+export const UserSyncPrefsUpdateSchema = z.object({
+  gmailQuery: z.string().optional(),
+  gmailLabelIncludes: z.array(z.string()).optional(),
+  gmailLabelExcludes: z.array(z.string()).optional(),
+  gmailTimeRangeDays: z.number().int().min(1).max(365).optional(),
+  calendarIds: z.array(z.string()).optional(),
+  calendarIncludeOrganizerSelf: z.boolean().optional(),
+  calendarIncludePrivate: z.boolean().optional(),
+  calendarTimeWindowDays: z.number().int().min(1).max(730).optional(),
+  calendarFutureDays: z.number().int().min(1).max(730).optional(),
+  driveIngestionMode: z.enum(["none", "picker", "folders"]).optional(),
+  driveFolderIds: z.array(z.string()).optional(),
+  driveMaxSizeMB: z.number().int().min(1).max(100).optional(),
+  initialSyncCompleted: z.boolean().optional(),
+  initialSyncDate: z.string().optional(),
+});
+
+// ============================================================================
+// SYNC SESSION ENTITY SCHEMAS
+// ============================================================================
+
+/**
+ * Sync Session from database
+ */
+export const SyncSessionSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  service: z.string(),
+  status: z.string(),
+  progress: z.record(z.string(), z.unknown()),
+  errorDetails: z.record(z.string(), z.unknown()).nullable(),
+  preferences: z.record(z.string(), z.unknown()),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+export type SyncSession = z.infer<typeof SyncSessionSchema>;
+
+/**
+ * New Sync Session for creation
+ */
+export const NewSyncSessionSchema = SyncSessionSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// ============================================================================
+// DRIVE PREFERENCES SCHEMA
+// ============================================================================
+
+/**
+ * Drive Preferences Schema - for Drive sync configuration
+ * Note: Drive integration is not yet implemented (scaffold only)
+ */
+export const DrivePreferencesSchema = z.object({
+  driveIngestionMode: z.enum(["none", "picker", "folders"]).default("none"),
+  driveFolderIds: z.array(z.string()).optional(),
+  driveMaxSizeMB: z.number().int().min(1).max(100).optional(),
+});
+
+export type DrivePreferences = z.infer<typeof DrivePreferencesSchema>;

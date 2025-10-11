@@ -1,6 +1,10 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { momentumService } from "@/server/services/momentum.service";
-import { CreateProjectSchema, ProjectFiltersSchema, ProjectSchema } from "@/server/db/business-schemas";
+import { listProjectsService, createProjectService } from "@/server/services/productivity.service";
+import {
+  CreateProjectSchema,
+  ProjectFiltersSchema,
+  ProjectSchema,
+} from "@/server/db/business-schemas";
 import { z } from "zod";
 
 /**
@@ -18,9 +22,9 @@ import { z } from "zod";
 export const GET = handleGetWithQueryAuth(
   ProjectFiltersSchema,
   z.array(ProjectSchema),
-  async (filters, userId) => {
-    return await momentumService.getProjects(userId, filters);
-  }
+  async (filters, userId): Promise<z.infer<typeof ProjectSchema>[]> => {
+    return await listProjectsService(userId, filters);
+  },
 );
 
 /**
@@ -29,7 +33,7 @@ export const GET = handleGetWithQueryAuth(
 export const POST = handleAuth(
   CreateProjectSchema,
   ProjectSchema,
-  async (data, userId) => {
-    return await momentumService.createProject(userId, data);
-  }
+  async (data, userId): Promise<z.infer<typeof ProjectSchema>> => {
+    return await createProjectService(userId, data);
+  },
 );

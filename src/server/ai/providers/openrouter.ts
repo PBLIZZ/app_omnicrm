@@ -15,10 +15,10 @@ export function getOpenRouterConfig(): OpenRouterConfig {
   }
 
   return {
-    baseUrl: process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1",
+    baseUrl: process.env["OPENROUTER_BASE_URL"] ?? "https://openrouter.ai/api/v1",
     apiKey,
-    chatModel: process.env["AI_MODEL_CHAT"] || "openrouter/auto",
-    summaryModel: process.env["AI_MODEL_SUMMARY"] || "openrouter/auto",
+    chatModel: process.env["AI_MODEL_CHAT"] ?? "openrouter/auto",
+    summaryModel: process.env["AI_MODEL_SUMMARY"] ?? "openrouter/auto",
   };
 }
 

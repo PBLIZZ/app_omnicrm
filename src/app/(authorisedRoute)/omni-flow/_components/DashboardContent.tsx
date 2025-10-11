@@ -4,21 +4,14 @@ import {
   AlertCircle,
   ArrowRight,
   Clock,
-  Plus,
   Users,
-  Activity,
   RefreshCw,
-  MessageSquare,
-  FileText,
-  CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { apiClient } from "@/lib/api/client";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetchContacts } from "@/lib/api/contacts-api";
-import { type Contact } from "@/server/db/business-schemas/business-schema";
-import MonthlySessionsKpi from "./MonthlySessionsKpi";
-import { getSyncStatus } from "@/lib/api/sync.api";
+import { type Contact, type ContactListResponse } from "@/server/db/business-schemas/contacts";
+import { useSyncStatus } from "@/hooks/use-sync-status";
 
 import {
   Alert,
@@ -33,10 +26,6 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
 } from "@/components/ui";
 
 // UI Components
@@ -52,12 +41,18 @@ const formatDate = (dateString: string | null | undefined): string => {
 };
 
 export default function DashboardContent(): JSX.Element {
-  const [activeTab, setActiveTab] = useState("overview");
-
   // Fetch contacts data (recent first)
   const { data, isLoading, error } = useQuery({
     queryKey: ["contacts", "dashboard", "recent"],
-    queryFn: () => apiFetchContacts({ page: 1, pageSize: 50, sort: "createdAt", order: "desc" }),
+    queryFn: async (): Promise<ContactListResponse> => {
+      const params = new URLSearchParams({
+        page: "1",
+        pageSize: "50",
+        sort: "createdAt",
+        order: "desc",
+      });
+      return apiClient.get<ContactListResponse>(`/api/contacts?${params.toString()}`);
+    },
     staleTime: 30_000,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
@@ -72,11 +67,10 @@ export default function DashboardContent(): JSX.Element {
     isLoading: syncLoading,
     refetch: refetchSync,
     isFetching: syncFetching,
-  } = useQuery({
-    queryKey: ["sync", "status"],
-    queryFn: getSyncStatus,
-    staleTime: 15_000,
-  });
+  } = useSyncStatus();
+
+  // Debug: Log the sync data
+  console.log("[Dashboard] Sync status data:", sync);
 
   // Loading state
   if (isLoading) {
@@ -115,7 +109,7 @@ export default function DashboardContent(): JSX.Element {
   }
 
   // Calculate stats
-  const totalContacts = data?.total ?? contacts.length;
+  const totalContacts = data?.pagination?.total ?? contacts.length;
 
   return (
     <div className="py-6">
@@ -127,26 +121,29 @@ export default function DashboardContent(): JSX.Element {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Card 1: Future Quick Links - Placeholder */}
           <Card>
             <CardHeader>
-              <CardTitle>Welcome to OmniCRM</CardTitle>
+              <CardTitle>Quick Actions</CardTitle>
               <CardDescription>
-                Your contact management system is ready. Add contacts, sync with Google services,
-                and track your interactions.
+                Quick links to common actions (Coming Soon)
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                <Button asChild>
-                  <Link href="/contacts/new">
-                    {totalContacts === 0 ? "Add First Contact" : "Add New Contact"}
-                  </Link>
-                </Button>
+            <CardContent className="space-y-2">
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>• Add a new client</p>
+                <p>• Add tasks to Projects Inbox</p>
+                <p>• Schedule a new appointment</p>
+                <p>• Create a follow-up reminder</p>
               </div>
+              <p className="text-xs text-muted-foreground mt-4">
+                These quick actions will be available once the respective features are implemented.
+              </p>
             </CardContent>
           </Card>
 
+          {/* Card 2: Total Contacts */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
@@ -169,136 +166,79 @@ export default function DashboardContent(): JSX.Element {
             </CardFooter>
           </Card>
 
-          {/* Sync Status */}
+          {/* Card 3: Google Services Sync Status */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Sync Status</CardTitle>
+              <CardTitle className="text-sm font-medium">Google Services</CardTitle>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => refetchSync()}
                 disabled={syncFetching}
                 className="h-8 w-8 p-0"
+                title="Refresh sync status"
               >
                 <RefreshCw className={`h-4 w-4 ${syncFetching ? "animate-spin" : ""}`} />
               </Button>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               {syncLoading ? (
                 <div className="text-sm text-muted-foreground">Loading…</div>
               ) : (
-                <div className="space-y-4">
-                  <div>
+                <div className="space-y-3">
+                  {/* Gmail Status */}
+                  <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-medium">Gmail</div>
                       <div
-                        className={`text-xs ${sync?.serviceTokens?.gmail ? "text-green-600" : "text-red-600"}`}
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          sync?.services?.gmail?.connected
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
                       >
-                        {sync?.serviceTokens?.gmail ? "Connected" : "Not connected"}
+                        {sync?.services?.gmail?.connected ? "Connected" : "Not Connected"}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Last sync:{" "}
-                      {sync?.lastSync?.gmail
-                        ? `${formatDate(sync.lastSync.gmail)} ${new Date(sync.lastSync.gmail).toLocaleTimeString()}`
-                        : "Never"}
+                    <div className="text-xs text-muted-foreground">
+                      {sync?.services?.gmail?.lastSync
+                        ? `Last synced: ${new Date(sync.services.gmail.lastSync).toLocaleDateString()} at ${new Date(sync.services.gmail.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                        : "Never synced"}
                     </div>
                   </div>
-                  <div>
+
+                  {/* Calendar Status */}
+                  <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-medium">Calendar</div>
                       <div
-                        className={`text-xs ${sync?.serviceTokens?.calendar ? "text-green-600" : "text-red-600"}`}
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          sync?.services?.calendar?.connected
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
                       >
-                        {sync?.serviceTokens?.calendar ? "Connected" : "Not connected"}
+                        {sync?.services?.calendar?.connected ? "Connected" : "Not Connected"}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Last sync:{" "}
-                      {sync?.lastSync?.calendar
-                        ? `${formatDate(sync.lastSync.calendar)} ${new Date(sync.lastSync.calendar).toLocaleTimeString()}`
-                        : "Never"}
+                    <div className="text-xs text-muted-foreground">
+                      {sync?.services?.calendar?.lastSync
+                        ? `Last synced: ${new Date(sync.services.calendar.lastSync).toLocaleDateString()} at ${new Date(sync.services.calendar.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                        : "Never synced"}
                     </div>
                   </div>
                 </div>
               )}
             </CardContent>
           </Card>
-
-          <MonthlySessionsKpi />
         </div>
 
-        {/* Tabs for different dashboard sections */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="recent">Recent Contacts</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-          </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-4">
+        {/* Recent Contacts Section */}
+        <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Common tasks and shortcuts</CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <Button
-                  variant="outline"
-                  className="h-auto flex flex-col items-center justify-center p-4 space-y-2"
-                  asChild
-                >
-                  <Link href="/contacts">
-                    <Users className="h-6 w-6 mb-2" />
-                    <span>View Contacts</span>
-                  </Link>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-auto flex flex-col items-center justify-center p-4 space-y-2"
-                  disabled
-                  title="OmniConnect Weekly Digest - Coming Soon"
-                >
-                  <FileText className="h-6 w-6 mb-2" />
-                  <span>Weekly Digest</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-auto flex flex-col items-center justify-center p-4 space-y-2"
-                  disabled
-                  title="OmniRhythm Next Event - Coming Soon"
-                >
-                  <CalendarDays className="h-6 w-6 mb-2" />
-                  <span>Next Event</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-auto flex flex-col items-center justify-center p-4 space-y-2"
-                  disabled
-                  title="OmniBot Chat History - Coming Soon"
-                >
-                  <MessageSquare className="h-6 w-6 mb-2" />
-                  <span>Chat History</span>
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Recent Contacts Tab */}
-          <TabsContent value="recent" className="space-y-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle>Recent Contacts</CardTitle>
-                  <CardDescription>Your most recently added contacts</CardDescription>
-                </div>
-                <Button asChild>
-                  <Link href="/contacts?new=true">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Contact
-                  </Link>
-                </Button>
+                <CardTitle>Recent Contacts</CardTitle>
+                <CardDescription>Your most recently added contacts</CardDescription>
               </CardHeader>
               <CardContent>
                 {contacts && contacts.length > 0 ? (
@@ -310,7 +250,7 @@ export default function DashboardContent(): JSX.Element {
                           typeof contact.id === "string" || typeof contact.id === "number"
                             ? String(contact.id)
                             : undefined;
-                        const fullName =
+                        const displayName =
                           typeof contact.displayName === "string" ? contact.displayName : "";
                         // Contact doesn't have profileImageUrl property
                         const avatarUrl: string | undefined = undefined;
@@ -326,10 +266,10 @@ export default function DashboardContent(): JSX.Element {
                             className="flex items-center p-4 hover:bg-muted/50 transition-colors"
                           >
                             <Avatar className="h-10 w-10 mr-4">
-                              {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName} /> : null}
+                              {avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName} /> : null}
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{fullName}</p>
+                              <p className="text-sm font-medium truncate">{displayName}</p>
                               <p className="text-sm text-muted-foreground truncate">{email}</p>
                             </div>
                             <div className="text-sm text-muted-foreground flex items-center">
@@ -346,48 +286,13 @@ export default function DashboardContent(): JSX.Element {
                     <Users className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium">No contacts found</h3>
                     <p className="text-muted-foreground mt-1">
-                      Get started by adding your first contact.
+                      Get started by adding your first contact from the Contacts page.
                     </p>
-                    <Button className="mt-4" asChild>
-                      <Link href="/contacts?new=true">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Contact
-                      </Link>
-                    </Button>
                   </div>
                 )}
               </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href="/contacts">
-                    View All Contacts
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
             </Card>
-          </TabsContent>
-
-          {/* Activity Tab */}
-          <TabsContent value="activity" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Your latest actions and system events</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Activity className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium">Activity Tracking Coming Soon</h3>
-                  <p className="text-muted-foreground mt-1 max-w-md">
-                    We&apos;re working on implementing comprehensive activity tracking to show your
-                    contact interactions, sync events, and system activities.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
     </div>
   );

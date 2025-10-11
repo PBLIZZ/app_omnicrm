@@ -26,9 +26,11 @@ export const GET = handleGetWithQueryAuth(
     const { withStats } = query;
 
     if (withStats) {
-      return await getZonesWithStatsService();
+      const items = await getZonesWithStatsService();
+      return { items, total: items.length };
     } else {
-      return await listZonesService();
+      const items = await listZonesService();
+      return { items, total: items.length };
     }
   },
 );

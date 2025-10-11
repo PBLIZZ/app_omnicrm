@@ -5,7 +5,10 @@
  * enabling blocking UI with live updates and comprehensive error handling.
  */
 
-import { JobProcessingService } from "@/server/services/job-processing.service";
+import {
+  getJobSummaryService,
+  listRecentJobsService,
+} from "@/server/services/job-processing.service";
 
 const SYNC_JOB_KINDS = [
   "google_gmail_sync",
@@ -14,13 +17,13 @@ const SYNC_JOB_KINDS = [
   "normalize_google_event",
 ] as const;
 
-type SyncJobKind = (typeof SYNC_JOB_KINDS)[number];
+export type SyncJobKind = (typeof SYNC_JOB_KINDS)[number];
 
-function isSyncJobKind(kind: string): kind is SyncJobKind {
+export function isSyncJobKind(kind: string): kind is SyncJobKind {
   return SYNC_JOB_KINDS.includes(kind as SyncJobKind);
 }
 
-type SyncStatus = "idle" | "queued" | "processing";
+export type SyncStatus = "idle" | "queued" | "processing";
 
 export type SyncSummary = {
   status: SyncStatus;
@@ -30,32 +33,30 @@ export type SyncSummary = {
   failedJobs: number;
 };
 
-export class SyncProgressService {
-  /**
-   * Derive a lightweight sync summary from the background job queue.
-   * Suitable for dashboards that only need headline state.
-   */
-  static async getSyncSummary(userId: string): Promise<SyncSummary> {
-    const jobSummary = await JobProcessingService.getJobSummary(userId);
-    const recentJobs = await JobProcessingService.listRecentJobs(userId, { limit: 25 });
+/**
+ * Derive a lightweight sync summary from the background job queue.
+ * Suitable for dashboards that only need headline state.
+ */
+export async function getSyncSummaryService(userId: string): Promise<SyncSummary> {
+  const jobSummary = await getJobSummaryService(userId);
+  const recentJobs = await listRecentJobsService(userId, { limit: 25 });
 
-    const lastSyncJob = recentJobs.find((job) => isSyncJobKind(job.kind));
-    const lastSyncAt =
-      lastSyncJob?.updatedAt?.toISOString() ?? lastSyncJob?.createdAt?.toISOString() ?? null;
+  const lastSyncJob = recentJobs.find((job) => isSyncJobKind(job.kind));
+  const lastSyncAt =
+    lastSyncJob?.updatedAt?.toISOString() ?? lastSyncJob?.createdAt?.toISOString() ?? null;
 
-    const status: SyncStatus =
-      jobSummary.processing > 0
-        ? "processing"
-        : jobSummary.pending + jobSummary.retrying > 0
-          ? "queued"
-          : "idle";
+  const status: SyncStatus =
+    jobSummary.processing > 0
+      ? "processing"
+      : jobSummary.pending + jobSummary.retrying > 0
+        ? "queued"
+        : "idle";
 
-    return {
-      status,
-      lastSyncAt,
-      pendingJobs: jobSummary.pending,
-      retryingJobs: jobSummary.retrying,
-      failedJobs: jobSummary.failed,
-    };
-  }
+  return {
+    status,
+    lastSyncAt,
+    pendingJobs: jobSummary.pending,
+    retryingJobs: jobSummary.retrying,
+    failedJobs: jobSummary.failed,
+  };
 }

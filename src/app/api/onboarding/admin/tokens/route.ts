@@ -1,6 +1,9 @@
 // ===== src/app/api/onboarding/admin/tokens/route.ts =====
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { OnboardingTokenService } from "@/server/services/onboarding.service";
+import {
+  validateListOptions,
+  listTokensService,
+} from "@/server/services/onboarding.service";
 import {
   ListTokensQuerySchema,
   ListTokensResponseSchema,
@@ -11,8 +14,8 @@ export const GET = handleGetWithQueryAuth(
   ListTokensQuerySchema,
   ListTokensResponseSchema,
   async (query, userId): Promise<ListTokensResponse> => {
-    const options = OnboardingTokenService.validateListOptions(query.limit, query.offset);
-    const tokens = await OnboardingTokenService.listTokens(userId, options);
+    const options = validateListOptions(query.limit, query.offset);
+    const tokens = await listTokensService(userId, options);
     return { tokens };
   },
 );

@@ -2,7 +2,6 @@ import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
 import { getSubtasksService, createTaskService } from "@/server/services/productivity.service";
 import { CreateTaskSchema, TaskSchema, TaskFiltersSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
-import { NextRequest } from "next/server";
 
 /**
  * Subtasks Management API Route
@@ -14,16 +13,17 @@ import { NextRequest } from "next/server";
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     taskId: string;
-  };
+  }>;
 }
 
 /**
  * GET /api/omni-momentum/tasks/[taskId]/subtasks - Get subtasks for a parent task
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  const handler = handleGetWithQueryAuth(
+export async function GET(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleGetWithQueryAuth(
     TaskFiltersSchema,
     z.array(TaskSchema),
     async (_, userId): Promise<z.infer<typeof TaskSchema>[]> => {
@@ -31,16 +31,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
       return result.subtasks;
     },
-  );
-
-  return handler(request);
+  )(request);
 }
 
 /**
  * POST /api/omni-momentum/tasks/[taskId]/subtasks - Create new subtask
  */
-export async function POST(request: NextRequest, { params }: RouteParams) {
-  const handler = handleAuth(
+export async function POST(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
     CreateTaskSchema,
     TaskSchema,
     async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
@@ -51,7 +50,5 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       return subtask;
     },
-  );
-
-  return handler(request);
+  )(request);
 }

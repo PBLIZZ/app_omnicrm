@@ -19,9 +19,7 @@ const taskPriorityValues = ["low", "medium", "high", "urgent"] as const;
 const projectStatusValues = ["active", "on_hold", "completed", "archived"] as const;
 
 const detailsSchema = z.record(z.string(), z.unknown());
-const nullableDetailsSchema = z
-  .union([detailsSchema, z.null(), z.undefined()])
-  .transform((value) => (value == null ? {} : value));
+const nullableDetailsSchema = z.unknown();
 
 const inputDateSchema = z.union([z.string(), z.number(), z.date(), z.null(), z.undefined()]);
 
@@ -53,11 +51,11 @@ export const TaskSchema = z.object({
   name: z.string(),
   status: z.enum(taskStatusValues),
   priority: z.enum(taskPriorityValues),
-  dueDate: z.date().nullable(),
+  dueDate: z.string().nullable(),
   details: nullableDetailsSchema,
   completedAt: z.date().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.date().nullable(),
+  updatedAt: z.date().nullable(),
 });
 
 export type TaskSchemaOutput = z.infer<typeof TaskSchema>;
@@ -84,11 +82,11 @@ export const ProjectSchema = z.object({
   userId: z.string().uuid(),
   name: z.string(),
   status: z.enum(projectStatusValues),
-  dueDate: z.date().nullable(),
+  dueDate: z.string().nullable(),
   details: nullableDetailsSchema,
   zoneId: z.number().int().nullable().optional(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.date().nullable(),
+  updatedAt: z.date().nullable(),
 });
 
 export type ProjectSchemaOutput = z.infer<typeof ProjectSchema>;

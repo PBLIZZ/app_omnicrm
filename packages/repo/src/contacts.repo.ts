@@ -92,11 +92,12 @@ export class ContactsRepository {
 
   /**
    * Update existing contact
+   * Note: Accepts Record for flexibility with exactOptionalPropertyTypes
    */
   async updateContact(
     userId: string,
     contactId: string,
-    updates: Partial<CreateContact>,
+    updates: Record<string, unknown>,
   ): Promise<Contact | null> {
     const [contact] = await this.db
       .update(contacts)

@@ -8,10 +8,13 @@
  */
 
 import { createContactsRepository, createNotesRepository } from "@repo";
-import type { Contact } from "@/server/db/schema";
+import type { Contact, Note } from "@/server/db/schema";
 import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/observability";
-import { StorageService } from "@/server/services/storage.service";
+import {
+  getBatchSignedUrlsService,
+  logBatchPhotoAccessService,
+} from "@/server/services/storage.service";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
@@ -236,7 +239,7 @@ export async function listContactsService(
 
     let photoUrls: Record<string, string | null> = {};
     if (photoPaths.length > 0) {
-      const batchResult = await StorageService.getBatchSignedUrls(photoPaths, 14400); // 4 hours
+      const batchResult = await getBatchSignedUrlsService(photoPaths, 14400); // 4 hours
       photoUrls = batchResult.urls;
 
       // Log photo access for HIPAA/GDPR compliance (best-effort)
@@ -244,7 +247,7 @@ export async function listContactsService(
         .filter((c) => c.photoUrl)
         .map((c) => ({ contactId: c.id, photoPath: c.photoUrl as string }));
 
-      await StorageService.logBatchPhotoAccess(userId, contactPhotos);
+      await logBatchPhotoAccessService(userId, contactPhotos);
     }
 
     // 4. Transform with enrichments
@@ -325,7 +328,7 @@ export async function getContactWithNotesService(
     }
 
     // 2. Get notes separately
-    let notes;
+    let notes: Note[] = [];
     try {
       notes = await notesRepo.listNotes(userId, contactId);
     } catch (error) {
@@ -464,7 +467,10 @@ export async function updateContactService(
   const repo = createContactsRepository(db);
 
   try {
-    const contact = await repo.updateContact(userId, contactId, updates);
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, v]) => v !== undefined),
+    ) as Partial<typeof updates>;
+    const contact = await repo.updateContact(userId, contactId, cleanUpdates);
 
     if (!contact) {
       throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);

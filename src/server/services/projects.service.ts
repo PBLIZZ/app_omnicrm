@@ -24,10 +24,10 @@ export async function createProjectService(
   userId: string,
   data: {
     name: string;
-    zoneId?: number | null;
-    dueDate?: Date | null;
+    zoneId?: number | null | undefined;
+    dueDate?: Date | null | undefined;
     details?: unknown;
-    status?: string;
+    status?: string | undefined;
   },
 ): Promise<Project> {
   const db = await getDb();
@@ -41,9 +41,9 @@ export async function createProjectService(
     const project = await repo.createProject(userId, {
       name: data.name,
       zoneId: data.zoneId ?? null,
-      dueDate: data.dueDate ?? null,
+      dueDate: data.dueDate ? data.dueDate.toISOString() : null,
       details: normalizedDetails,
-      status: data.status ?? "active",
+      status: (data.status ?? "active") as "active" | "on_hold" | "completed" | "archived",
     });
 
     return project;
@@ -85,8 +85,8 @@ export async function getProjectService(
 export async function listProjectsService(
   userId: string,
   filters?: {
-    zoneId?: number;
-    status?: string[];
+    zoneId?: number | undefined;
+    status?: string[] | undefined;
   },
 ): Promise<Project[]> {
   const db = await getDb();
@@ -108,14 +108,14 @@ export async function listProjectsService(
  * Update an existing project
  */
 export async function updateProjectService(
-  userId: string,
   projectId: string,
+  userId: string,
   data: {
-    name?: string;
-    zoneId?: number | null;
-    dueDate?: Date | null;
+    name?: string | undefined;
+    zoneId?: number | null | undefined;
+    dueDate?: Date | null | undefined;
     details?: unknown;
-    status?: string;
+    status?: string | undefined;
   },
 ): Promise<Project | null> {
   const db = await getDb();
@@ -125,13 +125,13 @@ export async function updateProjectService(
     // Business logic: normalize the details field if provided
     const updateData: Record<string, unknown> = {};
 
-    if (data["name"] !== undefined) updateData.name = data["name"];
-    if (data["zoneId"] !== undefined) updateData.zoneId = data["zoneId"];
-    if (data["dueDate"] !== undefined) updateData.dueDate = data["dueDate"];
-    if (data["status"] !== undefined) updateData.status = data["status"];
+    if (data["name"] !== undefined) updateData["name"] = data["name"];
+    if (data["zoneId"] !== undefined) updateData["zoneId"] = data["zoneId"];
+    if (data["dueDate"] !== undefined) updateData["dueDate"] = data["dueDate"];
+    if (data["status"] !== undefined) updateData["status"] = data["status"];
 
     if (data["details"] !== undefined) {
-      updateData.details = sanitizeJsonb(data["details"]);
+      updateData["details"] = sanitizeJsonb(data["details"]);
     }
 
     await repo.updateProject(projectId, userId, updateData);

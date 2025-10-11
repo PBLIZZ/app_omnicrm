@@ -1,5 +1,5 @@
 import {
-  ContactIdentitiesRepository,
+  createContactIdentitiesRepository,
   type ContactIdentityListParams,
 } from "@repo";
 import type {
@@ -38,7 +38,8 @@ export async function listContactIdentitiesService(
 ): Promise<{ items: ContactIdentity[]; total: number }> {
   try {
     const db = await getDb();
-    return await ContactIdentitiesRepository.listContactIdentities(db, userId, params);
+    const repo = createContactIdentitiesRepository(db);
+    return await repo.listContactIdentities(userId, params);
   } catch (error) {
     throw toDatabaseError("Failed to load contact identities", error);
   }
@@ -52,8 +53,8 @@ export async function createContactIdentityService(
 
   try {
     const db = await getDb();
-    const existing = await ContactIdentitiesRepository.findByKindAndValue(
-      db,
+    const repo = createContactIdentitiesRepository(db);
+    const existing = await repo.findByKindAndValue(
       userId,
       sanitized.kind,
       sanitized.value,
@@ -69,7 +70,7 @@ export async function createContactIdentityService(
       );
     }
 
-    return await ContactIdentitiesRepository.createContactIdentity(db, {
+    return await repo.createContactIdentity({
       userId,
       contactId: sanitized.contactId,
       kind: sanitized.kind,
@@ -97,14 +98,14 @@ export async function updateContactIdentityService(
 
   try {
     const db = await getDb();
+    const repo = createContactIdentitiesRepository(db);
 
     if (sanitized.value !== undefined || sanitized.provider !== undefined || sanitized.kind !== undefined) {
       const checkKind = sanitized.kind ?? undefined;
       const checkValue = sanitized.value ?? undefined;
 
       if (checkKind && checkValue) {
-        const dupCheck = await ContactIdentitiesRepository.findByKindAndValue(
-          db,
+        const dupCheck = await repo.findByKindAndValue(
           userId,
           checkKind,
           checkValue,
@@ -122,7 +123,7 @@ export async function updateContactIdentityService(
       }
     }
 
-    const updated = await ContactIdentitiesRepository.updateContactIdentity(db, userId, identityId, sanitized);
+    const updated = await repo.updateContactIdentity(userId, identityId, sanitized);
 
     if (!updated) {
       throw new AppError("Identity not found", "CONTACT_IDENTITY_NOT_FOUND", "validation", false);
@@ -143,10 +144,10 @@ export async function deleteContactIdentityService(
   db?: DbClient,
 ): Promise<{ deleted: number }> {
   const executor = db ?? (await getDb());
+  const repo = createContactIdentitiesRepository(executor);
 
   try {
-    const deleted = await ContactIdentitiesRepository.deleteContactIdentity(
-      executor,
+    const deleted = await repo.deleteContactIdentity(
       userId,
       identityId,
     );
@@ -170,9 +171,10 @@ export async function deleteContactIdentitiesForContactService(
   db?: DbClient,
 ): Promise<number> {
   const executor = db ?? (await getDb());
+  const repo = createContactIdentitiesRepository(executor);
 
   try {
-    return await ContactIdentitiesRepository.deleteIdentitiesForContact(executor, userId, contactId);
+    return await repo.deleteIdentitiesForContact(userId, contactId);
   } catch (error) {
     throw toDatabaseError("Failed to delete contact identities for contact", error);
   }

@@ -21,28 +21,23 @@ const TaskRejectionResponseSchema = z.union([
   }),
 ]);
 
-const TaskIdParamsSchema = z.object({
-  taskId: z.string().uuid(),
-});
-
 interface RouteParams {
-  params: { taskId: string };
+  params: Promise<{ taskId: string }>;
 }
 
 export async function POST(request: Request, context: RouteParams): Promise<Response> {
-  const handler = handleAuth(
+  const params = await context.params;
+  return handleAuth(
     TaskRejectionInputSchema,
     TaskRejectionResponseSchema,
     async (data, userId): Promise<z.infer<typeof TaskRejectionResponseSchema>> => {
-      const { taskId } = TaskIdParamsSchema.parse(context.params);
-
-      const existingTask = await getTaskService(userId, taskId);
+      const existingTask = await getTaskService(userId, params.taskId);
       if (!existingTask) {
         throw ApiError.notFound("Task not found");
       }
 
       if (data.deleteTask) {
-        await deleteTaskService(userId, taskId);
+        await deleteTaskService(userId, params.taskId);
         return { success: true, deleted: true } as const;
       }
 
@@ -60,7 +55,7 @@ export async function POST(request: Request, context: RouteParams): Promise<Resp
             }
           : baseDetails;
 
-      const updatedTask = await updateTaskService(userId, taskId, {
+      const updatedTask = await updateTaskService(userId, params.taskId, {
         status: "canceled",
         details: updatedDetails,
       });
@@ -71,7 +66,5 @@ export async function POST(request: Request, context: RouteParams): Promise<Resp
 
       return updatedTask;
     },
-  );
-
-  return handler(request);
+  )(request);
 }

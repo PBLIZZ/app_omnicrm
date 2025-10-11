@@ -28,7 +28,7 @@ export class ProductivityRepository {
   // PROJECTS (Pathways)
   // ============================================================================
 
-  async createProject(userId: string, data: CreateProject): Promise<Project> {
+  async createProject(userId: string, data: Omit<CreateProject, 'userId'>): Promise<Project> {
     const [project] = await this.db
       .insert(projects)
       .values({ ...data, userId })
@@ -43,7 +43,7 @@ export class ProductivityRepository {
 
   async getProjects(
     userId: string,
-    filters?: { zoneId?: number; status?: string[] },
+    filters?: { zoneId?: number | undefined; status?: string[] | undefined },
   ): Promise<Project[]> {
     const whereConditions = [eq(projects.userId, userId)];
 
@@ -104,7 +104,7 @@ export class ProductivityRepository {
   // to infer it as `any`. This is a known Drizzle ORM limitation with circular references.
   // ESLint warnings for unsafe member access on `tasks` properties are expected and safe.
 
-  async createTask(userId: string, data: CreateTask): Promise<Task> {
+  async createTask(userId: string, data: Omit<CreateTask, 'userId'>): Promise<Task> {
     const [task] = await this.db
       .insert(tasks)
       .values({ ...data, userId })
@@ -120,10 +120,10 @@ export class ProductivityRepository {
   async getTasks(
     userId: string,
     filters?: {
-      projectId?: string;
-      parentTaskId?: string | null;
-      status?: string[];
-      priority?: string[];
+      projectId?: string | undefined;
+      parentTaskId?: string | null | undefined;
+      status?: string[] | undefined;
+      priority?: string[] | undefined;
     },
   ): Promise<Task[]> {
     const whereConditions = [eq(tasks.userId, userId)];

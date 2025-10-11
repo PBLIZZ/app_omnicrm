@@ -26,10 +26,11 @@ export type { AiInsight, CreateAiInsight, UpdateAiInsight } from "@/server/db/sc
 const BaseAiInsightSchema = createSelectSchema(aiInsights);
 
 /**
- * AI Insight schema with validated JSONB content field
+ * AI Insight schema - matches database SELECT type
+ * Note: content is unknown from DB, use AiInsightContentSchema for input validation
  */
 export const AiInsightSchema = BaseAiInsightSchema.extend({
-  content: AiInsightContentSchema,
+  content: z.unknown(),
 });
 
 export type AiInsightDTO = z.infer<typeof AiInsightSchema>;

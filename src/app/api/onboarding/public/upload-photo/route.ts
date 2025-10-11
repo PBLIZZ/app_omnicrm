@@ -1,5 +1,5 @@
 // ===== src/app/api/onboarding/public/upload-photo/route.ts =====
-import { OnboardingPhotoService } from "@/server/services/onboarding.service";
+import { processPhotoUploadService } from "@/server/services/onboarding.service";
 import { PhotoUploadResponseSchema } from "@/server/db/business-schemas/onboarding";
 
 /**
@@ -18,7 +18,7 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: "Missing token or file" }, { status: 400 });
     }
 
-    const result = await OnboardingPhotoService.processPhotoUpload({ token, file });
+    const result = await processPhotoUploadService({ token, file });
     const validated = PhotoUploadResponseSchema.parse(result);
 
     return Response.json(validated);

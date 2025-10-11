@@ -4,13 +4,13 @@
  * Automatically refreshes expired tokens when status is checked
  */
 import { getAuthUserId } from "@/lib/auth-simple";
-import { GoogleIntegrationService } from "@/server/services/google-integration.service";
+import { getStatusService } from "@/server/services/google-integration.service";
 
 export async function GET(): Promise<Response> {
   try {
     const userId = await getAuthUserId();
 
-    const services = await GoogleIntegrationService.getStatus(userId, {
+    const services = await getStatusService(userId, {
       autoRefresh: true,
     });
 

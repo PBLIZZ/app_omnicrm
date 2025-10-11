@@ -6,10 +6,10 @@
  */
 
 // Re-export all project services
-export * from "./productivity/projects.service";
+export * from "./projects.service";
 
 // Re-export all task services
-export * from "./productivity/tasks.service";
+export * from "./tasks.service";
 
 // Explicitly export key task services for API routes
 export {
@@ -18,7 +18,7 @@ export {
   approveTaskService,
   rejectTaskService,
   getSubtasksService,
-} from "./productivity/tasks.service";
+} from "./tasks.service";
 
 // Re-export zones service (already exists separately)
 export * from "./zones.service";
@@ -118,7 +118,7 @@ export function mapToZoneWithStats(
 
   return {
     ...baseZone,
-    stats,
+    ...stats,
     hasActiveWork: stats.activeProjects > 0 || stats.activeTasks > 0,
     hasCompletedWork: stats.completedProjects > 0 || stats.completedTasks > 0,
     hasRecentActivity: stats.lastActivity

@@ -4,7 +4,7 @@
  */
 import { google } from "googleapis";
 import { cookies } from "next/headers";
-import { GoogleIntegrationService } from "@/server/services/google-integration.service";
+import { upsertIntegrationService } from "@/server/services/google-integration.service";
 
 export async function GET(request: Request): Promise<Response> {
   try {
@@ -53,7 +53,7 @@ export async function GET(request: Request): Promise<Response> {
       ? new Date(tokens.expiry_date)
       : new Date(Date.now() + 3600 * 1000); // 1 hour default
 
-    await GoogleIntegrationService.upsertIntegration(userId, "gmail", {
+    await upsertIntegrationService(userId, "gmail", {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? null,
       expiryDate,

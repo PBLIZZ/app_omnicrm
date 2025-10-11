@@ -4,109 +4,98 @@
  * Handles system health checks including database connectivity
  */
 
-import { HealthRepository } from "@repo";
+import { createHealthRepository } from "@repo";
 import { getDb } from "@/server/db/client";
-import { ok, err, type Result } from "@/lib/utils/result";
+import { AppError } from "@/lib/errors/app-error";
 import type { HealthResponse } from "@/server/db/business-schemas";
 
-type HealthServiceError = {
-  code: string;
-  message: string;
-  details?: unknown;
-};
+/**
+ * Check overall system health including database connectivity
+ */
+export async function getSystemHealthService(): Promise<HealthResponse> {
+  try {
+    const dbStatus = await checkDatabaseHealth();
 
-export class HealthService {
-  /**
-   * Check overall system health including database connectivity
-   */
-  static async getSystemHealth(): Promise<Result<HealthResponse, HealthServiceError>> {
-    try {
-      const dbStatus = await this.checkDatabaseHealth();
-
-      // Propagate database health failure instead of masking it
-      if (!dbStatus.success) {
-        return err({
-          code: "DB_HEALTH_FAILED",
-          message: `Database health check failed: ${dbStatus.error.message}`,
-          details: dbStatus.error,
-        });
-      }
-
-      const healthResponse: HealthResponse = {
-        ts: new Date().toISOString(),
-        db: dbStatus.data,
-      };
-
-      return ok(healthResponse);
-    } catch (error) {
-      return err({
-        code: "HEALTH_CHECK_FAILED",
-        message: "Failed to perform health check",
-        details: error,
-      });
-    }
-  }
-
-  /**
-   * Check database connectivity with timeout
-   */
-  private static async checkDatabaseHealth(): Promise<Result<boolean, HealthServiceError>> {
-    // If no DATABASE_URL is configured, skip database check
-    if (!process.env["DATABASE_URL"]) {
-      return ok(false);
-    }
-
-    try {
-      const db = await getDb();
-      const pingPromise = HealthRepository.pingDatabase(db);
-      let timer: NodeJS.Timeout | undefined;
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("Database ping timeout")), 250);
-      });
-
-      try {
-        await Promise.race([pingPromise, timeoutPromise]);
-        if (timer) clearTimeout(timer);
-        return ok(true);
-      } catch (error) {
-        if (timer) clearTimeout(timer);
-        if (error instanceof Error && error.message === "Database ping timeout") {
-          return err({
-            code: "DB_TIMEOUT",
-            message: "Database ping timed out",
-            details: { timeout: 250 },
-          });
-        }
-
-        return err({
-          code: "DB_PING_FAILED",
-          message: "Database ping failed",
-          details: error,
-        });
-      }
-    } catch (error) {
-      return err({
-        code: "DB_CONNECTION_FAILED",
-        message: "Failed to establish database connection",
-        details: error,
-      });
-    }
-  }
-
-  /**
-   * Check if database is configured
-   */
-  static isDatabaseConfigured(): boolean {
-    return Boolean(process.env["DATABASE_URL"]);
-  }
-
-  /**
-   * Get basic system information
-   */
-  static getSystemInfo(): { timestamp: string; env: string } {
-    return {
-      timestamp: new Date().toISOString(),
-      env: process.env["NODE_ENV"] ?? "development",
+    const healthResponse: HealthResponse = {
+      ts: new Date().toISOString(),
+      db: dbStatus,
     };
+
+    return healthResponse;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to perform health check",
+      "HEALTH_CHECK_FAILED",
+      "system",
+      false,
+    );
   }
+}
+
+/**
+ * Check database connectivity with timeout
+ */
+async function checkDatabaseHealth(): Promise<boolean> {
+  // If no DATABASE_URL is configured, skip database check
+  if (!process.env["DATABASE_URL"]) {
+    return false;
+  }
+
+  try {
+    const db = await getDb();
+    const repo = createHealthRepository(db);
+    const pingPromise = repo.pingDatabase();
+    let timer: NodeJS.Timeout | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Database ping timeout")), 250);
+    });
+
+    try {
+      await Promise.race([pingPromise, timeoutPromise]);
+      if (timer) clearTimeout(timer);
+      return true;
+    } catch (error) {
+      if (timer) clearTimeout(timer);
+      if (error instanceof Error && error.message === "Database ping timeout") {
+        throw new AppError(
+          "Database ping timed out",
+          "DB_TIMEOUT",
+          "database",
+          false,
+        );
+      }
+
+      throw new AppError(
+        error instanceof Error ? error.message : "Database ping failed",
+        "DB_PING_FAILED",
+        "database",
+        false,
+      );
+    }
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      "Failed to establish database connection",
+      "DB_CONNECTION_FAILED",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * Check if database is configured
+ */
+export function isDatabaseConfiguredService(): boolean {
+  return Boolean(process.env["DATABASE_URL"]);
+}
+
+/**
+ * Get basic system information
+ */
+export function getSystemInfoService(): { timestamp: string; env: string } {
+  return {
+    timestamp: new Date().toISOString(),
+    env: process.env["NODE_ENV"] ?? "development",
+  };
 }

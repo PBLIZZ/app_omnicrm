@@ -26,13 +26,13 @@ import { deleteDocumentsForUserService } from "@/server/services/documents.servi
 import { deleteAiInsightsForUserService } from "@/server/services/ai-insights.service";
 import { deleteRawEventsForUserService } from "@/server/services/raw-events.service";
 
-interface DeletionRequest {
+export interface DeletionRequest {
   confirmation: string;
   acknowledgeIrreversible: boolean;
   ipAddress?: string;
 }
 
-interface DeletionResult {
+export interface DeletionResult {
   deleted: boolean;
   deletedAt: string;
   deletionResults: Record<string, number>;
@@ -41,11 +41,58 @@ interface DeletionResult {
   nextSteps: string[];
 }
 
-export class UserDeletionService {
-  /**
-   * Permanently delete all user data for GDPR compliance
-   */
-  static async deleteUserData(userId: string, request: DeletionRequest): Promise<DeletionResult> {
+/**
+ * Helper to count records in a table for a user
+ */
+async function countRecords(
+  db: DbClient,
+  table: PgTable & { userId: PgColumn },
+  userId: string,
+): Promise<number> {
+  const rows = await db.select({ value: count() }).from(table).where(eq(table.userId, userId));
+
+  return Number(rows[0]?.value ?? 0);
+}
+
+/**
+ * Log deletion request for audit trail
+ */
+async function logDeletionRequest(
+  userId: string,
+  request: DeletionRequest,
+  timestamp: Date,
+): Promise<void> {
+  await logger.info("Account deletion requested", {
+    operation: "user_deletion_service.audit_requested",
+    additionalData: {
+      userId,
+      confirmation: request.confirmation,
+      acknowledgeIrreversible: request.acknowledgeIrreversible,
+      deletionTimestamp: timestamp.toISOString(),
+      ipAddress: request.ipAddress ?? "unknown",
+    },
+  });
+}
+
+/**
+ * Log deletion completion for audit trail
+ */
+async function logDeletionCompletion(userId: string, timestamp: Date): Promise<void> {
+  await logger.info("Account deletion completed", {
+    operation: "user_deletion_service.audit_completed",
+    additionalData: {
+      userId,
+      deletionTimestamp: timestamp.toISOString(),
+      completedAt: new Date().toISOString(),
+      retentionNote:
+        "Audit entries are retained via centralized logging per data retention policy",
+    },
+  });
+}
+/**
+ * Permanently delete all user data for GDPR compliance
+ */
+export async function deleteUserDataService(userId: string, request: DeletionRequest): Promise<DeletionResult> {
     const deletionTimestamp = new Date();
 
     await logger.info("Starting account deletion process", {
@@ -59,7 +106,7 @@ export class UserDeletionService {
     const db = await getDb();
 
     // Log deletion request to audit trail before deletion
-    await this.logDeletionRequest(userId, request, deletionTimestamp);
+    await logDeletionRequest(userId, request, deletionTimestamp);
 
     // Start transaction for atomic deletion
     const deletionResults = await db.transaction(async (tx) => {
@@ -180,7 +227,7 @@ export class UserDeletionService {
     });
 
     // Final audit log entry (will be retained for compliance)
-    await this.logDeletionCompletion(userId, deletionTimestamp);
+    await logDeletionCompletion(userId, deletionTimestamp);
 
     return {
       deleted: true,
@@ -197,10 +244,10 @@ export class UserDeletionService {
     };
   }
 
-  /**
-   * Get a preview of what data would be deleted (for confirmation UI)
-   */
-  static async getDeletionPreview(userId: string): Promise<Record<string, number>> {
+/**
+ * Get a preview of what data would be deleted (for confirmation UI)
+ */
+export async function getDeletionPreviewService(userId: string): Promise<Record<string, number>> {
     const db = await getDb();
 
     const [
@@ -214,15 +261,15 @@ export class UserDeletionService {
       goalsCount,
       inboxItemsCount,
     ] = await Promise.all([
-      this.countRecords(db, contacts, userId),
-      this.countRecords(db, interactions, userId),
-      this.countRecords(db, notes, userId),
-      this.countRecords(db, documents, userId),
-      this.countRecords(db, jobs, userId),
-      this.countRecords(db, tasks, userId),
-      this.countRecords(db, projects, userId),
-      this.countRecords(db, goals, userId),
-      this.countRecords(db, inboxItems, userId),
+      countRecords(db, contacts, userId),
+      countRecords(db, interactions, userId),
+      countRecords(db, notes, userId),
+      countRecords(db, documents, userId),
+      countRecords(db, jobs, userId),
+      countRecords(db, tasks, userId),
+      countRecords(db, projects, userId),
+      countRecords(db, goals, userId),
+      countRecords(db, inboxItems, userId),
     ]);
 
     return {
@@ -238,10 +285,10 @@ export class UserDeletionService {
     };
   }
 
-  /**
-   * Validate deletion request
-   */
-  static validateDeletionRequest(request: DeletionRequest): { valid: boolean; errors: string[] } {
+/**
+ * Validate deletion request
+ */
+export function validateDeletionRequestService(request: DeletionRequest): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
     if (request.confirmation !== "DELETE MY DATA") {
@@ -258,52 +305,3 @@ export class UserDeletionService {
     };
   }
 
-  /**
-   * Log deletion request for audit trail
-   */
-  private static async logDeletionRequest(
-    userId: string,
-    request: DeletionRequest,
-    timestamp: Date,
-  ): Promise<void> {
-    await logger.info("Account deletion requested", {
-      operation: "user_deletion_service.audit_requested",
-      additionalData: {
-        userId,
-        confirmation: request.confirmation,
-        acknowledgeIrreversible: request.acknowledgeIrreversible,
-        deletionTimestamp: timestamp.toISOString(),
-        ipAddress: request.ipAddress ?? "unknown",
-      },
-    });
-  }
-
-  /**
-   * Log deletion completion for audit trail
-   */
-  private static async logDeletionCompletion(userId: string, timestamp: Date): Promise<void> {
-    await logger.info("Account deletion completed", {
-      operation: "user_deletion_service.audit_completed",
-      additionalData: {
-        userId,
-        deletionTimestamp: timestamp.toISOString(),
-        completedAt: new Date().toISOString(),
-        retentionNote:
-          "Audit entries are retained via centralized logging per data retention policy",
-      },
-    });
-  }
-
-  /**
-   * Helper to count records in a table for a user
-   */
-  private static async countRecords(
-    db: DbClient,
-    table: PgTable & { userId: PgColumn },
-    userId: string,
-  ): Promise<number> {
-    const rows = await db.select({ value: count() }).from(table).where(eq(table.userId, userId));
-
-    return Number(rows[0]?.value ?? 0);
-  }
-}

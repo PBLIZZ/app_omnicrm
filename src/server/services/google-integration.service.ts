@@ -1,12 +1,13 @@
-import { UserIntegrationsRepository } from "@repo";
+import { createUserIntegrationsRepository } from "@repo";
 import type { UserIntegrationDTO } from "@repo";
 import { getDb } from "@/server/db/client";
 import { getGoogleClients } from "@/server/google/client";
 import { logger } from "@/lib/observability";
+import { AppError } from "@/lib/errors/app-error";
 
-type GoogleService = "gmail" | "calendar";
+export type GoogleService = "gmail" | "calendar";
 
-interface IntegrationTokens {
+export interface IntegrationTokens {
   accessToken: string;
   refreshToken?: string | null;
   expiryDate?: Date | null;
@@ -23,18 +24,19 @@ export interface GoogleIntegrationStatus {
   calendar: GoogleServiceStatus;
 }
 
-export class GoogleIntegrationService {
-  /**
-   * Upsert Google integration tokens for a user.
-   */
-  static async upsertIntegration(
-    userId: string,
-    service: GoogleService,
-    tokens: IntegrationTokens,
-  ): Promise<void> {
-    const db = await getDb();
+/**
+ * Upsert Google integration tokens for a user.
+ */
+export async function upsertIntegrationService(
+  userId: string,
+  service: GoogleService,
+  tokens: IntegrationTokens,
+): Promise<void> {
+  const db = await getDb();
+  const repo = createUserIntegrationsRepository(db);
 
-    await UserIntegrationsRepository.upsertUserIntegration(db, userId, {
+  try {
+    await repo.upsertUserIntegration(userId, {
       provider: "google",
       service,
       accessToken: tokens.accessToken,
@@ -42,18 +44,28 @@ export class GoogleIntegrationService {
       expiryDate: tokens.expiryDate ?? null,
       config: tokens.config ?? null,
     });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to upsert Google integration",
+      "INTEGRATION_ERROR",
+      "database",
+      false,
+    );
   }
+}
 
-  /**
-   * Retrieve Google integration status and optionally attempt token refresh if expired.
-   */
-  static async getStatus(
-    userId: string,
-    options: { autoRefresh?: boolean } = {},
-  ): Promise<GoogleIntegrationStatus> {
-    const db = await getDb();
-    const integrations = await UserIntegrationsRepository.getUserIntegrationsByProvider(
-      db,
+/**
+ * Retrieve Google integration status and optionally attempt token refresh if expired.
+ */
+export async function getStatusService(
+  userId: string,
+  options: { autoRefresh?: boolean } = {},
+): Promise<GoogleIntegrationStatus> {
+  const db = await getDb();
+  const repo = createUserIntegrationsRepository(db);
+
+  try {
+    const integrations = await repo.getUserIntegrationsByProvider(
       userId,
       "google",
     );
@@ -98,8 +110,7 @@ export class GoogleIntegrationService {
       try {
         await getGoogleClients(userId);
 
-        const refreshedIntegrations = await UserIntegrationsRepository.getUserIntegrationsByProvider(
-          db,
+        const refreshedIntegrations = await repo.getUserIntegrationsByProvider(
           userId,
           "google",
         );
@@ -148,6 +159,13 @@ export class GoogleIntegrationService {
       gmail: buildStatus("gmail"),
       calendar: buildStatus("calendar"),
     };
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get Google integration status",
+      "INTEGRATION_ERROR",
+      "database",
+      false,
+    );
   }
 }
 

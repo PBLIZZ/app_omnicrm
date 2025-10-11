@@ -1,4 +1,4 @@
-import { DocumentsRepository } from "@repo";
+import { createDocumentsRepository } from "@repo";
 import type { DocumentListParams as RepoDocumentListParams } from "@repo";
 import type {
   CreateIntelligenceDocument,
@@ -37,7 +37,8 @@ export async function listDocumentsService(
 ): Promise<{ items: IntelligenceDocument[]; total: number }> {
   try {
     const db = await getDb();
-    return await DocumentsRepository.listDocuments(db, userId, params);
+    const repo = createDocumentsRepository(db);
+    return await repo.listDocuments(userId, params);
   } catch (error) {
     throw toDatabaseError("Failed to load documents", error);
   }
@@ -49,7 +50,8 @@ export async function getDocumentByIdService(
 ): Promise<IntelligenceDocument> {
   try {
     const db = await getDb();
-    const document = await DocumentsRepository.getDocumentById(db, userId, documentId);
+    const repo = createDocumentsRepository(db);
+    const document = await repo.getDocumentById(userId, documentId);
 
     if (!document) {
       throw new AppError("Document not found", "DOCUMENT_NOT_FOUND", "validation", false);
@@ -79,7 +81,8 @@ export async function createDocumentService(
 
   try {
     const db = await getDb();
-    return await DocumentsRepository.createDocument(db, {
+    const repo = createDocumentsRepository(db);
+    return await repo.createDocument({
       userId,
       ownerContactId: input.ownerContactId ?? null,
       title: input.title?.trim() ?? null,
@@ -129,7 +132,8 @@ export async function updateDocumentService(
 
   try {
     const db = await getDb();
-    const updated = await DocumentsRepository.updateDocument(db, userId, documentId, updatePayload);
+    const repo = createDocumentsRepository(db);
+    const updated = await repo.updateDocument(userId, documentId, updatePayload);
 
     if (!updated) {
       throw new AppError("Document not found", "DOCUMENT_NOT_FOUND", "validation", false);
@@ -150,9 +154,10 @@ export async function deleteDocumentService(
   db?: DbClient,
 ): Promise<{ deleted: number }> {
   const executor = db ?? (await getDb());
+  const repo = createDocumentsRepository(executor);
 
   try {
-    const deleted = await DocumentsRepository.deleteDocument(executor, userId, documentId);
+    const deleted = await repo.deleteDocument(userId, documentId);
 
     if (deleted === 0) {
       throw new AppError("Document not found", "DOCUMENT_NOT_FOUND", "validation", false);
@@ -172,9 +177,10 @@ export async function deleteDocumentsForUserService(
   db?: DbClient,
 ): Promise<number> {
   const executor = db ?? (await getDb());
+  const repo = createDocumentsRepository(executor);
 
   try {
-    return await DocumentsRepository.deleteDocumentsForUser(executor, userId);
+    return await repo.deleteDocumentsForUser(userId);
   } catch (error) {
     throw toDatabaseError("Failed to delete documents for user", error);
   }

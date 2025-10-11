@@ -14,6 +14,7 @@ export {
 } from "./contact-identities.repo";
 export { SearchRepository, createSearchRepository } from "./search.repo";
 export { HealthRepository } from "./health.repo";
+export { createHealthRepository } from "./health.repo";
 export { ProductivityRepository, createProductivityRepository } from "./productivity.repo";
 export {
   UserIntegrationsRepository,

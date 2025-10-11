@@ -9,22 +9,22 @@ export type CreateOnboardingToken = typeof onboardingTokens.$inferInsert;
 export interface ClientData {
   display_name: string;
   primary_email: string;
-  primary_phone?: string | null;
-  date_of_birth?: string | null;
-  emergency_contact_name?: string | null;
-  emergency_contact_phone?: string | null;
-  referral_source?: string | null;
-  address?: Record<string, unknown> | null;
-  health_context?: Record<string, unknown> | null;
-  preferences?: Record<string, unknown> | null;
+  primary_phone?: string | null | undefined;
+  date_of_birth?: string | null | undefined;
+  emergency_contact_name?: string | null | undefined;
+  emergency_contact_phone?: string | null | undefined;
+  referral_source?: string | null | undefined;
+  address?: Record<string, unknown> | null | undefined;
+  health_context?: Record<string, unknown> | null | undefined;
+  preferences?: Record<string, unknown> | null | undefined;
 }
 
 export interface ConsentData {
   consent_type: "data_processing" | "marketing" | "hipaa" | "photography";
   consent_text_version: string;
   granted: boolean;
-  signature_svg?: string | null;
-  signature_image_url?: string | null;
+  signature_svg?: string | null | undefined;
+  signature_image_url?: string | null | undefined;
   ip_address: string;
   user_agent: string;
 }

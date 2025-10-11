@@ -3,7 +3,7 @@ import {
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,
 } from "@/server/db/business-schemas";
-import { UserDeletionService } from "@/server/services/user-deletion.service";
+import { validateDeletionRequestService, deleteUserDataService } from "@/server/services/user-deletion.service";
 import { getAuthUserId } from "@/lib/auth-simple";
 import { ApiError } from "@/lib/api/errors";
 import { z } from "zod";
@@ -40,7 +40,7 @@ export async function DELETE(request: Request): Promise<Response> {
       request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
 
     // Validate deletion request
-    const validation = UserDeletionService.validateDeletionRequest({
+    const validation = validateDeletionRequestService({
       confirmation,
       acknowledgeIrreversible,
       ipAddress,
@@ -51,7 +51,7 @@ export async function DELETE(request: Request): Promise<Response> {
     }
 
     // Execute deletion
-    const result = await UserDeletionService.deleteUserData(userId, {
+    const result = await deleteUserDataService(userId, {
       confirmation,
       acknowledgeIrreversible,
       ipAddress,

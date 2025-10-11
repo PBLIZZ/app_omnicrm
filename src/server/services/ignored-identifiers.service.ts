@@ -1,5 +1,5 @@
 import {
-  IgnoredIdentifiersRepository,
+  createIgnoredIdentifiersRepository,
   type IgnoredIdentifierListParams,
 } from "@repo";
 import type {
@@ -37,7 +37,8 @@ export async function listIgnoredIdentifiersService(
 ): Promise<{ items: IgnoredIdentifier[]; total: number }> {
   try {
     const db = await getDb();
-    return await IgnoredIdentifiersRepository.listIgnoredIdentifiers(db, userId, params);
+    const repo = createIgnoredIdentifiersRepository(db);
+    return await repo.listIgnoredIdentifiers(userId, params);
   } catch (error) {
     throw toDatabaseError("Failed to load ignored identifiers", error);
   }
@@ -55,8 +56,8 @@ export async function createIgnoredIdentifierService(
 
   try {
     const db = await getDb();
-    const isDuplicate = await IgnoredIdentifiersRepository.isIgnored(
-      db,
+    const repo = createIgnoredIdentifiersRepository(db);
+    const isDuplicate = await repo.isIgnored(
       userId,
       input.kind,
       normalizedValue,
@@ -71,7 +72,7 @@ export async function createIgnoredIdentifierService(
       );
     }
 
-    return await IgnoredIdentifiersRepository.createIgnoredIdentifier(db, {
+    return await repo.createIgnoredIdentifier({
       userId,
       kind: input.kind,
       value: normalizedValue,
@@ -96,8 +97,8 @@ export async function updateIgnoredIdentifierService(
 
   try {
     const db = await getDb();
-    const updated = await IgnoredIdentifiersRepository.updateIgnoredIdentifier(
-      db,
+    const repo = createIgnoredIdentifiersRepository(db);
+    const updated = await repo.updateIgnoredIdentifier(
       userId,
       identifierId,
       {
@@ -124,10 +125,10 @@ export async function deleteIgnoredIdentifierService(
   db?: DbClient,
 ): Promise<{ deleted: number }> {
   const executor = db ?? (await getDb());
+  const repo = createIgnoredIdentifiersRepository(executor);
 
   try {
-    const deleted = await IgnoredIdentifiersRepository.deleteIgnoredIdentifier(
-      executor,
+    const deleted = await repo.deleteIgnoredIdentifier(
       userId,
       identifierId,
     );
@@ -150,9 +151,10 @@ export async function deleteIgnoredIdentifiersForUserService(
   db?: DbClient,
 ): Promise<number> {
   const executor = db ?? (await getDb());
+  const repo = createIgnoredIdentifiersRepository(executor);
 
   try {
-    return await IgnoredIdentifiersRepository.deleteIgnoredIdentifiersForUser(executor, userId);
+    return await repo.deleteIgnoredIdentifiersForUser(userId);
   } catch (error) {
     throw toDatabaseError("Failed to delete ignored identifiers for user", error);
   }

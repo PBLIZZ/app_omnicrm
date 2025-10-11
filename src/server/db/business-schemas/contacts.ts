@@ -31,13 +31,14 @@ const ContactDataSchema = createSelectSchema(contacts);
 
 /**
  * Export base schema for single contact responses
- * JSONB fields use validated schemas instead of z.unknown()
+ * Note: JSONB fields (address, healthContext, preferences, tags) are unknown from DB
+ * Use structured schemas for input validation (CREATE/UPDATE)
  */
 export const ContactSchema = ContactDataSchema.extend({
-  address: ContactAddressSchema,
-  healthContext: ContactHealthContextSchema,
-  preferences: ContactPreferencesSchema,
-  tags: ContactTagsSchema,
+  address: z.unknown(),
+  healthContext: z.unknown(),
+  preferences: z.unknown(),
+  tags: z.unknown(),
 });
 
 // ============================================================================
@@ -120,15 +121,14 @@ export type GetContactsQuery = z.infer<typeof GetContactsQuerySchema>;
 
 /**
  * Contact with last note preview (service layer enrichment)
- * Note: JSONB fields use validated schemas for type safety
+ * Note: JSONB fields are unknown from DB, use structured schemas for input validation
  */
 export const ContactWithLastNoteSchema = ContactDataSchema.extend({
   lastNote: z.string().nullable(),
-  // Use validated JSONB schemas
-  address: ContactAddressSchema,
-  healthContext: ContactHealthContextSchema,
-  preferences: ContactPreferencesSchema,
-  tags: ContactTagsSchema,
+  address: z.unknown(),
+  healthContext: z.unknown(),
+  preferences: z.unknown(),
+  tags: z.unknown(),
 });
 
 /**

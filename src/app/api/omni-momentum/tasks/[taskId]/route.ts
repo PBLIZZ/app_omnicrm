@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import { handleAuth } from "@/lib/api";
 import {
   getTaskService,
@@ -26,12 +25,12 @@ interface RouteParams {
 /**
  * GET /api/omni-momentum/tasks/[taskId] - Get task by ID
  */
-export async function GET(request: NextRequest, context: RouteParams) {
-  const handler = handleAuth(
+export async function GET(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
     z.object({}),
     TaskSchema,
     async (_, userId): Promise<z.infer<typeof TaskSchema>> => {
-      const params = await context.params;
       const task = await getTaskService(userId, params.taskId);
 
       if (!task) {
@@ -40,40 +39,40 @@ export async function GET(request: NextRequest, context: RouteParams) {
 
       return task;
     },
-  );
-
-  return handler(request);
+  )(request);
 }
 
 /**
  * PUT /api/omni-momentum/tasks/[taskId] - Update task
  */
-export async function PUT(request: NextRequest, context: RouteParams) {
-  const handler = handleAuth(
+export async function PUT(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
     UpdateTaskSchema,
     TaskSchema,
     async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
-      const params = await context.params;
-      return await updateTaskService(params.taskId, userId, data);
+      const task = await updateTaskService(userId, params.taskId, data);
+      
+      if (!task) {
+        notFound();
+      }
+      
+      return task;
     },
-  );
-
-  return handler(request);
+  )(request);
 }
 
 /**
  * DELETE /api/omni-momentum/tasks/[taskId] - Delete task
  */
-export async function DELETE(request: NextRequest, context: RouteParams) {
-  const handler = handleAuth(
+export async function DELETE(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
     z.object({}),
     z.object({ success: z.boolean() }),
-    async (_, userId) => {
-      const params = await context.params;
+    async (_, userId): Promise<{ success: boolean }> => {
       await deleteTaskService(userId, params.taskId);
       return { success: true };
     },
-  );
-
-  return handler(request);
+  )(request);
 }

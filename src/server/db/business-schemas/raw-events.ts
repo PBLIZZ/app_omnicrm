@@ -58,12 +58,13 @@ const ProviderTypeSchema = z.enum(["gmail", "calendar", "drive", "upload"] as co
 const BaseRawEventSchema = createSelectSchema(rawEvents);
 
 /**
- * Raw Event schema with validated JSONB fields
- * Note: Transform removed per architecture blueprint - default value handled in service layer
+ * Raw Event schema - matches database SELECT type
+ * Note: JSONB fields (payload, sourceMeta) are unknown from DB
+ * Use structured schemas for input validation (CREATE/UPDATE)
  */
 export const RawEventSchema = BaseRawEventSchema.extend({
-  payload: RawEventPayloadSchema,
-  sourceMeta: SourceMetaSchema.optional(),
+  payload: z.unknown(),
+  sourceMeta: z.unknown(),
   processingStatus: RawEventProcessingStatusSchema.nullable(),
   contactExtractionStatus: RawEventContactExtractionStatusSchema.nullable(),
 });

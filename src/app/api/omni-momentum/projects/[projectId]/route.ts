@@ -38,60 +38,53 @@ type SuccessResponse = z.infer<typeof SuccessResponseSchema>;
  * GET /api/omni-momentum/projects/[projectId] - Get project by ID
  */
 export async function GET(request: Request, context: RouteParams): Promise<Response> {
-  // Use an empty schema for GET since we only need the URL parameter
-  const handler = handleAuth(
+  const params = await context.params;
+  return handleAuth(
     z.void(),
     ProjectSchema,
-    async (_: void, userId): Promise<ProjectResponse> => {
-      const params = await context.params;
+    async (_, userId): Promise<ProjectResponse> => {
       const project = await getProjectService(params.projectId, userId);
 
       if (!project) {
-        throw new ApiError("Project not found", "PROJECT_NOT_FOUND", "validation", false);
+        throw ApiError.notFound("Project not found");
       }
 
       return project;
     },
-  );
-
-  return handler(request);
+  )(request);
 }
 
 /**
  * PUT /api/omni-momentum/projects/[projectId] - Update project
  */
 export async function PUT(request: Request, context: RouteParams): Promise<Response> {
-  const handler = handleAuth(
+  const params = await context.params;
+  return handleAuth(
     UpdateProjectSchema,
     ProjectSchema,
     async (data: UpdateProjectInput, userId): Promise<ProjectResponse> => {
-      const params = await context.params;
       const project = await updateProjectService(params.projectId, userId, data);
 
       if (!project) {
-        throw new ApiError("Project not found", "PROJECT_NOT_FOUND", "validation", false);
+        throw ApiError.notFound("Project not found");
       }
 
       return project;
     },
-  );
-
-  return handler(request);
+  )(request);
 }
 
 /**
  * DELETE /api/omni-momentum/projects/[projectId] - Delete project
  */
 export async function DELETE(request: Request, context: RouteParams): Promise<Response> {
-  const handler = handleAuth(
+  const params = await context.params;
+  return handleAuth(
     z.void(),
     SuccessResponseSchema,
     async (_, userId): Promise<SuccessResponse> => {
-      const params = await context.params;
       await deleteProjectService(params.projectId, userId);
       return { success: true };
     },
-  );
-
-  return handler(request);
+  )(request);
 }

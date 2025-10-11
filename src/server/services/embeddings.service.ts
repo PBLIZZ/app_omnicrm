@@ -1,5 +1,5 @@
 import {
-  EmbeddingsRepository,
+  createEmbeddingsRepository,
   type EmbeddingListParams,
 } from "@repo";
 import type { CreateEmbedding, Embedding, UpdateEmbedding } from "@repo";
@@ -37,7 +37,8 @@ export async function listEmbeddingsService(
 ): Promise<{ items: Embedding[]; total: number }> {
   try {
     const db = await getDb();
-    return await EmbeddingsRepository.listEmbeddings(db, userId, params);
+    const repo = createEmbeddingsRepository(db);
+    return await repo.listEmbeddings(userId, params);
   } catch (error) {
     throw toDatabaseError("Failed to load embeddings", error);
   }
@@ -50,7 +51,8 @@ export async function listEmbeddingsForOwnerService(
 ): Promise<Embedding[]> {
   try {
     const db = await getDb();
-    return await EmbeddingsRepository.listEmbeddingsForOwner(db, userId, ownerType, ownerId);
+    const repo = createEmbeddingsRepository(db);
+    return await repo.listEmbeddingsForOwner(userId, ownerType, ownerId);
   } catch (error) {
     throw toDatabaseError("Failed to load embeddings for owner", error);
   }
@@ -64,7 +66,8 @@ export async function createEmbeddingService(
 
   try {
     const db = await getDb();
-    return await EmbeddingsRepository.createEmbedding(db, {
+    const repo = createEmbeddingsRepository(db);
+    return await repo.createEmbedding({
       userId,
       ownerType: input.ownerType,
       ownerId: input.ownerId,
@@ -99,7 +102,8 @@ export async function createEmbeddingsBulkService(
 
   try {
     const db = await getDb();
-    return await EmbeddingsRepository.createEmbeddingsBulk(db, payload);
+    const repo = createEmbeddingsRepository(db);
+    return await repo.createEmbeddingsBulk(payload);
   } catch (error) {
     throw toDatabaseError("Failed to create embeddings", error);
   }
@@ -150,7 +154,8 @@ export async function updateEmbeddingService(
 
   try {
     const db = await getDb();
-    const updated = await EmbeddingsRepository.updateEmbedding(db, userId, embeddingId, updatePayload);
+    const repo = createEmbeddingsRepository(db);
+    const updated = await repo.updateEmbedding(userId, embeddingId, updatePayload);
 
     if (!updated) {
       throw new AppError("Embedding not found", "EMBEDDING_NOT_FOUND", "validation", false);
@@ -172,10 +177,10 @@ export async function deleteEmbeddingsForOwnerService(
   db?: DbClient,
 ): Promise<{ deleted: number }> {
   const executor = db ?? (await getDb());
+  const repo = createEmbeddingsRepository(executor);
 
   try {
-    const deleted = await EmbeddingsRepository.deleteEmbeddingsForOwner(
-      executor,
+    const deleted = await repo.deleteEmbeddingsForOwner(
       userId,
       ownerType,
       ownerId,
@@ -193,9 +198,10 @@ export async function deleteEmbeddingService(
   db?: DbClient,
 ): Promise<{ deleted: number }> {
   const executor = db ?? (await getDb());
+  const repo = createEmbeddingsRepository(executor);
 
   try {
-    const deleted = await EmbeddingsRepository.deleteEmbeddingById(executor, userId, embeddingId);
+    const deleted = await repo.deleteEmbeddingById(userId, embeddingId);
 
     if (deleted === 0) {
       throw new AppError("Embedding not found", "EMBEDDING_NOT_FOUND", "validation", false);
@@ -215,9 +221,10 @@ export async function deleteEmbeddingsForUserService(
   db?: DbClient,
 ): Promise<number> {
   const executor = db ?? (await getDb());
+  const repo = createEmbeddingsRepository(executor);
 
   try {
-    return await EmbeddingsRepository.deleteEmbeddingsForUser(executor, userId);
+    return await repo.deleteEmbeddingsForUser(userId);
   } catch (error) {
     throw toDatabaseError("Failed to delete embeddings for user", error);
   }

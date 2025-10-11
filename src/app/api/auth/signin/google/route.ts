@@ -1,8 +1,6 @@
 import { handleAuthFlow } from "@/lib/api-edge-cases";
-import { SupabaseAuthService } from "@/server/services/supabase-auth.service";
-import {
-  GoogleSignInQuerySchema
-} from "@/server/db/business-schemas";
+import { initializeGoogleOAuthService } from "@/server/services/supabase-auth.service";
+import { GoogleSignInQuerySchema } from "@/server/db/business-schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -10,12 +8,12 @@ export const dynamic = "force-dynamic";
 export const GET = handleAuthFlow(
   GoogleSignInQuerySchema,
   async (_query, request): Promise<Response> => {
-    const result = await SupabaseAuthService.initializeGoogleOAuth(request);
+    const result = await initializeGoogleOAuthService(request);
 
     if (result.success) {
       return result.redirectResponse;
     } else {
       return result.errorResponse;
     }
-  }
+  },
 );

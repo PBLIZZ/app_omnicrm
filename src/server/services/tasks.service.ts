@@ -24,11 +24,11 @@ export async function createTaskService(
   userId: string,
   data: {
     name: string;
-    projectId?: string | null;
-    parentTaskId?: string | null;
-    priority?: string;
-    status?: string;
-    dueDate?: Date | null;
+    projectId?: string | null | undefined;
+    parentTaskId?: string | null | undefined;
+    priority?: "low" | "medium" | "high" | "urgent" | undefined;
+    status?: "todo" | "in_progress" | "done" | "canceled" | undefined;
+    dueDate?: Date | null | undefined;
     details?: unknown;
   },
 ): Promise<Task> {
@@ -95,10 +95,10 @@ export async function getTaskService(userId: string, taskId: string): Promise<Ta
 export async function listTasksService(
   userId: string,
   filters?: {
-    projectId?: string;
-    parentTaskId?: string | null;
-    status?: string[];
-    priority?: string[];
+    projectId?: string | undefined;
+    parentTaskId?: string | null | undefined;
+    status?: string[] | undefined;
+    priority?: string[] | undefined;
   },
 ): Promise<Task[]> {
   const db = await getDb();
@@ -123,14 +123,14 @@ export async function updateTaskService(
   userId: string,
   taskId: string,
   data: {
-    name?: string;
-    projectId?: string | null;
-    parentTaskId?: string | null;
-    priority?: string;
-    status?: string;
-    dueDate?: Date | null;
+    name?: string | undefined;
+    projectId?: string | null | undefined;
+    parentTaskId?: string | null | undefined;
+    priority?: string | undefined;
+    status?: string | undefined;
+    dueDate?: Date | null | undefined;
     details?: unknown;
-    completedAt?: Date | null;
+    completedAt?: Date | null | undefined;
   },
 ): Promise<Task | null> {
   const db = await getDb();
@@ -140,16 +140,16 @@ export async function updateTaskService(
     // Business logic: normalize the details field if provided
     const updateData: Record<string, unknown> = {};
 
-    if (data["name"] !== undefined) updateData.name = data["name"];
-    if (data["projectId"] !== undefined) updateData.projectId = data["projectId"];
-    if (data["parentTaskId"] !== undefined) updateData.parentTaskId = data["parentTaskId"];
-    if (data["priority"] !== undefined) updateData.priority = data["priority"];
-    if (data["status"] !== undefined) updateData.status = data["status"];
-    if (data["dueDate"] !== undefined) updateData.dueDate = data["dueDate"];
-    if (data["completedAt"] !== undefined) updateData.completedAt = data["completedAt"];
+    if (data["name"] !== undefined) updateData["name"] = data["name"];
+    if (data["projectId"] !== undefined) updateData["projectId"] = data["projectId"];
+    if (data["parentTaskId"] !== undefined) updateData["parentTaskId"] = data["parentTaskId"];
+    if (data["priority"] !== undefined) updateData["priority"] = data["priority"];
+    if (data["status"] !== undefined) updateData["status"] = data["status"];
+    if (data["dueDate"] !== undefined) updateData["dueDate"] = data["dueDate"];
+    if (data["completedAt"] !== undefined) updateData["completedAt"] = data["completedAt"];
 
     if (data["details"] !== undefined) {
-      updateData.details = sanitizeJsonb(data["details"]);
+      updateData["details"] = sanitizeJsonb(data["details"]);
     }
 
     await repo.updateTask(taskId, userId, updateData);
@@ -296,9 +296,9 @@ export async function rejectTaskService(userId: string, taskId: string): Promise
  * Get tasks for a specific project
  */
 export async function getProjectTasksService(
-  userId: string,
   projectId: string,
-  filters?: { status?: string[] },
+  userId: string,
+  filters?: { status?: string[] | undefined },
 ): Promise<Task[]> {
   const db = await getDb();
   const repo = createProductivityRepository(db);

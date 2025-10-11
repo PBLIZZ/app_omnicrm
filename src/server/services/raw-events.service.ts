@@ -1,4 +1,4 @@
-import { RawEventsRepository, type RawEventListParams } from "@repo";
+import { createRawEventsRepository, type RawEventListParams } from "@repo";
 import type { RawEvent, RawEventListItem } from "@repo";
 import { getDb, type DbClient } from "@/server/db/client";
 
@@ -20,7 +20,8 @@ export async function listRawEventsService(
 ): Promise<{ items: RawEventListItem[]; total: number }> {
   try {
     const db = await getDb();
-    return await RawEventsRepository.listRawEvents(db, userId, params);
+    const repo = createRawEventsRepository(db);
+    return await repo.listRawEvents(userId, params);
   } catch (error) {
     throw toDatabaseError("Failed to load raw events", error);
   }
@@ -32,7 +33,8 @@ export async function getRawEventByIdService(
 ): Promise<RawEvent> {
   try {
     const db = await getDb();
-    const rawEvent = await RawEventsRepository.getRawEventById(db, userId, rawEventId);
+    const repo = createRawEventsRepository(db);
+    const rawEvent = await repo.getRawEventById(userId, rawEventId);
 
     if (!rawEvent) {
       throw new AppError("Raw event not found", "RAW_EVENT_NOT_FOUND", "validation", false);
@@ -52,9 +54,10 @@ export async function deleteRawEventsForUserService(
   db?: DbClient,
 ): Promise<number> {
   const executor = db ?? (await getDb());
+  const repo = createRawEventsRepository(executor);
 
   try {
-    return await RawEventsRepository.deleteRawEventsForUser(executor, userId);
+    return await repo.deleteRawEventsForUser(userId);
   } catch (error) {
     throw toDatabaseError("Failed to delete raw events for user", error);
   }

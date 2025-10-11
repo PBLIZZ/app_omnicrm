@@ -39,7 +39,16 @@ export const GooglePrefsResponseSchema = z.object({
 
   // Drive preferences
   driveIngestionMode: z.enum(['none', 'picker', 'folders']).nullable(),
-  driveFolderIds: z.array(z.string()).nullable(),
+  driveFolderIds: z
+    .array(
+      z
+        .string()
+        .refine(
+          (id) => /^[a-zA-Z0-9_-]{25,50}$/.test(id),
+          { message: "Invalid Google Drive folder ID format" }
+        )
+    )
+    .nullable(),
   driveMaxSizeMB: z.number().int().min(1).max(100).nullable(),
 
   // Sync status
@@ -72,7 +81,16 @@ export const GooglePrefsUpdateSchema = z.object({
 
   // Drive preferences
   driveIngestionMode: z.enum(['none', 'picker', 'folders']).optional(),
-  driveFolderIds: z.array(z.string()).optional(),
+  driveFolderIds: z
+    .array(
+      z
+        .string()
+        .refine(
+          (id) => /^[a-zA-Z0-9_-]{25,50}$/.test(id),
+          { message: "Invalid Google Drive folder ID format" }
+        )
+    )
+    .optional(),
   driveMaxSizeMB: z.number().int().min(1).max(100).optional(),
 
   // Sync status

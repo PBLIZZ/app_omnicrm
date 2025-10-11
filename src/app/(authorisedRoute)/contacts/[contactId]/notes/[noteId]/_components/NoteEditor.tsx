@@ -133,7 +133,7 @@ export function NoteEditor({
         ),
         spellcheck: "true",
       },
-      handleKeyDown: (view, event) => {
+      handleKeyDown: (_view, event) => {
         // Allow Ctrl+A / Cmd+A to select all
         if ((event.ctrlKey || event.metaKey) && event.key === "a") {
           return false; // Let browser handle it
@@ -364,13 +364,7 @@ export function NoteEditor({
           </Select>
 
           {onSave && (
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              onClick={onSave}
-              className="ml-auto"
-            >
+            <Button type="button" variant="default" size="sm" onClick={onSave} className="ml-auto">
               Save
             </Button>
           )}

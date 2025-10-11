@@ -4,11 +4,9 @@
  */
 import { google } from "googleapis";
 import { cookies } from "next/headers";
-import { getDb } from "@/server/db/client";
-import { userIntegrations } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import { upsertIntegrationService } from "@/server/services/google-integration.service";
 
-export async function GET(request: Request) {
+export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
     const code = url.searchParams.get("code");
@@ -55,44 +53,15 @@ export async function GET(request: Request) {
       ? new Date(tokens.expiry_date)
       : new Date(Date.now() + 3600 * 1000); // 1 hour default
 
-    // 6. Store tokens in database
-    const db = await getDb();
-
-    // Check if integration already exists
-    const existing = await db
-      .select()
-      .from(userIntegrations)
-      .where(
-        and(
-          eq(userIntegrations.userId, userId),
-          eq(userIntegrations.provider, "google"),
-          eq(userIntegrations.service, "gmail"),
-        ),
-      )
-      .limit(1);
-
-    if (existing.length > 0) {
-      // Update existing integration
-      await db
-        .update(userIntegrations)
-        .set({
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token || existing[0].refreshToken,
-          expiryDate,
-          updatedAt: new Date(),
-        })
-        .where(eq(userIntegrations.userId, userId));
-    } else {
-      // Create new integration
-      await db.insert(userIntegrations).values({
-        userId,
-        provider: "google",
-        service: "gmail",
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || null,
-        expiryDate,
-      });
-    }
+    await upsertIntegrationService(userId, "gmail", {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token ?? null,
+      expiryDate,
+      config: {
+        email: userInfo.email ?? null,
+        scopes: tokens.scope ?? null,
+      },
+    });
 
     // 7. Clear OAuth cookies
     cookieStore.delete("gmail_oauth_state");

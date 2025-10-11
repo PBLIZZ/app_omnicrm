@@ -1,11 +1,10 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { ZonesService } from "@/server/services/zones.service";
+import { listZonesService, getZonesWithStatsService } from "@/server/services/zones.service";
 import {
   ZonesQuerySchema,
   ZonesListResponseSchema,
   ZonesWithStatsResponseSchema,
 } from "@/server/db/business-schemas";
-import { isErr } from "@/lib/utils/result";
 import type { z } from "zod";
 
 /**
@@ -27,21 +26,11 @@ export const GET = handleGetWithQueryAuth(
     const { withStats } = query;
 
     if (withStats) {
-      const result = await ZonesService.getZonesWithStats();
-
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-
-      return result.data;
+      const items = await getZonesWithStatsService();
+      return { items, total: items.length };
     } else {
-      const result = await ZonesService.listZones();
-
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-
-      return result.data;
+      const items = await listZonesService();
+      return { items, total: items.length };
     }
   },
 );

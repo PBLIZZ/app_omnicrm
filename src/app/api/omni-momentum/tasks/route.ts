@@ -1,8 +1,7 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { productivityService } from "@/server/services/productivity.service";
+import { listTasksService, createTaskService } from "@/server/services/productivity.service";
 import { CreateTaskSchema, TaskFiltersSchema, TaskSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
-import { isErr } from "@/lib/utils/result";
 
 /**
  * API Routes for Momentum Tasks (Hierarchical Task Management)
@@ -21,11 +20,7 @@ export const GET = handleGetWithQueryAuth(
   TaskFiltersSchema,
   z.array(TaskSchema),
   async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
-    const result = await productivityService.getTasks(userId, filters);
-    if (isErr(result)) {
-      throw new Error(result.error.message);
-    }
-    return result.data;
+    return await listTasksService(userId, filters);
   },
 );
 
@@ -36,10 +31,6 @@ export const POST = handleAuth(
   CreateTaskSchema,
   TaskSchema,
   async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
-    const result = await productivityService.createTask(userId, data);
-    if (isErr(result)) {
-      throw new Error(result.error.message);
-    }
-    return result.data;
+    return await createTaskService(userId, data);
   },
 );

@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { handleAuth, handleGetWithQueryAuth } from "@/lib/api";
 import {
   AiInsightResponseSchema,
@@ -19,10 +21,10 @@ export const GET = handleGetWithQueryAuth(
     const { page, pageSize, subjectType, subjectId, kind, search, order } = query;
 
     const { items, total } = await listAiInsightsService(userId, {
-      subjectType,
-      subjectId,
-      kinds: kind,
-      search,
+      ...(subjectType && { subjectType }),
+      ...(subjectId && { subjectId }),
+      ...(kind && { kinds: kind }),
+      ...(search && { search }),
       page,
       pageSize,
       order,
@@ -38,8 +40,15 @@ export const GET = handleGetWithQueryAuth(
 export const POST = handleAuth(
   CreateAiInsightBodySchema,
   AiInsightResponseSchema,
-  async (data, userId) => {
-    const item = await createAiInsightService(userId, data);
+  async (data, userId): Promise<{ item: z.infer<typeof AiInsightResponseSchema>["item"] }> => {
+    const item = await createAiInsightService(userId, {
+      subjectType: data.subjectType,
+      kind: data.kind,
+      content: data.content,
+      ...(data.subjectId && { subjectId: data.subjectId }),
+      ...(data.model && { model: data.model }),
+      ...(data.fingerprint && { fingerprint: data.fingerprint }),
+    });
     return { item };
   },
 );

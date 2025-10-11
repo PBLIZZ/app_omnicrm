@@ -1,6 +1,6 @@
 // ===== src/app/api/onboarding/admin/generate-tokens/route.ts =====
 import { handleAuth } from "@/lib/api";
-import { OnboardingTokenService } from "@/server/services/onboarding.service";
+import { generateTokenService } from "@/server/services/onboarding.service";
 import {
   GenerateTokenRequestSchema,
   GenerateTokenResponseSchema,
@@ -11,6 +11,6 @@ export const POST = handleAuth(
   GenerateTokenRequestSchema,
   GenerateTokenResponseSchema,
   async (data, userId): Promise<GenerateTokenResponse> => {
-    return await OnboardingTokenService.generateToken(userId, data.hoursValid, data.label);
+    return await generateTokenService(userId, data.hoursValid, data.label);
   },
 );

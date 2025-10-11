@@ -7,7 +7,7 @@ import type { Job } from "@/server/db/schema";
 export type JobRecordBase = Job;
 
 // Job kind categories
-export type GenericJobKind = "normalize" | "embed" | "insight" | "extract_contacts";
+export type GenericJobKind = "embed" | "insight" | "extract_contacts";
 export type GoogleJobKind = "google_gmail_sync" | "google_calendar_sync" | "normalize_google_email" | "normalize_google_event";
 export type EmailIntelligenceJobKind = "email_intelligence" | "email_intelligence_batch" | "email_intelligence_cleanup";
 
@@ -57,7 +57,6 @@ export interface EmailIntelligenceCleanupJobPayload {
 }
 
 export type JobPayloadByKind = {
-  normalize: BatchJobPayload;
   embed: EmbedJobPayload;
   insight: InsightJobPayload;
   extract_contacts: ContactExtractionPayload;

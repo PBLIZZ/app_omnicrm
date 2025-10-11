@@ -24,18 +24,22 @@ export const GET = handleGetWithQueryAuth(
       batchId,
     } = query;
 
-    const { items, total } = await listRawEventsService(userId, {
-      provider,
-      processingStatus,
-      contactExtractionStatus,
-      createdAfter,
-      createdBefore,
+    const params: Parameters<typeof listRawEventsService>[1] = {
       page,
       pageSize,
       order,
       sort,
-      batchId,
-    });
+    };
+    
+    // Only add optional properties if they are defined (exactOptionalPropertyTypes requirement)
+    if (provider !== undefined) params.provider = provider;
+    if (processingStatus !== undefined) params.processingStatus = processingStatus;
+    if (contactExtractionStatus !== undefined) params.contactExtractionStatus = contactExtractionStatus;
+    if (createdAfter !== undefined) params.createdAfter = createdAfter;
+    if (createdBefore !== undefined) params.createdBefore = createdBefore;
+    if (batchId !== undefined) params.batchId = batchId;
+
+    const { items, total } = await listRawEventsService(userId, params);
 
     return {
       items,

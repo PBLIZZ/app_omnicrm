@@ -1,4 +1,15 @@
-export function buildPagination(page: number, pageSize: number, total: number) {
+export function buildPagination(
+  page: number,
+  pageSize: number,
+  total: number,
+): {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+} {
   const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
   return {
     page,

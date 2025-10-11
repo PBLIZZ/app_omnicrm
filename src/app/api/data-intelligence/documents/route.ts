@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { handleAuth, handleGetWithQueryAuth } from "@/lib/api";
 import {
   CreateDocumentBodySchema,
@@ -19,9 +21,9 @@ export const GET = handleGetWithQueryAuth(
     const { page, pageSize, order, ownerContactId, search, mime } = query;
 
     const { items, total } = await listDocumentsService(userId, {
-      ownerContactId,
-      mimeTypes: mime,
-      search,
+      ...(ownerContactId && { ownerContactId }),
+      ...(mime && { mimeTypes: mime }),
+      ...(search && { search }),
       page,
       pageSize,
       order,
@@ -37,8 +39,14 @@ export const GET = handleGetWithQueryAuth(
 export const POST = handleAuth(
   CreateDocumentBodySchema,
   DocumentResponseSchema,
-  async (data, userId) => {
-    const item = await createDocumentService(userId, data);
+  async (data, userId): Promise<{ item: z.infer<typeof DocumentResponseSchema>["item"] }> => {
+    const item = await createDocumentService(userId, {
+      ...(data.ownerContactId !== undefined && { ownerContactId: data.ownerContactId ?? null }),
+      ...(data.title && { title: data.title }),
+      ...(data.text && { text: data.text }),
+      ...(data.mime && { mime: data.mime }),
+      ...(data.meta !== undefined && { meta: data.meta }),
+    });
     return { item };
   },
 );

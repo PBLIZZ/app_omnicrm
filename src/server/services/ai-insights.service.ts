@@ -1,5 +1,5 @@
 import {
-  AiInsightsRepository,
+  createAiInsightsRepository,
   type AiInsightListParams,
 } from "@repo";
 import type { AiInsight, CreateAiInsight, UpdateAiInsight } from "@repo";
@@ -36,7 +36,8 @@ export async function listAiInsightsService(
 ): Promise<{ items: AiInsight[]; total: number }> {
   try {
     const db = await getDb();
-    return await AiInsightsRepository.listAiInsights(db, userId, params);
+    const repo = createAiInsightsRepository(db);
+    return await repo.listAiInsights(userId, params);
   } catch (error) {
     throw toDatabaseError("Failed to load AI insights", error);
   }
@@ -48,7 +49,8 @@ export async function getAiInsightByIdService(
 ): Promise<AiInsight> {
   try {
     const db = await getDb();
-    const insight = await AiInsightsRepository.getAiInsightById(db, userId, aiInsightId);
+    const repo = createAiInsightsRepository(db);
+    const insight = await repo.getAiInsightById(userId, aiInsightId);
 
     if (!insight) {
       throw new AppError("AI insight not found", "AI_INSIGHT_NOT_FOUND", "validation", false);
@@ -79,9 +81,10 @@ export async function createAiInsightService(
   const fingerprint = input.fingerprint?.trim() ?? null;
   try {
     const db = await getDb();
+    const repo = createAiInsightsRepository(db);
 
     if (fingerprint) {
-      const existing = await AiInsightsRepository.findByFingerprint(db, userId, fingerprint);
+      const existing = await repo.findByFingerprint(userId, fingerprint);
       if (existing) {
         throw new AppError(
           "AI insight with fingerprint already exists",
@@ -92,7 +95,7 @@ export async function createAiInsightService(
       }
     }
 
-    return await AiInsightsRepository.createAiInsight(db, {
+    return await repo.createAiInsight({
       userId,
       subjectType: input.subjectType.trim(),
       subjectId: input.subjectId ?? null,
@@ -150,8 +153,8 @@ export async function updateAiInsightService(
 
   try {
     const db = await getDb();
-    const updated = await AiInsightsRepository.updateAiInsight(
-      db,
+    const repo = createAiInsightsRepository(db);
+    const updated = await repo.updateAiInsight(
       userId,
       aiInsightId,
       updatePayload,
@@ -176,9 +179,10 @@ export async function deleteAiInsightService(
   db?: DbClient,
 ): Promise<{ deleted: number }> {
   const executor = db ?? (await getDb());
+  const repo = createAiInsightsRepository(executor);
 
   try {
-    const deleted = await AiInsightsRepository.deleteAiInsight(executor, userId, aiInsightId);
+    const deleted = await repo.deleteAiInsight(userId, aiInsightId);
 
     if (deleted === 0) {
       throw new AppError("AI insight not found", "AI_INSIGHT_NOT_FOUND", "validation", false);
@@ -198,9 +202,10 @@ export async function deleteAiInsightsForUserService(
   db?: DbClient,
 ): Promise<number> {
   const executor = db ?? (await getDb());
+  const repo = createAiInsightsRepository(executor);
 
   try {
-    return await AiInsightsRepository.deleteAiInsightsForUser(executor, userId);
+    return await repo.deleteAiInsightsForUser(userId);
   } catch (error) {
     throw toDatabaseError("Failed to delete AI insights for user", error);
   }
@@ -213,7 +218,8 @@ export async function findAiInsightsBySubjectIdsService(
 ): Promise<AiInsight[]> {
   try {
     const db = await getDb();
-    return await AiInsightsRepository.findBySubjectIds(db, userId, subjectIds, options);
+    const repo = createAiInsightsRepository(db);
+    return await repo.findBySubjectIds(userId, subjectIds, options);
   } catch (error) {
     throw toDatabaseError("Failed to fetch AI insights by subject", error);
   }

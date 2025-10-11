@@ -14,30 +14,27 @@ import {
   threads,
   messages,
   toolInvocations,
-  userSyncPrefs,
-  syncAudit,
   jobs,
   aiUsage,
   aiQuotas,
+  userIntegrations,
 } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { Result, ok, err } from "@/lib/utils/result";
+import { AppError } from "@/lib/errors/app-error";
 import { listAiInsightsService } from "@/server/services/ai-insights.service";
 import { listDocumentsService } from "@/server/services/documents.service";
 import { listEmbeddingsService } from "@/server/services/embeddings.service";
 import { listRawEventsService } from "@/server/services/raw-events.service";
 
-export class UserExportService {
-  /**
-   * Export all user data for GDPR compliance
-   */
-  static async exportAllUserData(userId: string): Promise<Result<UserExportResult, string>> {
-    try {
-      const db = await getDb();
-      const exportTimestamp = new Date().toISOString();
+/**
+ * Export all user data for GDPR compliance
+ */
+export async function exportAllUserDataService(userId: string): Promise<UserExportResult> {
+  const db = await getDb();
+  const exportTimestamp = new Date().toISOString();
 
+  try {
     // Export all user data tables with performance limits
-    /* eslint-disable @typescript-eslint/no-unsafe-member-access */
     const userContacts = await db.select().from(contacts).where(eq(contacts.userId, userId));
 
     const userInteractions = await db
@@ -61,17 +58,17 @@ export class UserExportService {
       .from(toolInvocations)
       .where(eq(toolInvocations.userId, userId));
 
-    const userSyncPreferences = await db
-      .select()
-      .from(userSyncPrefs)
-      .where(eq(userSyncPrefs.userId, userId));
-
-    const userSyncAudits = await db
-      .select()
-      .from(syncAudit)
-      .where(eq(syncAudit.userId, userId))
-      .orderBy(desc(syncAudit.createdAt))
-      .limit(100);
+    const userIntegrationSummaries = await db
+      .select({
+        provider: userIntegrations.provider,
+        service: userIntegrations.service,
+        config: userIntegrations.config,
+        createdAt: userIntegrations.createdAt,
+        updatedAt: userIntegrations.updatedAt,
+        expiryDate: userIntegrations.expiryDate,
+      })
+      .from(userIntegrations)
+      .where(eq(userIntegrations.userId, userId));
 
     const userJobs = await db
       .select()
@@ -88,7 +85,6 @@ export class UserExportService {
       .limit(1000);
 
     const userAiQuotaInfo = await db.select().from(aiQuotas).where(eq(aiQuotas.userId, userId));
-    /* eslint-enable @typescript-eslint/no-unsafe-member-access */
 
     const aiInsightsResult = await listAiInsightsService(userId, {
       page: 1,
@@ -163,10 +159,9 @@ export class UserExportService {
       },
 
       // System data
-      syncPreferences: userSyncPreferences,
-      syncAuditLog: {
-        items: userSyncAudits,
-        note: "Limited to last 100 audit entries",
+      integrations: {
+        items: userIntegrationSummaries,
+        note: "Access tokens and refresh tokens are omitted for security",
       },
       rawEvents: {
         items: userRawEvents,
@@ -200,29 +195,78 @@ export class UserExportService {
       },
     };
 
-      return ok(exportPayload);
-    } catch (error) {
-      return err(error instanceof Error ? error.message : "Failed to export user data");
-    }
-  }
-
-  /**
-   * Generate filename for export download
-   */
-  static generateExportFilename(): string {
-    return `omnicrm-data-export-${new Date().toISOString().split("T")[0]}.json`;
-  }
-
-  /**
-   * Get export response headers for download
-   */
-  static getExportHeaders(filename: string): Record<string, string> {
-    return {
-      "Content-Type": "application/json",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
-    };
+    return exportPayload;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to export user data",
+      "USER_EXPORT_ERROR",
+      "database",
+      false,
+    );
   }
 }
+
+/**
+ * Generate filename for export download
+ */
+export function generateExportFilename(): string {
+  return `omnicrm-data-export-${new Date().toISOString().split("T")[0]}.json`;
+}
+
+/**
+ * Get export response headers for download
+ */
+export function getExportHeaders(filename: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "Content-Disposition": `attachment; filename="${filename}"`,
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    Pragma: "no-cache",
+    Expires: "0",
+  };
+}
+
+export type IntegrationExport = {
+  provider: string;
+  service: string;
+  config: unknown;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  expiryDate: Date | null;
+};
+
+export type UserExportResult = {
+  exportedAt: string;
+  version: number;
+  userId: string;
+  contacts: unknown[];
+  interactions: { items: unknown[]; note: string };
+  aiInsights: unknown[];
+  aiUsage: { items: unknown[]; note: string };
+  aiQuotas: unknown[];
+  threads: unknown[];
+  messages: { items: unknown[]; note: string };
+  toolInvocations: unknown[];
+  documents: unknown[];
+  embeddings: { items: Array<Record<string, unknown>>; note: string };
+  integrations: { items: IntegrationExport[]; note: string };
+  rawEvents: { items: unknown[]; note: string };
+  jobs: { items: unknown[]; note: string };
+  summary: {
+    totalContacts: number;
+    totalInteractions: number;
+    totalAiInsights: number;
+    totalThreads: number;
+    totalMessages: number;
+    totalDocuments: number;
+    exportCompleteness: string;
+    privacyNote: string;
+  };
+  compliance: {
+    gdprCompliant: boolean;
+    dataController: string;
+    retentionPolicy: string;
+    deletionRights: string;
+    portabilityRights: string;
+  };
+};

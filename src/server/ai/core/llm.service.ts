@@ -103,7 +103,7 @@ export async function generateText<T>(
       throw new Error(`LLM API error: ${response.status} ${error}`);
     }
 
-    const rawData = await response.json() as {
+    const rawData = (await response.json()) as {
       usage?: { prompt_tokens?: number; completion_tokens?: number };
       [key: string]: unknown;
     };
@@ -126,7 +126,10 @@ interface InsightRequest {
   context: Record<string, unknown>;
 }
 
-export async function generateContactSummary(userId: string, request: InsightRequest) {
+export async function generateContactSummary(
+  userId: string,
+  request: InsightRequest,
+): Promise<InsightResponse> {
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -176,7 +179,10 @@ ${JSON.stringify(request.context, null, 2)}`,
   }
 }
 
-export async function generateNextSteps(userId: string, request: InsightRequest) {
+export async function generateNextSteps(
+  userId: string,
+  request: InsightRequest,
+): Promise<InsightResponse> {
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -226,7 +232,10 @@ ${JSON.stringify(request.context, null, 2)}`,
   }
 }
 
-export async function generateRiskAssessment(userId: string, request: InsightRequest) {
+export async function generateRiskAssessment(
+  userId: string,
+  request: InsightRequest,
+): Promise<InsightResponse> {
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -276,7 +285,10 @@ ${JSON.stringify(request.context, null, 2)}`,
   }
 }
 
-export async function generatePersonaInsight(userId: string, request: InsightRequest) {
+export async function generatePersonaInsight(
+  userId: string,
+  request: InsightRequest,
+): Promise<InsightResponse> {
   const messages: ChatMessage[] = [
     {
       role: "system",

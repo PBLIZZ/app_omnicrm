@@ -23,13 +23,19 @@ supabase/    # SQL files (source of truth for DB changes)
 
 ## Documentation
 
-- Docs index: docs/README.md
-- Security overview: SECURITY.md
-- API overview: docs/api/README.md
-- **Error handling & observability**: src/lib/observability/README.md
-- Ops/deploy: docs/ops/README.md
-- Database doctrine: docs/database/README.md
-- Roadmap: docs/roadmap/README.md
-- Testing/QA: docs/qa/README.md
+### Architecture & Patterns
 
-For AI‑assistant specific guidance, see `CLAUDE.md`.
+- **Refactoring Patterns**: `docs/REFACTORING_PATTERNS_OCT_2025.md` - Current architecture standards
+- **Layer Architecture Blueprint**: `LAYER_ARCHITECTURE_BLUEPRINT_2025.md` - Complete blueprint
+- **API Routes**: `src/app/api/README.md` - API handler patterns
+- **AI Assistant Guidance**: `CLAUDE.md` - For AI coding assistants
+- **Repository Guidelines**: `AGENTS.md` - Quick reference for agents
+
+### Operations & Development
+
+- **Security**: `SECURITY.md` - Security overview
+- **Error Handling**: `src/lib/observability/README.md` - Observability patterns
+- **Database**: `docs/database/README.md` - Database doctrine
+- **Testing**: `docs/qa/README.md` - Testing strategy
+- **Roadmap**: `docs/roadmap/README.md` - Feature roadmap
+- **Ops/Deploy**: `docs/ops/README.md` - Deployment guide

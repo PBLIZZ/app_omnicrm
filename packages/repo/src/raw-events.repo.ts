@@ -20,7 +20,21 @@ import {
 } from "@/server/db/schema";
 import type { DbClient } from "@/server/db/client";
 
-type ProviderType = "gmail" | "calendar" | "drive" | "upload";
+export type ProviderType = "gmail" | "calendar" | "drive" | "upload";
+
+export type RawEventProcessingStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "skipped";
+
+export type RawEventContactExtractionStatus =
+  | "NO_IDENTIFIERS"
+  | "IDENTIFIERS_FOUND"
+  | "PENDING"
+  | "YES"
+  | "REJECTED";
 
 export type RawEventListParams = {
   provider?: ProviderType[];
@@ -40,18 +54,18 @@ export type RawEventListParams = {
 export type RawEventListItem = {
   id: string;
   userId: string;
-  provider: string;
+  provider: ProviderType;
   payload: unknown;
   occurredAt: Date;
-  sourceId: string | null;
+  sourceId: string; // Non-null per database schema
   sourceMeta: unknown | null;
   batchId: string | null;
   createdAt: Date | null;
-  processingStatus: string;
+  processingStatus: RawEventProcessingStatus;
   processingAttempts: number;
   processingError: string | null;
   processedAt: Date | null;
-  contactExtractionStatus: string | null;
+  contactExtractionStatus: RawEventContactExtractionStatus | null;
   extractedAt: Date | null;
 };
 
@@ -66,25 +80,26 @@ function mapRowToListItem(row: RawEventRow): RawEventListItem {
   return {
     id: row.id,
     userId: row.userId,
-    provider: row.provider,
+    provider: row.provider as ProviderType,
     payload: row.payload,
     occurredAt: row.occurredAt,
     sourceId: row.sourceId,
     sourceMeta: row.sourceMeta,
     batchId: row.batchId,
     createdAt: row.createdAt,
-    processingStatus: row.processingStatus ?? "pending",
+    processingStatus: (row.processingStatus ?? "pending") as RawEventProcessingStatus,
     processingAttempts: row.processingAttempts ?? 0,
     processingError: row.processingError,
     processedAt: row.processedAt,
-    contactExtractionStatus: row.contactExtractionStatus,
+    contactExtractionStatus: row.contactExtractionStatus as RawEventContactExtractionStatus | null,
     extractedAt: row.extractedAt,
   };
 }
 
 export class RawEventsRepository {
-  static async listRawEvents(
-    db: DbClient,
+  constructor(private readonly db: DbClient) {}
+
+  async listRawEvents(
     userId: string,
     params: RawEventListParams = {},
   ): Promise<{ items: RawEventListItem[]; total: number }> {
@@ -131,7 +146,7 @@ export class RawEventsRepository {
     const orderByColumn = sortColumnMap[sortKey];
     const orderDirection = params.order === "asc" ? asc : desc;
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(rawEvents)
       .where(whereClause)
@@ -139,7 +154,7 @@ export class RawEventsRepository {
       .limit(pageSize)
       .offset(offset)) as RawEventRow[];
 
-    const totalRows = (await db
+    const totalRows = (await this.db
       .select({ value: count() })
       .from(rawEvents)
       .where(whereClause)) as Array<{ value: number | bigint }>;
@@ -150,12 +165,8 @@ export class RawEventsRepository {
     };
   }
 
-  static async getRawEventById(
-    db: DbClient,
-    userId: string,
-    rawEventId: string,
-  ): Promise<RawEvent | null> {
-    const rows = (await db
+  async getRawEventById(userId: string, rawEventId: string): Promise<RawEvent | null> {
+    const rows = (await this.db
       .select()
       .from(rawEvents)
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, rawEventId)))
@@ -164,10 +175,7 @@ export class RawEventsRepository {
     return rows[0] ?? null;
   }
 
-  static async createRawEvent(
-    db: DbClient,
-    data: CreateRawEvent & { userId: string },
-  ): Promise<RawEvent> {
+  async createRawEvent(data: CreateRawEvent & { userId: string }): Promise<RawEvent> {
     const insertValues: CreateRawEvent & { userId: string } = {
       userId: data.userId,
       provider: data.provider,
@@ -185,7 +193,7 @@ export class RawEventsRepository {
       createdAt: data.createdAt,
     };
 
-    const [created] = (await db
+    const [created] = (await this.db
       .insert(rawEvents)
       .values(insertValues)
       .returning()) as RawEventRow[];
@@ -197,8 +205,7 @@ export class RawEventsRepository {
     return created;
   }
 
-  static async createRawEventsBulk(
-    db: DbClient,
+  async createRawEventsBulk(
     events: Array<CreateRawEvent & { userId: string }>,
   ): Promise<RawEvent[]> {
     if (events.length === 0) {
@@ -222,11 +229,10 @@ export class RawEventsRepository {
       createdAt: event.createdAt,
     }));
 
-    return (await db.insert(rawEvents).values(values).returning()) as RawEventRow[];
+    return (await this.db.insert(rawEvents).values(values).returning()) as RawEventRow[];
   }
 
-  static async updateRawEvent(
-    db: DbClient,
+  async updateRawEvent(
     userId: string,
     rawEventId: string,
     updates: UpdateRawEvent,
@@ -254,7 +260,7 @@ export class RawEventsRepository {
       throw new Error("No fields provided for update");
     }
 
-    const [updated] = (await db
+    const [updated] = (await this.db
       .update(rawEvents)
       .set(sanitized)
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, rawEventId)))
@@ -263,19 +269,16 @@ export class RawEventsRepository {
     return updated ?? null;
   }
 
-  static async updateProcessingState(
-    db: DbClient,
-    params: {
-      userId: string;
-      rawEventId: string;
-      processingStatus: string;
-      processingError?: string | null;
-      processedAt?: Date | null;
-      contactExtractionStatus?: string | null;
-      extractedAt?: Date | null;
-      incrementAttempts?: boolean;
-    },
-  ): Promise<RawEvent | null> {
+  async updateProcessingState(params: {
+    userId: string;
+    rawEventId: string;
+    processingStatus: string;
+    processingError?: string | null;
+    processedAt?: Date | null;
+    contactExtractionStatus?: string | null;
+    extractedAt?: Date | null;
+    incrementAttempts?: boolean;
+  }): Promise<RawEvent | null> {
     const {
       userId,
       rawEventId,
@@ -311,7 +314,7 @@ export class RawEventsRepository {
       updates["processingAttempts"] = sql`${rawEvents.processingAttempts} + 1`;
     }
 
-    const [updated] = (await db
+    const [updated] = (await this.db
       .update(rawEvents)
       .set(updates)
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, rawEventId)))
@@ -320,12 +323,8 @@ export class RawEventsRepository {
     return updated ?? null;
   }
 
-  static async deleteRawEventsByBatch(
-    db: DbClient,
-    userId: string,
-    batchId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteRawEventsByBatch(userId: string, batchId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(rawEvents)
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.batchId, batchId)))
       .returning({ id: rawEvents.id })) as Array<{ id: string }>;
@@ -333,8 +332,8 @@ export class RawEventsRepository {
     return deleted.length;
   }
 
-  static async deleteRawEventsForUser(db: DbClient, userId: string): Promise<number> {
-    const deleted = (await db
+  async deleteRawEventsForUser(userId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(rawEvents)
       .where(eq(rawEvents.userId, userId))
       .returning({ id: rawEvents.id })) as Array<{ id: string }>;
@@ -342,12 +341,8 @@ export class RawEventsRepository {
     return deleted.length;
   }
 
-  static async findNextPendingEvents(
-    db: DbClient,
-    userId: string,
-    limit: number,
-  ): Promise<RawEventListItem[]> {
-    const rows = (await db
+  async findNextPendingEvents(userId: string, limit: number): Promise<RawEventListItem[]> {
+    const rows = (await this.db
       .select()
       .from(rawEvents)
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.processingStatus, "pending")))
@@ -356,4 +351,8 @@ export class RawEventsRepository {
 
     return rows.map((row) => mapRowToListItem(row));
   }
+}
+
+export function createRawEventsRepository(db: DbClient): RawEventsRepository {
+  return new RawEventsRepository(db);
 }

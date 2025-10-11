@@ -8,4 +8,3 @@ Do the following:
 4. Instruct them to use the report they read as the baseline and to assess the difference between what was reported and what they find.
 5. Tell them to create a similarly formatted report that is updated and to save it to the folder @docs/audit/[date] where date is today's date.
 6. Once all 8 reports are completed, create a README indexing the reports in the same folder and provide an executive summary.
-7. Deploy the agile-sprint-orchestrator subagent.

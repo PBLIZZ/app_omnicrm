@@ -1,9 +1,7 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { productivityService } from "@/server/services/productivity.service";
+import { getSubtasksService, createTaskService } from "@/server/services/productivity.service";
 import { CreateTaskSchema, TaskSchema, TaskFiltersSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
-import { NextRequest } from "next/server";
-import { isErr } from "@/lib/utils/result";
 
 /**
  * Subtasks Management API Route
@@ -15,69 +13,42 @@ import { isErr } from "@/lib/utils/result";
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     taskId: string;
-  };
+  }>;
 }
 
 /**
  * GET /api/omni-momentum/tasks/[taskId]/subtasks - Get subtasks for a parent task
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  const handler = handleGetWithQueryAuth(
+export async function GET(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleGetWithQueryAuth(
     TaskFiltersSchema,
     z.array(TaskSchema),
-    async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
-      const result = await productivityService.getSubtasksWithValidation(params.taskId, userId);
+    async (_, userId): Promise<z.infer<typeof TaskSchema>[]> => {
+      const result = await getSubtasksService(userId, params.taskId);
 
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-
-      const { subtasks, parentTask } = result.data;
-
-      if (!parentTask) {
-        throw new Error("Parent task not found");
-      }
-
-      return subtasks;
+      return result.subtasks;
     },
-  );
-
-  return handler(request);
+  )(request);
 }
 
 /**
  * POST /api/omni-momentum/tasks/[taskId]/subtasks - Create new subtask
  */
-export async function POST(request: NextRequest, { params }: RouteParams) {
-  const handler = handleAuth(
+export async function POST(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
+  return handleAuth(
     CreateTaskSchema,
     TaskSchema,
     async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
-      const result = await productivityService.createSubtaskWithValidation(
-        params.taskId,
-        userId,
-        data,
-      );
-
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-
-      const { subtask, parentTask } = result.data;
-
-      if (!parentTask) {
-        throw new Error("Parent task not found");
-      }
-
-      if (!subtask) {
-        throw new Error("Failed to create subtask");
-      }
+      const subtask = await createTaskService(userId, {
+        ...data,
+        parentTaskId: params.taskId,
+      });
 
       return subtask;
     },
-  );
-
-  return handler(request);
+  )(request);
 }

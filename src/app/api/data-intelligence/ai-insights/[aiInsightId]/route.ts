@@ -22,7 +22,7 @@ const DeleteResponseSchema = z.object({
 export const GET = handleAuthWithParams(
   z.void(),
   AiInsightResponseSchema,
-  async (_voidInput, userId, params) => {
+  async (_voidInput, userId, params): Promise<{ item: z.infer<typeof AiInsightResponseSchema>["item"] }> => {
     const { aiInsightId } = ParamsSchema.parse(params);
     const item = await getAiInsightByIdService(userId, aiInsightId);
     return { item };
@@ -32,9 +32,17 @@ export const GET = handleAuthWithParams(
 export const PATCH = handleAuthWithParams(
   UpdateAiInsightBodySchema,
   AiInsightResponseSchema,
-  async (data, userId, params) => {
+  async (data, userId, params): Promise<{ item: z.infer<typeof AiInsightResponseSchema>["item"] }> => {
     const { aiInsightId } = ParamsSchema.parse(params);
-    const item = await updateAiInsightService(userId, aiInsightId, data);
+    const updatePayload = {
+      ...(data.subjectType && { subjectType: data.subjectType }),
+      ...(data.subjectId !== undefined && { subjectId: data.subjectId }),
+      ...(data.kind && { kind: data.kind }),
+      ...(data.content !== undefined && { content: data.content }),
+      ...(data.model !== undefined && { model: data.model }),
+      ...(data.fingerprint !== undefined && { fingerprint: data.fingerprint }),
+    };
+    const item = await updateAiInsightService(userId, aiInsightId, updatePayload);
     return { item };
   },
 );
@@ -42,7 +50,7 @@ export const PATCH = handleAuthWithParams(
 export const DELETE = handleAuthWithParams(
   z.void(),
   DeleteResponseSchema,
-  async (_voidInput, userId, params) => {
+  async (_voidInput, userId, params): Promise<{ deleted: number }> => {
     const { aiInsightId } = ParamsSchema.parse(params);
     return await deleteAiInsightService(userId, aiInsightId);
   },

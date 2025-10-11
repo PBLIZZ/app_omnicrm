@@ -1,5 +1,12 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { InboxService } from "@/server/services/inbox.service";
+import {
+  getInboxStatsService,
+  extractFilterParams,
+  listInboxItemsService,
+  quickCaptureService,
+  voiceCaptureService,
+  bulkProcessInboxService,
+} from "@/server/services/inbox.service";
 import {
   GetInboxQuerySchema,
   InboxListResponseSchema,
@@ -8,7 +15,7 @@ import {
   InboxItemResponseSchema,
   InboxProcessResultResponseSchema,
 } from "@/server/db/business-schemas";
-import { isErr } from "@/lib/utils/result";
+import { z } from "zod";
 
 /**
  * Inbox API - Quick capture and list inbox items
@@ -17,58 +24,82 @@ import { isErr } from "@/lib/utils/result";
  * can quickly capture thoughts/tasks for AI processing later.
  */
 
+/**
+ * Transform URL query strings to typed parameters
+ * Business logic: Convert string dates and booleans to proper types
+ */
+function transformQueryParams(query: z.infer<typeof GetInboxQuerySchema>): {
+  status?: ("unprocessed" | "processed" | "archived")[] | undefined;
+  search?: string | undefined;
+  createdAfter?: Date | undefined;
+  createdBefore?: Date | undefined;
+  hasAiSuggestions?: boolean | undefined;
+  stats?: boolean | undefined;
+} {
+  return {
+    ...query,
+    createdAfter: query.createdAfter ? new Date(query.createdAfter) : undefined,
+    createdBefore: query.createdBefore ? new Date(query.createdBefore) : undefined,
+    hasAiSuggestions:
+      query.hasAiSuggestions === "true"
+        ? true
+        : query.hasAiSuggestions === "false"
+          ? false
+          : undefined,
+    stats: query.stats === "true" ? true : query.stats === "false" ? false : undefined,
+  };
+}
+
 export const GET = handleGetWithQueryAuth(
   GetInboxQuerySchema,
   InboxListResponseSchema.or(InboxStatsResponseSchema),
-  async (query, userId) => {
-    const wantsStats = query.stats ?? false;
+  async (
+    query,
+    userId,
+  ): Promise<
+    z.infer<typeof InboxListResponseSchema> | z.infer<typeof InboxStatsResponseSchema>
+  > => {
+    const wantsStats = query.stats === "true"; // Check string directly
 
     if (wantsStats) {
-      // Return inbox statistics
-      const stats = await InboxService.getInboxStats(userId);
+      const stats = await getInboxStatsService(userId);
       return { stats };
-    } else {
-      // Return inbox items with filtering
-      const filterParams = InboxService.extractFilterParams(query);
-      const result = await InboxService.listInboxItems(userId, filterParams);
-
-      if (isErr(result)) {
-        throw new Error(result.error.message || "Failed to list inbox items");
-      }
-
-      // Type guard ensures result.data is available
-      if (!result.ok) {
-        throw new Error("Failed to list inbox items");
-      }
-
-      const items = result.data;
-      return {
-        items,
-        total: items.length,
-      };
     }
+
+    const transformedQuery = transformQueryParams(query);
+    const filterParams = extractFilterParams(transformedQuery);
+    const items = await listInboxItemsService(userId, filterParams);
+    return {
+      items,
+      total: items.length,
+    };
   },
 );
 
 export const POST = handleAuth(
   InboxPostRequestSchema,
   InboxItemResponseSchema.or(InboxProcessResultResponseSchema),
-  async (requestData, userId) => {
+  async (
+    requestData,
+    userId,
+  ): Promise<
+    z.infer<typeof InboxItemResponseSchema> | z.infer<typeof InboxProcessResultResponseSchema>
+  > => {
     const { type, data } = requestData;
 
     switch (type) {
       case "quick_capture": {
-        const item = await InboxService.quickCapture(userId, data);
+        const item = await quickCaptureService(userId, data);
         return { item };
       }
 
       case "voice_capture": {
-        const item = await InboxService.voiceCapture(userId, data);
+        const item = await voiceCaptureService(userId, data);
         return { item };
       }
 
       case "bulk_process": {
-        const result = await InboxService.bulkProcessInbox(userId, data);
+        const result = await bulkProcessInboxService(userId, data);
         return { result };
       }
 

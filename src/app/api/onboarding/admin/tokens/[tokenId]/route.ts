@@ -1,7 +1,10 @@
 // ===== src/app/api/onboarding/admin/tokens/[tokenId]/route.ts =====
 import { z } from "zod";
 import { getAuthUserId } from "@/lib/auth-simple";
-import { OnboardingTokenService } from "@/server/services/onboarding.service";
+import {
+  getTokenByIdService,
+  deleteTokenService,
+} from "@/server/services/onboarding.service";
 import {
   TokenInfoSchema,
   DeleteTokenResponseSchema,
@@ -22,7 +25,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     const userId = await getAuthUserId();
     const { tokenId } = ParamsSchema.parse(await context.params);
 
-    const token = await OnboardingTokenService.getTokenById(userId, tokenId);
+    const token = await getTokenByIdService(userId, tokenId);
     const validated = TokenInfoSchema.parse(token);
 
     return Response.json(validated);
@@ -39,7 +42,7 @@ export async function DELETE(_request: Request, context: RouteContext): Promise<
     const userId = await getAuthUserId();
     const { tokenId } = ParamsSchema.parse(await context.params);
 
-    const result = await OnboardingTokenService.deleteToken(userId, tokenId);
+    const result = await deleteTokenService(userId, tokenId);
     const validated = DeleteTokenResponseSchema.parse(result);
 
     return Response.json(validated);

@@ -7,11 +7,14 @@
  * - Business rule validation
  */
 
-import { ContactsRepository, NotesRepository } from "@repo";
-import type { Contact } from "@/server/db/schema";
+import { createContactsRepository, createNotesRepository } from "@repo";
+import type { Contact, Note } from "@/server/db/schema";
 import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/observability";
-import { StorageService } from "@/server/services/storage.service";
+import {
+  getBatchSignedUrlsService,
+  logBatchPhotoAccessService,
+} from "@/server/services/storage.service";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
@@ -74,17 +77,29 @@ export interface BulkDeleteResponse {
  * Get contact suggestions from calendar events
  * Note: Requires calendar sync to be active
  */
-export async function getContactSuggestionsService(
-  userId: string,
-): Promise<Array<unknown>> {
+export async function getContactSuggestionsService(userId: string): Promise<Array<unknown>> {
   // Call AI suggestion logic directly (it returns the array, not a Result)
   const suggestions = await getContactSuggestions(userId);
   return suggestions;
 }
 
 /**
+ * Count contacts for user with optional search filter
+ */
+export async function countContactsService(userId: string, search?: string): Promise<number> {
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+
+  try {
+    return await repo.countContacts(userId, search);
+  } catch (_error) {
+    throw new AppError("Failed to count contacts", "DB_ERROR", "database", false);
+  }
+}
+
+/**
  * Create contacts from approved suggestion IDs
- * 
+ *
  * Implementation:
  * 1. Get all suggestions from calendar
  * 2. Filter by provided IDs
@@ -97,14 +112,14 @@ export async function createContactsFromSuggestionsService(
 ): Promise<{ createdCount: number; contacts: Contact[] }> {
   // 1. Get all suggestions
   const allSuggestions = await getContactSuggestions(userId);
-  
+
   // 2. Filter to only requested IDs
   const selectedSuggestions = allSuggestions.filter((s) => suggestionIds.includes(s.id));
-  
+
   if (selectedSuggestions.length === 0) {
     return { createdCount: 0, contacts: [] };
   }
-  
+
   // 3. Transform suggestions to contact data
   const contactsData = selectedSuggestions.map((suggestion) => ({
     displayName: suggestion.displayName,
@@ -113,10 +128,10 @@ export async function createContactsFromSuggestionsService(
     lifecycleStage: "Prospect",
     tags: ["calendar_import"],
   }));
-  
+
   // 4. Batch create contacts
   const batchResult = await createContactsBatchService(userId, contactsData);
-  
+
   return {
     createdCount: batchResult.created.length,
     contacts: batchResult.created,
@@ -202,79 +217,94 @@ export async function listContactsService(
     hasPrev: boolean;
   };
 }> {
-  // 1. Get contacts from repo
-  const repoResult = await ContactsRepository.listContacts(userId, {
-    page: params.page,
-    pageSize: params.pageSize,
-    ...(params.search !== undefined && { search: params.search }),
-    ...(params.sort !== undefined && { sort: params.sort }),
-    ...(params.order !== undefined && { order: params.order }),
-  });
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-  if (!repoResult.success) {
-    throw new AppError(repoResult.error.message, repoResult.error.code, "database", false);
-  }
-
-  const { items: contacts, total } = repoResult.data;
-
-  // 2. Enrich with last notes
-  const contactIds = contacts.map((c) => c.id);
-  const lastNotePreviews = await getLastNotePreviewForContacts(userId, contactIds);
-
-  // 3. Batch generate signed URLs for photos
-  const photoPaths = contacts.filter((c) => c.photoUrl).map((c) => c.photoUrl as string);
-
-  let photoUrls: Record<string, string | null> = {};
-  if (photoPaths.length > 0) {
-    const batchResult = await StorageService.getBatchSignedUrls(photoPaths, 14400); // 4 hours
-    photoUrls = batchResult.urls;
-
-    // Log photo access for HIPAA/GDPR compliance (best-effort)
-    const contactPhotos = contacts
-      .filter((c) => c.photoUrl)
-      .map((c) => ({ contactId: c.id, photoPath: c.photoUrl as string }));
-
-    await StorageService.logBatchPhotoAccess(userId, contactPhotos);
-  }
-
-  // 4. Transform with enrichments
-  const itemsWithEnrichments: ContactWithLastNote[] = contacts.map((contact) => ({
-    ...contact,
-    lastNote: lastNotePreviews.get(contact.id) ?? null,
-    photoUrl: contact.photoUrl ? (photoUrls[contact.photoUrl] ?? contact.photoUrl) : null,
-  }));
-
-  // 5. Calculate pagination
-  const totalPages = Math.ceil(total / params.pageSize);
-
-  return {
-    items: itemsWithEnrichments,
-    pagination: {
+  try {
+    // 1. Get contacts from repo
+    const { items: contacts, total } = await repo.listContacts(userId, {
       page: params.page,
       pageSize: params.pageSize,
-      total,
-      totalPages,
-      hasNext: params.page < totalPages,
-      hasPrev: params.page > 1,
-    },
-  };
+      ...(params.search !== undefined && { search: params.search }),
+      ...(params.sort !== undefined && { sort: params.sort }),
+      ...(params.order !== undefined && { order: params.order }),
+    });
+
+    // 2. Enrich with last notes
+    const contactIds = contacts.map((c) => c.id);
+    const lastNotePreviews = await getLastNotePreviewForContacts(userId, contactIds);
+
+    // 3. Batch generate signed URLs for photos
+    const photoPaths = contacts.filter((c) => c.photoUrl).map((c) => c.photoUrl as string);
+
+    let photoUrls: Record<string, string | null> = {};
+    if (photoPaths.length > 0) {
+      const batchResult = await getBatchSignedUrlsService(photoPaths, 14400); // 4 hours
+      photoUrls = batchResult.urls;
+
+      // Log photo access for HIPAA/GDPR compliance (best-effort)
+      const contactPhotos = contacts
+        .filter((c) => c.photoUrl)
+        .map((c) => ({ contactId: c.id, photoPath: c.photoUrl as string }));
+
+      await logBatchPhotoAccessService(userId, contactPhotos);
+    }
+
+    // 4. Transform with enrichments
+    const itemsWithEnrichments: ContactWithLastNote[] = contacts.map((contact) => ({
+      ...contact,
+      lastNote: lastNotePreviews.get(contact.id) ?? null,
+      photoUrl: contact.photoUrl ? (photoUrls[contact.photoUrl] ?? contact.photoUrl) : null,
+    }));
+
+    // 5. Calculate pagination
+    const totalPages = Math.ceil(total / params.pageSize);
+
+    return {
+      items: itemsWithEnrichments,
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        total,
+        totalPages,
+        hasNext: params.page < totalPages,
+        hasPrev: params.page > 1,
+      },
+    };
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to list contacts",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
 }
 
 /**
  * Get single contact by ID
  */
 export async function getContactByIdService(userId: string, contactId: string): Promise<Contact> {
-  const result = await ContactsRepository.getContactById(userId, contactId);
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+  try {
+    const contact = await repo.getContactById(userId, contactId);
+
+    if (!contact) {
+      throw new AppError("contact not found", "CONTACT_NOT_FOUND", "validation", false);
+    }
+
+    return normalizeContactNulls(contact);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get contact",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
-
-  if (!result.data) {
-    throw new AppError("contact not found", "CONTACT_NOT_FOUND", "validation", false);
-  }
-
-  return normalizeContactNulls(result.data);
 }
 
 /**
@@ -285,33 +315,42 @@ export async function getContactWithNotesService(
   userId: string,
   contactId: string,
 ): Promise<ContactWithNotes> {
-  // 1. Get contact
-  const contactResult = await ContactsRepository.getContactById(userId, contactId);
+  const db = await getDb();
+  const repo = createContactsRepository(db);
+  const notesRepo = createNotesRepository(db);
 
-  if (!contactResult.success) {
-    throw new AppError(contactResult.error.message, contactResult.error.code, "database", false);
+  try {
+    // 1. Get contact
+    const contact = await repo.getContactById(userId, contactId);
+
+    if (!contact) {
+      throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
+    }
+
+    // 2. Get notes separately
+    let notes: Note[] = [];
+    try {
+      notes = await notesRepo.listNotes(userId, contactId);
+    } catch (error) {
+      // Notes fetch failed - return contact with empty notes rather than error
+      console.warn("Failed to fetch notes for contact:", error);
+      notes = [];
+    }
+
+    // 3. Combine
+    return {
+      ...contact,
+      notes,
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get contact with notes",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
-
-  if (!contactResult.data) {
-    throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
-  }
-
-  const contact = contactResult.data;
-
-  // 2. Get notes separately (you'll need to import NotesRepository)
-  const notesResult = await NotesRepository.listNotes(userId, contactId);
-
-  if (!notesResult.success) {
-    // Notes fetch failed - return contact with empty notes rather than error
-    console.warn("Failed to fetch notes for contact:", notesResult.error);
-    return { ...contact, notes: [] };
-  }
-
-  // 3. Combine - notesResult.data is Note[], not { items: Note[] }
-  return {
-    ...contact,
-    notes: notesResult.data,
-  };
 }
 
 /**
@@ -338,32 +377,40 @@ export async function createContactService(
     preferences?: unknown;
   },
 ): Promise<Contact> {
-  const result = await ContactsRepository.createContact({
-    userId,
-    displayName: input.displayName,
-    primaryEmail: input.primaryEmail ?? null,
-    primaryPhone: input.primaryPhone ?? null,
-    photoUrl: input.photoUrl ?? null,
-    source: input.source ?? null,
-    lifecycleStage: input.lifecycleStage ?? null,
-    tags: input.tags ?? null,
-    confidenceScore: input.confidenceScore ?? null,
-    dateOfBirth: input.dateOfBirth ?? null,
-    emergencyContactName: input.emergencyContactName ?? null,
-    emergencyContactPhone: input.emergencyContactPhone ?? null,
-    clientStatus: input.clientStatus ?? null,
-    referralSource: input.referralSource ?? null,
-    address: input.address ?? null,
-    healthContext: input.healthContext ?? null,
-    preferences: input.preferences ?? null,
-  });
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+  try {
+    const contact = await repo.createContact({
+      userId,
+      displayName: input.displayName,
+      primaryEmail: input.primaryEmail ?? null,
+      primaryPhone: input.primaryPhone ?? null,
+      photoUrl: input.photoUrl ?? null,
+      source: input.source ?? null,
+      lifecycleStage: input.lifecycleStage ?? null,
+      tags: input.tags ?? null,
+      confidenceScore: input.confidenceScore ?? null,
+      dateOfBirth: input.dateOfBirth ?? null,
+      emergencyContactName: input.emergencyContactName ?? null,
+      emergencyContactPhone: input.emergencyContactPhone ?? null,
+      clientStatus: input.clientStatus ?? null,
+      referralSource: input.referralSource ?? null,
+      address: input.address ?? null,
+      healthContext: input.healthContext ?? null,
+      preferences: input.preferences ?? null,
+    });
+
+    // Transform null to undefined for exactOptionalPropertyTypes compatibility
+    return normalizeContactNulls(contact);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to create contact",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
-
-  // Transform null to undefined for exactOptionalPropertyTypes compatibility
-  return normalizeContactNulls(result.data);
 }
 
 /**
@@ -416,30 +463,48 @@ export async function updateContactService(
     preferences?: unknown;
   },
 ): Promise<Contact> {
-  const result = await ContactsRepository.updateContact(userId, contactId, updates);
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+  try {
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, v]) => v !== undefined),
+    ) as Partial<typeof updates>;
+    const contact = await repo.updateContact(userId, contactId, cleanUpdates);
+
+    if (!contact) {
+      throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
+    }
+
+    return normalizeContactNulls(contact);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to update contact",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
-
-  if (!result.data) {
-    throw new AppError("Contact not found", "CONTACT_NOT_FOUND", "validation", false);
-  }
-
-  return normalizeContactNulls(result.data);
 }
 
 /**
  * Delete contact
  */
 export async function deleteContactService(userId: string, contactId: string): Promise<boolean> {
-  const result = await ContactsRepository.deleteContact(userId, contactId);
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+  try {
+    return await repo.deleteContact(userId, contactId);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to delete contact",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
-
-  return result.data;
 }
 
 /**
@@ -449,13 +514,20 @@ export async function findContactByEmailService(
   userId: string,
   email: string,
 ): Promise<Contact | null> {
-  const result = await ContactsRepository.findContactByEmail(userId, email);
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+  try {
+    const contact = await repo.findContactByEmail(userId, email);
+    return contact ? normalizeContactNulls(contact) : null;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to find contact by email",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
-
-  return result.data ? normalizeContactNulls(result.data) : null;
 }
 
 // ============================================================================
@@ -470,29 +542,34 @@ export async function deleteContactsBulk(
   request: BulkDeleteRequest,
 ): Promise<BulkDeleteResponse> {
   const { ids } = request;
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-  const result = await ContactsRepository.deleteContactsByIds(userId, ids);
+  try {
+    const deletedCount = await repo.deleteContactsByIds(userId, ids);
 
-  if (!result.success) {
-    throw new AppError(result.error.message, result.error.code, "database", false);
+    // Log for audit
+    await logger.info("Bulk deleted contacts", {
+      operation: "contacts_bulk_delete",
+      additionalData: {
+        userId: userId.slice(0, 8) + "...",
+        deletedCount,
+        requestedIds: ids.length,
+      },
+    });
+
+    return {
+      deleted: deletedCount,
+      errors: [],
+    };
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to bulk delete contacts",
+      "DB_ERROR",
+      "database",
+      false,
+    );
   }
-
-  const deletedCount = result.data;
-
-  // Log for audit
-  await logger.info("Bulk deleted contacts", {
-    operation: "contacts_bulk_delete",
-    additionalData: {
-      userId: userId.slice(0, 8) + "...",
-      deletedCount,
-      requestedIds: ids.length,
-    },
-  });
-
-  return {
-    deleted: deletedCount,
-    errors: [],
-  };
 }
 
 /**

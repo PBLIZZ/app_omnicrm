@@ -4,8 +4,7 @@ import { cookies } from "next/headers";
 import { getServerUserId } from "@/server/auth/user";
 import { type Contact } from "@/server/db/schema";
 import { ContactDetailsNavWrapper } from "@/app/(authorisedRoute)/contacts/_components/ContactDetailsNavWrapper";
-import { ContactsRepository } from "@repo";
-import { isOk, isErr } from "@/lib/utils/result";
+import { getContactByIdService } from "@/server/services/contacts.service";
 
 interface ContactDetailProps {
   params: Promise<{ contactId: string }>;
@@ -15,23 +14,13 @@ interface ContactDetailProps {
  * Fetch contact data by ID
  */
 async function getContactById(userId: string, contactId: string): Promise<Contact> {
-  const result = await ContactsRepository.getContactById(userId, contactId);
+  const contact = await getContactByIdService(userId, contactId);
 
-  if (isErr(result)) {
-    console.error("Failed to fetch contact:", result.error);
+  if (!contact) {
     notFound();
   }
 
-  if (!isOk(result)) {
-    console.error("Invalid result state");
-    notFound();
-  }
-
-  if (result.data === null) {
-    notFound();
-  }
-
-  return result.data;
+  return contact;
 }
 
 /**

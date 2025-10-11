@@ -34,7 +34,7 @@ Full-Stack Architecture:
 │   └── Optimistic Updates
 ├── API Layer
 │   ├── Next.js App Router API Routes
-│   ├── Universal NextResponse Pattern
+│   ├── Standardized Handlers (handleAuth, handleGetWithQueryAuth)
 │   └── CSRF Protection
 ├── Service Layer
 │   ├── MomentumService (Business Logic)
@@ -52,61 +52,135 @@ Full-Stack Architecture:
 
 ### Backend Infrastructure (FULLY COMPLETED)
 
-#### ✅ Repository Layer (`packages/repo/src/momentum.repo.ts`)
+**Service layer is split into focused modules**
 
 ```typescript
-export class MomentumRepository {
-  // ✅ All CRUD operations implemented
-  // ✅ Proper type guards for array filtering
-  // ✅ Async getDb() pattern (never direct db imports)
+// src/server/services/projects.service.ts
+export async function createProjectService(userId: string, data: {...}): Promise<Project>
+export async function getProjectService(userId: string, projectId: string): Promise<Project | null>
+export async function listProjectsService(userId: string, filters?: {...}): Promise<Project[]>
+export async function updateProjectService(projectId: string, userId: string, data: {...}): Promise<Project | null>
+export async function deleteProjectService(userId: string, projectId: string): Promise<void>
 
-  async createProject(userId: string, data: CreateProjectData): Promise<ProjectDTO>
-  async getTasks(userId: string, filters: TaskFilters): Promise<TaskDTO[]>
-  async createGoal(userId: string, data: CreateGoalData): Promise<GoalDTO>
-  async getDailyPulseLogs(userId: string, limit: number): Promise<DailyPulseLogDTO[]>
-  // ... 25+ repository methods implemented
+// src/server/services/tasks.service.ts
+export async function createTaskService(userId: string, data: {...}): Promise<TaskListItem>
+export async function getTaskService(userId: string, taskId: string): Promise<TaskListItem | null>
+export async function listTasksService(userId: string, filters?: {...}): Promise<TaskListItem[]>
+export async function updateTaskService(taskId: string, userId: string, data: {...}): Promise<TaskListItem | null>
+export async function deleteTaskService(userId: string, taskId: string): Promise<void>
+export async function getProjectTasksService(userId: string, projectId: string, filters?: {...}): Promise<TaskListItem[]>
+export async function getSubtasksService(userId: string, parentTaskId: string, filters?: {...}): Promise<TaskListItem[]>
+export async function getPendingApprovalTasksService(userId: string): Promise<TaskListItem[]>
+export async function approveTaskService(userId: string, taskId: string): Promise<TaskListItem>
+export async function rejectTaskService(userId: string, taskId: string, reason?: string): Promise<TaskListItem>
+
+// src/server/services/zones.service.ts
+export async function listZonesService(): Promise<Zone[]>
+export async function getZonesWithStatsService(userId: string): Promise<ZoneWithStats[]>
+
+// src/server/services/inbox.service.ts
+export async function quickCaptureService(userId: string, data: {...}): Promise<InboxItem>
+export async function voiceCaptureService(userId: string, data: {...}): Promise<InboxItem>
+export async function listInboxItemsService(userId: string, filters?: {...}): Promise<InboxItem[]>
+export async function getInboxStatsService(userId: string): Promise<{...}>
+export async function processInboxItemService(userId: string, data: {...}): Promise<InboxProcessingResultDTO>
+export async function bulkProcessInboxService(userId: string, data: {...}): Promise<{...}>
+
+// src/server/services/productivity.service.ts
+// Re-exports all project, task, and zone services + UI enrichment mappers
+```
+
+#### API Routes (Complete Set)
+
+```bash
+# All API endpoints use standardized handlers from @/lib/api
+
+# Projects
+src/app/api/omni-momentum/projects/route.ts
+  GET  - List projects (handleGetWithQueryAuth)
+  POST - Create project (handleAuth)
+
+src/app/api/omni-momentum/projects/[projectId]/route.ts
+  GET    - Get project by ID (handleAuth)
+  PUT    - Update project (handleAuth)
+  DELETE - Delete project (handleAuth)
+
+src/app/api/omni-momentum/projects/[projectId]/tasks/route.ts
+  GET - Get tasks within project (handleGetWithQueryAuth)
+
+# Tasks
+src/app/api/omni-momentum/tasks/route.ts
+  GET  - List tasks (handleGetWithQueryAuth)
+  POST - Create task (handleAuth)
+
+src/app/api/omni-momentum/tasks/[taskId]/route.ts
+  GET    - Get task by ID (handleAuth)
+  PUT    - Update task (handleAuth)
+  DELETE - Delete task (handleAuth)
+
+src/app/api/omni-momentum/tasks/[taskId]/subtasks/route.ts
+  GET  - Get subtasks (handleGetWithQueryAuth)
+  POST - Create subtask (handleAuth)
+
+src/app/api/omni-momentum/tasks/[taskId]/approve/route.ts
+  POST - Approve task (handleAuth)
+
+src/app/api/omni-momentum/tasks/[taskId]/reject/route.ts
+  POST - Reject task (handleAuth)
+
+src/app/api/omni-momentum/tasks/pending-approval/route.ts
+  GET - Get pending approval tasks (handleGetWithQueryAuth)
+
+# Inbox
+src/app/api/omni-momentum/inbox/route.ts
+  GET  - List inbox items or get stats (handleGetWithQueryAuth)
+  POST - Quick/voice capture or bulk process (handleAuth)
+
+src/app/api/omni-momentum/inbox/[itemId]/route.ts
+  GET    - Get inbox item (handleAuth)
+  PATCH  - Update inbox item (handleAuth)
+  DELETE - Delete inbox item (handleAuth)
+
+src/app/api/omni-momentum/inbox/process/route.ts
+  POST - AI process single inbox item (handleAuth)
+
+# Zones
+src/app/api/omni-momentum/zones/route.ts
+  GET - List zones or zones with stats (handleGetWithQueryAuth)
+```
+
+### Frontend Architecture
+
+**✅ React Query Hooks** (`src/hooks/use-momentum.ts`)
+
+```typescript
+// Note: This hook may need to be split into focused hooks per domain
+export function useMomentum() {
+  // Projects
+  const { data: projects } = useQuery({ queryKey: ['/api/omni-momentum/projects'], ... })
+  const createProject = useMutation({ mutationFn: (data) => fetchPost('/api/omni-momentum/projects', data), ... })
+  
+  // Tasks
+  const { data: tasks } = useQuery({ queryKey: ['/api/omni-momentum/tasks'], ... })
+  const createTask = useMutation({ mutationFn: (data) => fetchPost('/api/omni-momentum/tasks', data), ... })
+  
+  // Inbox
+  const { data: inboxItems } = useQuery({ queryKey: ['/api/omni-momentum/inbox'], ... })
+  const quickCapture = useMutation({ mutationFn: (data) => fetchPost('/api/omni-momentum/inbox', { type: 'quick_capture', data }), ... })
+  
+  // Zones
+  const { data: zones } = useQuery({ queryKey: ['/api/omni-momentum/zones'], ... })
 }
 ```
 
-#### ✅ Service Layer (`src/server/services/momentum.service.ts`)
+**✅ UI Components** (`src/app/(authorisedRoute)/omni-momentum/_components/`)
 
-```typescript
-export class MomentumService {
-  // ✅ Business logic separation from API routes
-  // ✅ Comprehensive filtering with search, dates, status
-  // ✅ Proper contact tagging and relations
-
-  private readonly momentumRepository = new MomentumRepository();
-
-  async createTask(userId: string, data: CreateTaskDTO): Promise<TaskDTO>
-  async bulkUpdateTasks(userId: string, data: BulkTaskUpdateDTO): Promise<TaskDTO[]>
-  async getStats(userId: string): Promise<TaskStats & ProjectStats>
-  // ... Complete service layer implemented
-}
-```
-
-#### ✅ API Routes (Complete Set)
-
-```typescript
-// All API endpoints implemented with Universal NextResponse pattern
-GET/POST  /api/omni-momentum/projects
-GET/PUT/DELETE  /api/omni-momentum/projects/[id]
-GET/POST  /api/omni-momentum/tasks
-GET/PUT/DELETE  /api/omni-momentum/tasks/[id]
-GET/POST  /api/omni-momentum/goals
-GET  /api/omni-momentum/stats
-POST  /api/omni-momentum/inbox
-GET  /api/omni-momentum/zones
-```
-
-### Frontend Architecture (React Query Integration)
-
-#### ✅ Comprehensive React Hooks (`src/hooks/use-momentum.ts`)
-
-```typescript
-export function useMomentum(): UseMomentumReturn {
-  // ✅ Complete CRUD operations for all entities
-  // ✅ Optimistic updates with rollback
+```bash
+_components/
+  MomentumPageLayout.tsx    # Main layout wrapper
+  MomentumSidebar.tsx       # Navigation sidebar
+  OmniMomentumPage.tsx      # Main page component
+  # Additional components as needed
   // ✅ Real-time query invalidation
 
   return {
@@ -171,19 +245,25 @@ if (filters.status && filters.status.length > 0) {
 }
 ```
 
-#### ✅ Universal NextResponse Pattern
+#### ✅ Standardized Handler Pattern
 
 ```typescript
-// All API routes follow this pattern (no ApiResponse helpers)
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  try {
-    const result = await momentumService.getProjects(userId, filters);
-    return NextResponse.json(result);
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 });
+// ❌ DEPRECATED: Manual NextRequest/NextResponse
+// All API routes now use standardized handlers from @/lib/api
+
+import { handleGetWithQueryAuth } from "@/lib/api";
+import { ProjectFiltersSchema, ProjectListResponseSchema } from "@/server/db/business-schemas";
+
+export const GET = handleGetWithQueryAuth(
+  ProjectFiltersSchema,
+  ProjectListResponseSchema,
+  async (filters, userId) => {
+    return await listProjectsService(userId, filters);
   }
-}
+);
 ```
+
+**See `docs/REFACTORING_PATTERNS_OCT_2025.md` for current patterns.**
 
 ---
 
@@ -323,18 +403,89 @@ if (pathname.startsWith("/omni-momentum")) {
 
 ### 2. **Backend API Integration (FULLY IMPLEMENTED)**
 
+**Complete Architecture Flow:**
+
 ```typescript
-// Complete backend stack implemented with zero technical debt
-import { momentumService } from "@/server/services/momentum.service";
+// 1. Frontend Hook (src/hooks/use-momentum.ts)
+const { projects, createProject } = useMomentum();
 
-// ✅ Repository → Service → API → Hook pattern
-const { projects, tasks, createTask, updateTask } = useMomentum();
+// 2. API Route (src/app/api/omni-momentum/projects/route.ts)
+export const POST = handleAuth(
+  CreateProjectSchema,
+  ProjectSchema,
+  async (data, userId) => {
+    return await createProjectService(userId, data);
+  }
+);
 
-// ✅ All API calls validated with DTO schemas
-// ✅ Type-safe repository layer with proper guards
-// ✅ Optimistic updates with error rollback
-// ✅ Universal NextResponse pattern throughout
+// 3. Service Layer (src/server/services/projects.service.ts)
+export async function createProjectService(userId: string, data: {...}): Promise<Project> {
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+  try {
+    return await repo.createProject(userId, data);
+  } catch (error) {
+    throw new AppError(...);
+  }
+}
+
+// 4. Repository Layer (packages/repo/src/productivity.repo.ts)
+export class ProductivityRepository {
+  constructor(private readonly db: DbClient) {}
+
+  // Projects
+  async createProject(userId: string, data: Omit<CreateProject, 'userId'>): Promise<ProjectListItem>
+  async getProjects(userId: string, filters?: {...}): Promise<ProjectListItem[]>
+  async getProject(projectId: string, userId: string): Promise<ProjectListItem | null>
+  async updateProject(projectId: string, userId: string, data: Partial<{...}>): Promise<void>
+  async deleteProject(projectId: string, userId: string): Promise<void>
+
+  // Tasks
+  async createTask(userId: string, data: Omit<CreateTask, 'userId'>): Promise<TaskListItem>
+  async getTasks(userId: string, filters?: {...}): Promise<TaskListItem[]>
+  async getTask(taskId: string, userId: string): Promise<TaskListItem | null>
+  async updateTask(taskId: string, userId: string, data: Partial<{...}>): Promise<void>
+  async deleteTask(taskId: string, userId: string): Promise<void>
+  async getProjectTasks(userId: string, projectId: string, filters?: {...}): Promise<TaskListItem[]>
+  async getSubtasks(userId: string, parentTaskId: string, filters?: {...}): Promise<TaskListItem[]>
+  async getPendingApprovalTasks(userId: string): Promise<TaskListItem[]>
+}
+
+export function createProductivityRepository(db: DbClient): ProductivityRepository
+
+// packages/repo/src/zones.repo.ts
+export class ZonesRepository {
+  constructor(private readonly db: DbClient) {}
+  async listZones(): Promise<Zone[]>
+  async getZoneWithStats(userId: string, zoneId: number): Promise<ZoneWithStats | null>
+  async listZonesWithStats(userId: string): Promise<ZoneWithStats[]>
+}
+
+export function createZonesRepository(db: DbClient): ZonesRepository
+
+// packages/repo/src/inbox.repo.ts
+export class InboxRepository {
+  constructor(private readonly db: DbClient) {}
+  async createInboxItem(data: {...}): Promise<InboxItem>
+  async listInboxItems(userId: string, filters?: InboxFilters): Promise<InboxItem[]>
+  async getInboxItemById(userId: string, itemId: string): Promise<InboxItem | null>
+  async updateInboxItem(userId: string, itemId: string, data: Partial<{...}>): Promise<InboxItem | null>
+  async deleteInboxItem(userId: string, itemId: string): Promise<boolean>
+  async getInboxStats(userId: string): Promise<{...}>
+  async markAsProcessed(userId: string, itemId: string, createdTaskId?: string): Promise<InboxItem | null>
+  async bulkUpdateStatus(userId: string, itemIds: string[], status: string): Promise<InboxItem[]>
+  async bulkDeleteInboxItems(userId: string, itemIds: string[]): Promise<void>
+}
+
+export function createInboxRepository(db: DbClient): InboxRepository
 ```
+
+**✅ Pattern Compliance:**
+- All API routes use standardized handlers from `@/lib/api`
+- Business schemas in `src/server/db/business-schemas/productivity.ts`
+- Services throw `AppError` with status codes
+- Repositories use constructor injection with `DbClient`
+- Type-safe throughout with Drizzle ORM
 
 ### 3. **Database Schema (Complete OmniMomentum Tables)**
 

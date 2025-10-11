@@ -1,6 +1,10 @@
 // ===== src/app/api/onboarding/public/submit/route.ts =====
 import { handlePublic } from "@/lib/api-edge-cases";
-import { OnboardingService } from "@/server/services/onboarding.service";
+import {
+  checkRateLimitService,
+  extractClientIpData,
+  processSubmissionService,
+} from "@/server/services/onboarding.service";
 import {
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
@@ -15,7 +19,7 @@ export const POST = handlePublic(
     const clientId =
       request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
 
-    const allowed = await OnboardingService.checkRateLimit(clientId);
+    const allowed = await checkRateLimitService(clientId);
     if (!allowed) {
       const error = new Error("Too many requests");
       Object.defineProperty(error, "status", { value: 429 });
@@ -23,14 +27,14 @@ export const POST = handlePublic(
     }
 
     // Extract client IP data
-    const clientIpData = OnboardingService.extractClientIpData({
+    const clientIpData = extractClientIpData({
       "x-forwarded-for": request.headers.get("x-forwarded-for"),
       "x-real-ip": request.headers.get("x-real-ip"),
       "user-agent": request.headers.get("user-agent"),
     });
 
     // Process submission
-    const result = await OnboardingService.processSubmission(data, clientIpData);
+    const result = await processSubmissionService(data, clientIpData);
 
     return {
       success: true,

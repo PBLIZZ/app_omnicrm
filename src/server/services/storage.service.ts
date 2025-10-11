@@ -39,11 +39,10 @@ export interface PhotoAccessAuditParams {
   userAgent?: string;
 }
 
-export class StorageService {
-  /**
-   * Get signed URL for downloading a file from storage
-   */
-  static async getFileSignedUrl(filePath: string): Promise<SignedUrlResult> {
+/**
+ * Get signed URL for downloading a file from storage
+ */
+export async function getFileSignedUrlService(filePath: string): Promise<SignedUrlResult> {
     try {
       // If already an absolute URL (e.g., public or already signed), just echo it back
       if (/^https?:\/\//i.test(filePath)) {
@@ -94,20 +93,20 @@ export class StorageService {
         true,
       );
     }
-  }
+}
 
-  /**
-   * Batch generate signed URLs for multiple files
-   * Optimized for table views where multiple photos need URLs at once
-   *
-   * @param filePaths - Array of file paths in format "bucket/path/to/file.ext"
-   * @param expiresIn - Expiration time in seconds (default: 14400 = 4 hours)
-   * @returns Map of filePath -> signedUrl
-   */
-  static async getBatchSignedUrls(
-    filePaths: string[],
-    expiresIn = 14400,
-  ): Promise<BatchSignedUrlResult> {
+/**
+ * Batch generate signed URLs for multiple files
+ * Optimized for table views where multiple photos need URLs at once
+ *
+ * @param filePaths - Array of file paths in format "bucket/path/to/file.ext"
+ * @param expiresIn - Expiration time in seconds (default: 14400 = 4 hours)
+ * @returns Map of filePath -> signedUrl
+ */
+export async function getBatchSignedUrlsService(
+  filePaths: string[],
+  expiresIn = 14400,
+): Promise<BatchSignedUrlResult> {
     const urls: Record<string, string | null> = {};
     const errors: Record<string, string> = {};
 
@@ -199,13 +198,13 @@ export class StorageService {
       });
       return { urls, errors };
     }
-  }
+}
 
-  /**
-   * Log photo access for HIPAA/GDPR compliance
-   * Called whenever a client photo URL is generated or accessed
-   */
-  static async logPhotoAccess(params: PhotoAccessAuditParams): Promise<void> {
+/**
+ * Log photo access for HIPAA/GDPR compliance
+ * Called whenever a client photo URL is generated or accessed
+ */
+export async function logPhotoAccessService(params: PhotoAccessAuditParams): Promise<void> {
     try {
       const db = await getDb();
       await db.insert(photoAccessAudit).values({
@@ -221,18 +220,18 @@ export class StorageService {
       // Best-effort logging; don't fail the request if audit fails
       console.error("[StorageService] Failed to log photo access:", error);
     }
-  }
+}
 
-  /**
-   * Batch log photo access for multiple contacts
-   * Used when generating batch signed URLs for table views
-   */
-  static async logBatchPhotoAccess(
-    userId: string,
-    contactPhotos: Array<{ contactId: string; photoPath: string }>,
-    ipAddress?: string,
-    userAgent?: string,
-  ): Promise<void> {
+/**
+ * Batch log photo access for multiple contacts
+ * Used when generating batch signed URLs for table views
+ */
+export async function logBatchPhotoAccessService(
+  userId: string,
+  contactPhotos: Array<{ contactId: string; photoPath: string }>,
+  ipAddress?: string,
+  userAgent?: string,
+): Promise<void> {
     try {
       const db = await getDb();
       const auditRecords = contactPhotos.map(({ contactId, photoPath }) => ({
@@ -250,5 +249,4 @@ export class StorageService {
       // Best-effort logging; don't fail the request if audit fails
       console.error("[StorageService] Failed to batch log photo access:", error);
     }
-  }
 }

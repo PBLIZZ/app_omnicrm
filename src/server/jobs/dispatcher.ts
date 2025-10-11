@@ -23,17 +23,6 @@ export class JobDispatcher {
     google_calendar_sync: (job: JobRecord) => runCalendarSync(job, job.userId),
     google_gmail_sync: (job: JobRecord) => runGmailSync(job, job.userId),
 
-    // Normalization processors - smart routing based on provider
-    normalize: (job: JobRecord) => {
-      const payload = job.payload as { provider?: string };
-      if (payload?.provider === "gmail") {
-        return runNormalizeGoogleEmail(job);
-      } else if (payload?.provider === "google_calendar") {
-        return runNormalizeGoogleEvent(job);
-      } else {
-        return runNormalizeGoogleEvent(job); // Default to calendar for backward compatibility
-      }
-    },
     normalize_google_email: runNormalizeGoogleEmail,
     normalize_google_event: runNormalizeGoogleEvent,
 

@@ -2,12 +2,13 @@
 import {
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,
-  type UserDeletionResponse,
 } from "@/server/db/business-schemas";
-import { UserDeletionService } from "@/server/services/user-deletion.service";
+import { validateDeletionRequestService, deleteUserDataService } from "@/server/services/user-deletion.service";
 import { getAuthUserId } from "@/lib/auth-simple";
 import { ApiError } from "@/lib/api/errors";
 import { z } from "zod";
+
+type UserDeletionResponse = z.infer<typeof UserDeletionResponseSchema>;
 
 /**
  * Custom handler for user deletion that needs access to request headers for IP tracking
@@ -39,7 +40,7 @@ export async function DELETE(request: Request): Promise<Response> {
       request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
 
     // Validate deletion request
-    const validation = UserDeletionService.validateDeletionRequest({
+    const validation = validateDeletionRequestService({
       confirmation,
       acknowledgeIrreversible,
       ipAddress,
@@ -50,14 +51,22 @@ export async function DELETE(request: Request): Promise<Response> {
     }
 
     // Execute deletion
-    const result: UserDeletionResponse = await UserDeletionService.deleteUserData(userId, {
+    const result = await deleteUserDataService(userId, {
       confirmation,
       acknowledgeIrreversible,
       ipAddress,
     });
 
+    // Map service result to API response
+    const response: UserDeletionResponse = {
+      success: result.deleted,
+      message: result.message,
+      deletedAt: result.deletedAt,
+      userId: result.deletionResults ? userId : undefined,
+    };
+
     // Validate output
-    const validated = UserDeletionResponseSchema.parse(result);
+    const validated = UserDeletionResponseSchema.parse(response);
 
     // eslint-disable-next-line no-restricted-syntax -- Legitimate: validated JSON response
     return new Response(JSON.stringify(validated), {

@@ -6,41 +6,45 @@
 
 // Task schemas
 // Base types (Task, CreateTask, UpdateTask) are re-exported from schema.ts
+// Note: TaskWithUI removed - UI enrichment handled in service layer
 export {
-  TaskWithUISchema,
+  TaskSchema,
+  CreateTaskSchema,
+  UpdateTaskSchema,
   TaskFiltersSchema,
   type Task,
   type CreateTask,
   type UpdateTask,
-  type TaskWithUI,
+  type CreateTaskInput,
+  type UpdateTaskInput,
   type TaskFilters,
-} from "./tasks";
+} from "./productivity";
 
 // Project schemas
 // Base types (Project, CreateProject, UpdateProject) are re-exported from schema.ts
+// Note: ProjectWithUI removed - UI enrichment handled in service layer
 export {
-  ProjectWithUISchema,
+  ProjectSchema,
+  CreateProjectSchema,
+  UpdateProjectSchema,
   ProjectFiltersSchema,
   type Project,
   type CreateProject,
   type UpdateProject,
-  type ProjectWithUI,
+  type CreateProjectInput,
+  type UpdateProjectInput,
   type ProjectFilters,
-} from "./tasks";
+} from "./productivity";
 
 // Calendar schemas
-// Base types (CalendarEvent, CreateCalendarEvent, UpdateCalendarEvent) are re-exported from schema.ts
+// Note: Calendar events are now stored in raw_events with provider='calendar'
 export {
-  CalendarEventWithUISchema,
   CalendarOAuthQuerySchema,
   CalendarItemSchema,
   ClientSchema,
   AppointmentSchema,
   WeeklyStatsSchema,
   type CalendarEvent,
-  type CreateCalendarEvent,
-  type UpdateCalendarEvent,
-  type CalendarEventWithUI,
   type CalendarOAuthQuery,
   type CalendarItem,
   type Client,
@@ -137,24 +141,26 @@ export {
   UserSyncPrefsUpdateSchema,
   SyncSessionSchema,
   NewSyncSessionSchema,
+  DrivePreferencesSchema,
+  type DrivePreferences,
 } from "./sync-progress";
 
 // Inbox Management
 // Base types (InboxItem, CreateInboxItem, UpdateInboxItem) are re-exported from schema.ts
-export * from "./tasks";
+export * from "./productivity";
 
 // Re-export specific types for convenience
 export type {
   InboxProcessingResultDTO,
   InboxProcessingContext,
   ProcessInboxItemDTO,
-} from "./tasks";
+} from "./productivity";
 
 // Search Functionality - DEPRECATED - Moved to deprecated-search-files/
 // Will be reimplemented as Spotlight-style global search
 
 // Zones Management
-export * from "./tasks";
+export * from "./productivity";
 
 // User Management & Admin
 export {
@@ -204,9 +210,8 @@ export {
 
 // Zone schemas
 // Base types (Zone, CreateZone, UpdateZone) are re-exported from schema.ts
+// Note: ZoneWithUI and ZoneWithStats removed - UI enrichment handled in service layer
 export {
-  ZoneWithUISchema,
-  ZoneWithStatsSchema,
   ZonesQuerySchema,
   ZoneFiltersSchema,
   ZonesListResponseSchema,
@@ -215,16 +220,15 @@ export {
   type Zone,
   type CreateZone,
   type UpdateZone,
-  type ZoneWithUI,
-  type ZoneWithStats,
   type ZonesListResponse,
   type ZonesWithStatsResponse,
-} from "./tasks";
+} from "./productivity";
 
 // Health & System Monitoring
 export {
   HealthResponseSchema,
   DbPingResponseSchema,
+  GoogleSignInQuerySchema,
   type HealthResponse,
   type DbPingResponse,
 } from "./health";

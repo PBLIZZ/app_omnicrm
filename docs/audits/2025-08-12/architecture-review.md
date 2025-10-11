@@ -846,7 +846,8 @@ Raw Events  Vector DB    Semantic Search   LLM Analysis   Dashboard
 const aiJobs: JobKind[] = [
   "embed", // Vector embedding generation
   "insight", // AI insight generation
-  "normalize", // Data preparation for AI
+  "normalize_google_email", // Gmail data preparation
+  "normalize_google_event", // Calendar data preparation
 ];
 ```
 

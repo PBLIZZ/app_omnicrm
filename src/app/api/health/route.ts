@@ -1,6 +1,5 @@
 import { handlePublicGet } from "@/lib/api-edge-cases";
-import { HealthService } from "@/server/services/health.service";
-import { unwrap } from "@/lib/utils/result";
+import { getSystemHealthService } from "@/server/services/health.service";
 import {
   HealthResponseSchema,
   type HealthResponse
@@ -9,7 +8,6 @@ import {
 export const GET = handlePublicGet(
   HealthResponseSchema,
   async (): Promise<HealthResponse> => {
-    const result = await HealthService.getSystemHealth();
-    return unwrap(result);
+    return await getSystemHealthService();
   }
 );

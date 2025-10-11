@@ -2,30 +2,79 @@
 export { getDb, db, getSql, closeDb } from "@/server/db/client";
 export type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
+// Productivity types (explicit types to avoid Drizzle circular reference issues)
+export type {
+  Task,
+  TaskListItem,
+  TaskWithProject,
+  TaskWithSubtasks,
+  TaskWithParent,
+  TaskWithRelations,
+  Project,
+  ProjectListItem,
+  ProjectWithZone,
+  Zone,
+  Goal,
+  GoalListItem,
+  DailyPulseLog,
+  DailyPulseLogListItem,
+  InboxItem,
+  InboxItemListItem,
+  TaskContactTag,
+  CreateTask,
+  UpdateTask,
+  CreateProject,
+  UpdateProject,
+  CreateGoal,
+  UpdateGoal,
+  CreateDailyPulseLog,
+  UpdateDailyPulseLog,
+  CreateInboxItem,
+  UpdateInboxItem,
+} from "./types/productivity.types";
+
 // Repository classes
-export { AuthUserRepository } from "./auth-user.repo";
-export { ContactsRepository } from "./contacts.repo";
-export { InteractionsRepository } from "./interactions.repo";
-export { NotesRepository } from "./notes.repo";
-export { IdentitiesRepository } from "./identities.repo";
-export { ContactIdentitiesRepository } from "./contact-identities.repo";
-export { SearchRepository } from "./search.repo";
-export { MomentumRepository, momentumRepository } from "./momentum.repo";
-export { UserIntegrationsRepository } from "./user-integrations.repo";
-export { SyncSessionsRepository } from "./sync-sessions.repo";
-export { RawEventsRepository } from "./raw-events.repo";
-export type { RawEventListParams, RawEventListItem } from "./raw-events.repo";
-export { AiInsightsRepository } from "./ai-insights.repo";
+export { AuthUserRepository, createAuthUserRepository } from "./auth-user.repo";
+export { ContactsRepository, createContactsRepository } from "./contacts.repo";
+export { InteractionsRepository, createInteractionsRepository } from "./interactions.repo";
+export type { InteractionListParams } from "./interactions.repo";
+export { NotesRepository, createNotesRepository } from "./notes.repo";
+export {
+  ContactIdentitiesRepository,
+  createContactIdentitiesRepository,
+} from "./contact-identities.repo";
+export { SearchRepository, createSearchRepository } from "./search.repo";
+export { HealthRepository } from "./health.repo";
+export { createHealthRepository } from "./health.repo";
+export { ProductivityRepository, createProductivityRepository } from "./productivity.repo";
+export {
+  UserIntegrationsRepository,
+  createUserIntegrationsRepository,
+} from "./user-integrations.repo";
+export { ChatRepository, createChatRepository } from "./chat.repo";
+export type { UserIntegrationDTO } from "./user-integrations.repo";
+export { RawEventsRepository, createRawEventsRepository } from "./raw-events.repo";
+export type {
+  RawEventListParams,
+  RawEventListItem,
+  ProviderType,
+  RawEventProcessingStatus,
+  RawEventContactExtractionStatus,
+} from "./raw-events.repo";
+export { AiInsightsRepository, createAiInsightsRepository } from "./ai-insights.repo";
 export type { AiInsightListParams } from "./ai-insights.repo";
-export { EmbeddingsRepository } from "./embeddings.repo";
+export { EmbeddingsRepository, createEmbeddingsRepository } from "./embeddings.repo";
 export type { EmbeddingListParams } from "./embeddings.repo";
-export { DocumentsRepository } from "./documents.repo";
+export { DocumentsRepository, createDocumentsRepository } from "./documents.repo";
 export type { DocumentListParams } from "./documents.repo";
-export { IgnoredIdentifiersRepository } from "./ignored-identifiers.repo";
+export {
+  IgnoredIdentifiersRepository,
+  createIgnoredIdentifiersRepository,
+} from "./ignored-identifiers.repo";
 export type { IgnoredIdentifierListParams } from "./ignored-identifiers.repo";
 export type { ContactIdentityListParams } from "./contact-identities.repo";
-export { JobsRepository } from "./jobs.repo";
-export { OnboardingRepository } from "./onboarding.repo";
+export { JobsRepository, createJobsRepository } from "./jobs.repo";
+export { OnboardingRepository, createOnboardingRepository } from "./onboarding.repo";
 export type {
   OnboardingToken,
   CreateOnboardingToken,
@@ -41,8 +90,9 @@ export type { UserContext, UserProfile } from "./auth-user.repo";
 export type { SearchResultDTO, TraditionalSearchParams, SemanticSearchParams } from "./search.repo";
 
 // OmniMomentum Repository classes
-export { InboxRepository } from "./inbox.repo";
-export { ZonesRepository } from "./zones.repo";
+export { InboxRepository, createInboxRepository } from "./inbox.repo";
+export type { InboxFilters } from "./inbox.repo";
+export { ZonesRepository, createZonesRepository } from "./zones.repo";
 
 // Re-export database schema types for convenience
 export * from "@/server/db/schema";

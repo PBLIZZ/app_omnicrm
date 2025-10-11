@@ -1,67 +1,86 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Architecture Overview
 
-## Development Commands
+### Layered Architecture (October 2025 - Complete)
 
-### Core Development
+The codebase follows a strict layered architecture pattern. See `docs/REFACTORING_PATTERNS_OCT_2025.md` for complete implementation patterns.
 
-- `pnpm dev` - Start Next.js development server
-- `pnpm build` - Build the Next.js application
-- `pnpm start` - Start production server
-- `pnpm typecheck` - Run TypeScript type checking
-- `pnpm lint` - Run ESLint
-- `pnpm format` - Format code with Prettier
+**✅ All Domains Use Standardized Patterns:**
 
-### Database Management
+- **Repository Layer**: Constructor injection with `DbClient`, throws generic `Error` on failures
+- **Service Layer**: Functional patterns, acquires `DbClient` via `getDb()`, wraps errors as `AppError` with status codes
+- **Route Layer**: Uses standardized handlers from `@/lib/api` (`handleAuth`, `handleGetWithQueryAuth`)
+- **Business Schemas**: Pure Zod validation schemas in `src/server/db/business-schemas/`
+- **Database Types**: Single source of truth in `src/server/db/schema.ts` using `$inferSelect` and `$inferInsert`
 
-- `npx drizzle-kit pull` - Pull current database schema to schema.ts (RECOMMENDED)
-- `npx drizzle-kit generate` - Generate migration files when schema.ts matches database
-- `npx drizzle-kit migrate` - Apply pending migrations to database
-- `npx drizzle-kit studio` - Launch Drizzle Studio for database inspection
-- `npx drizzle-kit introspect` - Legacy command, use `pull` instead
+### Layered Architecture Pattern
 
-### Testing
+**Current Standard (October 2025):**
 
-- `pnpm test` - Run Vitest unit tests
-- `pnpm test:watch` - Run tests in watch mode
-- `pnpm e2e` - Run Playwright end-to-end tests
-- `pnpm e2e:debug` - Run E2E tests in debug mode
-- `pnpm e2e:setup` - Set up E2E authentication
-- `pnpm e2e:full` - Run setup + E2E tests
-- `pnpm lint:strict` - Run strict ESLint with zero warnings
+See `docs/REFACTORING_PATTERNS_OCT_2025.md` for complete examples. Quick reference:
 
-### Additional Utility Commands
+```typescript
+// 1. REPOSITORY LAYER (packages/repo/src/*.repo.ts)
+export class ContactsRepository {
+  constructor(private readonly db: DbClient) {}
 
-- `pnpm types:db` - Generate TypeScript types from Supabase database
-- `pnpm types:verify` - Verify database types are up to date
-- `pnpm lint:architecture` - Validate architectural patterns and conventions
-- `pnpm verify:db-imports` - Check for correct database import patterns
-- `pnpm verify:dto-usage` - Validate DTO usage across codebase
-- `pnpm ci:full` - Run complete CI pipeline (typecheck, lint, test, architecture)
+  async createContact(userId: string, data: CreateContact): Promise<Contact> {
+    const [contact] = await this.db.insert(contacts).values(data).returning();
+    if (!contact) throw new Error("Insert returned no data");
+    return contact;
+  }
+}
 
-### Recommended Development Flow
+export function createContactsRepository(db: DbClient): ContactsRepository {
+  return new ContactsRepository(db);
+}
 
-Always run these commands before committing:
+// 2. SERVICE LAYER (src/server/services/*.service.ts)
+export async function createContactService(
+  userId: string,
+  input: CreateContactBody
+): Promise<Contact> {
+  const db = await getDb();
+  const repo = createContactsRepository(db);
 
-```bash
-pnpm typecheck && pnpm lint && pnpm test
+  try {
+    return await repo.createContact(userId, { ...input, userId });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to create contact",
+      "DB_ERROR",
+      "database",
+      false,
+      500
+    );
+  }
+}
+
+// 3. ROUTE HANDLER (src/app/api/contacts/route.ts)
+export const POST = handleAuth(
+  CreateContactBodySchema,
+  ContactSchema,
+  async (data, userId) => {
+    return await createContactService(userId, data);
+  }
+);
 ```
 
-### Troubleshooting
+**Key Architectural Principles:**
 
-#### OmniClients Table Column Visibility
+1. **Repositories**: Constructor injection with `DbClient`, throw generic `Error` on failures, return `null` for "not found"
+2. **Services**: Acquire `DbClient` via `getDb()`, use factory functions to create repos, wrap errors as `AppError` with status codes
+3. **Routes**: Use `handleAuth()` or `handleGetWithQueryAuth()`, handlers automatically catch `AppError` and convert to HTTP responses
+4. **Business Schemas**: Pure Zod validation in `src/server/db/business-schemas/`, no transforms
+5. **Database Types**: Single source of truth in `src/server/db/schema.ts` using `$inferSelect` and `$inferInsert`
 
-If columns are missing from the OmniClients table (especially the Notes column), clear the localStorage cache:
+**❌ Deprecated Patterns (DO NOT USE):**
 
-1. Open browser developer tools (F12)
-2. Go to Application tab > Local Storage
-3. Delete the key: `omni-clients-column-visibility`
-4. Refresh the page
-
-The table will reset to default column visibility with Notes column enabled.
-
-## Architecture Overview
+- `DbResult<T>` wrapper - Removed, use direct throws
+- Static repository methods - Use constructor injection
+- Manual `NextRequest`/`NextResponse` - Use standardized handlers
+- Manual `Response.json()` - Use handlers from `@/lib/api`
 
 ### Tech Stack
 
@@ -72,69 +91,7 @@ The table will reset to default column visibility with Notes column enabled.
 - **Styling**: Tailwind CSS v4 + shadcn components
 - **Testing**: Vitest (unit) + Playwright (E2E)
 - **State Management**: TanStack React Query
-- **AI**: OpenRouter integration for LLM features, Anthropic for chat and openai for Insights. Need to switch to an embeddings model for embeddings.
-
-### Database Philosophy
-
-#### Hybrid Migration Strategy (Updated)
-
-- **Drizzle Kit configured**: Uses `drizzle.config.ts` with strict mode and supabase prefix
-- **Schema introspection**: Run `npx drizzle-kit introspect` to capture current database state
-- **Selective migrations**: Use `npx drizzle-kit generate` for simple column/table additions
-- **Manual SQL for complex changes**: RLS policies, extensions, complex indexes, and structural changes
-- **Use MCP Server Tools**: Prefer MCP Tools for database management over RAW SQL QUERIES where available.
-- **NEVER use `drizzle-kit push`**: Always use the migration workflow to prevent data loss
-- **Comprehensive backups**: Use MCP Supabase server for full schema/data backup before changes
-- **Schema sync**: Keep `src/server/db/schema.ts` as the source of truth for application types
-
-#### Migration Workflow (CORRECTED)
-
-1. **Database-first approach**: Make all schema changes in Supabase SQL editor first
-2. **Introspect after changes**: Run `npx drizzle-kit pull` to update schema.ts
-3. **Generate safe migrations**: `npx drizzle-kit generate` works safely when schema matches DB
-4. **Review migration SQL**: Always inspect generated SQL before applying
-5. **Apply incremental changes**: Use `npx drizzle-kit migrate` for approved changes
-6. **Keep schema.ts synchronized**: Re-run `pull` after any manual SQL changes
-
-#### What Goes Where (UPDATED)
-
-- **Drizzle Kit safe for**: Simple column additions, table creation, basic constraints when schema is synchronized
-- **Manual SQL for**: Complex indexes, RLS policies, extensions, structural changes
-- **Schema.ts**: Must exactly match database via `drizzle-kit pull` - is source of truth for TypeScript types
-- **Key insight**: `drizzle-kit generate` only becomes destructive when schema.ts is out of sync with database
-
-#### Root Cause Analysis
-
-**The Issue**: Drizzle generated destructive migrations because our `schema.ts` file was aspirational (contained future fields) rather than reflecting current database state.
-
-**The Solution**: Use `npx drizzle-kit pull` to introspect database and generate accurate schema.ts file that matches reality.
-
-**Result**: `npx drizzle-kit generate` now correctly reports "No schema changes, nothing to migrate" instead of creating destructive operations.
-
-### Project Structure
-
-```bash
-src/
-├── app/                    # Next.js App Router
-│   ├── (authorisedRoute)/ # Protected routes (dashboard, contacts, calendar, messages)
-│   ├── (auth)/            # Public routes (login, register)
-│   ├── api/               # API routes (thin handlers)
-│   └── layout.tsx         # Root layout with auth
-├── components/            # React components
-│   ├── contacts/          # Contact-specific components
-│   ├── google/           # Google integration components
-│   ├── layout/           # Layout components (sidebar, nav)
-│   └── ui/               # shadcn/ui components
-├── server/               # Business logic & services
-│   ├── ai/               # AI/LLM functionality
-│   ├── auth/             # Authentication utilities
-│   ├── db/               # Database client & schema
-│   ├── google/           # Google APIs integration
-│   ├── jobs/             # Background job processing
-│   └── sync/             # Data synchronization
-├── hooks/                # Shared React hooks
-└── lib/                  # Shared utilities
-```
+- **AI**: OpenRouter integration for LLM features.
 
 ### Key Architecture Principles
 
@@ -143,28 +100,6 @@ src/
 3. **User-scoped data**: Every table includes `user_id` for multi-tenancy
 4. **Background jobs**: Async processing for AI insights, sync, and embeddings
 5. **Type safety**: Strict TypeScript with comprehensive error handling
-6. **Result<T, E> pattern**: Use `Result` type for error handling (see `src/lib/utils/result.ts`)
-
-### Result Pattern for Error Handling
-
-The codebase uses a `Result<T, E>` pattern for explicit error handling:
-
-```typescript
-import { Result, ok, err } from "@/lib/utils/result";
-
-// Return success
-return ok(data);
-
-// Return error
-return err("Error message");
-
-// Handle Result
-const result = await someOperation();
-if (!result.ok) {
-  return { ok: false, error: result.error };
-}
-const data = result.value;
-```
 
 ### Database Schema Key Tables
 
@@ -182,7 +117,6 @@ const data = result.value;
 ### Google Integration
 
 - OAuth flow handles Gmail and Calendar access
-- Sync preferences stored in `user_sync_prefs`
 - Background jobs process Gmail/Calendar data
 - All tokens encrypted with `APP_ENCRYPTION_KEY`
 
@@ -221,20 +155,7 @@ Production additionally requires:
 - All secrets encrypted at rest
 - Row Level Security on all data access
 - The database schema is defined in the @src/server/db/schema.ts file. Reference it any time you need to understand the structure of data stored in the database.
-- Never make edits to the @src/server/db/schema.ts file. Instead ask the user to run a sql query in the supabase dashboard and once it has ran sucessfully the user will update the @src/server/db/schema.ts file and let you know. This is for if you need to edit the database. You should treat the @src/server/db/schema.ts as read only.
 - We use pnpm for package management.
-
-### Additional Documentation
-
-For deeper technical details, see:
-- **Documentation index**: `docs/README.md`
-- **API overview**: `docs/api/README.md`
-- **Error handling & observability**: `src/lib/observability/README.md`
-- **Database doctrine**: `docs/database/README.md`
-- **Operations & deployment**: `docs/ops/README.md`
-- **Testing & QA**: `docs/qa/README.md`
-- **Security overview**: `SECURITY.md`
-- **Roadmap**: `docs/roadmap/README.md`
 
 ### Layout & UI Architecture
 
@@ -276,132 +197,10 @@ The sidebar was updated to be properly full-height by modifying the sidebar cont
 - `SidebarFooter` - User navigation and controls
 - `SidebarInset` - Main content area with header and breadcrumbs
 
-## Enhanced Contacts System
-
-### Overview
-
-The Enhanced Contacts Intelligence System represents a complete replacement of the legacy contacts functionality with AI-powered features, smart suggestions, and rich interactive components tailored for wellness businesses.
-
-**Key Documentation**: See `/docs/enhanced-contacts-system.md` for comprehensive technical implementation details.
-
-### Core Features
-
-#### AI-Powered Contact Intelligence
-
-- **OpenAI GPT-5 Integration**: Latest AI model for contact insights generation
-- **36 Wellness Tags**: Comprehensive categorization system for yoga, massage, meditation, and wellness services
-- **7 Client Lifecycle Stages**: Smart progression tracking from Prospect to VIP Client
-- **Confidence Scoring**: AI-generated confidence scores (0.0-1.0) for insight reliability
-
-#### Smart Contact Suggestions
-
-- **Calendar Analysis**: Automatically extracts potential contacts from Google Calendar event attendees
-- **Duplicate Prevention**: Intelligent filtering to exclude existing contacts and system emails
-- **Bulk Creation**: Create multiple contacts with pre-generated AI insights in one operation
-- **Engagement Classification**: Analyzes event patterns to determine contact engagement levels
-
 #### Interactive UI Components
 
 - **Enhanced Data Table**: TanStack Table with shadcn/ui components for high-performance contact management
 - **Avatar Column**: Beautiful contact photos with gradient initials fallback
-- **AI Action Buttons**: 4 inline action buttons per contact (Ask AI, Send Email, Take Note, Add to Task)
-- **Hover Cards**: In-line notes management without leaving the contacts table
-- **Real-time Updates**: Optimistic UI with React Query integration
-
-### Technical Architecture
-
-#### Database Connection Pattern
-
-**Critical**: Always use the async `getDb()` pattern for database connections:
-
-```typescript
-// ✅ Correct Pattern
-import { getDb } from "@/server/db/client";
-
-export async function someStorageMethod() {
-  const db = await getDb();
-  return await db.select().from(table).where(condition);
-}
-
-// ❌ Broken Pattern (causes runtime errors)
-import { db } from "@/server/db";
-const contacts = await db.select().from(contactsTable); // Error: .from is not a function
-```
-
-#### Notes System Architecture
-
-- **Unified Notes Table**: All notes (user-created and AI-generated) stored in dedicated `notes` table
-- **Deprecated contacts.notes Field**: No longer used; all note operations use the `notes` table exclusively
-- **AI Note Format**: AI-generated insights stored with `[AI Generated]` prefix for clear attribution
-- **Full CRUD Operations**: Complete create, read, update, delete functionality through hover cards
-
-#### API Layer Structure
-
-```text
-/api/contacts-new/
-├── GET/POST /              # List/create contacts
-├── GET/POST /suggestions   # Calendar-based suggestions
-├── POST /enrich           # AI-enrich existing contacts
-└── [contactId]/notes/     # Notes management
-    ├── GET/POST           # List/create notes
-    └── [noteId]/          # Individual note operations
-        ├── PUT/DELETE     # Update/delete notes
-```
-
-### Event Classification Intelligence
-
-The system intelligently extracts structured data from unstructured calendar events:
-
-```typescript
-// Pattern extraction from event titles and descriptions
-private static extractEventType(title: string, description?: string): string {
-  const text = `${title} ${description || ''}`.toLowerCase();
-
-  if (/\b(class|lesson|session)\b/.test(text)) return 'class';
-  if (/\b(workshop|seminar|training)\b/.test(text)) return 'workshop';
-  if (/\b(appointment|consultation|private)\b/.test(text)) return 'appointment';
-
-  return 'event'; // default
-}
-```
-
-### CSRF Protection Integration
-
-All API calls use centralized utilities that handle CSRF tokens automatically:
-
-```typescript
-// ✅ Proper API calls with automatic CSRF handling
-import { fetchPost } from "@/lib/api";
-const data = await fetchPost<ResponseType>("/api/contacts-new/suggestions", payload);
-
-// ❌ Raw fetch (missing CSRF tokens, will fail with 403)
-const response = await fetch("/api/contacts-new/suggestions", {
-  method: "POST",
-  body: JSON.stringify(payload),
-});
-```
-
-### React Query Integration
-
-Optimistic updates with proper error handling and rollback:
-
-```typescript
-const createNoteMutation = useMutation({
-  mutationFn: (data) => fetchPost("/api/notes", data),
-  onMutate: async (newNote) => {
-    // Optimistic update
-    const previous = queryClient.getQueryData(["notes", contactId]);
-    queryClient.setQueryData(["notes", contactId], (old) => [tempNote, ...old]);
-    return { previous };
-  },
-  onError: (error, variables, context) => {
-    // Rollback on error
-    if (context?.previous) {
-      queryClient.setQueryData(["notes", contactId], context.previous);
-    }
-  },
-});
-```
 
 ### Wellness Business Taxonomy
 
@@ -422,14 +221,6 @@ const createNoteMutation = useMutation({
 - **Lost Client**: No recent activity (60+ days)
 - **At Risk Client**: Declining attendance pattern
 
-### Critical Implementation Notes
-
-1. **Database Connections**: Always use `getDb()` pattern, never the proxy-based `db` import
-2. **CSRF Protection**: Use `fetchPost()`/`fetchGet()` utilities, never raw `fetch()` calls
-3. **Notes Architecture**: Use `notes` table exclusively, ignore `contacts.notes` field
-4. **AI Integration**: GPT-5 model with structured JSON responses and proper error handling
-5. **Event Classification**: Pattern-based extraction, no database schema changes required
-
 ## Pull Request Workflow
 
 When adding commits from a feature branch to main, follow this process:
@@ -449,34 +240,6 @@ When adding commits from a feature branch to main, follow this process:
 - **Automatic**: Claude reviews all new PRs and PR updates automatically
 - **Manual trigger**: Comment `/claude` on any PR to request a review
 - **Review scope**: Claude analyzes code quality, security, performance, and test coverage
-
-## Testing Environment
-
-- E2E tests require `.env.local` to be configured with `DATABASE_URL` and `FEATURE_GOOGLE_*` flags
-- Use `pnpm e2e` (auto-loads .env.local) or `./scripts/test-e2e.sh` for e2e tests
-- Some e2e tests require actual Google OAuth authentication and may skip if not available
-- Run `pnpm test` for unit tests, `pnpm e2e` for e2e tests
-
-### OAuth Authentication for E2E Tests
-
-The skipped e2e test requires both Supabase authentication AND Google OAuth tokens.
-
-**Automated setup (recommended):**
-
-1. Add real Google OAuth tokens to `.env.local`:
-
-   ```typescript
-   E2E_GOOGLE_ACCESS_TOKEN = your_actual_access_token;
-   E2E_GOOGLE_REFRESH_TOKEN = your_actual_refresh_token;
-   ```
-
-2. Run setup: `pnpm e2e:setup` (creates test user + OAuth tokens)
-3. Run tests: `pnpm e2e` or `pnpm e2e:full` (setup + tests)
-
-**Manual setup:**
-
-- Run `pnpm dev`, sign in at `/login`, complete OAuth at `/settings/sync`
-- Test user: `test-e2e@example.com` / `test-e2e-password-123`
 
 ### Coding Standards
 
@@ -527,28 +290,9 @@ if (!isUser(obj)) {
 - **Toast notifications**: Use Sonner for user feedback (success, error, info)
 - **Mock data**: Use realistic mock data during development for better UX testing
 - **Accessibility**: Ensure proper ARIA labels and keyboard navigation
-- i stopped you becasue when you move files you have to manually update all the broken imports, when i move them the imports update automatically
 
 Codebase Patterns Analysis
 
-Here's a comprehensive overview of the patterns used in your OmniCRM codebase,
-organized by categories:
-
-HTTP/API Layer Patterns
-
-✅ Standardized Approach:
-
--
-
-```typescript
-
-fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
-
-- Centralized API
-  utilities
-- Never direct fetch() - All HTTP calls go through utilities in src/lib/api.ts
-- OkEnvelope Pattern: { ok: true; data: T } | { ok: false; error: string; details?:
-  unknown }
 - CSRF Protection: Automatic x-csrf-token header injection
 - Error Handling: Built-in toast notifications and error boundaries
 - Type Safety: Full TypeScript generics for request/response types
@@ -557,21 +301,8 @@ fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
 
   ✅ Database Connection:
 
-- getDb() Pattern: Always use await getDb() for database connections
-- Never db import: The proxy-based db import causes runtime errors (db.from is not a
-  function)
 - postgres.js: Uses postgres.js driver (NOT pg)
 - Drizzle ORM: All queries use Drizzle with strict type safety
-- Connection Pooling: Singleton pattern with lazy initialization
-- Configuration: Optimized for Supabase Transaction mode (prepare: false)
-
-  Critical Database Pattern:
-  // ✅ Correct
-  import { getDb } from "@/server/db/client";
-  const db = await getDb();
-
-  // ❌ Broken
-  import { db } from "@/server/db";
 
   State Management Patterns
 
@@ -596,18 +327,12 @@ fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
 
   ✅ Zod Schemas:
 
-- Centralized Schemas: All in src/lib/schemas/ directory
-- Type Inference: type T = z.infer<typeof Schema> - No manual types
-- API Validation: Request/response schemas for all endpoints
-- Preprocessing: Input sanitization and coercion
-- Strict Mode: .strict() on all object schemas
-- Error Mapping: Custom error messages and transformations
+- Centralized Schemas: All in src/server/db/business-schemas/ directory
 
   Schema Organization:
 
-- src/lib/schemas/index.ts - Central exports
-- Individual files: contacts.ts, chat.ts, sync.ts, etc.
-- DTO patterns match database schema exactly
+- src/server/db/business-schemas/index.ts - Central exports
+- Individual files: contacts.ts, chat.ts, productivity.ts, etc.
 
   Service Layer Architecture
 
@@ -615,13 +340,12 @@ fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
 
 - Thin API Routes: Controllers in src/app/api/
 - Service Layer: Business logic in src/server/services/
-- Repository Pattern: Data access in src/server/storage/
+- Repository Pattern: Data access in packages/repo/src/
 - Job Processing: Background tasks in src/server/jobs/
 
   Service Structure:
   src/server/
   ├── services/     # Business logic
-  ├── storage/      # Data repositories
   ├── jobs/         # Background processing
   ├── ai/           # LLM integrations
   └── google/       # External APIs
@@ -633,26 +357,15 @@ fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
 - AES-256-GCM: All sensitive data encryption
 - HMAC-SHA256: Message authentication and CSRF tokens
 - Key Derivation: Master key with labeled sub-keys
-- Versioned Format: v1:<iv>:<ciphertext>:<tag> envelope
+- Versioned Format: v1:`<iv>:<ciphertext>:<tag>` envelope
 - OAuth Storage: Encrypted tokens in user_integrations table
 - Environment Key: APP_ENCRYPTION_KEY (base64url preferred)
 
   Encryption Utilities:
 
-- src/lib/crypto.ts - Node.js crypto functions
-- src/lib/crypto-edge.ts - Edge runtime compatible
+- src/server/utils/crypto.ts - Node.js crypto functions
+- src/server/utils/crypto-edge.ts - Edge runtime compatible
 - Auto-detection of encrypted vs plaintext data
-
-  Error Handling Patterns
-
-  ✅ Comprehensive Error Management:
-
-- Toast Notifications: Sonner for user feedback
-- Error Boundaries: React error boundaries throughout UI
-- API Envelopes: Structured error responses
-- Logging: Console errors with context
-- Validation Errors: Zod error mapping
-- Retry Logic: Built into React Query mutations
 
   File Organization Patterns
 
@@ -682,7 +395,7 @@ fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
 - normalize - Data normalization
 - embed - Vector embeddings
 - insight - AI insights generation
-- sync_gmail / sync_calendar - External API sync
+- google_gmail_sync / google_calendar_sync - External API sync
 
   Component Architecture Patterns
 
@@ -694,14 +407,3 @@ fetchGet<T>(), fetchPost<T>(), fetchPut<T>(), fetchDelete<T>()
 - Error Boundaries: Component-level error handling
 - Loading States: Skeleton components and loading indicators
 - pnpm typecheck and pnpm lint are the preferred commands
-```
-
-- // User-facing progress/status
-  toast.info("Generating AI insights...");
-
-// User-facing errors (they initiated the action)
-toast.error("Failed to generate insights");
-console.error("AI insights error:", error); // Still log for debugging
-
-// Technical/background errors (they didn't initiate)
-logger.debug("Failed to decode message part", error); // Dev console only

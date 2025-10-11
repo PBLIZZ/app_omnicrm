@@ -135,16 +135,16 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
       };
 
       let first_name: string;
-      let last_name: string;
+      let _last_name: string;
 
       if (nameParts.length === 1) {
         // Single name: use as first_name, leave last_name empty
         first_name = sanitizeName(nameParts[0] || "");
-        last_name = "";
+        _last_name = "";
       } else {
         // Multiple parts: first part is first_name, rest is last_name
         first_name = sanitizeName(nameParts[0] || "");
-        last_name = sanitizeName(nameParts.slice(1).join(" "));
+        _last_name = sanitizeName(nameParts.slice(1).join(" "));
       }
 
       // Validate that we have a valid first name after sanitization

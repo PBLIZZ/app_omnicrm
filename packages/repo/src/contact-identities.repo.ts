@@ -1,4 +1,14 @@
-import { and, asc, count, desc, eq, ilike, inArray, isNull, type InferSelectModel } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  type InferSelectModel,
+} from "drizzle-orm";
 
 import type { DbClient } from "@/server/db/client";
 import {
@@ -22,11 +32,12 @@ const sortColumn = contactIdentities.createdAt;
 type ContactIdentityRow = InferSelectModel<typeof contactIdentities>;
 
 export class ContactIdentitiesRepository {
+  constructor(private readonly db: DbClient) {}
+
   /**
    * List identities for a user with optional filters.
    */
-  static async listContactIdentities(
-    db: DbClient,
+  async listContactIdentities(
     userId: string,
     params: ContactIdentityListParams = {},
   ): Promise<{ items: ContactIdentity[]; total: number }> {
@@ -56,7 +67,7 @@ export class ContactIdentitiesRepository {
     const whereClause = and(...conditions);
     const orderFn = params.order === "asc" ? asc : desc;
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(contactIdentities)
       .where(whereClause)
@@ -64,7 +75,7 @@ export class ContactIdentitiesRepository {
       .limit(pageSize)
       .offset(offset)) as ContactIdentityRow[];
 
-    const totalRow = (await db
+    const totalRow = (await this.db
       .select({ value: count() })
       .from(contactIdentities)
       .where(whereClause)) as Array<{ value: number | bigint }>;
@@ -78,8 +89,7 @@ export class ContactIdentitiesRepository {
   /**
    * Find identity by unique constraints.
    */
-  static async findByKindAndValue(
-    db: DbClient,
+  async findByKindAndValue(
     userId: string,
     kind: string,
     value: string,
@@ -89,7 +99,7 @@ export class ContactIdentitiesRepository {
       ? eq(contactIdentities.provider, provider)
       : isNull(contactIdentities.provider);
 
-    const rows = (await db
+    const rows = (await this.db
       .select()
       .from(contactIdentities)
       .where(
@@ -108,11 +118,13 @@ export class ContactIdentitiesRepository {
   /**
    * Create a new contact identity.
    */
-  static async createContactIdentity(
-    db: DbClient,
+  async createContactIdentity(
     data: CreateContactIdentity & { userId: string },
   ): Promise<ContactIdentity> {
-    const [created] = (await db.insert(contactIdentities).values(data).returning()) as ContactIdentityRow[];
+    const [created] = (await this.db
+      .insert(contactIdentities)
+      .values(data)
+      .returning()) as ContactIdentityRow[];
 
     if (!created) {
       throw new Error("Insert returned no data");
@@ -124,15 +136,17 @@ export class ContactIdentitiesRepository {
   /**
    * Bulk insert identities.
    */
-  static async createContactIdentitiesBulk(
-    db: DbClient,
+  async createContactIdentitiesBulk(
     items: Array<CreateContactIdentity & { userId: string }>,
   ): Promise<ContactIdentity[]> {
     if (items.length === 0) {
       return [];
     }
 
-    const rows = (await db.insert(contactIdentities).values(items).returning()) as ContactIdentityRow[];
+    const rows = (await this.db
+      .insert(contactIdentities)
+      .values(items)
+      .returning()) as ContactIdentityRow[];
 
     return rows;
   }
@@ -140,8 +154,7 @@ export class ContactIdentitiesRepository {
   /**
    * Update a contact identity.
    */
-  static async updateContactIdentity(
-    db: DbClient,
+  async updateContactIdentity(
     userId: string,
     identityId: string,
     updates: UpdateContactIdentity,
@@ -150,7 +163,7 @@ export class ContactIdentitiesRepository {
       throw new Error("No fields provided for update");
     }
 
-    const [updated] = (await db
+    const [updated] = (await this.db
       .update(contactIdentities)
       .set(updates)
       .where(and(eq(contactIdentities.userId, userId), eq(contactIdentities.id, identityId)))
@@ -162,12 +175,8 @@ export class ContactIdentitiesRepository {
   /**
    * Delete a contact identity by ID.
    */
-  static async deleteContactIdentity(
-    db: DbClient,
-    userId: string,
-    identityId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteContactIdentity(userId: string, identityId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(contactIdentities)
       .where(and(eq(contactIdentities.userId, userId), eq(contactIdentities.id, identityId)))
       .returning({ id: contactIdentities.id })) as Array<{ id: string }>;
@@ -178,16 +187,16 @@ export class ContactIdentitiesRepository {
   /**
    * Delete identities for a contact (e.g., during merge).
    */
-  static async deleteIdentitiesForContact(
-    db: DbClient,
-    userId: string,
-    contactId: string,
-  ): Promise<number> {
-    const deleted = (await db
+  async deleteIdentitiesForContact(userId: string, contactId: string): Promise<number> {
+    const deleted = (await this.db
       .delete(contactIdentities)
       .where(and(eq(contactIdentities.userId, userId), eq(contactIdentities.contactId, contactId)))
       .returning({ id: contactIdentities.id })) as Array<{ id: string }>;
 
     return deleted.length;
   }
+}
+
+export function createContactIdentitiesRepository(db: DbClient): ContactIdentitiesRepository {
+  return new ContactIdentitiesRepository(db);
 }

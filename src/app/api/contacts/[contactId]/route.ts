@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getAuthUserId } from "@/lib/auth-simple";
+import { handleAuth } from "@/lib/api";
 import {
   getContactWithNotesService,
   updateContactService,
@@ -9,90 +9,85 @@ import {
   UpdateContactBodySchema,
   DeleteContactResponseSchema,
   ContactSchema,
-} from "@/server/db/business-schemas";
-import { ApiError } from "@/lib/api/errors";
+} from "@/server/db/business-schemas/contacts";
+import { AppError } from "@/lib/errors/app-error";
 
 /**
  * Individual Contact Management API Routes
  *
- * Pattern: Extract params → Call service (throws) → Return response
- * Error handling: Catch AppError/ApiError and format to JSON response
+ * Migrated to handleAuth pattern for consistent error handling and validation
  */
 
-const ParamsSchema = z.object({
-  contactId: z.string().uuid(),
-});
+interface RouteParams {
+  params: Promise<{ contactId: string }>;
+}
 
-type RouteContext = { params: Promise<{ contactId: string }> };
+// Response schema for contact with notes
+const ContactWithNotesSchema = ContactSchema.extend({
+  notes: z.array(
+    z.object({
+      id: z.string().uuid(),
+      userId: z.string().uuid(),
+      contactId: z.string().uuid().nullable(),
+      contentPlain: z.string(),
+      contentRich: z.unknown().nullable(),
+      tags: z.array(z.string()).nullable(),
+      createdAt: z.date().nullable(),
+      updatedAt: z.date().nullable(),
+    }),
+  ),
+});
 
 /**
  * GET /api/contacts/[contactId] - Get contact with full notes array
- * Returns ContactWithNotes for detail views
  */
-export async function GET(_request: Request, context: RouteContext): Promise<Response> {
-  try {
-    const userId = await getAuthUserId();
-    const { contactId } = ParamsSchema.parse(await context.params);
+export async function GET(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
 
-    // Use getContactWithNotesService to include full notes array
-    const contactWithNotes = await getContactWithNotesService(userId, contactId);
-    
-    // Note: ContactSchema validates base Contact fields, notes are added on top
-    return Response.json(contactWithNotes);
-  } catch (error) {
-    return handleRouteError(error);
-  }
+  return handleAuth(
+    z.object({}),
+    ContactWithNotesSchema,
+    async (_voidInput, userId): Promise<z.infer<typeof ContactWithNotesSchema>> => {
+      const contact = await getContactWithNotesService(userId, params.contactId);
+      if (!contact) {
+        throw new AppError("Contact not found", "NOT_FOUND", "validation", false, 404);
+      }
+      return contact;
+    },
+  )(request);
 }
 
 /**
  * PUT /api/contacts/[contactId] - Update contact
  */
-export async function PUT(request: Request, context: RouteContext): Promise<Response> {
-  try {
-    const userId = await getAuthUserId();
-    const { contactId } = ParamsSchema.parse(await context.params);
-    const body: unknown = await request.json();
-    const data = UpdateContactBodySchema.parse(body);
+export async function PUT(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
 
-    const contact = await updateContactService(userId, contactId, data);
-    const validated = ContactSchema.parse(contact);
-
-    return Response.json(validated);
-  } catch (error) {
-    return handleRouteError(error);
-  }
+  return handleAuth(
+    UpdateContactBodySchema,
+    ContactSchema,
+    async (data, userId): Promise<z.infer<typeof ContactSchema>> => {
+      const contact = await updateContactService(userId, params.contactId, data);
+      if (!contact) {
+        throw new AppError("Contact not found", "NOT_FOUND", "validation", false, 404);
+      }
+      return contact;
+    },
+  )(request);
 }
 
 /**
  * DELETE /api/contacts/[contactId] - Delete contact
  */
-export async function DELETE(_request: Request, context: RouteContext): Promise<Response> {
-  try {
-    const userId = await getAuthUserId();
-    const { contactId } = ParamsSchema.parse(await context.params);
+export async function DELETE(request: Request, context: RouteParams): Promise<Response> {
+  const params = await context.params;
 
-    const deleted = await deleteContactService(userId, contactId);
-    const response = DeleteContactResponseSchema.parse({ deleted: deleted ? 1 : 0 });
-
-    return Response.json(response);
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
-
-/**
- * Centralized error handler for this route
- */
-function handleRouteError(error: unknown): Response {
-  if (error instanceof z.ZodError) {
-    return Response.json({ error: "Validation failed", details: error.issues }, { status: 400 });
-  }
-
-  if (error instanceof ApiError) {
-    return Response.json({ error: error.message }, { status: error.status });
-  }
-
-  // All other errors (including AppError from services)
-  const message = error instanceof Error ? error.message : "Internal server error";
-  return Response.json({ error: message }, { status: 500 });
+  return handleAuth(
+    z.object({}),
+    DeleteContactResponseSchema,
+    async (_voidInput, userId): Promise<z.infer<typeof DeleteContactResponseSchema>> => {
+      const deleted = await deleteContactService(userId, params.contactId);
+      return { deleted: deleted ? 1 : 0 };
+    },
+  )(request);
 }

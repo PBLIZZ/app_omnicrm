@@ -1,6 +1,6 @@
 // ===== src/app/api/storage/file-url/route.ts =====
 import { handleGetWithQueryAuth } from "@/lib/api";
-import { StorageService } from "@/server/services/storage.service";
+import { getFileSignedUrlService } from "@/server/services/storage.service";
 import {
   FileUrlQuerySchema,
   FileUrlResponseSchema,
@@ -11,7 +11,7 @@ export const GET = handleGetWithQueryAuth(
   FileUrlQuerySchema,
   FileUrlResponseSchema,
   async (query): Promise<FileUrlResponse> => {
-    const result = await StorageService.getFileSignedUrl(query.filePath);
+    const result = await getFileSignedUrlService(query.filePath);
     return { signedUrl: result.signedUrl };
   },
 );

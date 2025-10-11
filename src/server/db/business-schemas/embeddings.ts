@@ -82,6 +82,7 @@ export const EmbeddingQuerySchema = z.object({
     .min(1)
     .max(200)
     .default(50),
+  order: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export type EmbeddingQuery = z.infer<typeof EmbeddingQuerySchema>;
@@ -107,3 +108,5 @@ export type EmbeddingListResponse = z.infer<typeof EmbeddingListResponseSchema>;
 export const EmbeddingResponseSchema = z.object({
   item: EmbeddingSchema,
 });
+
+export type EmbeddingResponse = z.infer<typeof EmbeddingResponseSchema>;

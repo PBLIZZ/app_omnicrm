@@ -7,7 +7,7 @@ import { google } from "googleapis";
 import { cookies } from "next/headers";
 import { randomBytes } from "crypto";
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   try {
     // 1. Verify user is authenticated
     const userId = await getAuthUserId();

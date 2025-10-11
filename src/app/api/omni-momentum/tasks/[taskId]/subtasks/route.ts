@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const handler = handleGetWithQueryAuth(
     TaskFiltersSchema,
     z.array(TaskSchema),
-    async (filters, userId) => {
+    async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
       const result = await productivityService.getSubtasksWithValidation(params.taskId, userId);
 
       if (isErr(result)) {
@@ -51,29 +51,33 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  * POST /api/omni-momentum/tasks/[taskId]/subtasks - Create new subtask
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
-  const handler = handleAuth(CreateTaskSchema, TaskSchema, async (data, userId) => {
-    const result = await productivityService.createSubtaskWithValidation(
-      params.taskId,
-      userId,
-      data,
-    );
+  const handler = handleAuth(
+    CreateTaskSchema,
+    TaskSchema,
+    async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
+      const result = await productivityService.createSubtaskWithValidation(
+        params.taskId,
+        userId,
+        data,
+      );
 
-    if (isErr(result)) {
-      throw new Error(result.error.message);
-    }
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
 
-    const { subtask, parentTask } = result.data;
+      const { subtask, parentTask } = result.data;
 
-    if (!parentTask) {
-      throw new Error("Parent task not found");
-    }
+      if (!parentTask) {
+        throw new Error("Parent task not found");
+      }
 
-    if (!subtask) {
-      throw new Error("Failed to create subtask");
-    }
+      if (!subtask) {
+        throw new Error("Failed to create subtask");
+      }
 
-    return subtask;
-  });
+      return subtask;
+    },
+  );
 
   return handler(request);
 }

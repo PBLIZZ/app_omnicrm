@@ -37,8 +37,7 @@ const PreferencesSchema = z
   .optional();
 
 const ClientDataSchema = z.object({
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().min(1, "Last name is required"),
+  display_name: z.string().min(1, "Full name is required"),
   primary_email: z.string().email("Valid email is required"),
   primary_phone: z.string().optional(),
   date_of_birth: z.string().optional(), // ISO date string
@@ -65,6 +64,7 @@ const OnboardingSubmissionSchema = z.object({
   client: ClientDataSchema,
   consent: ConsentDataSchema,
   photo_path: z.string().optional(),
+  photo_size: z.number().int().positive().optional(),
 });
 
 // Type definitions
@@ -82,7 +82,7 @@ interface ClientIpData {
 
 // Constants
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-const PHONE_REGEX = /^[\+]?[1-9][\d]{0,15}$/
+const PHONE_REGEX = /^[\+]?[1-9][\d]{0,15}$/;
 
 // Rate limiter instance
 const ratelimit = new Ratelimit({
@@ -130,6 +130,12 @@ export class OnboardingService {
 
     // Clean up IP address - remove port numbers and IPv6 brackets
     ip = ip.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+    
+    // If IP is empty or just punctuation after cleaning, set to null for database
+    if (!ip || ip.trim() === "" || ip === ":") {
+      ip = "127.0.0.1"; // Use localhost as fallback for development
+    }
+    
     const userAgent = headers["user-agent"] || "unknown";
 
     return { ip, userAgent };
@@ -144,7 +150,9 @@ export class OnboardingService {
       return ok(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const messages = error.issues.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`).join(', ');
+        const messages = error.issues
+          .map((e: z.ZodIssue) => `${e.path.join(".")}: ${e.message}`)
+          .join(", ");
         return err(`Validation failed: ${messages}`);
       }
       return err(error instanceof Error ? error.message : "Validation failed");
@@ -235,9 +243,9 @@ export class OnboardingService {
   /**
    * Prepare client data for database insertion
    */
-  static prepareClientData(client: OnboardingSubmissionData["client"]): any {
+  static prepareClientData(client: OnboardingSubmissionData["client"]): ClientData {
     return {
-      display_name: `${client.first_name} ${client.last_name}`,
+      display_name: client.display_name,
       primary_email: client.primary_email,
       primary_phone: client.primary_phone || null,
       date_of_birth: client.date_of_birth || null,
@@ -256,7 +264,10 @@ export class OnboardingService {
   static prepareConsentData(
     consent: OnboardingSubmissionData["consent"],
     clientIpData: ClientIpData,
-  ): any {
+  ): OnboardingSubmissionData["consent"] & {
+    ip_address: string;
+    user_agent: string;
+  } {
     return {
       ...consent,
       ip_address: clientIpData.ip,
@@ -273,6 +284,7 @@ export class OnboardingService {
     clientData: ClientData,
     consentData: ConsentData,
     photoPath?: string,
+    photoSize?: number,
   ): Promise<Result<string, string>> {
     try {
       const result = await OnboardingRepository.createContactWithConsent(
@@ -280,7 +292,8 @@ export class OnboardingService {
         token,
         clientData,
         consentData,
-        photoPath
+        photoPath,
+        photoSize,
       );
 
       // Convert DbResult to Result<string, string>
@@ -322,11 +335,20 @@ export class OnboardingService {
    * Complete onboarding process - main service method
    */
   static async processOnboardingSubmission(
-    userId: string,
     submissionData: OnboardingSubmissionData,
     clientIpData: ClientIpData,
   ): Promise<Result<OnboardingResult, string>> {
-    const { token, client, consent, photo_path } = submissionData;
+    const { token, client, consent, photo_path, photo_size } = submissionData;
+
+    // Get userId from token
+    const tokenValidation = await OnboardingRepository.validateToken(token);
+    if (!tokenValidation.success) {
+      return err("Failed to validate token");
+    }
+    if (!tokenValidation.data.isValid || !tokenValidation.data.token) {
+      return err(tokenValidation.data.error || "Invalid token");
+    }
+    const userId = tokenValidation.data.token.userId;
 
     // Validate all client data
     const clientValidation = this.validateClientData(client);
@@ -350,7 +372,14 @@ export class OnboardingService {
     const consentData = this.prepareConsentData(consent, clientIpData);
 
     // Submit to database
-    const submissionResult = await this.submitOnboarding(userId, token, clientData, consentData, photo_path);
+    const submissionResult = await this.submitOnboarding(
+      userId,
+      token,
+      clientData,
+      consentData,
+      photo_path,
+      photo_size,
+    );
     if (isErr(submissionResult)) {
       return err(submissionResult.error);
     }

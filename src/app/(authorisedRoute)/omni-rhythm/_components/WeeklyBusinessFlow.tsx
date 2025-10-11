@@ -167,7 +167,7 @@ export function WeeklyBusinessFlow({
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Avg Session</span>
                 <span className="font-medium">
-                  {(weeklyStats ?? defaultStats).avgSessionLength}min
+                  {(weeklyStats ?? defaultStats).averageSessionLength}min
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -295,7 +295,8 @@ function calculateWeeklyStats(appointments: Appointment[]): WeeklyStats {
     busiestDay,
     clientRetention: 85, // Placeholder
     newClients: Math.floor(totalAppointments * 0.3), // Placeholder
-    avgSessionLength: Math.round(avgSessionLength),
+    returningClients: Math.floor(totalAppointments * 0.7), // Placeholder
+    averageSessionLength: Math.round(avgSessionLength),
     averageSessionValue,
     utilizationRate,
   };

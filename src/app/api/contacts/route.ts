@@ -3,7 +3,7 @@ import {
   GetContactsQuerySchema,
   CreateContactBodySchema,
   ContactListResponseSchema,
-  ContactSchema,
+  ContactResponseSchema,
 } from "@/server/db/business-schemas/contacts";
 import { listContactsService, createContactService } from "@/server/services/contacts.service";
 
@@ -19,6 +19,21 @@ export const GET = handleGetWithQueryAuth(
   },
 );
 
-export const POST = handleAuth(CreateContactBodySchema, ContactSchema, async (data, userId) => {
-  return await createContactService(userId, data);
+export const POST = handleAuth(CreateContactBodySchema, ContactResponseSchema, async (data, userId) => {
+  // Merge userId with the request data
+  const contactData = { ...data, userId };
+
+  console.log("Creating contact with data:", contactData);
+  const result = await createContactService(userId, contactData);
+
+  if (!result.success) {
+    console.error("Create contact failed:", result.error);
+    throw new Error(result.error.message);
+  }
+
+  console.log("Contact created successfully:", result.data.id);
+
+  // Extract just the Contact data (remove lastNote added by service)
+  const { lastNote: _lastNote, ...contact } = result.data;
+  return { item: contact };
 });

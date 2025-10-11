@@ -18,7 +18,6 @@ import { ConnectErrorBanner } from "@/app/(authorisedRoute)/omni-connect/_compon
 import { ConnectConnectionStatusCard } from "@/app/(authorisedRoute)/omni-connect/_components/ConnectConnectionStatusCard";
 import { TemplateAutomationCard } from "@/app/(authorisedRoute)/omni-connect/_components/TemplateAutomationCard";
 import { IntelligenceDashboardCard } from "./ConnectIntelligenceDashboardCard";
-import { SemanticSearchView } from "./ConnectSemanticSearchView";
 
 // New tab views
 import { EmailsView } from "./EmailsView";
@@ -164,7 +163,9 @@ export function ConnectPage(): JSX.Element {
           <EmailsView emails={emails} />
         </TabsContent>
         <TabsContent value="search">
-          <SemanticSearchView />
+          <div className="p-8 text-center text-muted-foreground">
+            Semantic search coming soon
+          </div>
         </TabsContent>
         <TabsContent value="intelligence">
           <IntelligenceView />

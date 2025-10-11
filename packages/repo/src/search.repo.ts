@@ -104,7 +104,7 @@ export class SearchRepository {
           .where(
             and(
               eq(notes.userId, userId),
-              or(ilike(notes.title, searchTerm), ilike(notes.content, searchTerm)),
+              ilike(notes.contentPlain, searchTerm),
             ),
           )
           .limit(limitPerType);
@@ -113,11 +113,13 @@ export class SearchRepository {
           results.push({
             id: row.note.id,
             type: "note",
-            title: row.note.title || "Untitled Note",
-            content: row.note.content,
+            title: row.note.contentPlain.slice(0, 50) + (row.note.contentPlain.length > 50 ? "..." : ""),
+            content: row.note.contentPlain,
             metadata: {
               contactId: row.note.contactId,
               contactName: row.contact?.displayName,
+              tags: row.note.tags,
+              sourceType: row.note.sourceType,
             },
             score: 1,
             source: "traditional",
@@ -212,20 +214,20 @@ export class SearchRepository {
 
         for (const row of taskRows) {
           results.push({
-            id: row.id,
+            id: row["id"],
             type: "task",
-            title: row.name,
-            content: JSON.stringify(row.details || {}),
+            title: row["name"],
+            content: JSON.stringify(row["details"] || {}),
             metadata: {
-              status: row.status,
-              priority: row.priority,
-              dueDate: row.dueDate,
-              projectId: row.projectId,
+              status: row["status"],
+              priority: row["priority"],
+              dueDate: row["dueDate"],
+              projectId: row["projectId"],
             },
             score: 1,
             source: "traditional",
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt,
+            createdAt: row["createdAt"],
+            updatedAt: row["updatedAt"],
           });
         }
       }
@@ -374,11 +376,13 @@ export class SearchRepository {
           return ok({
             id: row.note.id,
             type: "note",
-            title: row.note.title || "Untitled Note",
-            content: row.note.content,
+            title: row.note.contentPlain.slice(0, 50) + (row.note.contentPlain.length > 50 ? "..." : ""),
+            content: row.note.contentPlain,
             metadata: {
               contactId: row.note.contactId,
               contactName: row.contact?.displayName,
+              tags: row.note.tags,
+              sourceType: row.note.sourceType,
             },
             createdAt: row.note.createdAt,
             updatedAt: row.note.updatedAt,
@@ -451,18 +455,18 @@ export class SearchRepository {
           if (!task) return ok(null);
 
           return ok({
-            id: task.id,
+            id: task["id"],
             type: "task",
-            title: task.name,
-            content: JSON.stringify(task.details || {}),
+            title: task["name"],
+            content: JSON.stringify(task["details"] || {}),
             metadata: {
-              status: task.status,
-              priority: task.priority,
-              dueDate: task.dueDate,
-              projectId: task.projectId,
+              status: task["status"],
+              priority: task["priority"],
+              dueDate: task["dueDate"],
+              projectId: task["projectId"],
             },
-            createdAt: task.createdAt,
-            updatedAt: task.updatedAt,
+            createdAt: task["createdAt"],
+            updatedAt: task["updatedAt"],
           });
         }
 

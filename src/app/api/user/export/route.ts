@@ -1,14 +1,18 @@
 /** GET /api/user/export — Complete user data export for GDPR compliance (auth required). */
 import { handleAuth } from "@/lib/api";
 import { UserExportService } from "@/server/services/user-export.service";
-import { UserExportRequestSchema, UserExportResponseSchema } from "@/server/db/business-schemas";
+import { 
+  UserExportRequestSchema, 
+  UserExportResponseSchema,
+  type UserExportResponse 
+} from "@/server/db/business-schemas";
 
 export const GET = handleAuth(
   UserExportRequestSchema,
   UserExportResponseSchema,
-  async (data, userId) => {
+  async (_data, userId): Promise<UserExportResponse> => {
     // Export user data using service
-    const exportData = await UserExportService.exportUserData(userId);
+    const exportData = await UserExportService.exportAllUserData(userId);
 
     return exportData;
   }

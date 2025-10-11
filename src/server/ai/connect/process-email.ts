@@ -72,10 +72,13 @@ export async function processEmailIntelligence(
       },
     });
 
-    const [classification, contactMatch] = await Promise.all([
+    const results = await Promise.all([
       categorizeEmail(userId, emailData),
       matchToContacts(userId, emailData),
     ]);
+
+    const classification = results[0];
+    const contactMatch = results[1];
 
     const wisdom = await extractWisdom(userId, { ...emailData, classification });
 

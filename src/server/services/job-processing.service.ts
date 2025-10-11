@@ -18,48 +18,6 @@ import { eq, and, inArray, desc, count } from "drizzle-orm";
 import { JobRunner } from "@/server/jobs/runner";
 import { rawEventErrors } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
-import { err } from "@/lib/utils/result";
-
-export interface JobProcessingOptions {
-  jobTypes?: Array<'normalize' | 'embed' | 'insight' | 'sync_gmail' | 'sync_calendar'>;
-  batchId?: string;
-  maxJobs?: number;
-  includeRetrying?: boolean;
-  skipStuckJobs?: boolean;
-  realTimeUpdates?: boolean;
-}
-
-export interface JobProcessingResult {
-  message: string;
-  processed: number;
-  succeeded: number;
-  failed: number;
-  skipped: number;
-  processingTimeMs: number;
-  jobs: Array<{
-    id: string;
-    kind: string;
-    status: string;
-    attempts: number;
-    hasError: boolean;
-  }>;
-  errors: Array<{ jobId: string; error: string }>;
-  stats: {
-    totalEligible: number;
-    alreadyProcessing: number;
-    stuckJobs: number;
-  };
-  recommendations: string[];
-}
-
-export interface JobStatusSummary {
-  queued: number;
-  processing: number;
-  completed: number;
-  failed: number;
-  retrying: number;
-  totalJobs: number;
-}
 
 export class JobProcessingService {
   private static readonly DEFAULT_MAX_JOBS = 25;
@@ -358,11 +316,12 @@ export class JobProcessingService {
         .from(calendarEvents)
         .where(eq(calendarEvents.userId, userId));
 
+      const totalEvents = Number(eventsCount[0]?.count ?? 0);
       return {
         processed: 0,
         succeeded: 0,
         failed: 0,
-        totalEvents: eventsCount[0]?.count || 0,
+        totalEvents,
       };
     }
 
@@ -386,11 +345,12 @@ export class JobProcessingService {
       }
     });
 
+    const totalEvents = Number(eventsCount[0]?.count ?? 0);
     return {
       processed: result.processed,
       succeeded: result.succeeded,
       failed: result.failed,
-      totalEvents: eventsCount[0]?.count || 0,
+      totalEvents,
     };
   }
 

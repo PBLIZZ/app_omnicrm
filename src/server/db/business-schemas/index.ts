@@ -17,22 +17,21 @@ export {
 } from "./tasks";
 
 // Project schemas
+// Base types (Project, CreateProject, UpdateProject) are re-exported from schema.ts
 export {
-  ProjectSchema,
-  CreateProjectSchema,
-  UpdateProjectSchema,
+  ProjectWithUISchema,
   ProjectFiltersSchema,
   type Project,
   type CreateProject,
   type UpdateProject,
+  type ProjectWithUI,
   type ProjectFilters,
 } from "./projects";
 
 // Calendar schemas
+// Base types (CalendarEvent, CreateCalendarEvent, UpdateCalendarEvent) are re-exported from schema.ts
 export {
-  CalendarEventSchema,
-  CreateCalendarEventSchema,
-  UpdateCalendarEventSchema,
+  CalendarEventWithUISchema,
   CalendarOAuthQuerySchema,
   CalendarItemSchema,
   ClientSchema,
@@ -41,6 +40,7 @@ export {
   type CalendarEvent,
   type CreateCalendarEvent,
   type UpdateCalendarEvent,
+  type CalendarEventWithUI,
   type CalendarOAuthQuery,
   type CalendarItem,
   type Client,
@@ -64,11 +64,6 @@ export {
   type CalendarSyncBlockingRequest,
   type CalendarSyncBlockingResponse,
   type CalendarImportRequest,
-  type CalendarStatusResponse,
-  type CalendarEventsQuery,
-  type CalendarEventsResponse,
-  type CalendarListQuery,
-  type CalendarListResponse,
 } from "./calendar";
 
 // Google preferences schemas
@@ -78,11 +73,10 @@ export {
   GooglePrefsUpdateSchema,
   GoogleStatusQuerySchema,
   GoogleStatusResponseSchema,
-  type GooglePrefsQuery,
-  type GooglePrefsResponse,
-  type GooglePrefsUpdate,
-  type GoogleStatusQuery,
-  type GoogleStatusResponse,
+  GoogleErrorCodeEnum,
+  GoogleServiceErrorSchema,
+  type GoogleErrorCode,
+  type GoogleServiceError,
 } from "./google-prefs";
 
 // Contact schemas
@@ -92,23 +86,23 @@ export * from "./contacts";
 export * from "./notes";
 
 // Interaction schemas
+// Base types (Interaction, CreateInteraction, UpdateInteraction) are re-exported from schema.ts
 export {
-  InteractionSchema,
-  CreateInteractionSchema,
-  UpdateInteractionSchema,
+  InteractionWithUISchema,
   type Interaction,
   type CreateInteraction,
   type UpdateInteraction,
+  type InteractionWithUI,
 } from "./interactions";
 
 // AI Insights schemas
+// Base types (AiInsight, CreateAiInsight, UpdateAiInsight) are re-exported from schema.ts
 export {
-  AiInsightSchema,
-  CreateAiInsightSchema,
-  UpdateAiInsightSchema,
+  AiInsightWithUISchema,
   type AiInsight,
   type CreateAiInsight,
   type UpdateAiInsight,
+  type AiInsightWithUI,
 } from "./ai-insights";
 
 // Gmail schemas
@@ -132,30 +126,15 @@ export type {
   Job,
   ConnectDashboardState,
   SearchResult,
-  ContactData,
   EmailInsights
 } from "./gmail";
 
 // Job Processing & Background Tasks
 export {
-  JobStatusQuerySchema,
-  ComprehensiveJobStatusDTOSchema,
-  ProcessManualSchema,
-  JobProcessingResultSchema,
-  SimpleJobProcessSchema,
-  CalendarEventsJobResultSchema,
-  RawEventsJobResultSchema,
-  NormalizeJobResultSchema,
   CronJobInputSchema,
   CronJobResultSchema,
-  type JobStatusQuery,
-  type ComprehensiveJobStatusDTO,
-  type ProcessManualRequest,
-  type JobProcessingResult,
-  type SimpleJobProcess,
-  type CalendarEventsJobResult,
-  type RawEventsJobResult,
-  type NormalizeJobResult,
+  SimpleJobProcessSchema,
+  JobProcessingResultSchema,
   type CronJobInput,
   type CronJobResult,
 } from "./jobs";
@@ -169,13 +148,6 @@ export {
   UserSyncPrefsUpdateSchema,
   SyncSessionSchema,
   NewSyncSessionSchema,
-  type SyncProgressQuery,
-  type SyncProgressResponse,
-  type SyncCancelResponse,
-  type SyncSessionError,
-  type UserSyncPrefsUpdate,
-  type SyncSession,
-  type NewSyncSession,
 } from "./sync-progress";
 
 // Inbox Management
@@ -188,8 +160,8 @@ export type {
   ProcessInboxItemDTO,
 } from "./inbox";
 
-// Search Functionality
-export * from "./search";
+// Search Functionality - DEPRECATED - Moved to deprecated-search-files/
+// Will be reimplemented as Spotlight-style global search
 
 // Zones Management
 export * from "./zones";
@@ -200,10 +172,6 @@ export {
   UserExportResponseSchema,
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,
-  type UserExportRequest,
-  type UserExportResponse,
-  type UserDeletionRequest,
-  type UserDeletionResponse,
 } from "./user-management";
 
 // Onboarding Management
@@ -213,6 +181,7 @@ export {
   ListTokensQuerySchema,
   ListTokensResponseSchema,
   TokenIdParamsSchema,
+  TokenInfoSchema,
   DeleteTokenRequestSchema,
   DeleteTokenResponseSchema,
   TrackAccessRequestSchema,
@@ -221,19 +190,6 @@ export {
   SignedUploadResponseSchema,
   OnboardingSubmitRequestSchema,
   OnboardingSubmitResponseSchema,
-  type GenerateTokenRequest,
-  type GenerateTokenResponse,
-  type ListTokensQuery,
-  type ListTokensResponse,
-  type TokenIdParams,
-  type DeleteTokenRequest,
-  type DeleteTokenResponse,
-  type TrackAccessRequest,
-  type TrackAccessResponse,
-  type SignedUploadRequest,
-  type SignedUploadResponse,
-  type OnboardingSubmitRequest,
-  type OnboardingSubmitResponse,
 } from "./onboarding";
 
 // Storage Management
@@ -242,10 +198,8 @@ export {
   UploadUrlResponseSchema,
   FileUrlQuerySchema,
   FileUrlResponseSchema,
-  type UploadUrlRequest,
-  type UploadUrlResponse,
-  type FileUrlQuery,
-  type FileUrlResponse,
+  BatchFileUrlRequestSchema,
+  BatchFileUrlResponseSchema,
 } from "./storage";
 
 // Error Handling schemas have been removed as part of error tracking service simplification
@@ -258,11 +212,8 @@ export {
   ReplayResponseSchema,
   DashboardQuerySchema,
   DashboardResponseSchema,
-  type EmailIntelligenceTrigger,
   type EmailIntelligenceResponse,
-  type ReplayInput,
   type ReplayResponse,
-  type DashboardQuery,
   type DashboardResponse,
 } from "./admin";
 
@@ -275,11 +226,8 @@ export {
   GmailInsightsQuerySchema,
   GmailInsightsResponseSchema,
   GmailIngestTestInputSchema,
-  type ChatRequest,
   type ChatResponse,
-  type GmailSearchRequest,
   type GmailSearchResponse,
-  type GmailInsightsQuery,
   type GmailInsightsResponse,
   type GmailIngestTestInput,
 } from "./chat";
@@ -291,5 +239,4 @@ export {
   GoogleSignInQuerySchema,
   type HealthResponse,
   type DbPingResponse,
-  type GoogleSignInQuery,
 } from "./health";

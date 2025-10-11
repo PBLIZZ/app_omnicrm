@@ -1,77 +1,70 @@
 /**
  * Notes Business Schemas
  *
- * Business logic validation schemas for note-related API endpoints
- * Derived from database schema for type safety
+ * For base types, import from @/server/db/schema:
+ * - Note (select type)
+ * - CreateNote (insert type)
+ * - UpdateNote (partial insert type)
+ *
+ * This file contains ONLY API-specific schemas for note operations.
+ * 
+ * Updated for new Notes spec:
+ * - content_rich (TipTap JSON)
+ * - content_plain (redacted text for search/AI)
+ * - pii_entities (redaction metadata)
+ * - tags (text array)
+ * - source_type (typed | voice | upload)
  */
 
 import { z } from "zod";
-import { type Note as DbNote, type CreateNote as DbCreateNote } from "@/server/db/schema";
+
+// Re-export base types from schema for convenience
+export type { Note, CreateNote, UpdateNote } from "@/server/db/schema";
 
 // ============================================================================
-// CORE NOTE SCHEMAS - DERIVED FROM DATABASE SCHEMA
+// API-SPECIFIC SCHEMAS
 // ============================================================================
 
 /**
- * Note Schema - matches database reality exactly
+ * Note Source Type Enum
  */
-export const NoteSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
-  contactId: z.string().uuid().nullable(),
-  title: z.string().nullable(),
-  content: z.string(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-}) satisfies z.ZodType<DbNote>;
-
-export type Note = z.infer<typeof NoteSchema>;
+export const NoteSourceTypeSchema = z.enum(["typed", "voice", "upload"]);
+export type NoteSourceType = z.infer<typeof NoteSourceTypeSchema>;
 
 /**
  * Create Note Body Schema - for API input validation
+ * Accepts either plain text or rich content
  */
 export const CreateNoteBodySchema = z.object({
-  content: z.string().min(1, "Note content is required"),
-  title: z.string().optional(),
+  contentPlain: z.string().min(1, "Note content is required"),
+  contentRich: z.record(z.string(), z.unknown()).optional(), // TipTap JSON (optional, can be derived)
+  tags: z.array(z.string()).optional().default([]),
+  goalIds: z.array(z.string().uuid()).optional(),
+  sourceType: NoteSourceTypeSchema.optional().default("typed"),
   contactId: z.string().uuid().optional(),
 });
 
-export type CreateNoteBody = z.infer<typeof CreateNoteBodySchema>;
-
-/**
- * Create Note Schema - matches database insert type
- */
-export const CreateNoteSchema = z.object({
-  userId: z.string().uuid(),
-  contactId: z.string().uuid().nullable(),
-  title: z.string().nullable(),
-  content: z.string(),
-}) satisfies z.ZodType<DbCreateNote>;
-
-export type CreateNote = z.infer<typeof CreateNoteSchema>;
 
 /**
  * Update Note Schema
  */
-export const UpdateNoteSchema = CreateNoteSchema.partial().required({ userId: true });
-export type UpdateNote = z.infer<typeof UpdateNoteSchema>;
+export const UpdateNoteBodySchema = z.object({
+  contentPlain: z.string().min(1).optional(),
+  contentRich: z.record(z.string(), z.unknown()).optional(),
+  tags: z.array(z.string()).optional(),
+  goalIds: z.array(z.string().uuid()).optional(),
+});
+
 
 /**
  * Notes List Response Schema
  */
 export const NotesListResponseSchema = z.object({
-  notes: z.array(NoteSchema),
+  notes: z.array(z.unknown()), // Will be validated as Note[] at runtime
   total: z.number(),
 });
 
 export type NotesListResponse = z.infer<typeof NotesListResponseSchema>;
-
-/**
- * Created Note Response Schema
- */
-export const CreatedNoteResponseSchema = NoteSchema;
-
-export type CreatedNoteResponse = z.infer<typeof CreatedNoteResponseSchema>;
 
 // ============================================================================
 // QUERY SCHEMAS
@@ -96,4 +89,3 @@ export const GetNotesQuerySchema = z.object({
     .default(true),
 });
 
-export type GetNotesQuery = z.infer<typeof GetNotesQuerySchema>;

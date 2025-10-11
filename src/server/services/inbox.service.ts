@@ -9,7 +9,7 @@
 import { InboxRepository, ZonesRepository } from "@repo";
 import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
 import { logger } from "@/lib/observability";
-import { DbResult, isErr, Result, ok, err } from "@/lib/utils/result";
+import { DbResult, isErr, ok, err } from "@/lib/utils/result";
 import type {
   InboxItem,
   CreateInboxItem,
@@ -30,20 +30,6 @@ export interface InboxFilters {
   createdAfter?: Date;
   createdBefore?: Date;
   hasAiSuggestions?: boolean;
-}
-
-export interface InboxAICategorization {
-  suggestedZone: string;
-  suggestedPriority: "low" | "medium" | "high" | "urgent";
-  suggestedProject?: string;
-  extractedTasks: Array<{
-    name: string;
-    description?: string;
-    estimatedMinutes?: number;
-    dueDate?: Date;
-  }>;
-  confidence: number;
-  reasoning: string;
 }
 
 export interface InboxProcessingContext {
@@ -89,8 +75,8 @@ export class InboxService {
       status: (rawItem.status || "unprocessed") as "unprocessed" | "processed" | "archived",
       createdTaskId: rawItem.createdTaskId,
       processedAt: rawItem.processedAt,
-      createdAt: rawItem.createdAt || new Date(),
-      updatedAt: rawItem.updatedAt || new Date(),
+      createdAt: rawItem.createdAt ?? new Date(),
+      updatedAt: rawItem.updatedAt ?? new Date(),
     };
 
     // Apply business schema transform for computed fields

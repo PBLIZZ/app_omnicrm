@@ -23,7 +23,7 @@ export async function generateEmbedding(text: string, userId?: string): Promise<
   // Check if we should use mock mode
   if (parseEnvBool(process.env["EMBEDDINGS_MOCK"])) {
     console.warn("Using mock embeddings - not suitable for production");
-    return generateEmbeddingFromLLM(userId || "mock", text);
+    return generateEmbeddingFromLLM(userId ?? "mock", text);
   }
 
   // Use real OpenAI embeddings
@@ -127,7 +127,7 @@ export async function getEmbeddingByHash(
     .where(and(eq(embeddings.userId, userId), eq(embeddings.contentHash, contentHash)))
     .limit(1);
 
-  return result[0]?.embedding || null;
+  return result[0]?.embedding ?? null;
 }
 
 /**

@@ -20,32 +20,31 @@ import {
   DialogTrigger,
   Label,
 } from "@/components/ui";
-import { Users, Brain, Sparkles, Search, Plus, Calendar, Mail, X } from "lucide-react";
+import { Users, Brain, Sparkles, Plus, Calendar, Mail, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useStreamingEnrichment } from "@/hooks/use-streaming-enrichment";
 
-// Enhanced components
 import { ContactsTable } from "./contacts-table";
 import { contactsColumns } from "./contacts-columns";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import { useEnhancedContacts, useContactsuggestions } from "@/hooks/use-contacts";
-import type { ContactWithNotes, ContactSuggestion, ContactQuickAddData } from "./types";
+import { queryKeys } from "@/lib/queries/keys";
+import { useContacts, useContactSuggestions } from "@/hooks/use-contacts";
+import type { ContactWithNotes, ContactQuickAddData } from "./types";
 
 /**
  * ContactsPage - Main Contact Component
  * Handles all interactive functionality for contact management
- * Replaces the old contacts page with wellness-focused terminology
  */
 export function ContactsPage(): JSX.Element {
-  // Enhanced System State
+  // Component State
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [isDismissed, setIsDismissed] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [isAddingContact, setIsAddingContact] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery] = useState(""); // Keeping for future global search implementation
   const [newContact, setNewContact] = useState<ContactQuickAddData>({
     displayName: "",
     primaryEmail: "",
@@ -59,31 +58,29 @@ export function ContactsPage(): JSX.Element {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // Enhanced System Queries using OmniClient endpoints
-  const { data: enhancedClientsData, isLoading: enhancedLoading } =
-    useEnhancedContacts(searchQuery);
+  // System Queries using Contact endpoints
+  // Fetch all contacts at once (pageSize=3000) for client-side pagination/filtering
+  // Uses smart caching (30min staleTime) to minimize API calls
+  const { data: contactsData, isLoading } = useContacts(searchQuery, 1, 3000);
 
-  const enhancedClients: ContactWithNotes[] = useMemo(
-    () => enhancedClientsData?.items ?? [],
-    [enhancedClientsData?.items],
+  // API already returns ContactWithNotes with lastNote field populated
+  const contacts: ContactWithNotes[] = useMemo(
+    (): ContactWithNotes[] => contactsData?.items ?? [],
+    [contactsData?.items],
   );
 
   const filteredContacts = useMemo((): ContactWithNotes[] => {
-    if (!searchQuery.trim()) return enhancedClients;
+    if (!searchQuery.trim()) return contacts;
     const query = searchQuery.toLowerCase();
-    return enhancedClients.filter(
+    return contacts.filter(
       (client) =>
-        (client.displayName?.toLowerCase().includes(query) ?? false) ||
         (client.primaryEmail?.toLowerCase().includes(query) ?? false) ||
         (client.primaryPhone?.toLowerCase().includes(query) ?? false),
     );
-  }, [enhancedClients, searchQuery]);
+  }, [contacts, searchQuery]);
 
-  // OmniClient suggestions query using OmniClient endpoints
-  const { data: suggestionsData, isLoading: suggestionsLoading } =
-    useContactsuggestions(showSuggestions);
-
-  const suggestions: ContactSuggestion[] = suggestionsData?.suggestions ?? [];
+  const { data: suggestions = [], isLoading: suggestionsLoading } =
+    useContactSuggestions(showSuggestions);
 
   // Auto-fade effect when no suggestions found
   useEffect(() => {
@@ -108,14 +105,14 @@ export function ContactsPage(): JSX.Element {
     return undefined;
   }, [suggestionsLoading, suggestions.length, showSuggestions, isDismissed]);
 
-  // Handle addClient URL parameter from sidebar
+  // Handle addContact URL parameter from sidebar
   useEffect(() => {
-    const addClient = searchParams.get("addClient");
-    if (addClient === "true") {
+    const addContact = searchParams.get("addContact");
+    if (addContact === "true") {
       setIsAddingContact(true);
       // Clear the parameter from URL to avoid reopening on refresh
       const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete("addClient");
+      newUrl.searchParams.delete("addContact");
       router.replace(newUrl.pathname + newUrl.search);
     }
   }, [searchParams, router]);
@@ -138,7 +135,8 @@ export function ContactsPage(): JSX.Element {
       }>("/api/contacts/suggestions", { suggestionIds });
     },
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      // Invalidate all contacts queries to refetch with new data
+      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
       void queryClient.invalidateQueries({ queryKey: ["/api/contacts/suggestions"] });
       setSelectedSuggestions([]);
       toast({
@@ -198,7 +196,8 @@ export function ContactsPage(): JSX.Element {
 
       await apiClient.post("/api/contacts", contactData);
 
-      await queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      // Invalidate all contacts queries to refetch with new contact
+      await queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
       setIsAddingContact(false);
       setNewContact({ displayName: "", primaryEmail: "", primaryPhone: "", source: "manual" });
       toast({
@@ -229,12 +228,12 @@ export function ContactsPage(): JSX.Element {
   };
 
   const getConfidenceBadge = (confidence: string): string => {
-    const variants = {
+    const variants: Record<string, string> = {
       high: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
       medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
       low: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
     };
-    return variants[confidence as keyof typeof variants] || variants.low;
+    return variants[confidence] ?? variants["low"] ?? "";
   };
 
   return (
@@ -252,18 +251,6 @@ export function ContactsPage(): JSX.Element {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search contacts..."
-              className="pl-10 w-64"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              data-testid="search-contacts"
-            />
-          </div>
-
           <Button
             variant="outline"
             onClick={() => streamingEnrichment.startEnrichment()}
@@ -519,7 +506,7 @@ export function ContactsPage(): JSX.Element {
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                           <div className="flex items-center gap-1">
                             <Mail className="h-4 w-4" />
-                              <span className="truncate">{suggestion.primaryEmail}</span>
+                            <span className="truncate">{suggestion.primaryEmail}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
@@ -530,7 +517,12 @@ export function ContactsPage(): JSX.Element {
                         {suggestion.calendarEvents && suggestion.calendarEvents.length > 0 && (
                           <div className="text-xs text-muted-foreground">
                             <span>Recent events: </span>
-                            <span>{suggestion.calendarEvents.slice(0, 2).map(e => e.title).join(", ")}</span>
+                            <span>
+                              {suggestion.calendarEvents
+                                .slice(0, 2)
+                                .map((e) => e.title)
+                                .join(", ")}
+                            </span>
                             {suggestion.calendarEvents.length > 2 && (
                               <span> +{suggestion.calendarEvents.length - 2} more</span>
                             )}
@@ -546,17 +538,14 @@ export function ContactsPage(): JSX.Element {
         </Card>
       )}
 
-      {/* Enhanced Contacts Table */}
+      {/* Contacts Table */}
       <Card className="transition-all duration-700 ease-in-out">
         <CardContent>
           <div className="space-y-4">
-            {/* Toolbar - now empty since buttons moved to table header */}
-            <div className="hidden"></div>
-
-            {/* Enhanced Table */}
-            {enhancedLoading ? (
+            {/* Contacts Table */}
+            {isLoading ? (
               <div className="flex items-center justify-center h-32">
-                <div className="text-muted-foreground">Loading contact intelligence...</div>
+                <div className="text-muted-foreground">Loading contacts...</div>
               </div>
             ) : filteredContacts.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">
@@ -573,7 +562,7 @@ export function ContactsPage(): JSX.Element {
             )}
 
             {/* Stats */}
-            {enhancedContacts.length > 0 && (
+            {contacts.length > 0 && (
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span></span>
                 <div className="flex items-center gap-4"></div>

@@ -22,7 +22,7 @@ const BulkEnrichBodySchema = z.object({
 export const POST = handleAuth(
   BulkEnrichBodySchema,
   BulkEnrichResponseSchema,
-  async (data, userId) => {
+  async (data, userId): Promise<z.infer<typeof BulkEnrichResponseSchema>> => {
     // Service expects clientIds parameter name
     const result = await enrichClientsByIds(userId, data.ids);
     return result;

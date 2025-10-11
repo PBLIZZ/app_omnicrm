@@ -8,11 +8,10 @@ import {
   searchSemanticByEmbedding,
   type SearchResult,
 } from "@/server/services/semantic-search.service";
+import { ChatRequestSchema } from "@/server/db/business-schemas";
+import type { z } from "zod";
 
-export interface ChatRequestBody {
-  message?: unknown;
-  history?: unknown;
-}
+export type ChatRequestBody = z.infer<typeof ChatRequestSchema>;
 
 export interface ChatResponse {
   response: string;
@@ -35,10 +34,11 @@ export class ChatService {
   /**
    * Process a chat request with RAG (Retrieval-Augmented Generation)
    *
+   * @param userId - The authenticated user ID
    * @param requestBody - The chat request body containing message and history
    * @returns Promise<ChatResponse> - The chat response with sources
    */
-  static async processChatRequest(requestBody: ChatRequestBody): Promise<ChatResponse> {
+  static async processChatRequest(userId: string, requestBody: ChatRequestBody): Promise<ChatResponse> {
     const message = typeof requestBody.message === "string" ? requestBody.message.trim() : "";
     if (!message) {
       throw new Error("Message is required");
@@ -46,7 +46,7 @@ export class ChatService {
 
     const history = this.parseHistory(requestBody.history);
     const embedding = await getOrGenerateEmbedding(message);
-    const context = await this.retrieveContext(embedding);
+    const context = await this.retrieveContext(userId, embedding);
 
     const result = await generateChatCompletion({
       message,
@@ -71,15 +71,23 @@ export class ChatService {
   /**
    * Retrieve context for the chat message using semantic search
    *
+   * @param userId - The authenticated user ID
    * @param embedding - The embedding vector for the message
    * @returns Promise<SearchResult[]> - Array of search results for context
    */
-  private static async retrieveContext(embedding: number[]): Promise<SearchResult[]> {
+  private static async retrieveContext(userId: string, embedding: number[]): Promise<SearchResult[]> {
     try {
-      return await searchSemanticByEmbedding(embedding, {
+      const result = await searchSemanticByEmbedding(userId, embedding, {
         matchCount: CONTEXT_MATCH_COUNT,
         similarityThreshold: CONTEXT_SIMILARITY_THRESHOLD,
       });
+
+      if (!result.success) {
+        console.error("Context retrieval error:", result.error);
+        return [];
+      }
+
+      return result.data;
     } catch (error) {
       console.error("Context retrieval error:", error);
       return [];

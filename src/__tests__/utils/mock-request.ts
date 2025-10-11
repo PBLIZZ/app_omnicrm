@@ -55,7 +55,7 @@ export function createMockApiRequest(
   endpoint: string,
   options: {
     method?: string;
-    body?: any;
+    body?: unknown;
     headers?: Record<string, string>;
     searchParams?: Record<string, string>;
   } = {},
@@ -100,7 +100,7 @@ export function createMockAuthenticatedRequest(
   userId: string,
   options: {
     method?: string;
-    body?: any;
+    body?: unknown;
     headers?: Record<string, string>;
     searchParams?: Record<string, string>;
   } = {},
@@ -127,7 +127,7 @@ export function createMockPublicRequest(
   endpoint: string,
   options: {
     method?: string;
-    body?: any;
+    body?: unknown;
     headers?: Record<string, string>;
     searchParams?: Record<string, string>;
   } = {},
@@ -160,28 +160,18 @@ export function createMockPublicRequest(
 /**
  * Mock context for route handlers
  */
-export interface MockRouteContext {
-  userId: string;
-  validated: {
-    body: any;
-    query?: any;
-    params?: any;
-  };
-  requestId: string;
-  correlationId: string;
-}
 
 /**
  * Creates a mock context for route handlers
  */
 export function createMockRouteContext(
   userId: string,
-  validatedBody: any,
+  validatedBody: unknown,
   options: {
     requestId?: string;
     correlationId?: string;
-    query?: any;
-    params?: any;
+    query?: Record<string, unknown>;
+    params?: Record<string, unknown>;
   } = {},
 ): MockRouteContext {
   return {

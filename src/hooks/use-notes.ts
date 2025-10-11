@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
-import { queryKeys } from "@/lib/queries/keys";
-import { Result, isOk, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -20,7 +18,7 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Retry other errors up to 2 times
   return retryCount < 2;
 };
-import type { Note } from "@/server/db/types";
+import type { Note } from "@/server/db/schema";
 
 interface UseNotesOptions {
   contactId: string;
@@ -56,69 +54,60 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Define API response type for notes
-  interface NotesApiResponse {
-    notes: Note[];
-  }
-
   // Fetch notes for a contact
   const notesQuery = useQuery({
-    queryKey: queryKeys.contacts.notes(contactId),
+    queryKey: ["/api/notes", contactId],
     queryFn: async (): Promise<Note[]> => {
-      const result = await apiClient.get<
-        Result<NotesApiResponse, { message: string; code: string }>
-      >(`/api/contacts-new/${contactId}/notes`);
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      return result.data.notes ?? [];
+      // apiClient automatically unwraps { success: true, data: T } → returns T
+      const notes = await apiClient.get<Note[]>(`/api/notes?contactId=${contactId}`);
+      return notes ?? [];
     },
     enabled: !!contactId,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
+    staleTime: 30 * 60 * 1000, // 30 minutes - data stays fresh and won't refetch
+    gcTime: 35 * 60 * 1000, // 35 minutes - cache persists slightly longer than staleTime
   });
 
   // Create new note
   const createNoteMutation = useMutation({
     mutationFn: async (data: CreateNoteData): Promise<Note> => {
-      const result = await apiClient.post<
-        Result<{ note: Note }, { message: string; code: string }>
-      >(`/api/contacts-new/${contactId}/notes`, data);
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      return result.data.note;
+      // apiClient automatically unwraps { success: true, data: T } → returns T
+      const note = await apiClient.post<Note>("/api/notes", {
+        contactId,
+        contentPlain: data.content,
+        sourceType: "typed" as const,
+      });
+      return note;
     },
     onMutate: async (newNote) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.contacts.notes(contactId) });
+      await queryClient.cancelQueries({ queryKey: ["/api/notes", contactId] });
 
-      // Snapshot the previous value
-      const previousNotes = queryClient.getQueryData<Note[]>(queryKeys.contacts.notes(contactId));
+      const previousNotes = queryClient.getQueryData<Note[]>(["/api/notes", contactId]);
 
       // Optimistically update with temporary note
       const tempNote: Note = {
         id: `temp-${Date.now()}`,
-        userId: "", // Will be set by server
+        userId: "",
         contactId,
-        title: null, // Optional title field
-        content: newNote.content,
+        contentPlain: newNote.content,
+        contentRich: {},
+        tags: [],
+        piiEntities: [],
+        sourceType: "typed",
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      queryClient.setQueryData<Note[]>(queryKeys.contacts.notes(contactId), (old) => [
+      queryClient.setQueryData<Note[]>(["/api/notes", contactId], (old) => [
         tempNote,
         ...(old ?? []),
       ]);
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
-      void error;
-      void variables;
-      // Rollback on error
+    onError: (_error, _variables, context) => {
       if (context?.previousNotes) {
-        queryClient.setQueryData(queryKeys.contacts.notes(contactId), context.previousNotes);
+        queryClient.setQueryData(["/api/notes", contactId], context.previousNotes);
       }
       toast({
         title: "Error",
@@ -127,13 +116,12 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
       });
     },
     onSuccess: (newNote) => {
-      // Replace temp note with real note from server
-      queryClient.setQueryData<Note[]>(queryKeys.contacts.notes(contactId), (old) => {
+      // Update cache with real note (replace temp note)
+      queryClient.setQueryData<Note[]>(["/api/notes", contactId], (old) => {
         if (!old) return [newNote];
         return old.map((note) => (note.id.startsWith("temp-") ? newNote : note));
       });
-      // Invalidate all contacts queries to update notes count
-      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.list(), exact: false });
+      // Don't invalidate - we just set the correct data above
       toast({
         title: "Success",
         description: "Note created successfully",
@@ -143,39 +131,32 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
 
   // Update existing note
   const updateNoteMutation = useMutation({
-    mutationFn: async (data: UpdateNoteData): Promise<void> => {
-      const result = await apiClient.put<Result<void, { message: string; code: string }>>(
-        `/api/contacts-new/${contactId}/notes/${data.noteId}`,
-        {
-          content: data.content,
-        },
-      );
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
+    mutationFn: async (data: UpdateNoteData): Promise<Note> => {
+      // apiClient automatically unwraps { success: true, data: T } → returns T
+      const note = await apiClient.put<Note>(`/api/notes/${data.noteId}`, {
+        contentPlain: data.content,
+      });
+      return note;
     },
     onMutate: async (updatedNote) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.contacts.notes(contactId) });
+      await queryClient.cancelQueries({ queryKey: ["/api/notes", contactId] });
 
-      const previousNotes = queryClient.getQueryData<Note[]>(queryKeys.contacts.notes(contactId));
+      const previousNotes = queryClient.getQueryData<Note[]>(["/api/notes", contactId]);
 
-      // Optimistically update
-      queryClient.setQueryData<Note[]>(queryKeys.contacts.notes(contactId), (old) => {
+      queryClient.setQueryData<Note[]>(["/api/notes", contactId], (old) => {
         if (!old) return [];
         return old.map((note) =>
           note.id === updatedNote.noteId
-            ? { ...note, content: updatedNote.content, updatedAt: new Date() }
+            ? { ...note, contentPlain: updatedNote.content, updatedAt: new Date() }
             : note,
         );
       });
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
-      void error;
-      void variables;
+    onError: (_error, _variables, context) => {
       if (context?.previousNotes) {
-        queryClient.setQueryData(queryKeys.contacts.notes(contactId), context.previousNotes);
+        queryClient.setQueryData(["/api/notes", contactId], context.previousNotes);
       }
       toast({
         title: "Error",
@@ -184,7 +165,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
       });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.notes(contactId) });
+      // Optimistic update already applied in onMutate, no need to invalidate
       toast({
         title: "Success",
         description: "Note updated successfully",
@@ -194,32 +175,26 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
 
   // Delete note
   const deleteNoteMutation = useMutation({
-    mutationFn: async (data: DeleteNoteData): Promise<void> => {
-      const result = await apiClient.delete<Result<void, { message: string; code: string }>>(
-        `/api/contacts-new/${contactId}/notes/${data.noteId}`,
-      );
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
+    mutationFn: async (data: DeleteNoteData): Promise<{ deleted: boolean }> => {
+      // apiClient automatically unwraps { success: true, data: T } → returns T
+      const result = await apiClient.delete<{ deleted: boolean }>(`/api/notes/${data.noteId}`);
+      return result;
     },
     onMutate: async (deletedNote) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.contacts.notes(contactId) });
+      await queryClient.cancelQueries({ queryKey: ["/api/notes", contactId] });
 
-      const previousNotes = queryClient.getQueryData<Note[]>(queryKeys.contacts.notes(contactId));
+      const previousNotes = queryClient.getQueryData<Note[]>(["/api/notes", contactId]);
 
-      // Optimistically remove note
-      queryClient.setQueryData<Note[]>(queryKeys.contacts.notes(contactId), (old) => {
+      queryClient.setQueryData<Note[]>(["/api/notes", contactId], (old) => {
         if (!old) return [];
         return old.filter((note) => note.id !== deletedNote.noteId);
       });
 
       return { previousNotes };
     },
-    onError: (error, variables, context) => {
-      void error;
-      void variables;
+    onError: (_error, _variables, context) => {
       if (context?.previousNotes) {
-        queryClient.setQueryData(queryKeys.contacts.notes(contactId), context.previousNotes);
+        queryClient.setQueryData(["/api/notes", contactId], context.previousNotes);
       }
       toast({
         title: "Error",
@@ -228,8 +203,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
       });
     },
     onSuccess: () => {
-      // Invalidate all contacts queries to update notes count
-      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.list(), exact: false });
+      // Optimistic update already applied in onMutate, no need to invalidate
       toast({
         title: "Success",
         description: "Note deleted successfully",

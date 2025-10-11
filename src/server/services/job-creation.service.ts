@@ -9,7 +9,7 @@ import { rawEvents, jobs, calendarEvents } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/observability/unified-logger";
 
-export interface JobCreationResult {
+interface JobCreationResult {
   message: string;
   processed: number;
   totalItems: number;

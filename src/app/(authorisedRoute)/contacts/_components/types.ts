@@ -22,8 +22,6 @@ import type {
   UpdateNote,
   Note,
   ContactAIInsightsResponse,
-  ContactWithNotesDTO,
-  ContactSearchFilters as BusinessContactSearchFilters,
 } from "@/server/db/business-schemas/contacts";
 
 // Import additional types needed
@@ -46,35 +44,59 @@ export type {
   UpdateNote,
   Note,
   ContactAIInsightsResponse,
-  ContactWithNotesDTO,
 };
+
+// ============================================================================
+// EDIT CLIENT TYPES (Component-specific)
+// ============================================================================
+
+/**
+ * Edit Contact Data - For contact editing
+ */
+export interface EditContactData {
+  displayName?: string;
+  primaryEmail?: string;
+  primaryPhone?: string;
+  lifecycleStage?: string;
+  tags?: string[];
+  dateOfBirth?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  clientStatus?: string | null;
+  referralSource?: string | null;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  } | null;
+  healthContext?: {
+    allergies?: string[];
+    medications?: string[];
+    conditions?: string[];
+    notes?: string;
+  } | null;
+  preferences?: {
+    communication?: string[];
+    sessionType?: string[];
+    practitioner?: string;
+    notes?: string;
+  } | null;
+}
+
+/**
+ * Update Contact Response - API response when updating a contact
+ */
+export interface UpdateContactResponse {
+  ok: boolean;
+  data?: ContactWithNotes;
+  error?: string;
+}
 
 // ============================================================================
 // COMPONENT-SPECIFIC INTERFACES (Only UI-specific types, not business logic)
 // ============================================================================
-
-/**
- * Contact action handlers for table components
- */
-export interface ContactActionHandlers {
-  onEdit: (contact: ContactWithNotes) => void;
-  onDelete: (contact: ContactWithNotes) => void;
-  onViewNotes: (contact: ContactWithNotes) => void;
-  onSendEmail: (contact: ContactWithNotes) => void;
-  onAskAI: (contact: ContactWithNotes) => void;
-  onGenerateEmail: (contact: ContactWithNotes) => void;
-  onCreateNote: (contact: ContactWithNotes) => void;
-}
-
-/**
- * Bulk action handlers
- */
-export interface BulkActionHandlers {
-  onBulkDelete: (contactIds: string[]) => void;
-  onBulkEnrich: (contactIds: string[]) => void;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
-}
 
 /**
  * Table component props
@@ -82,40 +104,6 @@ export interface BulkActionHandlers {
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
-}
-
-/**
- * Search and filter state
- */
-export interface SearchFilterState {
-  searchQuery: string;
-  sortBy: "displayName" | "createdAt";
-  sortOrder: "asc" | "desc";
-  page: number;
-  pageSize: number;
-  showSuggestions: boolean;
-}
-
-/**
- * Contact statistics for dashboard cards
- */
-export interface ContactStats {
-  totalContacts: number;
-  activeContacts: number;
-  newThisWeek: number;
-  totalInteractions: number;
-  averageSatisfaction: number;
-}
-
-/**
- * Contact enrichment status
- */
-export interface ContactEnrichmentStatus {
-  contactId: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  progress: number; // 0-100
-  error?: string;
-  lastUpdated: string;
 }
 
 /**
@@ -135,16 +123,15 @@ export interface ContactAIInsightsDialogProps {
  */
 export interface ContactSearchFilters {
   search?: string;
-  stage?: string[];
+  lifecycleStage?: string[];
   tags?: string[];
   source?: string[];
   hasEmail?: boolean;
   hasPhone?: boolean;
+  hasNotes?: boolean;
   createdAfter?: Date;
   createdBefore?: Date;
   query?: string; // Alias for search
-  hasNotes?: boolean;
-  hasInteractions?: boolean;
   confidenceScore?: { min?: number; max?: number };
   dateRange?: { from?: Date; to?: Date };
 }
@@ -157,7 +144,7 @@ export interface ContactSuggestion {
   displayName: string;
   primaryEmail: string;
   source: string;
-  confidence: number;
+  confidence: string; // Confidence level as string: "high" | "medium" | "low"
   aiInsights?: {
     lifecycleStage: string;
     tags: string[];

@@ -30,7 +30,7 @@ const PendingTasksResponseSchema = z.object({
 export const GET = handleGetWithQueryAuth(
   z.object({}), // No query parameters needed
   PendingTasksResponseSchema,
-  async (query, userId): Promise<z.infer<typeof PendingTasksResponseSchema>> => {
+  async (_query, userId): Promise<z.infer<typeof PendingTasksResponseSchema>> => {
     const result = await productivityService.getPendingApprovalTasks(userId);
 
     if (isErr(result)) {

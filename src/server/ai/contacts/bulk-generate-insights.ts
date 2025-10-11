@@ -4,12 +4,6 @@ import { logger } from "@/lib/observability";
 import { generateContactInsights } from "@/server/ai/contacts/generate-contact-insights";
 // import type { ContactInsightsWithNote } from "@/server/ai/types/connect-types";
 
-export interface InsightResult {
-  success: boolean;
-  data?: unknown;
-  error?: string;
-}
-
 export async function bulkGenerateInsights(
   userId: string,
   contactEmails: string[],

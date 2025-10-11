@@ -1,25 +1,37 @@
 // server/jobs/types.ts
 // Job kinds
+
+import type { Job } from "@/server/db/schema";
+
+// Base job record from database
+export type JobRecordBase = Job;
+
+// Job kind categories
 export type GenericJobKind = "normalize" | "embed" | "insight" | "extract_contacts";
-export type GoogleJobKind =
-  | "google_gmail_sync"
-  | "google_calendar_sync"
-  | "normalize_google_email"
-  | "normalize_google_event";
-export type EmailIntelligenceJobKind =
-  | "email_intelligence"
-  | "email_intelligence_batch"
-  | "email_intelligence_cleanup";
+export type GoogleJobKind = "google_gmail_sync" | "google_calendar_sync" | "normalize_google_email" | "normalize_google_event";
+export type EmailIntelligenceJobKind = "email_intelligence" | "email_intelligence_batch" | "email_intelligence_cleanup";
 
 export type JobKind = GenericJobKind | GoogleJobKind | EmailIntelligenceJobKind;
 
 // Payloads
+
 export interface BatchJobPayload {
   batchId?: string;
-  daysPast?: number;
-  daysFuture?: number;
-  maxResults?: number;
-  provider?: string; // For normalize jobs to specify gmail vs calendar
+  provider?: string;
+}
+
+export interface EmbedJobPayload {
+  ownerId: string;
+  ownerType: string;
+  text: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface InsightJobPayload {
+  subjectId: string;
+  subjectType: string;
+  kind: string;
+  context?: Record<string, unknown>;
 }
 
 export interface ContactExtractionPayload {
@@ -29,31 +41,6 @@ export interface ContactExtractionPayload {
   batchId?: string;
 }
 
-export interface EmbedJobPayload {
-  ownerType?: "interaction" | "document" | "contact";
-  ownerId?: string;
-  batchId?: string;
-  maxItems?: number;
-}
-
-export interface InsightJobPayload {
-  subjectType?: "contact" | "segment" | "inbox";
-  subjectId?: string;
-  kind?:
-    | "summary"
-    | "next_step"
-    | "risk"
-    | "persona"
-    | "thread_summary"
-    | "next_best_action"
-    | "weekly_digest"
-    | "lead_score"
-    | "duplicate_contact_suspected";
-  batchId?: string;
-  context?: Record<string, unknown>;
-  interactionIds?: string[];
-}
-
 export interface EmailIntelligenceJobPayload {
   rawEventId: string;
   batchId?: string;
@@ -61,14 +48,12 @@ export interface EmailIntelligenceJobPayload {
 }
 
 export interface EmailIntelligenceBatchJobPayload {
-  batchId?: string;
+  batchId: string;
   maxItems?: number;
-  onlyUnprocessed?: boolean;
 }
 
 export interface EmailIntelligenceCleanupJobPayload {
-  retentionDays?: number;
-  keepHighValue?: boolean;
+  batchId: string;
 }
 
 export type JobPayloadByKind = {
@@ -86,17 +71,6 @@ export type JobPayloadByKind = {
 };
 
 // Database record shape (matches your schema, but we type payload by kind)
-export interface JobRecordBase {
-  id: string;
-  userId: string;
-  kind: JobKind;
-  payload: unknown;
-  status: "queued" | "processing" | "done" | "error";
-  attempts: number;
-  batchId?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 export type JobRecord<K extends JobKind = JobKind> = Omit<JobRecordBase, "kind" | "payload"> & {
   kind: K;

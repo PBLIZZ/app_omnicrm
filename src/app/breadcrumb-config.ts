@@ -8,10 +8,9 @@ export interface BreadcrumbItem {
 
 export interface RouteConfig {
   label: string;
-  icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   parent?: string;
+  icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   isDynamic?: boolean;
-  resolver?: (id: string) => Promise<string> | string;
 }
 
 export const routeConfig: Record<string, RouteConfig> = {
@@ -35,18 +34,10 @@ export const routeConfig: Record<string, RouteConfig> = {
     label: "Import",
     parent: "/contacts",
   },
-  "/contacts/details": {
-    label: "Details",
-    parent: "/contacts",
-  },
-  "/contacts/details/[contactId]": {
+  "/contacts/[contactId]": {
     label: "Contact Details",
-    parent: "/contacts/details",
+    parent: "/contacts",
     isDynamic: true,
-  },
-  "/contacts/details/[contactId]/edit": {
-    label: "Edit",
-    parent: "/contacts/details/[contactId]",
   },
   "/omni-momentum": {
     label: "Momentum",

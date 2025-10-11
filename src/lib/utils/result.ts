@@ -118,7 +118,13 @@ export function safeAsync<T, Args extends readonly unknown[]>(
       }
       // Preserve original error details by attaching as cause
       const errorObj = new Error(String(error));
-      (errorObj as any).original = error;
+      // Type-safe extension of Error object
+      Object.defineProperty(errorObj, "original", {
+        value: error,
+        writable: false,
+        enumerable: false,
+        configurable: false,
+      });
       return err(errorObj);
     }
   };
@@ -140,7 +146,13 @@ export function safe<T, Args extends readonly unknown[]>(
       }
       // Preserve original error details by attaching as cause
       const errorObj = new Error(String(error));
-      (errorObj as any).original = error;
+      // Type-safe extension of Error object
+      Object.defineProperty(errorObj, "original", {
+        value: error,
+        writable: false,
+        enumerable: false,
+        configurable: false,
+      });
       return err(errorObj);
     }
   };

@@ -23,7 +23,7 @@ import { isErr } from "@/lib/utils/result";
 export const GET = handleGetWithQueryAuth(
   ProjectFiltersSchema,
   z.array(ProjectSchema),
-  async (filters, userId) => {
+  async (filters, userId): Promise<z.infer<typeof ProjectSchema>[]> => {
     const result = await productivityService.getProjects(userId, filters);
     if (isErr(result)) {
       throw new Error(result.error.message);
@@ -35,10 +35,14 @@ export const GET = handleGetWithQueryAuth(
 /**
  * POST /api/omni-momentum/projects - Create new project
  */
-export const POST = handleAuth(CreateProjectSchema, ProjectSchema, async (data, userId) => {
-  const result = await productivityService.createProject(userId, data);
-  if (isErr(result)) {
-    throw new Error(result.error.message);
-  }
-  return result.data;
-});
+export const POST = handleAuth(
+  CreateProjectSchema,
+  ProjectSchema,
+  async (data, userId): Promise<z.infer<typeof ProjectSchema>> => {
+    const result = await productivityService.createProject(userId, data);
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+    return result.data;
+  },
+);

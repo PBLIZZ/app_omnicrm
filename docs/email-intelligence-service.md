@@ -48,6 +48,7 @@ await categorizeEmail(userId, {
 ```
 
 **Categories:**
+
 - `client_communication` - Direct client communication
 - `business_intelligence` - Industry insights and thought leadership
 - `educational` - Learning materials and courses
@@ -57,6 +58,7 @@ await categorizeEmail(userId, {
 - `spam` - Irrelevant content
 
 **Subcategories:**
+
 - `marketing`, `thought_leadership`, `course_content`
 - `client_inquiry`, `appointment_related`, `invoice_payment`
 - `general_business`, `newsletter`, `promotion`
@@ -73,6 +75,7 @@ await extractWisdom(userId, {
 ```
 
 **Extracted Data:**
+
 - Key business insights (2-4 most important points)
 - Actionable next steps
 - Wellness industry tags (36 categories)
@@ -91,6 +94,7 @@ await matchToContacts(userId, {
 ```
 
 **Matching Logic:**
+
 1. **Exact email match** (95% confidence)
 2. **Fuzzy name matching** (60-85% confidence)
 3. **New contact suggestions** (LLM-powered recommendations)
@@ -105,6 +109,7 @@ await generateWeeklyDigest(userId, {
 ```
 
 **Digest Contents:**
+
 - Email activity summary and metrics
 - Business opportunity identification
 - Client mood trend analysis
@@ -183,6 +188,7 @@ INSERT INTO ai_insights (
 ### Client Lifecycle Intelligence
 
 **7 Client Stages** with AI-powered assessment:
+
 - **Prospect**: 1-2 events, recent inquiries
 - **New Client**: 2-5 events, getting started
 - **Core Client**: 6+ events, regular attendance

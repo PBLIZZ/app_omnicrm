@@ -32,9 +32,6 @@ export const URGENCY_LEVELS = [
 ] as const;
 
 // TypeScript types derived from the constants
-export type PrimaryCategory = typeof PRIMARY_CATEGORIES[number];
-export type SubCategory = typeof SUB_CATEGORIES[number];
-export type UrgencyLevel = typeof URGENCY_LEVELS[number];
 
 // Category descriptions for prompts
 export const PRIMARY_CATEGORY_DESCRIPTIONS = {

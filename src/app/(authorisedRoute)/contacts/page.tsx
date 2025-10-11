@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getServerUserId } from "@/server/auth/user";
 import { ContactsPage } from "@/app/(authorisedRoute)/contacts/_components/ContactsPage";
 
 export const metadata: Metadata = {
@@ -11,18 +9,11 @@ export const metadata: Metadata = {
 
 /**
  * Server Component for Contacts
- * Handles server-side authentication and initial data setup
+ * Auth is handled by the (authorisedRoute) layout
  * Renders the ContactsPage component
  */
-export default async function Page(): Promise<React.ReactNode> {
-  // Server-side authentication check
-  try {
-    await getServerUserId();
-  } catch {
-    redirect("/login?next=/contacts");
-  }
-
-  // Server component renders ContactsPage component
+export default function Page(): React.ReactNode {
+  // Auth check is handled by the parent layout
   // All interactive functionality is handled by ContactsPage
   return <ContactsPage />;
 }

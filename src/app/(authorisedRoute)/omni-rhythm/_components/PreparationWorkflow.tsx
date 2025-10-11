@@ -19,7 +19,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { format, differenceInHours } from "date-fns";
-import { PreparationTask, PreparationWorkflowProps } from "./types";
+import { Appointment, PreparationTask, PreparationWorkflowProps } from "./types";
 
 export function PreparationWorkflow({
   upcomingAppointments,

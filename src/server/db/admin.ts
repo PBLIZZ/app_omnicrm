@@ -13,7 +13,6 @@ export const ADMIN_ALLOWED_TABLES = [
   "ai_insights",
   "embeddings",
 ] as const;
-export type AdminAllowedTable = (typeof ADMIN_ALLOWED_TABLES)[number];
 
 // Table mapping for Drizzle operations
 const tableMap = {

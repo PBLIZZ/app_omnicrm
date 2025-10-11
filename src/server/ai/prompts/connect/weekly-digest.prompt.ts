@@ -1,14 +1,20 @@
 // New file for weekly digest prompt
 
 import { ChatMessage } from "@/server/ai/core/llm.service";
-import type { EmailSummaryItem } from "@/server/ai/types/connect-types";
+
+interface WeeklyEmailSummaryItem {
+  subject: string;
+  bodyText: string;
+  source: string;
+  occurredAt: Date;
+}
 
 export function buildWeeklyDigestPrompt(data: {
   startDate: Date;
   endDate: Date;
   emailInteractionsLength: number;
   insightsLength: number;
-  emailSummary: EmailSummaryItem[];
+  emailSummary: WeeklyEmailSummaryItem[];
 }): ChatMessage[] {
   return [
     {

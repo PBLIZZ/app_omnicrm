@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queries/keys";
-import type { Contact } from "@/server/db/types";
+import type { Contact } from "@/server/db/schema";
 
 export interface EnrichmentProgress {
   type: "start" | "progress" | "enriched" | "error" | "complete";
@@ -16,17 +16,6 @@ export interface EnrichmentProgress {
   error?: string;
   errors?: string[];
   totalContacts?: number;
-}
-
-export interface EnrichmentState {
-  isRunning: boolean;
-  progress: number;
-  currentContact: string | null;
-  currentClient: string | null; // Alias for UI compatibility
-  enrichedCount: number;
-  totalContacts: number;
-  totalClients: number; // Alias for UI compatibility
-  errors: string[];
 }
 
 interface ContactsQueryData {

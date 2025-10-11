@@ -13,7 +13,7 @@ import {
   CommandList,
 } from "./command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { COUNTRIES } from "@/constants/countries";
+import { COUNTRIES, COUNTRY_SEARCH_MAP } from "@/constants/countries";
 
 interface CountrySelectProps {
   value?: string;
@@ -37,10 +37,10 @@ function getSearchTerms(code: string, label: string): string[] {
   const nativeNames: Record<string, string[]> = {
     US: ["usa", "america", "united states of america"],
     CA: ["canada"],
-    GB: ["uk", "britain", "england", "scotland", "wales"],
-    AU: ["australia"],
+    GB: ["uk", "britain", "great britain", "england", "scotland", "wales", "northern ireland"],
+    AU: ["australia", "aussie"],
     NZ: ["new zealand", "aotearoa"],
-    IE: ["ireland", "eire", "eir"],
+    IE: ["ireland", "eire", "republic of ireland"],
     ZA: ["south africa"],
     NL: ["netherlands", "holland", "nederland"],
     SE: ["sweden", "sverige"],
@@ -53,36 +53,36 @@ function getSearchTerms(code: string, label: string): string[] {
     LU: ["luxembourg", "luxemburg"],
     MT: ["malta"],
     CY: ["cyprus", "κύπρος"],
-    DE: ["germany", "deutschland", "deutsch"],
-    FR: ["france", "la france", "français"],
-    ES: ["spain", "españa", "esp", "español"],
-    IT: ["italy", "italia", "italiano"],
-    PT: ["portugal", "português"],
-    BR: ["brazil", "brasil", "português"],
-    MX: ["mexico", "méxico", "mexicano"],
-    AR: ["argentina", "argentino"],
-    CL: ["chile", "chileno"],
-    CO: ["colombia", "colombiano"],
-    PE: ["peru", "perú", "peruano"],
-    IN: ["india", "indian", "hindustan"],
-    SG: ["singapore", "singapura"],
-    HK: ["hong kong", "xianggang"],
-    PH: ["philippines", "pilipinas", "filipino"],
-    MY: ["malaysia", "malaysian"],
-    TH: ["thailand", "thai", "ประเทศไทย"],
-    ID: ["indonesia", "indonesian"],
-    JP: ["japan", "japanese", "nihon", "nippon"],
-    KR: ["south korea", "korea", "한국"],
-    TW: ["taiwan", "taiwanese", "台灣"],
-    IL: ["israel", "israeli", "ישראל"],
+    DE: ["germany", "deutschland"],
+    FR: ["france"],
+    ES: ["spain", "españa"],
+    IT: ["italy", "italia"],
+    PT: ["portugal"],
+    BR: ["brazil", "brasil"],
+    MX: ["mexico", "méxico"],
+    AR: ["argentina"],
+    CL: ["chile"],
+    CO: ["colombia"],
+    PE: ["peru", "perú"],
+    IN: ["india"],
+    SG: ["singapore"],
+    HK: ["hong kong"],
+    PH: ["philippines", "pilipinas"],
+    MY: ["malaysia"],
+    TH: ["thailand"],
+    ID: ["indonesia"],
+    JP: ["japan", "nihon", "nippon"],
+    KR: ["south korea", "korea"],
+    TW: ["taiwan"],
+    IL: ["israel"],
     AE: ["uae", "united arab emirates", "emirates"],
     SA: ["saudi arabia", "saudi"],
-    EG: ["egypt", "egyptian", "مصر"],
-    NG: ["nigeria", "nigerian"],
-    KE: ["kenya", "kenyan"],
-    GH: ["ghana", "ghanaian"],
-    MA: ["morocco", "moroccan", "المغرب"],
-    TN: ["tunisia", "tunisian", "تونس"],
+    EG: ["egypt"],
+    NG: ["nigeria"],
+    KE: ["kenya"],
+    GH: ["ghana"],
+    MA: ["morocco"],
+    TN: ["tunisia"],
   };
 
   const nativeTerms = nativeNames[code] || [];
@@ -104,11 +104,57 @@ export function CountrySelect({
   const filteredCountries = useMemo(() => {
     if (!searchValue) return COUNTRY_DATA;
 
-    const searchLower = searchValue.toLowerCase();
-    return COUNTRY_DATA.filter((country) =>
-      country.searchTerms.some((term) => term.includes(searchLower)),
+    const searchLower = searchValue.toLowerCase().trim();
+    
+    // Check if the search matches a country in our search map
+    const mappedCountryCode = COUNTRY_SEARCH_MAP[searchLower];
+    if (mappedCountryCode) {
+      // Return only the mapped country
+      return COUNTRY_DATA.filter((country) => country.value === mappedCountryCode);
+    }
+    
+    // Check for partial matches in the search map
+    const partialMatches = Object.keys(COUNTRY_SEARCH_MAP).filter((key) =>
+      key.includes(searchLower)
     );
+    
+    if (partialMatches.length > 0) {
+      const matchedCodes = new Set(partialMatches.map((key) => COUNTRY_SEARCH_MAP[key]));
+      return COUNTRY_DATA.filter((country) => matchedCodes.has(country.value));
+    }
+    
+    // Fallback to original search logic
+    return COUNTRY_DATA.filter((country) => {
+      const matchesSearchTerms = country.searchTerms.some((term) => term.includes(searchLower));
+      const matchesLabel = country.label.toLowerCase().includes(searchLower);
+      return matchesSearchTerms || matchesLabel;
+    });
   }, [searchValue]);
+
+  // Group countries by continent
+  const groupedCountries = useMemo(() => {
+    const countries = searchValue ? filteredCountries : COUNTRY_DATA;
+    const groups: Record<string, typeof COUNTRY_DATA> = {};
+    
+    countries.forEach((country) => {
+      if (!groups[country.continent]) {
+        groups[country.continent] = [];
+      }
+      groups[country.continent]!.push(country);
+    });
+    
+    return groups;
+  }, [searchValue, filteredCountries]);
+
+  const continentOrder = [
+    "Primary English-Speaking",
+    "Large English-Speaking Population",
+    "Major European Markets",
+    "Major Asian Markets",
+    "Americas",
+    "Middle East",
+    "Rest of World"
+  ];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -129,7 +175,7 @@ export function CountrySelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0" align="start">
-        <Command>
+        <Command shouldFilter={false}>
           <CommandInput
             placeholder="Type country name..."
             value={searchValue}
@@ -137,27 +183,35 @@ export function CountrySelect({
           />
           <CommandList>
             <CommandEmpty>No country found.</CommandEmpty>
-            <CommandGroup>
-              {filteredCountries.map((country) => (
-                <CommandItem
-                  key={country.value}
-                  value={country.value}
-                  onSelect={(currentValue: string) => {
-                    onValueChange?.(currentValue === value ? "" : currentValue);
-                    setOpen(false);
-                    setSearchValue("");
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === country.value ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                  {country.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {continentOrder.map((continent) => {
+              const countries = groupedCountries[continent];
+              if (!countries || countries.length === 0) return null;
+              
+              return (
+                <CommandGroup key={continent} heading={continent}>
+                  {countries.map((country) => (
+                    <CommandItem
+                      key={country.value}
+                      value={country.value}
+                      keywords={[country.label, ...country.searchTerms]}
+                      onSelect={() => {
+                        onValueChange?.(country.value);
+                        setOpen(false);
+                        setSearchValue("");
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === country.value ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      {country.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              );
+            })}
           </CommandList>
         </Command>
       </PopoverContent>

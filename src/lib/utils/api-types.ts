@@ -18,15 +18,6 @@ import { z } from "zod";
 // PAGINATION INTERFACES
 // ============================================================================
 
-export interface PaginationMeta {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
-
 export interface PaginatedResponse<T> {
   items: T[];
   meta: PaginationMeta;
@@ -65,15 +56,6 @@ export function createPaginationMeta(
 // DATABASE OPERATION INTERFACES
 // ============================================================================
 
-export interface DatabaseError {
-  code: string;
-  message: string;
-  constraint?: string;
-  table?: string;
-  column?: string;
-  detail?: unknown;
-}
-
 export interface CreateOperation<T> {
   data: T;
   metadata?: {
@@ -88,14 +70,6 @@ export interface UpdateOperation<T> {
   metadata?: {
     updatedAt: string;
     updatedBy?: string;
-  };
-}
-
-export interface DeleteOperation {
-  id: string;
-  metadata?: {
-    deletedAt: string;
-    deletedBy?: string;
   };
 }
 
@@ -125,30 +99,6 @@ export interface SearchResponse<T> extends PaginatedResponse<T> {
 // ============================================================================
 // JOB/TASK INTERFACES
 // ============================================================================
-
-export interface JobRequest {
-  type: string;
-  data: Record<string, unknown>;
-  priority?: number;
-  delay?: number;
-  retries?: number;
-}
-
-export interface JobResponse {
-  id: string;
-  status: "queued" | "processing" | "completed" | "failed";
-  type: string;
-  createdAt: string;
-  startedAt?: string;
-  completedAt?: string;
-  progress?: {
-    current: number;
-    total: number;
-    message?: string;
-  };
-  result?: unknown;
-  error?: string;
-}
 
 // ============================================================================
 // VALIDATION SCHEMAS

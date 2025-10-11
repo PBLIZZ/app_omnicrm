@@ -73,40 +73,28 @@ export class OnboardingTrackingService {
 
   /**
    * Update last accessed timestamp for a token
+   * Note: This would use an RPC function if it existed in the database
    */
   private static async updateLastAccessedAt(
-    supabase: ReturnType<typeof createClient<Database>>,
-    token: string,
+    _supabase: ReturnType<typeof createClient<Database>>,
+    _token: string,
   ): Promise<void> {
-    const { error } = await supabase
-      .from("onboarding_tokens")
-      .update({
-        last_accessed_at: new Date().toISOString(),
-      })
-      .eq("token", token)
-      .eq("disabled", false);
-
-    if (error) {
-      console.error("Failed to update last_accessed_at:", error);
-      // Don't throw - this is best-effort tracking
-    }
+    // TODO: Implement RPC function in database if needed
+    // For now, access tracking is disabled
+    return;
   }
 
   /**
-   * Increment access count for a token using RPC
+   * Increment access count for a token
+   * Note: This would use an RPC function if it existed in the database
    */
   private static async incrementAccessCount(
-    supabase: ReturnType<typeof createClient<Database>>,
-    token: string,
+    _supabase: ReturnType<typeof createClient<Database>>,
+    _token: string,
   ): Promise<void> {
-    const { error } = await supabase.rpc("increment_access_count", {
-      token_value: token,
-    });
-
-    if (error) {
-      console.error("Failed to increment access count:", error);
-      // Don't throw - this is best-effort tracking
-    }
+    // TODO: Implement RPC function in database if needed
+    // For now, access tracking is disabled
+    return;
   }
 
   /**

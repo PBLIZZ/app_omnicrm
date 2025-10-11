@@ -56,6 +56,10 @@ export function useGmailSync(): UseGmailSyncReturn {
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      // Access data property only after checking success
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return {
         message: result.data.message ?? "Gmail sync started",
         ...(result.data.batchId && { batchId: result.data.batchId }),
@@ -84,6 +88,9 @@ export function useGmailSync(): UseGmailSyncReturn {
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data;
     },
     onMutate: () => {
@@ -106,6 +113,9 @@ export function useGmailSync(): UseGmailSyncReturn {
       >("/api/gmail/process-contacts", {});
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return { message: result.data.message ?? "Contacts processed successfully" };
     },

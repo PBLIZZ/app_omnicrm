@@ -1,6 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui";
+import { useAuth } from "@/hooks/use-auth";
 import { useAuthActions } from "@/hooks/use-auth-actions";
 import {
   validateSignInForm,
@@ -25,10 +27,25 @@ import { EmailSentMessage } from "@/app/(auth)/_components/EmailSentMessage";
 export const dynamic = "force-dynamic";
 
 export default function LoginPage(): JSX.Element {
+  const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [formData, setFormData] = useState<AuthFormData>(clearAuthForm());
   const [err, setErr] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Redirect if already logged in (only once)
+  useEffect(() => {
+    if (!isLoading && user) {
+      // Check for 'next' parameter to redirect back to intended page
+      const searchParams = new URLSearchParams(window.location.search);
+      const next = searchParams.get("next");
+      const redirectTo = next && next.startsWith("/") ? next : "/omni-flow";
+      
+      // Use replace instead of push to avoid back button issues
+      router.replace(redirectTo);
+    }
+  }, [user, isLoading, router]);
 
   const {
     signInWithPassword,

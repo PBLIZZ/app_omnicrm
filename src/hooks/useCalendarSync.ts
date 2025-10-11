@@ -42,23 +42,6 @@ const showSyncSuccessToast = (service: string, details?: { count?: number; durat
   toast.success(title, { description });
 };
 
-export interface CalendarSyncStats {
-  syncedEvents: number;
-  batchId?: string;
-}
-
-export interface UseCalendarSyncResult {
-  // Sync state
-  isSyncing: boolean;
-  syncStatus: string;
-  error: string | null;
-  lastSyncStats: CalendarSyncStats | null;
-
-  // Actions
-  syncCalendar: () => Promise<void>;
-  clearError: () => void;
-}
-
 export function useCalendarSync(): UseCalendarSyncResult {
   const queryClient = useQueryClient();
   const [syncStatus, setSyncStatus] = useState<string>("");

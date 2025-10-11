@@ -14,7 +14,21 @@ interface EmailSummary {
   occurredAt: Date;
 }
 
-function buildWeeklyDigestPrompt(emailSummary: any[], insights: any[]): ChatMessage[] {
+interface EmailSummary {
+  subject: string;
+  sender: string;
+  date: string;
+  summary: string;
+}
+
+interface Insight {
+  type: string;
+  title: string;
+  content: string;
+  confidence: number;
+}
+
+function buildWeeklyDigestPrompt(emailSummary: EmailSummary[], insights: Insight[]): ChatMessage[] {
   return [
     {
       role: "system",

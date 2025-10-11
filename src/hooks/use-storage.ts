@@ -1,12 +1,6 @@
 import { useQuery, QueryKey } from "@tanstack/react-query";
 import { get, post, buildUrl } from "@/lib/api";
 
-export interface GetFileUrlResponse {
-  signedUrl: string | null;
-  error?: string;
-  details?: string;
-}
-
 export async function getFileUrl(filePath: string): Promise<GetFileUrlResponse> {
   try {
     const url = buildUrl("/api/storage/file-url", { filePath });
@@ -23,28 +17,20 @@ export function useFileUrl(
   filePath: string | null | undefined,
   options?: { enabled?: boolean; staleTime?: number },
 ): ReturnType<typeof useQuery<GetFileUrlResponse, Error, GetFileUrlResponse, QueryKey>> {
-  const enabled = Boolean(filePath) && (options?.enabled ?? true);
+  // Only enable query if filePath is a non-empty string AND enabled option is true
+  const enabled = Boolean(filePath && filePath.length > 0) && (options?.enabled ?? true);
   const key: QueryKey = ["storage", "file-url", filePath ?? ""];
   return useQuery({
     queryKey: key,
-    queryFn: () => getFileUrl(filePath as string),
+    queryFn: () => {
+      if (!filePath) {
+        return Promise.resolve({ signedUrl: null, error: "No file path provided" });
+      }
+      return getFileUrl(filePath);
+    },
     enabled,
     staleTime: options?.staleTime ?? 55 * 60 * 1000, // default 55 minutes
   });
-}
-
-export interface GetUploadUrlArgs {
-  fileName: string;
-  contentType: string;
-  folderPath?: string;
-  bucket?: string; // default "contacts"
-}
-
-export interface GetUploadUrlResponse {
-  signedUrl: string | null;
-  path: string;
-  error?: string;
-  details?: string;
 }
 
 export async function getUploadUrl(args: GetUploadUrlArgs): Promise<GetUploadUrlResponse> {

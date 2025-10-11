@@ -82,8 +82,6 @@ export type Interaction = {
 
 export type NewInteraction = Omit<Interaction, "id" | "createdAt">;
 
-export type NormalizedInteraction = {
-  userId: string;
   contactId?: string | null;
   type: string;
   subject?: string | null;
@@ -95,21 +93,6 @@ export type NormalizedInteraction = {
   sourceMeta?: unknown;
   batchId?: string | null;
 };
-
-export type InteractionType =
-  | "email_received"
-  | "email_sent"
-  | "sms_received"
-  | "sms_sent"
-  | "dm_received"
-  | "dm_sent"
-  | "meeting_created"
-  | "meeting_attended"
-  | "call_logged"
-  | "note_added"
-  | "form_submission"
-  | "web_chat"
-  | "system_event";
 
 export type NoteDTO = {
   id: string;
@@ -158,8 +141,6 @@ export type CreateTaskInput = {
   estimatedMinutes?: number;
 };
 
-export type InsightContent = {
-  title: string;
   summary: string;
   score?: number;
   confidence: number;
@@ -180,8 +161,6 @@ export type InsightContent = {
   status: "new" | "viewed" | "dismissed" | "applied";
 };
 
-export type AIInsight = {
-  id: string;
   userId: string;
   subjectType: string;
   subjectId: string | null;
@@ -191,46 +170,6 @@ export type AIInsight = {
   createdAt: string;
   fingerprint?: string;
 };
-
-export type NewAIInsight = Omit<AIInsight, "id" | "createdAt" | "fingerprint">;
-
-export type InsightSubjectType =
-  | "contact"
-  | "thread"
-  | "account"
-  | "project"
-  | "task"
-  | "email"
-  | "meeting"
-  | "campaign"
-  | "pipeline"
-  | "segment";
-
-export type InsightKind =
-  | "thread_summary"
-  | "meeting_summary"
-  | "account_summary"
-  | "weekly_digest"
-  | "next_best_action"
-  | "reply_draft"
-  | "subject_line_suggestions"
-  | "playbook_recommendation"
-  | "lead_score"
-  | "health_score"
-  | "upsell_score"
-  | "churn_risk"
-  | "smart_segment_definition"
-  | "cluster_assignment"
-  | "entity_enrichment"
-  | "title_inference"
-  | "company_match"
-  | "pii_detected"
-  | "policy_flag"
-  | "anomaly_detected"
-  | "duplicate_contact_suspected"
-  | "campaign_driver_analysis"
-  | "cohort_insight"
-  | "topic_trend";
 
 // Utility to convert empty strings to null (matches app behavior)
 function emptyToNull(value: string | undefined | null): string | null {
@@ -299,12 +238,12 @@ const WELLNESS_TAGS = [
 
 const LIFECYCLE_CONTACT_STAGES = [
   "Prospect",
-  "New Contact",
-  "Core Contact",
-  "Referring Contact",
-  "VIP Contact",
-  "Lost Contact",
-  "At Risk Contact",
+  "New Client",
+  "Core Client",
+  "Referring Client",
+  "VIP Client",
+  "Lost Client",
+  "At Risk Client",
 ];
 
 const CONTACT_SOURCES = [
@@ -603,6 +542,9 @@ export function makeCreateTaskInput(overrides: Partial<CreateTaskInput> = {}): C
 // =============================================================================
 // AI INSIGHTS FACTORIES
 // =============================================================================
+
+type InsightSubjectType = "contact" | "thread" | "account" | "project" | "task" | "email" | "meeting" | "campaign" | "pipeline" | "segment";
+type InsightKind = "thread_summary" | "meeting_summary" | "account_summary" | "weekly_digest" | "next_best_action" | "reply_draft" | "subject_line_suggestions" | "playbook_recommendation" | "lead_score" | "health_score" | "upsell_score" | "churn_risk" | "smart_segment_definition" | "cluster_assignment" | "entity_enrichment" | "title_inference" | "company_match" | "pii_detected" | "policy_flag" | "anomaly_detected" | "duplicate_contact_suspected" | "campaign_driver_analysis" | "cohort_insight" | "topic_trend";
 
 const INSIGHT_SUBJECTS: InsightSubjectType[] = [
   "contact",

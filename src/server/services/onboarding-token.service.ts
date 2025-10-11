@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/server/db/types";
+import type { Database } from "@/server/db/database.types";
 
 // Validation schema for token generation request
 const GenerateTokenSchema = z.object({
@@ -11,20 +11,9 @@ const GenerateTokenSchema = z.object({
 
 export type GenerateTokenData = z.infer<typeof GenerateTokenSchema>;
 
-interface TokenResponse {
-  token: string;
-  onboardingUrl: string;
-  expiresAt: string;
-  label: string | null;
-}
-
 interface ListTokensOptions {
   limit?: number;
   offset?: number;
-}
-
-interface ListTokensResult {
-  tokens: Database["public"]["Tables"]["onboarding_tokens"]["Row"][];
 }
 
 interface DeleteTokenResult {
@@ -67,7 +56,7 @@ export class OnboardingTokenService {
    * Generate public URL for the token
    */
   static generatePublicUrl(token: string): string {
-    const baseUrl = process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000";
+    const baseUrl = process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000";
     return `${baseUrl}/onboard/${token}`;
   }
 
@@ -78,7 +67,7 @@ export class OnboardingTokenService {
     userId: string,
     token: string,
     expiresAt: Date,
-    label?: string
+    label?: string,
   ): Promise<{
     token: string;
     expires_at: string;
@@ -93,10 +82,11 @@ export class OnboardingTokenService {
       .from("onboarding_tokens")
       .insert({
         user_id: userId,
+        created_by: userId,
         token,
         expires_at: expiresAt.toISOString(),
         max_uses: 1, // Always single use
-        label: label || null,
+        label: label ?? null,
       })
       .select("token, expires_at, label")
       .single();
@@ -114,8 +104,14 @@ export class OnboardingTokenService {
    */
   static async generateOnboardingToken(
     userId: string,
-    tokenData: GenerateTokenData
-  ): Promise<TokenResponse> {
+    tokenData: GenerateTokenData,
+  ): Promise<{
+    success: boolean;
+    token: string;
+    expiresAt: string;
+    label?: string;
+    message: string;
+  }> {
     const { hoursValid, label } = tokenData;
 
     // Generate secure token and expiry date
@@ -125,15 +121,27 @@ export class OnboardingTokenService {
     // Insert token into database
     const dbResult = await this.createToken(userId, token, expiresAt, label);
 
-    // Generate public URL
+    // Generate public URL (not returned in response, but available if needed)
     const publicUrl = this.generatePublicUrl(token);
 
-    return {
+    const response: {
+      success: boolean;
+      token: string;
+      expiresAt: string;
+      label?: string;
+      message: string;
+    } = {
+      success: true,
       token: dbResult.token,
-      onboardingUrl: publicUrl,
       expiresAt: dbResult.expires_at,
-      label: dbResult.label,
+      message: `Onboarding token created successfully. Share this link: ${publicUrl}`,
     };
+
+    if (dbResult.label) {
+      response.label = dbResult.label;
+    }
+
+    return response;
   }
 
   /**
@@ -142,10 +150,10 @@ export class OnboardingTokenService {
   static validateListOptions(limit?: string, offset?: string): ListTokensOptions {
     // Validate and set safe defaults
     const validatedLimit = Math.min(
-      Math.max(parseInt(limit || "20", 10) || 20, 1),
+      Math.max(parseInt(limit ?? "20", 10) || 20, 1),
       100, // max limit
     );
-    const validatedOffset = Math.max(parseInt(offset || "0", 10) || 0, 0);
+    const validatedOffset = Math.max(parseInt(offset ?? "0", 10) || 0, 0);
 
     return {
       limit: validatedLimit,
@@ -158,8 +166,18 @@ export class OnboardingTokenService {
    */
   static async listUserTokens(
     userId: string,
-    options: ListTokensOptions
-  ): Promise<ListTokensResult> {
+    options: ListTokensOptions,
+  ): Promise<{
+    tokens: Array<{
+      id: string;
+      token: string;
+      label?: string;
+      expiresAt: string;
+      createdAt: string;
+      isActive: boolean;
+      usageCount: number;
+    }>;
+  }> {
     const { limit = 20, offset = 0 } = options;
 
     const supabase = createClient<Database>(
@@ -187,18 +205,42 @@ export class OnboardingTokenService {
       throw new Error("Failed to fetch tokens");
     }
 
+    // Transform database rows to match schema
+    const now = new Date().toISOString();
+    const transformedTokens = (tokens ?? []).map((token) => {
+      const transformed: {
+        id: string;
+        token: string;
+        label?: string;
+        expiresAt: string;
+        createdAt: string;
+        isActive: boolean;
+        usageCount: number;
+      } = {
+        id: token.id,
+        token: token.token,
+        expiresAt: token.expires_at,
+        createdAt: token.created_at,
+        isActive: !token.disabled && token.expires_at > now && token.used_count < token.max_uses,
+        usageCount: token.used_count,
+      };
+      
+      if (token.label) {
+        transformed.label = token.label;
+      }
+      
+      return transformed;
+    });
+
     return {
-      tokens: tokens || [],
+      tokens: transformedTokens,
     };
   }
 
   /**
    * Delete a token by ID for a specific user
    */
-  static async deleteUserToken(
-    userId: string,
-    tokenId: string
-  ): Promise<DeleteTokenResult> {
+  static async deleteUserToken(userId: string, tokenId: string): Promise<DeleteTokenResult> {
     if (!tokenId) {
       throw new Error("Token ID is required");
     }

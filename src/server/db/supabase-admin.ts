@@ -62,7 +62,6 @@ const supaAdmin =
 
 // Allow-list of tables that the secret key client may write to.
 export const ALLOWED_TABLES = ["raw_events", "interactions", "ai_insights", "embeddings"] as const;
-export type AllowedTable = (typeof ALLOWED_TABLES)[number];
 
 type InsertRow<T extends AllowedTable> = T extends "raw_events"
   ? NewRawEvent

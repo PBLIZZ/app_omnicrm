@@ -4,12 +4,13 @@
  */
 export const CONTACT_STAGES = [
   "Prospect",
-  "New Contact",
-  "Core Contact",
-  "Referring Contact",
-  "VIP Contact",
-  "Lost Contact",
-  "At Risk Contact",
+  "New Client",
+  "Core Client",
+  "Referring Client",
+  "VIP Client",
+  "Lost Client",
+  "At Risk Client",
 ] as const;
 
 export type ContactStage = (typeof CONTACT_STAGES)[number];
+

@@ -18,6 +18,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ContactFilterDialog } from "./ContactFilterDialog";
 import {
   ColumnDef,
@@ -29,6 +37,7 @@ import {
   VisibilityState,
   SortingState,
   RowSelectionState,
+  ColumnFiltersState,
   useReactTable,
   Updater,
 } from "@tanstack/react-table";
@@ -45,6 +54,7 @@ import { useBulkDeleteContacts } from "@/hooks/use-contact-delete";
 import { useBulkEnrichContacts } from "@/hooks/use-contacts-bridge";
 import type { DataTableProps, ContactSearchFilters, ContactWithNotes } from "./types";
 import { toast } from "sonner";
+import { isContactWithNotes, parseVisibilityState } from "@/lib/utils/type-guards/contacts";
 
 export function ContactsTable<TData, TValue>({
   columns,
@@ -53,16 +63,16 @@ export function ContactsTable<TData, TValue>({
   const bulkDeleteContacts = useBulkDeleteContacts();
   const bulkEnrichContacts = useBulkEnrichContacts();
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   // Initialize column visibility from localStorage
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("contacts-column-visibility");
       if (saved) {
-        try {
-          return JSON.parse(saved) as VisibilityState;
-        } catch {
-          // Failed to parse saved column visibility, use default
+        const parsed = parseVisibilityState(saved);
+        if (parsed) {
+          return parsed;
         }
       }
     }
@@ -79,6 +89,7 @@ export function ContactsTable<TData, TValue>({
   };
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
   // Filter state
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
@@ -90,24 +101,37 @@ export function ContactsTable<TData, TValue>({
     let count = 0;
     if (filterState.query?.trim()) count++;
     if (filterState.tags?.length) count++;
-    if (filterState.stage?.length) count++;
+    if (filterState.lifecycleStage?.length) count++;
     if (filterState.source?.length) count++;
     if (filterState.dateRange) count++;
     if (filterState.hasNotes !== undefined) count++;
-    if (filterState.hasInteractions !== undefined) count++;
     if (filterState.confidenceScore) count++;
     return count;
   };
 
-  // Update active filters count when filters change
+  // Update active filters count when filters change and apply to column filters
   const updateFilters = useCallback((newFilters: ContactSearchFilters): void => {
     setFilters(newFilters);
     setActiveFiltersCount(calculateActiveFilters(newFilters));
+
+    // Convert filters to TanStack Table column filters format
+    const newColumnFilters: ColumnFiltersState = [];
+
+    if (newFilters.lifecycleStage?.length) {
+      newColumnFilters.push({ id: "lifecycleStage", value: newFilters.lifecycleStage });
+    }
+
+    if (newFilters.source?.length) {
+      newColumnFilters.push({ id: "source", value: newFilters.source });
+    }
+
+    setColumnFilters(newColumnFilters);
   }, []);
 
   // Clear all filters
   const clearAllFilters = useCallback((): void => {
     updateFilters({});
+    setColumnFilters([]);
   }, [updateFilters]);
 
   // Optimized clear selection handler
@@ -124,7 +148,11 @@ export function ContactsTable<TData, TValue>({
 
       const headers = ["Name", "Email", "Phone", "Stage", "Tags", "AI Insights", "Last Updated"];
       const rows = data.map((item) => {
-        const contact = item as ContactWithNotes;
+        // Validate that item is ContactWithNotes before using
+        if (!isContactWithNotes(item)) {
+          return ["Unknown", "", "", "", "", "", ""];
+        }
+        const contact = item;
         return [
           contact.displayName ?? "",
           contact.primaryEmail ?? "",
@@ -162,45 +190,30 @@ export function ContactsTable<TData, TValue>({
     }
   }, [data]);
 
-  // Apply client-side filtering with memoization
-  const filteredData = useMemo(() => {
+  // Apply hasNotes filter manually since it's not a column
+  const filteredDataForNotes = useMemo(() => {
+    if (filters.hasNotes === undefined) return data;
+
     return data.filter((item) => {
-      const contact = item as ContactWithNotes;
-
-      // Stage filter
-      if (filters.stage?.length && !filters.stage.includes(contact.lifecycleStage || "")) {
+      if (!isContactWithNotes(item)) {
         return false;
       }
+      const contact = item;
 
-      // Source filter
-      if (filters.source?.length && contact.source && !filters.source.includes(contact.source)) {
+      // Has notes filter - check if lastNote exists
+      if (filters.hasNotes === true && !contact.lastNote) {
         return false;
       }
-
-      // Has notes filter - explicit boolean comparison
-      if (filters.hasNotes === true && (!contact.notes || contact.notes.length === 0)) {
+      if (filters.hasNotes === false && contact.lastNote) {
         return false;
-      }
-      if (filters.hasNotes === false && contact.notes && contact.notes.length > 0) {
-        return false;
-      }
-
-      // Has interactions filter - disabled for now since interactions are stored separately
-      // TODO: Implement interactions count if needed
-      if (filters.hasInteractions === true) {
-        // For now, assume all contacts could have interactions
-        // This would need to be implemented with a separate query
-      }
-      if (filters.hasInteractions === false) {
-        // For now, skip this filter
       }
 
       return true;
     });
-  }, [data, filters]);
+  }, [data, filters.hasNotes]);
 
   const table = useReactTable({
-    data: filteredData,
+    data: filteredDataForNotes,
     columns: columns as ColumnDef<TData, unknown>[],
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -209,15 +222,24 @@ export function ContactsTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnVisibilityChange: handleColumnVisibilityChange,
     onRowSelectionChange: setRowSelection,
+    onColumnFiltersChange: setColumnFilters,
     enableRowSelection: true,
     getRowId: (row) => {
-      const contact = row as ContactWithNotes;
-      return contact.id;
+      // Safely extract ID with validation
+      if (isContactWithNotes(row)) {
+        return row.id;
+      }
+      // Fallback for invalid rows
+      return String(Math.random());
     }, // Use contact ID instead of array index
     state: {
       sorting,
       columnVisibility,
       rowSelection,
+      columnFilters,
+    },
+    meta: {
+      activeFilters: filters, // Pass filter state to columns via meta
     },
     initialState: {
       pagination: {
@@ -227,39 +249,63 @@ export function ContactsTable<TData, TValue>({
         // Hide phone and email by default as requested
         primaryPhone: false,
         primaryEmail: false,
+        // Hide source column by default (used for filtering only)
+        source: false,
         // Ensure notes column is always visible
         lastNote: true,
       },
     },
   });
 
-  // Optimized bulk delete handler - defined after table creation
-  const handleBulkDelete = useCallback(() => {
-    const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+  // Get selected contact info for bulk operations
+  const selectedContactInfo = useMemo(() => {
     const selectedRows = table.getSelectedRowModel().rows;
+    const selectedIds = selectedRows.map((row) => row.id);
     const contactNames = selectedRows
-      .map((row) => (row.original as ContactWithNotes).displayName)
-      .join(", ");
+      .map((row) => {
+        if (isContactWithNotes(row.original)) {
+          return row.original.displayName;
+        }
+        return "Unknown";
+      })
+      .filter((name) => name !== "Unknown");
 
-    if (
-      confirm(
-        `Are you sure you want to delete ${selectedIds.length} Contact(s)?\n\nContacts: ${contactNames}\n\nThis action cannot be undone.`,
-      )
-    ) {
-      bulkDeleteContacts.mutate(selectedIds, {
-        onSuccess: () => {
-          setRowSelection({}); // Clear selection after successful delete
-        },
-      });
+    return { selectedIds, contactNames, count: selectedIds.length };
+  }, [table]);
+
+  // Show bulk delete confirmation dialog
+  const handleBulkDeleteClick = useCallback(() => {
+    if (selectedContactInfo.count === 0) {
+      toast.error("No contacts selected");
+      return;
     }
-  }, [rowSelection, table, bulkDeleteContacts]);
+    setBulkDeleteDialogOpen(true);
+  }, [selectedContactInfo.count]);
+
+  // Execute bulk delete after confirmation
+  const confirmBulkDelete = useCallback(() => {
+    bulkDeleteContacts.mutate(selectedContactInfo.selectedIds, {
+      onSuccess: () => {
+        setRowSelection({}); // Clear selection after successful delete
+        setBulkDeleteDialogOpen(false);
+      },
+      onError: () => {
+        setBulkDeleteDialogOpen(false);
+      },
+    });
+  }, [selectedContactInfo.selectedIds, bulkDeleteContacts]);
 
   // Optimized bulk enrich handler - defined after table creation
   const handleBulkEnrich = useCallback(() => {
     const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
     const selectedRows = table.getSelectedRowModel().rows;
     const contactNames = selectedRows
-      .map((row) => (row.original as ContactWithNotes).displayName)
+      .map((row) => {
+        if (isContactWithNotes(row.original)) {
+          return row.original.displayName;
+        }
+        return "Unknown";
+      })
       .join(", ");
 
     if (
@@ -278,10 +324,10 @@ export function ContactsTable<TData, TValue>({
   return (
     <div className="space-y-4">
       {/* Bulk Actions */}
-      {Object.keys(rowSelection).length > 0 && (
+      {selectedContactInfo.count > 0 && (
         <div className="flex items-center justify-between p-4 bg-muted/50 border rounded-lg">
           <div className="text-sm font-medium">
-            {Object.keys(rowSelection).length} Contact(s) selected
+            {selectedContactInfo.count} Contact(s) selected
           </div>
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" onClick={handleClearSelection}>
@@ -291,7 +337,7 @@ export function ContactsTable<TData, TValue>({
               variant="destructive"
               size="sm"
               disabled={bulkDeleteContacts.isPending}
-              onClick={handleBulkDelete}
+              onClick={handleBulkDeleteClick}
             >
               {bulkDeleteContacts.isPending ? "Deleting..." : "Delete Selected"}
             </Button>
@@ -356,14 +402,14 @@ export function ContactsTable<TData, TValue>({
                                 ? "Last Updated"
                                 : column.id === "aiActions"
                                   ? "AI Actions"
-                                  : column.id === "stage"
-                                    ? "Stage"
+                                  : column.id === "lifecycleStage"
+                                    ? "Lifecycle Stage"
                                     : column.id === "tags"
                                       ? "Tags"
-                                      : column.id === "notes"
-                                        ? "AI Insights"
-                                        : column.id === "interactions"
-                                          ? "Interactions"
+                                      : column.id === "source"
+                                        ? "Source"
+                                        : column.id === "notes"
+                                          ? "AI Insights"
                                           : column.id;
 
                     return (
@@ -409,14 +455,17 @@ export function ContactsTable<TData, TValue>({
         </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-auto max-h-[calc(100vh-24rem)]">
+        <Table className="w-full relative">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      className="sticky top-0 bg-background z-10 border-b"
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}
@@ -532,6 +581,46 @@ export function ContactsTable<TData, TValue>({
           </div>
         </div>
       </div>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedContactInfo.count} Contact(s)</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the following contacts? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="mb-2 text-sm font-medium">Contacts to be deleted:</div>
+            <div className="max-h-[200px] overflow-y-auto rounded-md border p-3">
+              <ul className="space-y-1 text-sm">
+                {selectedContactInfo.contactNames.map((name, index) => (
+                  <li key={index} className="text-muted-foreground">
+                    • {name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteDialogOpen(false)}
+              disabled={bulkDeleteContacts.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBulkDelete}
+              disabled={bulkDeleteContacts.isPending}
+            >
+              {bulkDeleteContacts.isPending ? "Deleting..." : "Delete Contacts"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

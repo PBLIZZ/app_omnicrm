@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import type { NextRequest } from "next/server";
 
 // ============================================================================
 // AUTH FLOW HANDLERS
@@ -17,9 +18,9 @@ import { z } from "zod";
  */
 export function handleAuthFlow<TQuery = Record<string, string>>(
   querySchema: z.ZodType<TQuery>,
-  fn: (query: TQuery, request: Request) => Promise<Response>,
+  fn: (query: TQuery, request: NextRequest) => Promise<Response>,
 ) {
-  return async (req: Request) => {
+  return async (req: NextRequest) => {
     try {
       const url = new URL(req.url);
       const queryParams = Object.fromEntries(url.searchParams.entries());
@@ -59,8 +60,10 @@ export function handleFileUpload<TOut>(
     try {
       // Lazy import to avoid circular dependencies
       const { getServerUserId } = await import("../server/auth/user");
+      const { cookies } = await import("next/headers");
 
-      const userId = await getServerUserId();
+      const cookieStore = await cookies();
+      const userId = await getServerUserId(cookieStore);
 
       // Validate content type
       const contentType = req.headers.get("content-type");
@@ -160,7 +163,9 @@ export function handlePublic<TIn, TOut>(
   return async (req: Request) => {
     try {
       const body = await req.json();
+      console.log("[handlePublic] Received body:", JSON.stringify(body, null, 2));
       const parsed = input.parse(body);
+      console.log("[handlePublic] Validation passed");
       const result = await fn(parsed, req);
       const validated = output.parse(result);
 
@@ -351,8 +356,10 @@ export function handleStream<TQuery = Record<string, string>>(
     try {
       // Lazy import to avoid circular dependencies
       const { getServerUserId } = await import("../server/auth/user");
+      const { cookies } = await import("next/headers");
 
-      const userId = await getServerUserId();
+      const cookieStore = await cookies();
+      const userId = await getServerUserId(cookieStore);
       const url = new URL(req.url);
       const queryParams = Object.fromEntries(url.searchParams.entries());
       const parsed = querySchema.parse(queryParams);
@@ -555,7 +562,7 @@ export function handleCORS(
 
     // Only include Access-Control-Allow-Origin if origin is permitted
     if (allowedOrigins.includes("*") || (origin && allowedOrigins.includes(origin))) {
-      headers["Access-Control-Allow-Origin"] = origin || "*";
+      headers["Access-Control-Allow-Origin"] = origin ?? "*";
 
       // Add Vary header when setting specific origin (not wildcard)
       if (!allowedOrigins.includes("*") && origin) {

@@ -139,6 +139,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data.items ?? [];
     },
     refetchInterval: autoRefetch ? 30000 : false, // Auto-refresh every 30 seconds
@@ -155,6 +158,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
         );
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return result.data.stats;
     },
@@ -177,6 +183,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       });
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return result.data.item;
     },
@@ -268,6 +277,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data.item;
     },
     onSuccess: () => {
@@ -295,6 +307,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       >("/api/inbox/process", data);
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return result.data.result;
     },
@@ -336,6 +351,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data.result;
     },
     onSuccess: (result, variables) => {
@@ -375,6 +393,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data.item;
     },
     onSuccess: (updatedItem) => {
@@ -411,6 +432,9 @@ export function useInbox(options: UseInboxOptions = {}): UseInboxReturn {
       });
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return result.data.item;
     },
@@ -560,6 +584,9 @@ export function useInboxStats() {
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data.stats;
     },
     refetchInterval: 60000, // Auto-refresh every minute
@@ -585,6 +612,9 @@ export function useUnprocessedInboxItems(limit?: number) {
       >(`/api/inbox?${queryParams.toString()}`);
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return result.data.items ?? [];
     },

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { getServerUserId } from "@/server/auth/user";
+import { getAuthUserId } from "@/lib/auth-simple";
 
 export const metadata: Metadata = {
   title: "OmniCRM",
@@ -13,7 +13,7 @@ export default async function AuthorisedLayout({
   children: React.ReactNode;
 }): Promise<JSX.Element> {
   try {
-    await getServerUserId();
+    await getAuthUserId();
   } catch {
     redirect("/login");
   }

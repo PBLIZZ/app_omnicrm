@@ -27,64 +27,6 @@ import {
 import { eq, and, desc } from "drizzle-orm";
 import { Result, ok, err } from "@/lib/utils/result";
 
-export interface UserExportResult {
-  exportedAt: string;
-  version: number;
-  userId: string;
-  contacts: unknown[];
-  interactions: {
-    items: unknown[];
-    note: string;
-  };
-  aiInsights: unknown[];
-  aiUsage: {
-    items: unknown[];
-    note: string;
-  };
-  aiQuotas: unknown[];
-  threads: unknown[];
-  messages: {
-    items: unknown[];
-    note: string;
-  };
-  toolInvocations: unknown[];
-  documents: unknown[];
-  embeddings: {
-    items: unknown[];
-    note: string;
-  };
-  syncPreferences: unknown[];
-  syncAuditLog: {
-    items: unknown[];
-    note: string;
-  };
-  rawEvents: {
-    items: unknown[];
-    note: string;
-  };
-  jobs: {
-    items: unknown[];
-    note: string;
-  };
-  summary: {
-    totalContacts: number;
-    totalInteractions: number;
-    totalAiInsights: number;
-    totalThreads: number;
-    totalMessages: number;
-    totalDocuments: number;
-    exportCompleteness: string;
-    privacyNote: string;
-  };
-  compliance: {
-    gdprCompliant: boolean;
-    dataController: string;
-    retentionPolicy: string;
-    deletionRights: string;
-    portabilityRights: string;
-  };
-}
-
 export class UserExportService {
   /**
    * Export all user data for GDPR compliance

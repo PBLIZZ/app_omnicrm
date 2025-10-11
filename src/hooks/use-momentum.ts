@@ -105,13 +105,16 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
 
   // Fetch projects
   const projectsQuery = useQuery({
-    queryKey: queryKeys.momentum.projects(),
+    queryKey: queryKeys.momentum.all,
     queryFn: async (): Promise<Project[]> => {
       const result = await apiClient.get<Result<Project[], { message: string; code: string }>>(
         "/api/omni-momentum/projects",
       );
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return result.data;
     },
@@ -130,6 +133,9 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data;
     },
     refetchInterval: autoRefetch ? 30000 : false,
@@ -146,6 +152,9 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data;
     },
     refetchInterval: autoRefetch ? 60000 : false,
@@ -161,6 +170,9 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       );
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return result.data;
     },
@@ -181,10 +193,13 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       if (isErr(result)) {
         throw new Error(result.error.message);
       }
+      if (!result.success) {
+        throw new Error("Invalid result state");
+      }
       return result.data;
     },
     onSuccess: (newProject) => {
-      queryClient.setQueryData<Project[]>(queryKeys.momentum.projects(), (old) => [
+      queryClient.setQueryData<Project[]>(queryKeys.momentum.all, (old) => [
         newProject,
         ...(old ?? []),
       ]);
@@ -214,7 +229,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
     },
     onSuccess: (updatedProject) => {
       queryClient.setQueryData<Project[]>(
-        queryKeys.momentum.projects(),
+        queryKeys.momentum.all,
         (old) =>
           old?.map((project) => (project.id === updatedProject.id ? updatedProject : project)) ?? [
             updatedProject,
@@ -240,7 +255,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
     },
     onSuccess: (...[, projectId]) => {
       queryClient.setQueryData<Project[]>(
-        queryKeys.momentum.projects(),
+        queryKeys.momentum.all,
         (old) => old?.filter((project) => project.id !== projectId) ?? [],
       );
       toast({
@@ -269,6 +284,9 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       );
       if (isErr(result)) {
         throw new Error(result.error.message);
+      }
+      if (!result.success) {
+        throw new Error("Invalid result state");
       }
       return result.data;
     },
@@ -455,15 +473,15 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
 
     // Project actions
     createProject: createProjectMutation.mutate,
-    updateProject: (projectId: string, data: UpdateProjectDTO) =>
+    updateProject: (projectId: string, data: UpdateProject) =>
       updateProjectMutation.mutate({ projectId, data }),
     deleteProject: deleteProjectMutation.mutate,
 
     // Task actions
     createTask: createTaskMutation.mutate,
-    createSubtask: (parentTaskId: string, data: CreateTaskDTO) =>
+    createSubtask: (parentTaskId: string, data: CreateTask) =>
       createSubtaskMutation.mutate({ parentTaskId, data }),
-    updateTask: (taskId: string, data: UpdateTaskDTO) =>
+    updateTask: (taskId: string, data: UpdateTask) =>
       updateTaskMutation.mutate({ taskId, data }),
     deleteTask: deleteTaskMutation.mutate,
     approveTask: approveTaskMutation.mutate,

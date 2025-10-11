@@ -1,4 +1,4 @@
-"use contact";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
-import type { ClientWithNotes } from "./types";
+import type { ClientWithNotes, EditClientData, UpdateClientResponse } from "./types";
 import validator from "validator";
 
 interface EditContactDialogProps {
@@ -22,6 +22,7 @@ interface EditContactData {
   displayName: string;
   primaryEmail: string;
   primaryPhone: string;
+  photoUrl: string | null;
 }
 
 
@@ -61,15 +62,16 @@ export function EditContactDialog({
       if (!contact) throw new Error("No contact to update");
 
       const updateData = {
-        displayName: data.displayName.trim(),
-        primaryEmail: data.primaryEmail.trim() || null,
-        primaryPhone: data.primaryPhone.trim() || null,
+        displayName: data.displayName?.trim() ?? "",
+        primaryEmail: data.primaryEmail?.trim() || null,
+        primaryPhone: data.primaryPhone?.trim() || null,
       };
 
       return apiClient.put<UpdateClientResponse>(`/api/contacts/${contact.id}`, updateData);
     },
     onSuccess: (response) => {
-      toast.success(`${response.item.displayName} updated successfully`);
+      const updatedContact = response.data;
+      toast.success(`${updatedContact?.displayName ?? "Contact"} updated successfully`);
 
       // Invalidate and refetch contact data
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });

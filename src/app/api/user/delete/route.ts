@@ -2,87 +2,39 @@
 import {
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,
+  type UserDeletionResponse,
 } from "@/server/db/business-schemas";
 import { UserDeletionService } from "@/server/services/user-deletion.service";
+import { getAuthUserId } from "@/lib/auth-simple";
+import { ApiError } from "@/lib/api/errors";
+import { z } from "zod";
 
-// Custom handler that passes request to access IP headers
-function handleAuthWithRequest<TIn, TOut>(
-  input: import("zod").ZodType<TIn>,
-  output: import("zod").ZodType<TOut>,
-  fn: (parsed: TIn, userId: string, request: Request) => Promise<TOut>,
-) {
-  return async (req: Request) => {
-    try {
-      const { getServerUserId } = await import("@/server/auth/user");
-      const userId = await getServerUserId();
+/**
+ * Custom handler for user deletion that needs access to request headers for IP tracking
+ */
+export async function DELETE(request: Request): Promise<Response> {
+  try {
+    // Get authenticated user
+    const userId = await getAuthUserId();
 
-      let body = {};
-      const contentType = req.headers.get("content-type");
-      const contentLength = req.headers.get("content-length");
+    // Parse request body
+    const contentType = request.headers.get("content-type");
+    const contentLength = request.headers.get("content-length");
 
-      if (
-        contentType?.includes("application/json") &&
-        contentLength &&
-        parseInt(contentLength) > 0
-      ) {
-        body = await req.json();
-      }
-
-      const parsed = input.parse(body);
-      const result = await fn(parsed, userId, req);
-      const validated = output.parse(result);
-
-      return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
-        status: 200,
-      });
-    } catch (error) {
-      if (error instanceof import("zod").ZodError) {
-        return new Response(
-          JSON.stringify({
-            error: "Validation failed",
-            details: error.issues,
-          }),
-          {
-            headers: { "content-type": "application/json" },
-            status: 400,
-          },
-        );
-      }
-
-      if (error instanceof Error && "status" in error && error.status === 401) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          headers: { "content-type": "application/json" },
-          status: 401,
-        });
-      }
-
-      // Handle any Error with a numeric status property
-      if (error instanceof Error && "status" in error && typeof error.status === "number") {
-        return new Response(
-          JSON.stringify({
-            error: error.message,
-            ...(error.details ? { details: error.details } : {}),
-          }),
-          {
-            headers: { "content-type": "application/json" },
-            status: error.status,
-          },
-        );
-      }
-
-      throw error;
+    let body: unknown = {};
+    if (
+      contentType?.includes("application/json") &&
+      contentLength &&
+      parseInt(contentLength) > 0
+    ) {
+      body = await request.json();
     }
-  };
-}
 
-export const DELETE = handleAuthWithRequest(
-  UserDeletionRequestSchema,
-  UserDeletionResponseSchema,
-  async (data, userId, request) => {
+    // Validate input
+    const data = UserDeletionRequestSchema.parse(body);
     const { confirmation, acknowledgeIrreversible } = data;
 
-    // Extract IP address
+    // Extract IP address from request headers
     const ipAddress =
       request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
 
@@ -94,19 +46,65 @@ export const DELETE = handleAuthWithRequest(
     });
 
     if (!validation.valid) {
-      const error = new Error("Invalid deletion request");
-      (error as any).status = 400;
-      (error as any).details = validation.errors;
-      throw error;
+      throw new ApiError("Invalid deletion request", 400, validation.errors);
     }
 
     // Execute deletion
-    const result = await UserDeletionService.deleteUserData(userId, {
+    const result: UserDeletionResponse = await UserDeletionService.deleteUserData(userId, {
       confirmation,
       acknowledgeIrreversible,
       ipAddress,
     });
 
-    return result;
-  },
-);
+    // Validate output
+    const validated = UserDeletionResponseSchema.parse(result);
+
+    // eslint-disable-next-line no-restricted-syntax -- Legitimate: validated JSON response
+    return new Response(JSON.stringify(validated), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    // Handle ApiError
+    if (error instanceof ApiError) {
+      // eslint-disable-next-line no-restricted-syntax -- Legitimate: error response
+      return new Response(
+        JSON.stringify({
+          error: error.message,
+          details: error.details,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: error.status,
+        },
+      );
+    }
+
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      // eslint-disable-next-line no-restricted-syntax -- Legitimate: error response
+      return new Response(
+        JSON.stringify({
+          error: "Validation failed",
+          details: error.issues,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 400,
+        },
+      );
+    }
+
+    // Handle auth errors
+    if (error instanceof Error && "status" in error && error.status === 401) {
+      // eslint-disable-next-line no-restricted-syntax -- Legitimate: error response
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { "content-type": "application/json" },
+        status: 401,
+      });
+    }
+
+    // Re-throw unexpected errors
+    throw error;
+  }
+}

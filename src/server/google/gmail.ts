@@ -14,16 +14,18 @@ export interface GmailPreviewPrefs {
   gmailLabelExcludes: string[];
 }
 
+export interface GmailPreviewEmail {
+  id: string;
+  subject: string;
+  from: string;
+  date: string;
+  snippet: string;
+  hasAttachments: boolean;
+  labels: string[];
+}
+
 export interface GmailPreviewResult {
-  sampleEmails: Array<{
-    id: string;
-    subject: string;
-    from: string;
-    date: string;
-    snippet: string;
-    hasAttachments: boolean;
-    labels: string[];
-  }>;
+  sampleEmails: GmailPreviewEmail[];
   dateRange: {
     from: string;
     to: string;

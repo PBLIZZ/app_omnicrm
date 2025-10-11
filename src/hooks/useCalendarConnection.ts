@@ -34,18 +34,6 @@ export interface CalendarConnectionStatus {
   hasRefreshToken?: boolean;
 }
 
-export interface UseCalendarConnectionResult {
-  // Connection state
-  isConnecting: boolean;
-  isRefreshing: boolean;
-  error: string | null;
-
-  // Actions
-  connect: () => void;
-  refreshTokens: () => Promise<void>;
-  clearError: () => void;
-}
-
 export function useCalendarConnection(): UseCalendarConnectionResult {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +41,8 @@ export function useCalendarConnection(): UseCalendarConnectionResult {
   // OAuth connection mutation
   const connectMutation = useMutation({
     mutationFn: async () => {
-      // Redirect to Google Calendar OAuth
-      window.location.href = "/api/google/calendar/oauth";
+      // Redirect to new Calendar connect endpoint
+      window.location.href = "/api/google/calendar/connect";
     },
     onError: (err) => {
       setError("Failed to start Google Calendar OAuth");

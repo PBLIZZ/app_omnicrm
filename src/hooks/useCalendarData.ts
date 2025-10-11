@@ -33,45 +33,6 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
 };
 import type { CalendarEvent, Client } from "@/server/db/business-schemas";
 
-export interface CalendarStats {
-  upcomingEventsCount: number;
-  upcomingEvents: CalendarEvent[];
-  lastSync: string | null;
-  importedCount?: number;
-}
-
-export interface CalendarConnectionStatus {
-  isConnected: boolean;
-  upcomingEventsCount: number;
-  reason?: string;
-  hasRefreshToken?: boolean;
-  autoRefreshed?: boolean;
-  lastSync?: string;
-}
-
-export interface UseCalendarDataResult {
-  // Main data
-  events: CalendarEvent[];
-  clients: Client[];
-  connectionStatus: CalendarConnectionStatus | undefined;
-
-  // Loading states
-  isEventsLoading: boolean;
-  isClientsLoading: boolean;
-  isStatusLoading: boolean;
-
-  // Error states
-  eventsError: Error | null;
-  clientsError: Error | null;
-  statusError: Error | null;
-
-  // Actions
-  refetchEvents: () => void;
-  refetchClients: () => void;
-  refetchStatus: () => void;
-  refreshAll: () => void;
-}
-
 export function useCalendarData(): UseCalendarDataResult {
   // Calendar events query
   const {
@@ -194,9 +155,9 @@ export function useCalendarData(): UseCalendarDataResult {
     },
     staleTime: 15_000,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
-    // Optimistic loading: assume connected state initially for better UX
+    // Initial data - assume disconnected until we know otherwise
     initialData: {
-      isConnected: true,
+      isConnected: false,
       upcomingEventsCount: 0,
       reason: "loading",
     },
@@ -312,7 +273,7 @@ function mapClientData(contact: unknown): Client {
   const id = getString(c, "id") ?? getString(c, "userId") ?? `contact-${Math.random()}`;
   const displayName = getString(c, "displayName") ?? getString(c, "name") ?? "Unknown Client";
   const email = getString(c, "primaryEmail") ?? getString(c, "email") ?? "";
-  const totalSessions = getNumber(c, "notesCount") ?? getNumber(c, "totalSessions") ?? 0;
+  const totalSessions = getNumber(c, "totalSessions") ?? 0;
   const totalSpent = getNumber(c, "totalSpent") ?? 0;
   const lastSessionDate =
     getString(c, "updatedAt") ?? getString(c, "lastSessionDate") ?? new Date().toISOString();

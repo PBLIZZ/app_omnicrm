@@ -21,8 +21,8 @@ interface EventPatterns {
 
 function extractEventType(title: string, description?: string | null): string {
   // Validate and normalize inputs
-  const normalizedTitle = (title || "").trim().toLowerCase();
-  const normalizedDescription = (description || "").trim().toLowerCase();
+  const normalizedTitle = (title ?? "").trim().toLowerCase();
+  const normalizedDescription = (description ?? "").trim().toLowerCase();
 
   if (!normalizedTitle && !normalizedDescription) {
     return "Other";
@@ -59,8 +59,8 @@ function extractEventType(title: string, description?: string | null): string {
 
 function extractBusinessCategory(title: string, description?: string | null): string {
   // Validate and normalize inputs
-  const normalizedTitle = (title || "").trim().toLowerCase();
-  const normalizedDescription = (description || "").trim().toLowerCase();
+  const normalizedTitle = (title ?? "").trim().toLowerCase();
+  const normalizedDescription = (description ?? "").trim().toLowerCase();
 
   if (!normalizedTitle && !normalizedDescription) {
     return "Other";

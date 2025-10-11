@@ -45,18 +45,21 @@ export async function generateEmailSuggestion(
   ];
 
   try {
+    const EmailSchema = z.object({
+      subject: z.string(),
+      body: z.string(),
+    });
+
     const response = await generateText<EmailSuggestion>(userId, {
       model: "gpt-4o", // Using GPT-4o for high-quality email suggestions
       messages,
       temperature: 0.7,
       maxTokens: 1000,
-      responseSchema: z.object({
-        subject: z.string(),
-        body: z.string(),
-      }),
+      responseSchema: EmailSchema,
     });
 
-    return response.data;
+    const emailSuggestion: EmailSuggestion = response.data;
+    return emailSuggestion;
   } catch (error) {
     console.error(`Failed to generate email suggestion for ${contactEmail}:`, error);
     throw new Error(

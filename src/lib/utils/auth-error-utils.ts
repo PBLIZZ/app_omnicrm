@@ -13,7 +13,7 @@ export function isAuthError(
   }
 
   const errorWithStatus = error as Error & { status?: number; statusCode?: number };
-  const status = errorWithStatus.status || errorWithStatus.statusCode;
+  const status = errorWithStatus.status ?? errorWithStatus.statusCode;
 
   return (
     status === 401 ||

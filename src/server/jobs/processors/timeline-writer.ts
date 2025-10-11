@@ -20,15 +20,6 @@ interface InteractionData {
 }
 
 // Type definitions
-export interface TimelineEvent {
-  userId: string;
-  contactId: string;
-  eventType: string;
-  title: string;
-  description?: string | null;
-  eventData?: Record<string, unknown> | null;
-  occurredAt: string;
-}
 
 interface TimelineJobPayload {
   mode?: "single" | "batch";
@@ -352,7 +343,6 @@ async function insertTimelineEvent(event: TimelineEvent): Promise<void> {
     occurredAt: new Date(event.occurredAt),
   });
 }
-
 
 // Standalone utility functions (preferred over class methods)
 

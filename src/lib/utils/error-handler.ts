@@ -6,17 +6,22 @@
  */
 
 import { toast } from "sonner";
-import { isError } from "./type-guards";
 import { logger } from "@/lib/observability/unified-logger";
 
+/**
+ * Error context for logging and debugging
+ */
 export interface ErrorContext {
   operation: string;
   userId?: string;
-  contactId?: string;
   component?: string;
-  additionalData?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
+/**
+ * Options for error handling behavior
+ */
 export interface ErrorHandlingOptions {
   showToast?: boolean;
   toastTitle?: string;
@@ -46,14 +51,6 @@ export function handleError(
     error instanceof Error
       ? error
       : new Error(typeof error === "string" ? error : "Unknown error occurred");
-
-  // Create structured error log
-  const errorLog = {
-    error: normalizedError.message,
-    stack: normalizedError.stack,
-    context,
-    timestamp: new Date().toISOString(),
-  };
 
   // Log error based on level using unified logger
   switch (logLevel) {

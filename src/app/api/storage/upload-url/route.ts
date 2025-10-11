@@ -8,7 +8,7 @@ import {
 export const POST = handleAuth(
   UploadUrlRequestSchema,
   UploadUrlResponseSchema,
-  async (data, userId) => {
+  async (data, _userId) => {
     const { fileName, folderPath, bucket } = data;
 
     const path = folderPath ? `${folderPath.replace(/^\/+|\/+$/g, "")}/${fileName}` : fileName;

@@ -15,7 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Filter } from "lucide-react";
 import { CONTACT_STAGES } from "@/constants/contactStages";
-import type { ContactSearchFilters } from "@/server/db/business-schemas/contacts";
+import { CONTACT_SOURCES } from "@/lib/utils/contact-helpers";
+import type { ContactSearchFilters } from "./types";
 
 interface ContactFilterDialogProps {
   isOpen: boolean;
@@ -25,6 +26,14 @@ interface ContactFilterDialogProps {
   activeFiltersCount: number;
   onClearAll: () => void;
 }
+
+// Map source values to display labels
+const SOURCE_LABELS: Record<string, string> = {
+  manual: "Manual",
+  onboarding: "Onboarding",
+  gmail_import: "Gmail Import",
+  calendar_import: "Calendar Import",
+};
 
 export function ContactFilterDialog({
   isOpen,
@@ -42,15 +51,18 @@ export function ContactFilterDialog({
   }, [filters]);
 
   const handleStageChange = (stage: string, checked: boolean) => {
-    const currentStages = localFilters.stage ?? [];
+    const currentStages = localFilters.lifecycleStage ?? [];
     const newStages = checked
       ? [...currentStages, stage]
       : currentStages.filter((s: string) => s !== stage);
 
-    setLocalFilters({
-      ...localFilters,
-      stage: newStages.length > 0 ? newStages : undefined,
-    });
+    const updatedFilters: ContactSearchFilters = { ...localFilters };
+    if (newStages.length > 0) {
+      updatedFilters.lifecycleStage = newStages;
+    } else {
+      delete updatedFilters.lifecycleStage;
+    }
+    setLocalFilters(updatedFilters);
   };
 
   const handleSourceChange = (source: string, checked: boolean) => {
@@ -59,20 +71,13 @@ export function ContactFilterDialog({
       ? [...currentSources, source]
       : currentSources.filter((s: string) => s !== source);
 
-    setLocalFilters({
-      ...localFilters,
-      source: newSources.length > 0 ? newSources : undefined,
-    });
-  };
-
-  const handleDataPresenceChange = (
-    field: keyof Pick<ContactSearchFilters, "hasNotes" | "hasInteractions">,
-    checked: boolean,
-  ) => {
-    setLocalFilters({
-      ...localFilters,
-      [field]: checked || undefined,
-    });
+    const updatedFilters: ContactSearchFilters = { ...localFilters };
+    if (newSources.length > 0) {
+      updatedFilters.source = newSources;
+    } else {
+      delete updatedFilters.source;
+    }
+    setLocalFilters(updatedFilters);
   };
 
   const handleApply = () => {
@@ -120,13 +125,13 @@ export function ContactFilterDialog({
         <div className="space-y-4">
           {/* Stage filter */}
           <div className="space-y-2">
-            <Label>Contact Stage</Label>
+            <Label>Lifecycle Stage</Label>
             <div className="grid grid-cols-2 gap-2">
               {CONTACT_STAGES.map((stage) => (
                 <div key={stage} className="flex items-center space-x-2">
                   <Checkbox
                     id={`stage-${stage}`}
-                    checked={localFilters.stage?.includes(stage) ?? false}
+                    checked={localFilters.lifecycleStage?.includes(stage) ?? false}
                     onCheckedChange={(checked) => handleStageChange(stage, checked as boolean)}
                   />
                   <Label htmlFor={`stage-${stage}`} className="text-sm">
@@ -143,51 +148,18 @@ export function ContactFilterDialog({
           <div className="space-y-2">
             <Label>Source</Label>
             <div className="grid grid-cols-2 gap-2">
-              {["manual", "gmail_import", "upload", "calendar_import"].map((source) => (
+              {CONTACT_SOURCES.map((source) => (
                 <div key={source} className="flex items-center space-x-2">
                   <Checkbox
                     id={`source-${source}`}
                     checked={localFilters.source?.includes(source) ?? false}
                     onCheckedChange={(checked) => handleSourceChange(source, checked as boolean)}
                   />
-                  <Label htmlFor={`source-${source}`} className="text-sm capitalize">
-                    {source.replaceAll("_", " ")}
+                  <Label htmlFor={`source-${source}`} className="text-sm">
+                    {SOURCE_LABELS[source] ?? source}
                   </Label>
                 </div>
               ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Data presence filters */}
-          <div className="space-y-2">
-            <Label>Data Presence</Label>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="has-notes"
-                  checked={localFilters.hasNotes ?? false}
-                  onCheckedChange={(checked) =>
-                    handleDataPresenceChange("hasNotes", checked as boolean)
-                  }
-                />
-                <Label htmlFor="has-notes" className="text-sm">
-                  Has Notes
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="has-interactions"
-                  checked={localFilters.hasInteractions ?? false}
-                  onCheckedChange={(checked) =>
-                    handleDataPresenceChange("hasInteractions", checked as boolean)
-                  }
-                />
-                <Label htmlFor="has-interactions" className="text-sm">
-                  Has Interactions
-                </Label>
-              </div>
             </div>
           </div>
 

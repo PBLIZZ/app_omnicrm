@@ -1,11 +1,16 @@
 // New file for AI-parsing raw events
 
 import { generateText } from "@/server/ai/core/llm.service";
-import { buildParseRawEventPrompt } from "@/server/ai/prompts/clients/parse-raw-event.prompt";
+import { buildParseRawEventPrompt } from "@/server/ai/prompts/contacts/parse-raw-event.prompt";
 import { getOpenRouterConfig } from "@/server/ai/providers/openrouter";
 
+export interface ParsedEventAttendee {
+  email?: string;
+  displayName?: string;
+}
+
 export interface ParsedEvent {
-  attendees: { displayName: string; email: string }[];
+  attendees: ParsedEventAttendee[];
   businessWiki: string[];
   marketingWiki: string[];
 }
@@ -67,7 +72,7 @@ export async function parseRawEvent(
       throw new Error("No response data received from LLM service");
     }
 
-    const data = response.data;
+    const data: ParsedEvent = response.data;
     validateParsedEventResponse(data);
 
     return data;

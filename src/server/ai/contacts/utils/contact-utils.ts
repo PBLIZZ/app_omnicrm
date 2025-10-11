@@ -6,6 +6,14 @@ import { eq, sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import type { InferSelectModel } from "drizzle-orm";
 
+interface FetchOptions {
+  includeEvents?: boolean;
+  includeInteractions?: boolean;
+  includeNotes?: boolean;
+  includeTimeline?: boolean;
+  limit?: number;
+}
+
 // Default fetch options - immutable constant
 const DEFAULT_FETCH_OPTIONS: Readonly<FetchOptions> = {
   includeEvents: true,
@@ -21,14 +29,6 @@ export interface ContactWithContext {
   interactions: InferSelectModel<typeof interactions>[];
   notes: InferSelectModel<typeof notes>[];
   timeline: InferSelectModel<typeof contactTimeline>[];
-}
-
-export interface FetchOptions {
-  includeEvents?: boolean;
-  includeInteractions?: boolean;
-  includeNotes?: boolean;
-  includeTimeline?: boolean;
-  limit?: number;
 }
 
 export async function getContactData( // Renamed for generality

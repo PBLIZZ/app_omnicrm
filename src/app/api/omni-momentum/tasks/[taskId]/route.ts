@@ -15,28 +15,33 @@ import { isErr } from "@/lib/utils/result";
  */
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     taskId: string;
-  };
+  }>;
 }
 
 /**
  * GET /api/omni-momentum/tasks/[taskId] - Get task by ID
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  const handler = handleAuth(z.object({}), TaskSchema, async (_, userId) => {
-    const result = await productivityService.getTask(params.taskId, userId);
+export async function GET(request: NextRequest, context: RouteParams) {
+  const handler = handleAuth(
+    z.object({}),
+    TaskSchema,
+    async (_, userId): Promise<z.infer<typeof TaskSchema>> => {
+      const params = await context.params;
+      const result = await productivityService.getTask(params.taskId, userId);
 
-    if (isErr(result)) {
-      throw new Error(result.error.message);
-    }
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
 
-    if (!result.data) {
-      notFound();
-    }
+      if (!result.data) {
+        notFound();
+      }
 
-    return result.data;
-  });
+      return result.data;
+    },
+  );
 
   return handler(request);
 }
@@ -44,20 +49,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 /**
  * PUT /api/omni-momentum/tasks/[taskId] - Update task
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const handler = handleAuth(UpdateTaskSchema, TaskSchema, async (data, userId) => {
-    const result = await productivityService.updateTask(params.taskId, userId, data);
+export async function PUT(request: NextRequest, context: RouteParams) {
+  const handler = handleAuth(
+    UpdateTaskSchema,
+    TaskSchema,
+    async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
+      const params = await context.params;
+      const result = await productivityService.updateTask(params.taskId, userId, data);
 
-    if (isErr(result)) {
-      throw new Error(result.error.message);
-    }
+      if (isErr(result)) {
+        throw new Error(result.error.message);
+      }
 
-    if (!result.data) {
-      notFound();
-    }
+      if (!result.data) {
+        notFound();
+      }
 
-    return result.data;
-  });
+      return result.data;
+    },
+  );
 
   return handler(request);
 }
@@ -65,11 +75,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 /**
  * DELETE /api/omni-momentum/tasks/[taskId] - Delete task
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, context: RouteParams) {
   const handler = handleAuth(
     z.object({}),
     z.object({ success: z.boolean() }),
     async (_, userId) => {
+      const params = await context.params;
       const result = await productivityService.deleteTask(params.taskId, userId);
 
       if (isErr(result)) {

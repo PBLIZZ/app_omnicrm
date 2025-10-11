@@ -20,7 +20,7 @@ import { isErr } from "@/lib/utils/result";
 export const GET = handleGetWithQueryAuth(
   TaskFiltersSchema,
   z.array(TaskSchema),
-  async (filters, userId) => {
+  async (filters, userId): Promise<z.infer<typeof TaskSchema>[]> => {
     const result = await productivityService.getTasks(userId, filters);
     if (isErr(result)) {
       throw new Error(result.error.message);
@@ -32,10 +32,14 @@ export const GET = handleGetWithQueryAuth(
 /**
  * POST /api/omni-momentum/tasks - Create new task
  */
-export const POST = handleAuth(CreateTaskSchema, TaskSchema, async (data, userId) => {
-  const result = await productivityService.createTask(userId, data);
-  if (isErr(result)) {
-    throw new Error(result.error.message);
-  }
-  return result.data;
-});
+export const POST = handleAuth(
+  CreateTaskSchema,
+  TaskSchema,
+  async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
+    const result = await productivityService.createTask(userId, data);
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+    return result.data;
+  },
+);

@@ -16,4 +16,3 @@ export const PaginationSchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
 
-export type Pagination = z.infer<typeof PaginationSchema>;

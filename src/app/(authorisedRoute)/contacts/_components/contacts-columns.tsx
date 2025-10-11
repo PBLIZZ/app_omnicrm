@@ -1,30 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, FilterFn } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import {
-  MoreHorizontal,
-  Edit,
-  Trash2,
-  MessageSquare,
-  Plus,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Sparkles,
-  NotebookPen,
-} from "lucide-react";
+import { AvatarImage } from "@/components/ui/avatar-image";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -33,55 +16,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
-import { NotesHoverCard } from "./NotesHoverCard";
+import { NotesHoverCard } from "../[contactId]/notes/[noteId]/_components/NotesHoverCard";
 import Link from "next/link";
 import { ContactAIInsightsDialog } from "./ContactAIInsightsDialog";
-import { NoteComposerPopover } from "./NoteComposerPopover";
 import { EditContactDialog } from "./EditContactDialog";
-import {
-  useAskAIAboutContact,
-  useCreateContactNote,
-  useDeleteContact,
-} from "@/hooks/use-contacts-bridge";
+import { useAskAIAboutContact, useDeleteContact } from "@/hooks/use-contacts-bridge";
 import type {
   ContactWithNotes,
   ContactAIInsightsResponse,
 } from "@/server/db/business-schemas/contacts";
-import { toast } from "sonner";
 
-// Helper function to generate initials from display name
-function getInitials(displayName: string): string {
-  if (!displayName) return "?";
-  const names = displayName.trim().split(/\s+/).filter(Boolean);
-  if (names.length === 0) return "?";
-  if (names.length === 1) {
-    const firstName = names[0];
-    if (firstName) {
-      return firstName.charAt(0).toUpperCase();
-    }
-    return "?";
+// Custom Filter Functions for TanStack Table
+const arrayIncludesFilter: FilterFn<ContactWithNotes> = (row, columnId, filterValue) => {
+  if (!filterValue || !Array.isArray(filterValue) || filterValue.length === 0) {
+    return true;
   }
-  const firstName = names[0];
-  const lastName = names[names.length - 1];
-  if (firstName && lastName) {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  }
-  return "?";
-}
+  const cellValue = row.getValue(columnId) as string | null | undefined;
+  if (!cellValue) return false;
+  return filterValue.includes(cellValue);
+};
 
 // AI Action Icons Component
 function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Element {
   const [aiInsightsOpen, setAiInsightsOpen] = useState(false);
-  const [addNoteDialogOpen, setAddNoteDialogOpen] = useState(false);
-  const [newNoteContent, setNewNoteContent] = useState("");
 
   const [aiInsights, setAiInsights] = useState<ContactAIInsightsResponse | null>(null);
 
   const askAIMutation = useAskAIAboutContact();
-  const createNoteMutation = useCreateContactNote();
 
   const handleAskAI = async (): Promise<void> => {
     try {
@@ -91,24 +53,6 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
     } catch {
       // Error handled by mutation
       setAiInsightsOpen(false);
-    }
-  };
-
-  const handleAddNote = async (): Promise<void> => {
-    if (!newNoteContent.trim()) {
-      toast.error("Please enter a note");
-      return;
-    }
-
-    try {
-      await createNoteMutation.mutateAsync({
-        contactId: contact.id,
-        content: newNoteContent.trim(),
-      });
-      setAddNoteDialogOpen(false);
-      setNewNoteContent("");
-    } catch {
-      // Error handled by mutation
     }
   };
 
@@ -132,25 +76,6 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
         </TooltipContent>
       </Tooltip>
 
-      <NoteComposerPopover contactId={contact.id} contactName={contact.displayName}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-950 dark:hover:text-teal-300"
-              data-testid={`take-note-${contact.id}`}
-            >
-              <NotebookPen className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
-              <span className="sr-only">Take Note</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Take a note</p>
-          </TooltipContent>
-        </Tooltip>
-      </NoteComposerPopover>
-
       {/* AI Dialogs */}
       <ContactAIInsightsDialog
         open={aiInsightsOpen}
@@ -160,47 +85,6 @@ function ContactAIActions({ contact }: { contact: ContactWithNotes }): JSX.Eleme
         isLoading={askAIMutation.isPending}
         contactName={contact.displayName}
       />
-
-      {/* Add Note Dialog */}
-      <Dialog open={addNoteDialogOpen} onOpenChange={setAddNoteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Add Note to {contact.displayName}</DialogTitle>
-            <DialogDescription>
-              Add a new note to track interactions or observations about this contact.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="note">Note Content</Label>
-              <Textarea
-                id="note"
-                value={newNoteContent}
-                onChange={(e) => setNewNoteContent(e.target.value)}
-                placeholder="Enter your note here..."
-                className="min-h-[100px]"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setAddNoteDialogOpen(false);
-                setNewNoteContent("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddNote}
-              disabled={createNoteMutation.isPending || !newNoteContent.trim()}
-            >
-              {createNoteMutation.isPending ? "Adding..." : "Add Note"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -233,23 +117,15 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     header: "",
     cell: ({ row }) => {
       const contact = row.original;
-      const initials = getInitials(contact.displayName);
-
-      // Only try to load avatar image if contact has a photo URL
-      const hasPhoto = contact.photoUrl && contact.photoUrl.trim();
 
       return (
-        <Avatar className="size-8" data-testid={`contact-avatar-${contact.id}`}>
-          {hasPhoto && (
-            <AvatarImage
-              src={`/api/contacts/${contact.id}/avatar`}
-              alt={`${contact.displayName} avatar`}
-            />
-          )}
-          <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-teal-100 to-teal-200 text-teal-700 dark:from-teal-900 dark:to-teal-800 dark:text-teal-300">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <AvatarImage
+          src={contact.photoUrl}
+          alt={contact.displayName}
+          size="sm"
+          className="size-8"
+          data-testid={`contact-avatar-${contact.id}`}
+        />
       );
     },
     size: 60,
@@ -286,14 +162,19 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
 
         const searchQuery =
           typeof window !== "undefined" && window.location.search.includes("search=")
-            ? new URLSearchParams(window.location.search).get("search") || undefined
+            ? (new URLSearchParams(window.location.search).get("search") ?? undefined)
             : undefined;
+
+        // Get active filters from table meta
+        const tableMeta = table.options.meta as { activeFilters?: unknown } | undefined;
+        const filterState = tableMeta?.activeFilters;
 
         const navigationContext = {
           currentIndex,
           totalItems: contactIds.length,
           contactIds,
           searchQuery,
+          filterState, // Include filter state for display in navigation bar
         };
 
         if (typeof window !== "undefined") {
@@ -308,7 +189,7 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
 
       return (
         <Link
-          href={`/contacts/details?id=${contact.id}`}
+          href={`/contacts/${contact.id}`}
           onClick={handleContactClick}
           className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
         >
@@ -354,9 +235,16 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     accessorKey: "lastNote",
     header: "Notes",
     cell: ({ row }) => {
-      const lastNote = row.original.notes[row.original.notes.length - 1]?.content;
+      // Access lastNote preview directly from API response (first 500 chars)
+      const lastNote = row.original.lastNote;
       const contact = row.original;
 
+      // Display nothing if no note exists
+      if (!lastNote) {
+        return null;
+      }
+
+      // Display "See note" trigger with hover card showing preview
       return (
         <div className="max-w-[48ch] min-w-0">
           <NotesHoverCard
@@ -364,13 +252,12 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
             contactName={contact.displayName ?? "Unknown"}
             data-testid={`notes-hover-card-${contact.id}`}
           >
-            <div className="line-clamp-2 text-sm text-muted-foreground leading-tight overflow-hidden text-ellipsis">
-              {lastNote ? (
-                <span className="whitespace-pre-wrap">{lastNote}</span>
-              ) : (
-                <span className="italic text-muted-foreground/60">No notes yet</span>
-              )}
-            </div>
+            <Badge
+              variant="outline"
+              className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors px-3 py-1"
+            >
+              See note ↑
+            </Badge>
           </NotesHoverCard>
         </div>
       );
@@ -495,10 +382,33 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
     },
   },
   {
-    accessorKey: "stage",
-    header: "Wellness Stage",
+    accessorKey: "source",
+    header: "Source",
+    filterFn: arrayIncludesFilter,
     cell: ({ row }) => {
-      const stage = row.getValue("stage") as string | null;
+      const source = row.getValue("source") as string | null;
+      const formatSource = (source: string | null): string => {
+        if (!source) return "Unknown";
+        return source
+          .split("_")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+      };
+
+      return source ? (
+        <span className="text-sm text-muted-foreground">{formatSource(source)}</span>
+      ) : (
+        <span className="text-muted-foreground italic text-sm">Unknown</span>
+      );
+    },
+    enableHiding: true,
+  },
+  {
+    accessorKey: "lifecycleStage",
+    header: "Lifecycle Stage",
+    filterFn: arrayIncludesFilter,
+    cell: ({ row }) => {
+      const stage = row.getValue("lifecycleStage") as string | null;
       const getStageColor = (stage: string | null): string => {
         switch (stage) {
           case "VIP Client":
@@ -522,18 +432,6 @@ export const contactsColumns: ColumnDef<ContactWithNotes>[] = [
         <Badge className={`text-xs ${getStageColor(stage)}`}>{stage}</Badge>
       ) : (
         <span className="text-muted-foreground italic text-sm">No stage</span>
-      );
-    },
-  },
-  {
-    accessorKey: "interactions",
-    header: "Interactions",
-    cell: ({ row }) => {
-      const count = (row.getValue("interactions") as number) || 0;
-      return (
-        <Badge variant="outline" className="text-xs">
-          {count}
-        </Badge>
       );
     },
   },
@@ -595,52 +493,43 @@ function ContactActionsCell({ contact }: { contact: ContactWithNotes }): JSX.Ele
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            className="h-8 w-8 p-0"
-            data-testid={`contact-actions-${contact.id}`}
-          >
-            <MoreHorizontal className="h-4 w-4" />
-            <span className="sr-only">Open menu</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            data-testid={`edit-contact-${contact.id}`}
-            onClick={() => handleEditContact()}
-          >
-            <Edit className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
-            Edit Contact
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            data-testid={`add-note-${contact.id}`}
-            onClick={() => {
-              // This should open the add note dialog for this specific contact
-              // Since this is outside the ContactAIActions component, we'll need to implement this differently
-              toast.info(
-                `Add note for ${contact.displayName ?? "Unknown"} - Use the note icon in the Actions column`,
-              );
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Note
-          </DropdownMenuItem>
-          <DropdownMenuItem data-testid={`view-notes-${contact.id}`}>
-            <MessageSquare className="h-4 w-4 mr-2" />
-            View Notes
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            data-testid={`delete-contact-${contact.id}`}
-            onClick={handleDeleteContact}
-          >
-            <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-2 justify-end">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleEditContact}
+                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-950"
+                data-testid={`edit-contact-${contact.id}`}
+              >
+                <Pencil className="h-4 w-4" />
+                <span className="sr-only">Edit contact</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit contact</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleDeleteContact}
+                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950"
+                data-testid={`delete-contact-${contact.id}`}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Delete contact</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete contact</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
 
       {/* Edit Contact Dialog */}
       <EditContactDialog contact={contact} open={editDialogOpen} onOpenChange={setEditDialogOpen} />

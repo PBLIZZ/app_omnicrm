@@ -6,13 +6,14 @@
  */
 
 import { z } from "zod";
+import { type InboxItem as DbInboxItem, type CreateInboxItem as DbCreateInboxItem } from "@/server/db/schema";
 
 // ============================================================================
 // CORE INBOX SCHEMAS
 // ============================================================================
 
 /**
- * Base Inbox Item Schema (without transform)
+ * Base Inbox Item Schema (derived from database schema)
  */
 const BaseInboxItemSchema = z.object({
   id: z.string().uuid(),
@@ -23,7 +24,7 @@ const BaseInboxItemSchema = z.object({
   processedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
-});
+}) satisfies z.ZodType<DbInboxItem>;
 
 /**
  * Inbox Item Schema (with transform)
@@ -40,6 +41,7 @@ export type InboxItem = z.infer<typeof InboxItemSchema>;
 
 /**
  * Create Inbox Item Schema
+ * Note: userId is optional for client-side usage (injected server-side from auth session)
  */
 export const CreateInboxItemSchema = BaseInboxItemSchema.omit({
   id: true,
@@ -47,6 +49,7 @@ export const CreateInboxItemSchema = BaseInboxItemSchema.omit({
   updatedAt: true,
   processedAt: true,
 }).partial({
+  userId: true, // Optional - server provides from authenticated session
   status: true,
   createdTaskId: true,
 });
@@ -88,8 +91,6 @@ export const GetInboxQuerySchema = z.object({
     .optional()
     .transform((val) => val === "true"),
 });
-
-export type GetInboxQuery = z.infer<typeof GetInboxQuerySchema>;
 
 /**
  * Voice Inbox Capture Schema
@@ -148,8 +149,6 @@ export const InboxListResponseSchema = z.object({
   total: z.number(),
 });
 
-export type InboxListResponse = z.infer<typeof InboxListResponseSchema>;
-
 /**
  * Inbox Stats Response Schema
  */
@@ -163,16 +162,12 @@ export const InboxStatsResponseSchema = z.object({
   }),
 });
 
-export type InboxStatsResponse = z.infer<typeof InboxStatsResponseSchema>;
-
 /**
  * Inbox Item Response Schema
  */
 export const InboxItemResponseSchema = z.object({
   item: InboxItemSchema,
 });
-
-export type InboxItemResponse = z.infer<typeof InboxItemResponseSchema>;
 
 /**
  * Inbox Process Result Response Schema
@@ -185,8 +180,6 @@ export const InboxProcessResultResponseSchema = z.object({
     processedItemId: z.string().uuid(),
   }),
 });
-
-export type InboxProcessResultResponse = z.infer<typeof InboxProcessResultResponseSchema>;
 
 /**
  * Inbox Post Request Schema (Discriminated Union)
@@ -206,8 +199,6 @@ export const InboxPostRequestSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-export type InboxPostRequest = z.infer<typeof InboxPostRequestSchema>;
-
 /**
  * Inbox Update Request Schema (Discriminated Union)
  */
@@ -226,16 +217,12 @@ export const InboxUpdateRequestSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-export type InboxUpdateRequest = z.infer<typeof InboxUpdateRequestSchema>;
-
 /**
  * Success Response Schema
  */
 export const SuccessResponseSchema = z.object({
   success: z.literal(true),
 });
-
-export type SuccessResponse = z.infer<typeof SuccessResponseSchema>;
 
 // ============================================================================
 // AI PROCESSING TYPES

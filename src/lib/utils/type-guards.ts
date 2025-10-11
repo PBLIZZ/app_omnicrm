@@ -111,8 +111,6 @@ export function getStringArray(obj: unknown, key: string): string[] | undefined 
 // ApiEnvelope pattern has been replaced with Result<T, E> pattern
 // Use isOk, isErr from "@/lib/utils/result" for API response validation
 
-
-
 // ============================================================================
 // ERROR HANDLING UTILITIES
 // ============================================================================
@@ -123,7 +121,6 @@ export function getStringArray(obj: unknown, key: string): string[] | undefined 
 export function isError(value: unknown): value is Error {
   return value instanceof Error;
 }
-
 
 // ============================================================================
 // VALIDATION RESULT TYPES
@@ -152,18 +149,6 @@ export function validationError<T>(errors: string[]): ValidationResult<T> {
 /**
  * Type guard for Contact Insights data
  */
-export interface ContactInsightsData {
-  summary: string;
-  tags: string[];
-  stage: string;
-  confidenceScore: number;
-  lastUpdated: string;
-  insights: Array<{
-    type: string;
-    content: string;
-    confidence: number;
-  }>;
-}
 
 export function isContactInsights(value: unknown): value is ContactInsightsData {
   if (!isObject(value)) return false;
@@ -232,14 +217,6 @@ export function isSyncProgress(value: unknown): value is SyncProgressData {
 /**
  * Type guard for job status data
  */
-export interface JobStatusData {
-  id: string;
-  kind: string;
-  status: "queued" | "processing" | "done" | "error";
-  batchId?: string;
-  createdAt: string;
-  message?: string;
-}
 
 export function isJobStatus(value: unknown): value is JobStatusData {
   if (!isObject(value)) return false;

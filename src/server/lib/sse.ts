@@ -7,21 +7,9 @@ import { logger } from "@/lib/observability";
 import { redisGet, redisSet, redisDel } from "./redis-client";
 
 export interface ContactCreationEvent {
-  type: "contact_created" | "contact_updated" | "sync_progress" | "sync_complete";
-  contactId?: string;
-  contact?: {
-    id: string;
-    displayName: string;
-    primaryEmail?: string;
-    source: string;
-  };
-  progress?: {
-    current: number;
-    total: number;
-    message: string;
-  };
-  batchId?: string;
-  timestamp: string;
+  type: string;
+  data?: unknown;
+  timestamp?: number;
 }
 
 // Global map to track active SSE connections per user (in-memory only for stream controllers)
@@ -202,7 +190,7 @@ export function createEventStreamResponse(userId: string): Response {
       Connection: "keep-alive",
       "Access-Control-Allow-Origin":
         process.env.NODE_ENV === "production"
-          ? process.env["ALLOWED_ORIGINS"] || "https://yourdomain.com"
+          ? process.env["ALLOWED_ORIGINS"] ?? "https://yourdomain.com"
           : "*",
       "Access-Control-Allow-Headers": "Cache-Control",
     },

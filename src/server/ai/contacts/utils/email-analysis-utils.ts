@@ -1,8 +1,3 @@
-export interface EmailContent {
-  subject: string;
-  body: string;
-  isOutbound: boolean;
-}
 
 /**
  * Analyzes sentiment trends across a collection of emails

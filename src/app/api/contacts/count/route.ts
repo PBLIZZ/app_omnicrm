@@ -1,6 +1,8 @@
 import { handleGetWithQueryAuth } from "@/lib/api";
 import { GetContactsQuerySchema, ContactCountResponseSchema } from "@/server/db/business-schemas";
 import { ContactsRepository } from "@repo";
+import { isErr } from "@/lib/utils/result";
+import type { z } from "zod";
 
 /**
  * Contacts Count API
@@ -16,10 +18,14 @@ import { ContactsRepository } from "@repo";
 export const GET = handleGetWithQueryAuth(
   GetContactsQuerySchema,
   ContactCountResponseSchema,
-  async (query, userId) => {
+  async (query, userId): Promise<z.infer<typeof ContactCountResponseSchema>> => {
     // Get count using repository
-    const total = await ContactsRepository.countContacts(userId, query.search);
+    const result = await ContactsRepository.countContacts(userId, query.search);
 
-    return { count: total };
+    if (isErr(result)) {
+      throw new Error(result.error.message);
+    }
+
+    return { count: result.data };
   },
 );

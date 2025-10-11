@@ -16,8 +16,14 @@ export default function OnboardError({ error, reset }: ErrorProps) {
 
   useEffect(() => {
     // Production error tracking
-    if (typeof window !== "undefined" && (window as any).Sentry) {
-      (window as any).Sentry.captureException(error, {
+    interface WindowWithSentry extends Window {
+      Sentry?: {
+        captureException: (error: Error, options?: Record<string, unknown>) => void;
+      };
+    }
+
+    if (typeof window !== "undefined" && (window as WindowWithSentry).Sentry) {
+      (window as WindowWithSentry).Sentry?.captureException(error, {
         tags: {
           component: "OnboardError",
           page: "onboard",

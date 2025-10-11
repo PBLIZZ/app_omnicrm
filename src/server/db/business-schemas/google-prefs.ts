@@ -19,8 +19,6 @@ export const GooglePrefsQuerySchema = z.object({
   includeDefaults: z.coerce.boolean().optional().default(true),
 });
 
-export type GooglePrefsQuery = z.infer<typeof GooglePrefsQuerySchema>;
-
 /**
  * Google Preferences Response Schema
  * Used by /api/google/prefs GET endpoint
@@ -54,8 +52,6 @@ export const GooglePrefsResponseSchema = z.object({
   updatedAt: z.string(),
 });
 
-export type GooglePrefsResponse = z.infer<typeof GooglePrefsResponseSchema>;
-
 /**
  * Google Preferences Update Schema
  * Used by /api/google/prefs PUT endpoint
@@ -83,8 +79,6 @@ export const GooglePrefsUpdateSchema = z.object({
   initialSyncCompleted: z.boolean().optional(),
   initialSyncDate: z.string().optional(),
 });
-
-export type GooglePrefsUpdate = z.infer<typeof GooglePrefsUpdateSchema>;
 
 // ============================================================================
 // GOOGLE ERROR CLASSIFICATION
@@ -132,16 +126,11 @@ export const GoogleStatusQuerySchema = z.object({
   includeFreshness: z.coerce.boolean().optional().default(true),
 });
 
-export type GoogleStatusQuery = z.infer<typeof GoogleStatusQuerySchema>;
-
 /**
  * Google Status Response Schema - Updated to match service implementation
  * Used by /api/google/status endpoint
  */
 export const GoogleStatusResponseSchema = z.object({
-  // Provider connection status
-  googleConnected: z.boolean(),
-
   // Service-specific status with auto-refresh info
   services: z.object({
     gmail: z.object({
@@ -186,25 +175,8 @@ export const GoogleStatusResponseSchema = z.object({
 
   lastBatchId: z.string().nullable(),
 
-  // Backward compatibility
-  serviceTokens: z.object({
-    google: z.boolean(),
-    gmail: z.boolean(),
-    calendar: z.boolean(),
-    unified: z.boolean(),
-  }),
-  flags: z.object({
-    gmail: z.boolean(),
-    calendar: z.boolean(),
-  }),
-  lastSync: z.object({
-    gmail: z.string().nullable(),
-    calendar: z.string().nullable(),
-  }),
-
   // Cache metadata
   _cached: z.boolean().optional(),
   _cacheTime: z.string().optional(),
 });
 
-export type GoogleStatusResponse = z.infer<typeof GoogleStatusResponseSchema>;

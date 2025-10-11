@@ -10,7 +10,10 @@ import { z } from "zod";
  * This is part of the AI workflow where users review and approve suggested tasks
  */
 
-export const POST = async (req: Request, { params }: { params: { taskId: string } }) => {
+export const POST = async (
+  _req: Request,
+  { params }: { params: { taskId: string } },
+): Promise<Response> => {
   try {
     // Lazy import to avoid circular dependencies
     const { getServerUserId } = await import("@/server/auth/user");

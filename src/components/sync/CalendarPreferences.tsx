@@ -29,6 +29,21 @@ interface CalendarPreferencesProps {
   disabled?: boolean;
 }
 
+/**
+ * UI for configuring Google Calendar synchronization preferences, generating a preview, and displaying preview results.
+ *
+ * @param onPreferencesChange - Called whenever the current calendar preferences change. Receives an object with the public preference shape:
+ *   - `calendarIds`: string[] — selected calendar IDs
+ *   - `calendarIncludePrivate`: boolean
+ *   - `calendarIncludeOrganizerSelf`: boolean
+ *   - `calendarTimeWindowDays`: number — past days to include
+ *   - `calendarFutureDays`: number — future days to include
+ * @param onPreview - Triggered to generate a sync preview using the current preferences; receives the same preference object as `onPreferencesChange`.
+ * @param isPreviewLoading - When `true`, the preview generation UI shows a loading state.
+ * @param previewData - Optional `SyncPreviewResponse` containing preview results to render (service-specific preview details, item counts, date range, warnings, etc.).
+ * @param disabled - When `true`, all interactive controls are disabled.
+ * @returns A React element containing the calendar preference controls, preview trigger, and (when available) sync preview results.
+ */
 export function CalendarPreferences({
   onPreferencesChange,
   onPreview,

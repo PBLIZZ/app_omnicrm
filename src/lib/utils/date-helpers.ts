@@ -23,7 +23,11 @@ export function dateToTimestamptz(date: Date): string {
 }
 
 /**
- * Convert PostgreSQL timestamptz string to Date
+ * Parse a PostgreSQL timestamptz timestamp string.
+ *
+ * @param timestamp - The timestamptz string to parse (expected ISO 8601 / PostgreSQL timestamptz format).
+ * @returns A `Date` representing the same instant as `timestamp`.
+ * @throws Error if `timestamp` cannot be parsed into a valid date.
  */
 export function timestamptzToDate(timestamp: string): Date {
   const date = new Date(timestamp);
@@ -34,7 +38,11 @@ export function timestamptzToDate(timestamp: string): Date {
 }
 
 /**
- * Safe date parsing from unknown input
+ * Parse an unknown value into a validated `Date` object.
+ *
+ * @param value - A `Date`, date string, or numeric timestamp to parse; other types are unsupported.
+ * @returns The parsed `Date`.
+ * @throws Error if `value` is `null`/`undefined`, cannot be parsed as a valid date, or is an unsupported type.
  */
 export function parseDate(value: unknown): Date {
   if (value instanceof Date) {
@@ -59,6 +67,12 @@ export function parseDate(value: unknown): Date {
   throw new Error(`Invalid date: unsupported type ${typeof value}`);
 }
 
+/**
+ * Parses various input values into a Date and returns null for invalid or unsupported inputs.
+ *
+ * @param value - A Date instance, date string, numeric timestamp, null, or undefined to be parsed.
+ * @returns A `Date` when `value` represents a valid date, `null` otherwise.
+ */
 export function parseDateSafe(value: unknown): Date | null {
   try {
     if (value instanceof Date) {
@@ -82,7 +96,10 @@ export function parseDateSafe(value: unknown): Date | null {
 }
 
 /**
- * Convert database date fields to proper Date objects
+ * Normalize a database date value into a valid Date object or `null`.
+ *
+ * @param value - A value from the database: a `Date`, a date/time string, a numeric timestamp, or `null`/`undefined`.
+ * @returns A `Date` representing the same instant when the input is parseable and valid, or `null` when the input is `null`/`undefined` or cannot be converted to a valid `Date`.
  */
 export function normalizeDatabaseDate(value: string | Date | null | undefined): Date | null {
   if (value === null || value === undefined) {
@@ -97,7 +114,10 @@ export function normalizeDatabaseDate(value: string | Date | null | undefined): 
 }
 
 /**
- * Prepare date for database insertion
+ * Convert a Date or date string into a PostgreSQL timestamptz-formatted string suitable for database insertion.
+ *
+ * @param date - A Date object, a date string, or null/undefined. Strings will be parsed; invalid or unsupported inputs produce `null`.
+ * @returns A timestamptz-formatted ISO timestamp string, or `null` if the input is null/undefined or cannot be parsed as a valid date.
  */
 export function prepareDateForDb(date: Date | string | null | undefined): string | null {
   if (date === null || date === undefined) {
@@ -163,7 +183,10 @@ export function isValidDate(date: unknown): date is Date {
 }
 
 /**
- * Check if a string is a valid timestamptz
+ * Determine whether a string represents a valid PostgreSQL timestamptz.
+ *
+ * @param timestamp - The timestamptz string to validate
+ * @returns `true` if `timestamp` can be parsed into a valid Date, `false` otherwise
  */
 export function isValidTimestamptz(timestamp: string): boolean {
   try {
@@ -175,7 +198,14 @@ export function isValidTimestamptz(timestamp: string): boolean {
 }
 
 /**
- * Format date for display (safe version)
+ * Formats a date value for display, returning human-readable text or a safe placeholder.
+ *
+ * Accepts a Date, an ISO/parsable date string, or null/undefined. Returns "—" for null/undefined,
+ * "Invalid Date" for unparseable or invalid inputs, or the locale-formatted date string otherwise.
+ *
+ * @param date - The date to format; may be a Date instance, a date string, or null/undefined
+ * @param options - Intl.DateTimeFormatOptions passed to toLocaleDateString for formatting
+ * @returns The formatted date string, "—" for null/undefined, or "Invalid Date" for invalid inputs
  */
 export function formatDateSafe(
   date: Date | string | null | undefined,
@@ -227,7 +257,13 @@ export function formatTimestampSafe(
 }
 
 /**
- * Date range validation
+ * Validate and return a date range with parsed start and end dates.
+ *
+ * @param start - Value that can be parsed into the range start date
+ * @param end - Value that can be parsed into the range end date
+ * @returns The validated DateRange with `start` and `end` as Date objects
+ * @throws Error if `start` is not before `end`
+ * @throws Error if `start` or `end` cannot be parsed into a valid Date
  */
 
 export function validateDateRange(start: unknown, end: unknown): DateRange {

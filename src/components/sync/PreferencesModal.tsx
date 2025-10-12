@@ -46,6 +46,15 @@ const STEPS = [
   { id: "confirm", title: "Confirm Setup", description: "Confirm and save preferences" },
 ];
 
+/**
+ * Modal wizard for configuring and saving sync preferences for a Google service (Gmail, Calendar, or Drive).
+ *
+ * Guides the user through three steps: set preferences, preview a sync estimate, and confirm/save the preferences.
+ * When saved, preferences are persisted to the backend; optionally, an immediate blocking sync can be started for Gmail and Calendar.
+ *
+ * @param enableImmediateSync - If `true`, attempts to start an immediate blocking sync after saving preferences for supported services (Gmail and Calendar). If the sync start fails, preferences are still saved and an error message is shown.
+ * @returns A Dialog-based React element that renders the multi-step preferences setup UI and any related sync progress modal.
+ */
 export function PreferencesModal({
   isOpen,
   onClose,

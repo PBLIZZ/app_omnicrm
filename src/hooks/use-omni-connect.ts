@@ -59,6 +59,16 @@ export interface UseOmniConnectResult {
   };
 }
 
+/**
+ * Provide unified Omni Connect dashboard state along with backward-compatible connection and email slices.
+ *
+ * This hook queries the Omni Connect dashboard and exposes the raw dashboard `data`, loading and error state, and a `refetch`
+ * function. For backward compatibility it also exposes a `connection` object (status, stats, connect action, loading/error/refetch)
+ * and an `emails` object (email previews, previewRange, loading/error/refetch).
+ *
+ * @returns A UseOmniConnectResult containing the dashboard `data`, `isLoading`, `error`, `refetch`, and the backward-compatible
+ * `connection` and `emails` slices.
+ */
 export function useOmniConnect(): UseOmniConnectResult {
   // Main unified query
   const { data, error, isLoading, refetch } = useQuery({

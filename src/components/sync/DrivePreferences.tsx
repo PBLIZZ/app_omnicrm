@@ -39,6 +39,18 @@ interface DrivePreferencesProps {
   disabled?: boolean;
 }
 
+/**
+ * Render the Google Drive sync preferences UI and, when available, a sync preview card.
+ *
+ * Renders a disabled placeholder for folder selection and size-limit settings, a disabled
+ * preview action, informational guidelines about the 5MB limit, and a conditional "Sync Preview"
+ * section when preview results for Google Drive are provided.
+ *
+ * @param onPreview - Callback invoked with the current Drive preferences to request a preview.
+ * @param previewData - Optional preview results; when present and `service === "google"`, a Sync
+ *                      Preview card with estimated files, size, date range, and warnings is shown.
+ * @returns A React element containing the Drive preferences interface and optional preview output.
+ */
 export function DrivePreferences({ onPreview, previewData }: DrivePreferencesProps) {
   const [selectedFolderId] = useState<string>("");
   const [driveMaxSizeMB] = useState<number>(5);

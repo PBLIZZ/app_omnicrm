@@ -39,6 +39,19 @@ interface GmailPreferencesProps {
   disabled?: boolean;
 }
 
+/**
+ * Renders the Gmail sync preferences UI and manages local preference state.
+ *
+ * Provides controls to choose a time range and toggle importing everything, emits preference
+ * changes via `onPreferencesChange`, and can request a sync preview via `onPreview`.
+ *
+ * @param onPreferencesChange - Callback invoked with updated GmailPreferences when user changes preferences.
+ * @param onPreview - Callback invoked to generate a sync preview for the current preferences.
+ * @param isPreviewLoading - Whether a preview generation is in progress; disables the preview button and shows a loading state when true.
+ * @param previewData - Optional preview results used to display estimated items, size, date range, and warnings.
+ * @param disabled - If true, disables interactive controls.
+ * @returns A React element that displays the Gmail sync preferences form and optional preview results.
+ */
 export function GmailPreferences({
   onPreferencesChange,
   onPreview,

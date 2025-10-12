@@ -27,6 +27,19 @@ interface Insights {
   }>;
 }
 
+/**
+ * Provides state and actions for performing Gmail searches and fetching AI-generated insights.
+ *
+ * @returns An object with the following properties:
+ * - `searchQuery` — current search text.
+ * - `setSearchQuery` — updater for `searchQuery`.
+ * - `searchResults` — array of matched Gmail results.
+ * - `isSearching` — `true` while a search request is pending, `false` otherwise.
+ * - `searchGmail` — triggers a search using the current `searchQuery`.
+ * - `insights` — loaded analytics/insights or `null` if none loaded.
+ * - `isLoadingInsights` — `true` while insights are being fetched, `false` otherwise.
+ * - `loadInsights` — async function to fetch and set `insights`.
+ */
 export function useGmailAI(): {
   searchQuery: string;
   setSearchQuery: (query: string) => void;

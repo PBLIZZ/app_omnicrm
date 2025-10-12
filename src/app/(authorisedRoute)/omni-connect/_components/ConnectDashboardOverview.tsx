@@ -17,6 +17,13 @@ import Link from "next/link";
 import { GmailEmailPreview } from "./GmailEmailPreview";
 import { useOmniConnect } from "@/hooks/use-omni-connect";
 
+/**
+ * Render the dashboard overview panel with quick stats, a recent activity list, and an email preview.
+ *
+ * The component obtains email data from `useOmniConnect` and supplies `GmailEmailPreview` with `error` only when it is an `Error` instance; recent activity shown is mock data.
+ *
+ * @returns A JSX element representing the dashboard overview UI
+ */
 export function DashboardOverview(): JSX.Element {
   const { emails } = useOmniConnect();
 

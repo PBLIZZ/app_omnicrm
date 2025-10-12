@@ -16,6 +16,12 @@ export function makeGmailClient(auth: InstanceType<typeof google.auth.OAuth2>): 
   return google.gmail({ version: "v1", auth });
 }
 
+/**
+ * Create a Google Calendar API client configured with the provided OAuth2 credentials.
+ *
+ * @param auth - An OAuth2 client whose credentials will be used to authenticate API requests
+ * @returns A Google Calendar API client instance bound to `auth`
+ */
 export function makeCalendarClient(auth: InstanceType<typeof google.auth.OAuth2>): CalendarClient {
   return google.calendar({ version: "v3", auth });
 }
@@ -32,7 +38,13 @@ type OAuthRow = {
   updatedAt: Date;
 };
 
-// Helper to safely extract OAuth row data
+/**
+ * Validate and normalize a raw integration row into an OAuthRow with guaranteed non-null service and timestamps.
+ *
+ * @param row - Raw integration row from storage; may contain nullable `service`, `createdAt`, and `updatedAt` fields.
+ * @returns An `OAuthRow` where `service`, `createdAt`, and `updatedAt` are non-null.
+ * @throws Error if `service`, `createdAt`, or `updatedAt` is null.
+ */
 function extractOAuthRow(row: {
   userId: string;
   provider: string;
@@ -67,6 +79,15 @@ function extractOAuthRow(row: {
   };
 }
 
+/**
+ * Builds authenticated Gmail and Calendar API clients for the given user.
+ *
+ * @param userId - The identifier of the user whose stored Google integration tokens will be used
+ * @returns An object with `gmail` and `calendar` API clients authenticated for the user
+ * @throws If no Google integrations exist for the user (error with status 401)
+ * @throws If Gmail or Calendar access has not been approved by the user (error with status 403)
+ * @throws If Google OAuth client credentials are missing or if token encryption/backfill fails
+ */
 export async function getGoogleClients(userId: string): Promise<GoogleApisClients> {
   const db = await getDb();
   const userIntegrationsRepo = createUserIntegrationsRepository(db);
@@ -179,7 +200,12 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
   };
 }
 
-// Specific helper for calendar client
+/**
+ * Retrieve the authenticated Google Calendar client for the given user.
+ *
+ * @param userId - The application's user identifier for which to load Google credentials
+ * @returns The authenticated Calendar client for the user, or `null` if a client could not be obtained
+ */
 export async function getGoogleCalendarClient(userId: string): Promise<CalendarClient | null> {
   try {
     const { calendar } = await getGoogleClients(userId);
@@ -193,7 +219,11 @@ export async function getGoogleCalendarClient(userId: string): Promise<CalendarC
   }
 }
 
-// Specific helper for Gmail client
+/**
+ * Retrieve the Gmail API client for the specified user.
+ *
+ * @returns The Gmail API client for the user, or `null` if a client couldn't be obtained.
+ */
 export async function getGoogleGmailClient(userId: string): Promise<GmailClient | null> {
   try {
     const { gmail } = await getGoogleClients(userId);

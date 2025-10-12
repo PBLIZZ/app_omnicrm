@@ -55,6 +55,19 @@ export interface UseCalendarSyncResult {
   clearError: () => void;
 }
 
+/**
+ * Provides calendar synchronization state and actions for performing a direct Google Calendar sync.
+ *
+ * Exposes current sync progress, any error and the last-run statistics, and actions to start a sync or clear errors.
+ *
+ * @returns An object containing:
+ *  - `isSyncing`: whether a sync is in progress,
+ *  - `syncStatus`: a short status message describing the current progress,
+ *  - `error`: the current error message or `null`,
+ *  - `lastSyncStats`: statistics from the last successful sync or `null`,
+ *  - `syncCalendar`: action to initiate a sync,
+ *  - `clearError`: action to clear the current error and reset status.
+ */
 export function useCalendarSync(): UseCalendarSyncResult {
   const queryClient = useQueryClient();
   const [syncStatus, setSyncStatus] = useState<string>("");

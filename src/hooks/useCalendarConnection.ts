@@ -47,6 +47,22 @@ interface CalendarRefreshResponse {
   message?: string;
 }
 
+/**
+ * Manage Google Calendar OAuth connection, token refresh, and related connection state.
+ *
+ * Provides state flags for ongoing operations, an error surface, and actions to start the OAuth flow,
+ * refresh tokens, and clear errors. Calling `connect` initiates the OAuth redirect; calling
+ * `refreshTokens` attempts to refresh Calendar tokens and, on success, invalidates calendar-related
+ * queries. On failure, the hook updates the `error` state and invokes the configured error handler.
+ *
+ * @returns An object containing:
+ *  - `isConnecting`: whether the OAuth initiation is in progress
+ *  - `isRefreshing`: whether a token refresh is in progress
+ *  - `error`: current error message or `null`
+ *  - `connect()`: starts the Google Calendar OAuth flow (redirect)
+ *  - `refreshTokens()`: refreshes Calendar tokens and refreshes related queries on success
+ *  - `clearError()`: clears the current error
+ */
 export function useCalendarConnection(): UseCalendarConnectionResult {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);

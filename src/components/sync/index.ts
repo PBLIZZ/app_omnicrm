@@ -15,8 +15,11 @@ export { DrivePreferences } from "./DrivePreferences";
 export type ISODateString = string & { __isoDate: void };
 
 /**
- * Validates and converts a string to ISODateString type
- * Throws an error if the input is not a valid ISO 8601 date string
+ * Ensure a string is a strict ISO 8601 UTC timestamp and return it typed as `ISODateString`.
+ *
+ * @param value - The date-time string to validate (expected format: `YYYY-MM-DDTHH:mm:ss.sssZ`)
+ * @returns The same input string cast to `ISODateString`
+ * @throws Error if `value` is not a valid date or does not exactly match `Date.prototype.toISOString()` (strict ISO 8601 format)
  */
 export function toISODateString(value: string): ISODateString {
   const date = new Date(value);

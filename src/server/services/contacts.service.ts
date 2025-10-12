@@ -142,7 +142,11 @@ export async function createContactsFromSuggestionsService(
 // ============================================================================
 
 /**
- * Get last note preview (first 500 chars) for each contact
+ * Fetches the most recent note preview (first 500 characters) for each specified contact.
+ *
+ * @param userId - ID of the user who owns the contacts
+ * @param contactIds - Array of contact IDs to retrieve previews for
+ * @returns A Map where each key is a contact ID and the value is the note preview string (first 500 characters) or `null` if the contact has no notes
  */
 async function getLastNotePreviewForContacts(
   userId: string,

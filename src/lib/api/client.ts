@@ -16,7 +16,9 @@ import { toast } from "sonner";
 // ============================================================================
 
 /**
- * Type guard to check if a value is a record (plain object)
+ * Determines whether a value is a plain object (non-null and not an array).
+ *
+ * @returns `true` if `x` is an object, not `null`, and not an array; `false` otherwise.
  */
 function isRecord(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === "object" && !Array.isArray(x);
@@ -79,7 +81,16 @@ export interface ApiRequestOptions extends RequestInit {
 }
 
 /**
- * Enhanced fetch wrapper with unified error handling and type safety
+ * Send an HTTP request with timeout support, unified error translation to ApiError, optional toast reporting, and automatic JSON/text response handling.
+ *
+ * @param url - The request URL
+ * @param options - Fetch options extended with:
+ *   - showErrorToast (default: true) — show a toast when the request fails
+ *   - errorToastTitle (default: "Request failed") — title for the error toast
+ *   - timeout — request timeout in milliseconds; values <= 0 disable the timeout
+ *   Remaining properties are forwarded to the underlying fetch call.
+ * @returns The response payload: `undefined` for 204 or empty responses; parsed JSON when the response content-type includes `application/json`; otherwise the response text, typed as `T`.
+ * @throws ApiError when the response is not OK or when the request fails/aborts; the ApiError includes `message`, `status`, optional `code`, and `details`.
  */
 export async function apiRequest<T = unknown>(
   url: string,
@@ -231,7 +242,11 @@ export async function apiRequest<T = unknown>(
 // ============================================================================
 
 /**
- * GET request
+ * Performs an HTTP GET request to the specified URL with the provided request options.
+ *
+ * @param url - The endpoint URL to request
+ * @param options - Request and API-specific options (e.g., headers, timeout, showErrorToast, errorToastTitle)
+ * @returns The parsed response body (`application/json` responses are returned as parsed objects, empty/204 responses return `undefined`, otherwise returns response text)
  */
 export async function get<T = unknown>(url: string, options: ApiRequestOptions = {}): Promise<T> {
   // GET requests typically don't need CSRF tokens
@@ -317,7 +332,13 @@ export function buildUrl(
 }
 
 /**
- * Safe API request with fallback value
+ * Execute a promise-returning request and return a fallback value if it fails.
+ *
+ * @param requestFn - Function that performs the request and resolves to the desired value
+ * @param fallback - Value to return when `requestFn` throws or rejects
+ * @param options.showErrorToast - When true, show a user-facing error toast with the error message (default: `false`)
+ * @param options.logError - When true, log the caught error to the console with the operation tag `"safe_request"` (default: `true`)
+ * @returns The value resolved by `requestFn`, or `fallback` if an error occurred
  */
 export async function safeRequest<T>(
   requestFn: () => Promise<T>,

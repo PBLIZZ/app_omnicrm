@@ -58,16 +58,15 @@ interface UseZonesReturn {
 // ============================================================================
 
 /**
- * Hook to fetch wellness zones
+ * Fetches wellness zones from the API, optionally including per-zone statistics.
  *
- * Zones are the life-business categories that wellness practitioners use
- * to organize their work and personal tasks:
- * - Personal Wellness
- * - Self Care
- * - Admin & Finances
- * - Business Development
- * - Social Media & Marketing
- * - Client Care
+ * @param options.withStats - If `true`, include `projectCount`, `taskCount`, and `activeTaskCount` on each zone.
+ * @param options.autoRefetch - If `true`, poll the API every 5 minutes to keep results up to date; otherwise disable polling.
+ * @returns An object containing:
+ *  - `zones`: the fetched list of zones (each item is a `Zone` or `ZoneWithStats` when `withStats` is `true`),
+ *  - `isLoading`: whether the query is currently loading,
+ *  - `error`: any error returned by the query,
+ *  - `refetch`: a function to manually refetch the zones.
  */
 export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
   const { withStats = false, autoRefetch = true } = options;

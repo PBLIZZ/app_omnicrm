@@ -91,7 +91,14 @@ interface UseMomentumReturn {
 
 // ============================================================================
 // MAIN HOOK
-// ============================================================================
+/**
+ * Provides queries and mutations for Momentum projects, tasks, pending approvals, and statistics with cache updates and optional automatic refetching.
+ *
+ * @param options - Configuration for the hook.
+ * @param options.projectId - If provided, scope task queries and task-related cache updates to this project.
+ * @param options.autoRefetch - Whether queries should periodically refetch (defaults to `true`).
+ * @returns An object exposing project and task data, pending tasks and stats, loading and error states, mutation actions (create/update/delete/approve/reject), aggregated mutation loading flags, and refetch utilities.
+ */
 
 export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn {
   const { projectId, autoRefetch = true } = options;

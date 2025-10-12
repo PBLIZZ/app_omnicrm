@@ -53,7 +53,12 @@ import { useDeleteContacts } from "@/hooks/use-contacts";
 import type { ContactSearchFilters, ContactWithLastNote } from "./types";
 import { toast } from "sonner";
 
-// Parse visibility state from localStorage with type safety
+/**
+ * Parse a JSON string and return it as a VisibilityState when valid.
+ *
+ * @param json - JSON string (e.g., from localStorage) expected to represent a VisibilityState
+ * @returns The parsed VisibilityState when the input decodes to an object whose values are booleans, `null` otherwise
+ */
 function parseVisibilityState(json: string): VisibilityState | null {
   try {
     const parsed = JSON.parse(json);
@@ -67,9 +72,9 @@ function parseVisibilityState(json: string): VisibilityState | null {
 }
 
 /**
- * Type guard to check if an object is a valid VisibilityState
- * VisibilityState is a Record<string, boolean> where each key represents a column ID
- * and the value indicates if the column is visible
+ * Verifies that a value is a VisibilityState: an object whose keys are column IDs and whose values are booleans.
+ *
+ * @returns `true` if `obj` is a VisibilityState, `false` otherwise.
  */
 function isVisibilityState(obj: unknown): obj is VisibilityState {
   if (!obj || typeof obj !== "object") return false;

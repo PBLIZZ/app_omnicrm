@@ -58,6 +58,18 @@ export interface UseCalendarDataResult {
   refreshAll: () => void;
 }
 
+/**
+ * Exposes calendar events, client records, and calendar connection status along with loading/error states and refetch actions.
+ *
+ * @returns An object containing:
+ * - `events`: normalized calendar events array
+ * - `clients`: normalized client array
+ * - `connectionStatus`: summary of the calendar connection (connected state, upcomingEventsCount, optional reason, hasRefreshToken, autoRefreshed, lastSync)
+ * - loading flags: `isEventsLoading`, `isClientsLoading`, `isStatusLoading`
+ * - error states: `eventsError`, `clientsError`, `statusError`
+ * - refetch functions: `refetchEvents`, `refetchClients`, `refetchStatus`
+ * - `refreshAll`: convenience function that triggers all three refetches
+ */
 export function useCalendarData(): UseCalendarDataResult {
   // Calendar events query
   const {
@@ -187,7 +199,14 @@ export function useCalendarData(): UseCalendarDataResult {
   };
 }
 
-// Helper function to map calendar event data with proper typing
+/**
+ * Normalize unknown calendar event payloads into a strongly typed CalendarEvent.
+ *
+ * Accepts an arbitrary input and returns a CalendarEvent with sensible defaults for missing fields.
+ *
+ * @param e - The raw event payload (unknown shape) returned by the API or external source
+ * @returns A CalendarEvent with fields: `id`, `title`, `startTime`, `endTime`, `location`, `attendees`, and optionally `eventType` and `businessCategory`. Missing string fields are replaced by defaults (`id` receives a generated value, `title` becomes "Untitled", `startTime`/`endTime` default to the current time ISO, `location` defaults to an empty string). `attendees` is always an array; each attendee includes an `email` and optional `name`.
+ */
 function mapCalendarEvent(e: unknown): CalendarEvent {
   const r = typeof e === "object" && e !== null ? (e as Record<string, unknown>) : {};
   const s = (k: string): string | undefined =>

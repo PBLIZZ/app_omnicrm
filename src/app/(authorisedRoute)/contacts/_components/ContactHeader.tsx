@@ -8,7 +8,10 @@ import { Clock, Calendar, Edit, Trash2, NotebookPen, Mail, Phone } from "lucide-
 import type { ContactWithNotes } from "@/server/db/schema";
 
 /**
- * Type guard to check if a value is a non-empty array of strings
+ * Narrowly type-checks whether a value is an array containing at least one string.
+ *
+ * @param value - The value to test
+ * @returns `true` if `value` is an array with length > 0 whose elements are all strings, `false` otherwise.
  */
 function isStringArray(value: unknown): value is string[] {
   return (
@@ -27,6 +30,17 @@ interface ContactHeaderProps {
   onAddNote: () => void;
 }
 
+/**
+ * Render the header for a contact with avatar, quick contact info, timeline signals, tags/lifecycle/referral badges, and action buttons.
+ *
+ * @param contact - The contact data to display (including name, photo, emails, phones, tags, lifecycle stage, referral source, and createdAt).
+ * @param lastInteraction - Most recent interaction `{ date, type }` to show relative "Last contact" information, or `null` to hide.
+ * @param nextEvent - Upcoming event `{ date }` to show relative "Next" information, or `null` to hide.
+ * @param onEdit - Callback invoked when the Edit button is clicked.
+ * @param onDelete - Callback invoked when the Delete button is clicked.
+ * @param onAddNote - Callback invoked when the Add Note button is clicked.
+ * @returns A JSX element containing the composed contact header layout.
+ */
 export function ContactHeader({
   contact,
   lastInteraction,

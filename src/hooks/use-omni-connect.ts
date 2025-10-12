@@ -12,7 +12,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { Result, isErr, isOk } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -37,21 +36,35 @@ import type {
   Job,
 } from "@/server/db/business-schemas";
 
+export interface UseOmniConnectResult {
+  data: ConnectDashboardState | undefined;
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => void;
+  connection: {
+    status: ConnectConnectionStatus;
+    stats: ConnectConnectionStatus | undefined;
+    isLoading: boolean;
+    error: Error | null;
+    connect: () => void;
+    isConnecting: boolean;
+    refetch: () => void;
+  };
+  emails: {
+    emails: EmailPreview[];
+    previewRange: { from: string; to: string } | null;
+    isLoading: boolean;
+    error: Error | null;
+    refetch: () => void;
+  };
+}
+
 export function useOmniConnect(): UseOmniConnectResult {
   // Main unified query
   const { data, error, isLoading, refetch } = useQuery({
     queryKey: queryKeys.omniConnect.dashboard(),
     queryFn: async (): Promise<ConnectDashboardState> => {
-      const result = await apiClient.get<
-        Result<ConnectDashboardState, { message: string; code: string }>
-      >("/api/omni-connect/dashboard");
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!isOk(result)) {
-        throw new Error("Invalid result state");
-      }
-      return result.data;
+      return await apiClient.get<ConnectDashboardState>("/api/omni-connect/dashboard");
     },
     staleTime: 30000, // 30 seconds - refetch in background after this
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -164,7 +177,7 @@ export function useOmniConnect(): UseOmniConnectResult {
       emails: data?.emailPreview?.emails ?? [],
       previewRange: data?.emailPreview?.previewRange ?? null,
       isLoading,
-      error,
+      error: error instanceof Error ? error : null,
       refetch,
     },
   };

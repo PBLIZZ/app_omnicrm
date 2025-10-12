@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { Result, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -107,16 +106,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   const projectsQuery = useQuery({
     queryKey: queryKeys.momentum.all,
     queryFn: async (): Promise<Project[]> => {
-      const result = await apiClient.get<Result<Project[], { message: string; code: string }>>(
-        "/api/omni-momentum/projects",
-      );
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
-      return result.data;
+      return await apiClient.get<Project[]>("/api/omni-momentum/projects");
     },
     retry: (failureCount, error) => shouldRetry(error, failureCount),
   });
@@ -129,14 +119,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       if (projectId) params.append("projectId", projectId);
 
       const url = `/api/omni-momentum/tasks${params.toString() ? `?${params.toString()}` : ""}`;
-      const result = await apiClient.get<Result<Task[], { message: string; code: string }>>(url);
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
-      return result.data;
+      return await apiClient.get<Task[]>(url);
     },
     refetchInterval: autoRefetch ? 30000 : false,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -146,16 +129,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   const pendingTasksQuery = useQuery({
     queryKey: queryKeys.momentum.pendingTasks(),
     queryFn: async (): Promise<Task[]> => {
-      const result = await apiClient.get<Result<Task[], { message: string; code: string }>>(
-        "/api/omni-momentum/tasks/pending-approval",
-      );
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
-      return result.data;
+      return await apiClient.get<Task[]>("/api/omni-momentum/tasks/pending-approval");
     },
     refetchInterval: autoRefetch ? 60000 : false,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -165,16 +139,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   const statsQuery = useQuery({
     queryKey: queryKeys.momentum.stats(),
     queryFn: async (): Promise<MomentumStats> => {
-      const result = await apiClient.get<Result<MomentumStats, { message: string; code: string }>>(
-        "/api/omni-momentum/stats",
-      );
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
-      return result.data;
+      return await apiClient.get<MomentumStats>("/api/omni-momentum/stats");
     },
     refetchInterval: autoRefetch ? 60000 : false,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -186,17 +151,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
 
   const createProjectMutation = useMutation({
     mutationFn: async (data: CreateProjectInput): Promise<Project> => {
-      const result = await apiClient.post<Result<Project, { message: string; code: string }>>(
-        "/api/omni-momentum/projects",
-        data,
-      );
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
-      return result.data;
+      return await apiClient.post<Project>("/api/omni-momentum/projects", data);
     },
     onSuccess: (newProject) => {
       queryClient.setQueryData<Project[]>(queryKeys.momentum.all, (old) => [
@@ -278,17 +233,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
 
   const createTaskMutation = useMutation({
     mutationFn: async (data: CreateTaskInput): Promise<Task> => {
-      const result = await apiClient.post<Result<Task, { message: string; code: string }>>(
-        "/api/omni-momentum/tasks",
-        data,
-      );
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
-      return result.data;
+      return await apiClient.post<Task>("/api/omni-momentum/tasks", data);
     },
     onSuccess: (newTask) => {
       queryClient.setQueryData<Task[]>(

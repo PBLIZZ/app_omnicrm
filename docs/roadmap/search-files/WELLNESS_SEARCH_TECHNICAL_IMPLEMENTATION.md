@@ -45,7 +45,7 @@ import { ChatAssistant } from '@/components/ChatAssistant'
 import { SearchTrigger } from '@/components/SearchTrigger'
 import { DashboardStats } from '@/components/DashboardStats'
 import { RecentActivity } from '@/components/RecentActivity'
-import { UpcomingApppointments } from '@/components/UpcomingAppointments'
+import { UpcomingAppointments } from '@/components/UpcomingAppointments'
 
 export default function Dashboard() {
   return (
@@ -78,7 +78,7 @@ export default function Dashboard() {
             {/* Recent activity and upcoming appointments */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <RecentActivity />
-              <UpcomingApppointments />
+              <UpcomingAppointments />
             </div>
           </div>
 

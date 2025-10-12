@@ -6,7 +6,6 @@
  */
 
 import { z } from "zod";
-import { Result, ok, err } from "./result";
 
 /**
  * Date range type
@@ -26,46 +25,60 @@ export function dateToTimestamptz(date: Date): string {
 /**
  * Convert PostgreSQL timestamptz string to Date
  */
-export function timestamptzToDate(timestamp: string): Result<Date, string> {
-  try {
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) {
-      return err(`Invalid timestamp: ${timestamp}`);
-    }
-    return ok(date);
-  } catch {
-    return err(`Failed to parse timestamp: ${timestamp}`);
+export function timestamptzToDate(timestamp: string): Date {
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid timestamp: ${timestamp}`);
   }
+  return date;
 }
 
 /**
  * Safe date parsing from unknown input
  */
-export function parseDate(input: unknown): Result<Date, string> {
-  if (input instanceof Date) {
-    if (isNaN(input.getTime())) {
-      return err("Invalid Date object");
+export function parseDate(value: unknown): Date {
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) {
+      throw new Error("Invalid Date object");
     }
-    return ok(input);
+    return value;
   }
 
-  if (typeof input === "string") {
-    return timestamptzToDate(input);
+  if (value === null || value === undefined) {
+    throw new Error("Invalid date: null or undefined");
   }
 
-  if (typeof input === "number") {
-    try {
-      const date = new Date(input);
-      if (isNaN(date.getTime())) {
-        return err(`Invalid timestamp number: ${input}`);
-      }
-      return ok(date);
-    } catch {
-      return err(`Failed to parse timestamp number: ${input}`);
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date: ${value}`);
     }
+    return date;
   }
 
-  return err(`Cannot convert ${typeof input} to Date`);
+  throw new Error(`Invalid date: unsupported type ${typeof value}`);
+}
+
+export function parseDateSafe(value: unknown): Date | null {
+  try {
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value;
+    }
+
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === "string" || typeof value === "number") {
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    // Return null for boolean, object, symbol, function, bigint types
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -80,8 +93,7 @@ export function normalizeDatabaseDate(value: string | Date | null | undefined): 
     return isNaN(value.getTime()) ? null : value;
   }
 
-  const result = timestamptzToDate(value);
-  return result.success ? result.data : null;
+  return parseDateSafe(value);
 }
 
 /**
@@ -93,11 +105,11 @@ export function prepareDateForDb(date: Date | string | null | undefined): string
   }
 
   if (typeof date === "string") {
-    const parsed = timestamptzToDate(date);
-    if (!parsed.success) {
+    const parsed = parseDateSafe(date);
+    if (!parsed) {
       return null;
     }
-    return dateToTimestamptz(parsed.data);
+    return dateToTimestamptz(parsed);
   }
 
   if (date instanceof Date) {
@@ -112,8 +124,12 @@ export function prepareDateForDb(date: Date | string | null | undefined): string
  */
 export const DateStringSchema = z.string().refine(
   (val) => {
-    const result = timestamptzToDate(val);
-    return result.success;
+    try {
+      parseDate(val);
+      return true;
+    } catch {
+      return false;
+    }
   },
   {
     message: "Invalid date format",
@@ -124,11 +140,7 @@ export const DateStringSchema = z.string().refine(
  * Zod transformer for date strings to Date objects
  */
 export const DateTransformSchema = DateStringSchema.transform((val) => {
-  const result = timestamptzToDate(val);
-  if (!result.success) {
-    throw new Error(result.error);
-  }
-  return result.data;
+  return parseDate(val);
 });
 
 /**
@@ -154,8 +166,12 @@ export function isValidDate(date: unknown): date is Date {
  * Check if a string is a valid timestamptz
  */
 export function isValidTimestamptz(timestamp: string): boolean {
-  const result = timestamptzToDate(timestamp);
-  return result.success;
+  try {
+    parseDate(timestamp);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -172,11 +188,11 @@ export function formatDateSafe(
   let dateObj: Date;
 
   if (typeof date === "string") {
-    const parsed = timestamptzToDate(date);
-    if (!parsed.success) {
+    const parsed = parseDateSafe(date);
+    if (!parsed) {
       return "Invalid Date";
     }
-    dateObj = parsed.data;
+    dateObj = parsed;
   } else if (date instanceof Date) {
     if (isNaN(date.getTime())) {
       return "Invalid Date";
@@ -214,26 +230,18 @@ export function formatTimestampSafe(
  * Date range validation
  */
 
-export function validateDateRange(start: unknown, end: unknown): Result<DateRange, string> {
-  const startResult = parseDate(start);
-  const endResult = parseDate(end);
+export function validateDateRange(start: unknown, end: unknown): DateRange {
+  const startDate = parseDate(start);
+  const endDate = parseDate(end);
 
-  if (!startResult.success) {
-    return err(`Invalid start date: ${startResult.error}`);
+  if (startDate >= endDate) {
+    throw new Error("Start date must be before end date");
   }
 
-  if (!endResult.success) {
-    return err(`Invalid end date: ${endResult.error}`);
-  }
-
-  if (startResult.data >= endResult.data) {
-    return err("Start date must be before end date");
-  }
-
-  return ok({
-    start: startResult.data,
-    end: endResult.data,
-  });
+  return {
+    start: startDate,
+    end: endDate,
+  };
 }
 
 /**

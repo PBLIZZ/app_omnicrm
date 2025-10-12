@@ -10,7 +10,26 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Calendar, Clock, Mail, AlertTriangle, Info } from "lucide-react";
-import type { GmailPreferences, SyncPreviewResponse } from "@/lib/validation/schemas/sync";
+
+// Types for sync preferences
+type GmailPreferences = {
+  gmailQuery?: string;
+  gmailLabelIncludes?: string[];
+  gmailLabelExcludes?: string[];
+  gmailTimeRangeDays?: number;
+  importEverything?: boolean;
+};
+
+type SyncPreviewResponse = {
+  itemsFound: number;
+  estimatedSizeMB?: number;
+  dateRange?: {
+    from: string;
+    to: string;
+  };
+  error?: string;
+  warnings?: string[];
+};
 
 interface GmailPreferencesProps {
   onPreferencesChange: (preferences: GmailPreferences) => void;
@@ -27,18 +46,18 @@ export function GmailPreferences({
   previewData,
   disabled = false,
 }: GmailPreferencesProps) {
-  const [timeRangeDays, setTimeRangeDays] = useState<number>(365);
+  const [gmailTimeRangeDays, setGmailTimeRangeDays] = useState<number>(365);
   const [importEverything, setImportEverything] = useState<boolean>(true);
 
   const preferences: GmailPreferences = {
-    timeRangeDays,
+    gmailTimeRangeDays,
     importEverything,
   };
 
   const handleTimeRangeChange = (value: number[]) => {
     const days = value[0] ?? 365;
-    setTimeRangeDays(days);
-    const updatedPrefs = { ...preferences, timeRangeDays: days };
+    setGmailTimeRangeDays(days);
+    const updatedPrefs = { ...preferences, gmailTimeRangeDays: days };
     onPreferencesChange(updatedPrefs);
   };
 
@@ -55,7 +74,7 @@ export function GmailPreferences({
   const formatDateRange = () => {
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - timeRangeDays);
+    startDate.setDate(startDate.getDate() - gmailTimeRangeDays);
     return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   };
 
@@ -86,7 +105,7 @@ export function GmailPreferences({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label htmlFor="time-range" className="text-sm font-medium">
-                Time Range: {timeRangeDays} days
+                Time Range: {gmailTimeRangeDays} days
               </Label>
               <Badge variant="outline" className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
@@ -98,7 +117,7 @@ export function GmailPreferences({
               min={1}
               max={365}
               step={1}
-              value={[timeRangeDays]}
+              value={[gmailTimeRangeDays]}
               onValueChange={handleTimeRangeChange}
               disabled={disabled}
               className="w-full"
@@ -165,7 +184,7 @@ export function GmailPreferences({
       </Card>
 
       {/* Preview Results */}
-      {previewData?.service === "gmail" && (
+      {previewData && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Sync Preview</CardTitle>
@@ -176,9 +195,7 @@ export function GmailPreferences({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Estimated Emails</p>
-                <p className="text-2xl font-semibold">
-                  {previewData.estimatedItems.toLocaleString()}
-                </p>
+                <p className="text-2xl font-semibold">{previewData.itemsFound.toLocaleString()}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Estimated Size</p>
@@ -190,13 +207,14 @@ export function GmailPreferences({
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Date Range</p>
               <p className="text-sm">
-                {new Date(previewData.dateRange.start).toLocaleDateString()} -{" "}
-                {new Date(previewData.dateRange.end).toLocaleDateString()}
+                {previewData.dateRange?.from && previewData.dateRange?.to
+                  ? `${new Date(previewData.dateRange.from).toLocaleDateString()} - ${new Date(previewData.dateRange.to).toLocaleDateString()}`
+                  : "Date range not available"}
               </p>
             </div>
 
             {/* Warnings */}
-            {previewData.warnings.length > 0 && (
+            {previewData.warnings && previewData.warnings.length > 0 && (
               <div className="space-y-2">
                 {previewData.warnings.map((warning: string, index: number) => (
                   <Alert key={index} variant="destructive">

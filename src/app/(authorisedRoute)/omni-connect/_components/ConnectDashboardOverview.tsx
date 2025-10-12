@@ -159,7 +159,7 @@ export function DashboardOverview(): JSX.Element {
             emails={emails.emails}
             isLoading={emails.isLoading}
             previewRange={emails.previewRange}
-            error={emails.error}
+            error={emails.error instanceof Error ? emails.error : null}
           />
         </div>
       </div>

@@ -10,20 +10,30 @@
  */
 
 import { toast } from "sonner";
-import { type Result, isOk, isErr } from "@/lib/utils/result";
-import { logger } from "@/lib/observability/unified-logger";
 
 // ============================================================================
-// CSRF TOKEN UTILITIES
+// TYPE GUARDS
 // ============================================================================
 
 /**
- * Gets CSRF token from cookie (browser only)
+ * Type guard to check if a value is a record (plain object)
  */
-function getCsrfToken(): string {
-  if (typeof document === "undefined") return "";
-  const match = document.cookie.match(/(?:^|; )csrf=([^;]+)/);
-  return match ? decodeURIComponent(match[1] ?? "") : "";
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+
+export class ApiError extends Error {
+  public readonly status: number;
+  public readonly code: string | undefined;
+  public readonly details: unknown;
+
+  constructor(message: string, status: number = 0, code?: string, details?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
 }
 
 // ============================================================================
@@ -66,11 +76,6 @@ export interface ApiRequestOptions extends RequestInit {
    * Request timeout in milliseconds
    */
   timeout?: number;
-
-  /**
-   * Whether to include CSRF token (default: true)
-   */
-  includeCsrf?: boolean;
 }
 
 /**
@@ -84,7 +89,6 @@ export async function apiRequest<T = unknown>(
     showErrorToast = true,
     errorToastTitle = "Request failed",
     timeout,
-    includeCsrf = true,
     ...fetchOptions
   } = options;
 
@@ -122,23 +126,6 @@ export async function apiRequest<T = unknown>(
     ...fetchOptions.headers,
   };
 
-  // Add CSRF token if enabled and request is mutating
-  const method = fetchOptions.method?.toUpperCase() ?? "GET";
-  const isMutatingRequest = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
-
-  if (includeCsrf && isMutatingRequest) {
-    const csrfToken = getCsrfToken();
-    if (csrfToken) {
-      (headers as Record<string, string>)["x-csrf-token"] = csrfToken;
-    } else if (process.env.NODE_ENV === "development") {
-      logger.debug(`No CSRF token found in cookies for ${method} request`, {
-        operation: "csrf_token_check",
-        method,
-        additionalData: { warning: "This may cause authentication issues" }
-      });
-    }
-  }
-
   // Add content-type for requests with body
   if (
     fetchOptions.body &&
@@ -149,7 +136,6 @@ export async function apiRequest<T = unknown>(
   }
 
   try {
-    // Make the request
     const response = await fetch(url, {
       credentials: "same-origin",
       ...fetchOptions,
@@ -157,61 +143,86 @@ export async function apiRequest<T = unknown>(
       signal: finalSignal,
     });
 
-    // Handle HTTP errors
     if (!response.ok) {
-      const errorText = await response.text().catch(() => response.statusText);
-      const error = new Error(errorText || response.statusText);
-      throw error;
-    }
+      const rawBody = await response
+        .clone()
+        .text()
+        .catch(() => "");
 
-    // Parse response
-    const responseData = (await response.json()) as unknown;
-
-    // Check if response is in Result format
-    if (responseData && typeof responseData === "object" && "success" in responseData) {
-      const result = responseData as Result<T, { message: string }>;
-
-      // Handle Result pattern errors
-      if (isErr(result)) {
-        const error = new Error(result.error.message ?? "Unknown error");
-        throw error;
+      let parsedBody: unknown = undefined;
+      if (rawBody) {
+        try {
+          parsedBody = JSON.parse(rawBody);
+        } catch {
+          parsedBody = rawBody;
+        }
       }
 
-      if (isOk(result)) {
-        return result.data;
-      }
+      // Safe extraction of error details without type assertions
+      const message =
+        (() => {
+          // Check if parsedBody is a record and has message or error properties
+          if (isRecord(parsedBody) && "message" in parsedBody && typeof parsedBody["message"] === "string") {
+            return parsedBody["message"];
+          }
+          if (isRecord(parsedBody) && "error" in parsedBody && typeof parsedBody["error"] === "string") {
+            return parsedBody["error"];
+          }
+          return undefined;
+        })() ||
+        (typeof rawBody === "string" && rawBody.trim().length > 0 ? rawBody : undefined) ||
+        response.statusText ||
+        "Request failed";
+
+      const code =
+        (() => {
+          // Check if parsedBody is a record and has code property
+          if (isRecord(parsedBody) && "code" in parsedBody && typeof parsedBody["code"] === "string") {
+            return parsedBody["code"];
+          }
+          return undefined;
+        })();
+
+      throw new ApiError(message, response.status, code, parsedBody ?? rawBody);
     }
 
-    // Legacy envelope pattern has been deprecated in favor of Result<T, E>
-    // All API responses should now use the Result pattern
+    if (response.status === 204 || response.headers.get("content-length") === "0") {
+      return undefined as T;
+    }
 
-    // Response is direct JSON, return as-is
-    return responseData as T;
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (contentType.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+
+    const textBody = await response.text();
+    return textBody as unknown as T;
   } catch (error) {
-    // Handle different error types
-    let finalError: Error;
+    let apiError: ApiError;
 
-    if (error instanceof Error) {
-      if (error.name === "AbortError") {
-        finalError = new Error(
-          timeout ? `Request timeout after ${timeout}ms` : "Request was aborted",
-        );
-      } else {
-        // Use the error as-is
-        finalError = error;
-      }
+    if (error instanceof ApiError) {
+      apiError = error;
+    } else if (error instanceof Error && error.name === "AbortError") {
+      apiError = new ApiError(
+        timeout ? `Request timeout after ${timeout}ms` : "Request was aborted",
+        499,
+        undefined,
+        error,
+      );
+    } else if (error instanceof Error) {
+      apiError = new ApiError(error.message, 0, undefined, error);
     } else {
-      finalError = new Error("Unknown error occurred");
+      apiError = new ApiError("Unknown error occurred", 0, undefined, { originalError: error });
     }
 
-    // Show error toast if enabled
     if (showErrorToast) {
       toast.error(errorToastTitle, {
-        description: finalError.message,
+        description: apiError.message,
       });
     }
 
-    throw finalError;
+    throw apiError;
   }
 }
 
@@ -224,7 +235,7 @@ export async function apiRequest<T = unknown>(
  */
 export async function get<T = unknown>(url: string, options: ApiRequestOptions = {}): Promise<T> {
   // GET requests typically don't need CSRF tokens
-  return apiRequest<T>(url, { includeCsrf: false, ...options, method: "GET" });
+  return apiRequest<T>(url, { ...options, method: "GET" });
 }
 
 /**
@@ -323,7 +334,7 @@ export async function safeRequest<T>(
   } catch (error) {
     if (logError) {
       const errorInstance = error instanceof Error ? error : new Error(String(error));
-      logger.error("API request failed, using fallback", { operation: "safe_request" }, errorInstance);
+      console.error("API request failed, using fallback", { operation: "safe_request" }, errorInstance);
     }
 
     if (showErrorToast && error instanceof Error) {

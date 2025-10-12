@@ -18,15 +18,17 @@ import { GmailPreferences } from "./GmailPreferences";
 import { CalendarPreferences } from "./CalendarPreferences";
 import { DrivePreferences } from "./DrivePreferences";
 import { SyncProgressModal } from "./SyncProgressModal";
-import type {
-  GmailPreferences as GmailPrefsType,
-  CalendarPreferences as CalendarPrefsType,
-  DrivePreferences as DrivePrefsType,
-  SyncPreviewResponse,
-  SyncPreferencesSetup,
-} from "@/lib/validation/schemas/sync";
 import type { CalendarItem } from "@/server/db/business-schemas";
 import { post } from "@/lib/api";
+
+// Import types from centralized location
+import type {
+  GmailPreferencesType,
+  CalendarPreferencesType,
+  DrivePreferencesType,
+  SyncPreviewResponse,
+  SyncPreferencesSetup,
+} from "./index";
 
 type ServiceType = "gmail" | "calendar" | "drive";
 
@@ -53,9 +55,9 @@ export function PreferencesModal({
 }: PreferencesModalProps): React.JSX.Element {
   const [currentStep, setCurrentStep] = useState(0);
   const [preferences, setPreferences] = useState<{
-    gmail?: GmailPrefsType;
-    calendar?: CalendarPrefsType;
-    drive?: DrivePrefsType;
+    gmail?: GmailPreferencesType;
+    calendar?: CalendarPreferencesType;
+    drive?: DrivePreferencesType;
   }>({});
   const [previewData, setPreviewData] = useState<SyncPreviewResponse | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -72,7 +74,7 @@ export function PreferencesModal({
   const canProceed = currentPreferences && (currentStep === 0 || previewData);
 
   const handlePreferencesChange = (
-    newPrefs: GmailPrefsType | CalendarPrefsType | DrivePrefsType,
+    newPrefs: GmailPreferencesType | CalendarPreferencesType | DrivePreferencesType,
   ) => {
     setPreferences((prev) => ({
       ...prev,
@@ -81,7 +83,7 @@ export function PreferencesModal({
     setError(null);
   };
 
-  const handlePreview = async (prefs: GmailPrefsType | CalendarPrefsType | DrivePrefsType) => {
+  const handlePreview = async (prefs: GmailPreferencesType | CalendarPreferencesType | DrivePreferencesType) => {
     try {
       setIsPreviewLoading(true);
       setError(null);
@@ -124,7 +126,6 @@ export function PreferencesModal({
       setError(null);
 
       const setupData: SyncPreferencesSetup = {
-        service,
         [service]: currentPreferences,
       };
 
@@ -199,7 +200,6 @@ export function PreferencesModal({
       }
 
       const setupData: SyncPreferencesSetup = {
-        service,
         [service]: currentPreferences,
       };
       onComplete(setupData);
@@ -289,7 +289,7 @@ export function PreferencesModal({
         {/* Summary Stats */}
         <div className="grid grid-cols-2 gap-6">
           <div className="text-center p-4 bg-muted rounded-lg">
-            <p className="text-2xl font-bold">{previewData.estimatedItems.toLocaleString()}</p>
+            <p className="text-2xl font-bold">{previewData.itemsFound.toLocaleString()}</p>
             <p className="text-sm text-muted-foreground">
               {service === "gmail" ? "Emails" : service === "calendar" ? "Events" : "Files"}
             </p>
@@ -304,26 +304,28 @@ export function PreferencesModal({
         <div className="p-4 border rounded-lg">
           <h4 className="font-medium mb-2">Date Range</h4>
           <p className="text-sm text-muted-foreground">
-            {new Date(previewData.dateRange.start).toLocaleDateString()} -{" "}
-            {new Date(previewData.dateRange.end).toLocaleDateString()}
+            {previewData.dateRange?.from && previewData.dateRange?.to
+              ? `${new Date(previewData.dateRange.from).toLocaleDateString()} - ${new Date(previewData.dateRange.to).toLocaleDateString()}`
+              : 'Date range not available'
+            }
           </p>
         </div>
 
         {/* Service-specific details */}
-        {previewData.details.calendars && (
+        {previewData.details?.calendars && (
           <div className="space-y-2">
             <h4 className="font-medium">Selected Calendars</h4>
             {previewData.details.calendars.map((cal: CalendarItem) => (
               <div key={cal.id} className="flex justify-between items-center p-2 bg-muted rounded">
-                <span className="text-sm">{cal.name}</span>
-                <Badge variant="outline">{cal.eventCount.toLocaleString()} events</Badge>
+                <span className="text-sm">{cal.summary}</span>
+                <Badge variant="outline">Calendar</Badge>
               </div>
             ))}
           </div>
         )}
 
         {/* Warnings */}
-        {previewData.warnings.length > 0 && (
+        {previewData.warnings && previewData.warnings.length > 0 && (
           <div className="space-y-2">
             {previewData.warnings.map((warning: string, index: number) => (
               <Alert key={index} variant="destructive">
@@ -355,7 +357,7 @@ export function PreferencesModal({
               <div>
                 <span className="text-muted-foreground">Items to sync:</span>
                 <span className="ml-2 font-medium">
-                  {previewData.estimatedItems.toLocaleString()}
+                  {previewData.itemsFound.toLocaleString()}
                 </span>
               </div>
               <div>

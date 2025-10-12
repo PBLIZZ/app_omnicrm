@@ -9,7 +9,7 @@
 ### ✅ **Working Components**
 
 - **Job Creation**: `enqueue()` properly creates jobs in `jobs` table
-- **Job Processors**: Individual processors exist (`runCalendarSync`, `runGmailSync`, `normalize`)
+- **Job Processors**: Individual processors exist (`runCalendarSync`, `runGmailSync`, `normalize_google_email`, `normalize_google_event`)
 - **Data Models**: Proper schema for `raw_events` → `interactions` → `calendar_events`
 - **UI Integration**: Frontend correctly reads from `calendar_events` table
 - **Background Processing**: Drizzle ORM operations are secure and type-safe
@@ -52,15 +52,21 @@ User Action → Create Job → Return Success
 ### **Data Pipeline Stages - CORRECTED & IMPLEMENTED**
 
 ```typescript
-google_calendar_sync → raw_events (Google API data)
+google_calendar_sync → raw_events (Google Calendar data)
         ↓
-normalize → interactions + calendar_events (UI-ready data)
+normalize_google_event → interactions + calendar_events (UI-ready calendar data)
         ↓
 extract_contacts → contact suggestions (attendee extraction)
         ↓
 extract_identities → contact_identities (email/phone matching)
         ↓
 embed → embeddings (vector search)
+
+gmail_sync → raw_events (Gmail API data)
+        ↓
+normalize_google_email → interactions (UI-ready email timeline data)
+        ↓
+extract_contacts → contact suggestions (recipient extraction)
 ```
 
 **Note**: Full cascading pipeline implemented. Each processor automatically enqueues the next stage upon completion. AI insights remain manual as requested.
@@ -77,7 +83,7 @@ embed → embeddings (vector search)
 ### **Job Processors** ✅ **ALL EXIST**
 
 - **`/server/jobs/processors/sync.ts`** - `runCalendarSync`, `runGmailSync`
-- **`/server/jobs/processors/normalize.ts`** - Data transformation
+- **`/server/jobs/processors/normalize.ts`** - Data transformation (`normalize_google_email`, `normalize_google_event`)
 - **`/server/jobs/processors/contact-resolver.ts`** - Contact extraction (manual/scheduled)
 - **`/server/jobs/processors/embedder.ts`** - Vector generation
 - **`/server/jobs/processors/insight-writer.ts`** - AI insights
@@ -197,8 +203,8 @@ Location: OmniRhythm dashboard → Calendar connection card → "Process Jobs" b
 
 ### ✅ **Pipeline Completion**
 
-1. **Implemented Full Cascading Pipeline** - normalize → extract_contacts → extract_identities → embed
-2. **Enhanced Normalize Processor** - Now creates both interactions AND calendar_events records
+1. **Implemented Full Cascading Pipeline** - normalize_google_email / normalize_google_event → extract_contacts → extract_identities → embed
+2. **Enhanced Normalize Processors** - Now create interactions and calendar_events records for their respective providers
 3. **Added Job Chaining** - Each processor automatically enqueues the next stage
 4. **Corrected Pipeline Flow** - Updated from documentation to actual implementation
 
@@ -214,7 +220,7 @@ Location: OmniRhythm dashboard → Calendar connection card → "Process Jobs" b
 1. **Removed Technical Debt** - Cleaned up broken imports and unused references
 2. **Fixed Script Dependencies** - Updated backfill scripts to use JobRunner
 3. **Consistent Architecture** - All job processing now uses the same JobRunner pattern
-4. **Type Safety** - Using Drizzle ORM throughout normalize processor for calendar_events creation
+4. **Type Safety** - Using Drizzle ORM throughout provider-specific normalize processors for calendar_events creation
 
 ## Outstanding Critical Work
 

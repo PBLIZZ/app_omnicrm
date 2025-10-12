@@ -4,7 +4,6 @@
  * Replaces complex error classification with minimal complexity approach.
  */
 
-import { err, type Result } from "@/lib/utils/result";
 import { ErrorCategory } from "@/lib/constants/errorCategories";
 
 export class AppError extends Error {
@@ -51,13 +50,6 @@ export class ErrorHandler {
       return new AppError(error.message, "GENERIC_ERROR", "system", true, { originalError: error });
     }
     return new AppError(String(error), "UNKNOWN_ERROR", "system", false, { originalValue: error });
-  }
-
-  /**
-   * Convert AppError to Result type for type-safe error handling
-   */
-  static toResult<T>(error: AppError): Result<T, AppError> {
-    return err(error);
   }
 
   /**

@@ -15,7 +15,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { Result, isErr, isOk } from "@/lib/utils/result";
 // Direct error handling and success notifications (no abstraction)
 const createErrorHandler = (context: string) => (error: unknown) => {
   const message = error instanceof Error ? error.message : "An unknown error occurred";
@@ -42,6 +41,20 @@ const showSyncSuccessToast = (service: string, details?: { count?: number; durat
   toast.success(title, { description });
 };
 
+export interface CalendarSyncStats {
+  syncedEvents: number;
+  batchId?: string;
+}
+
+export interface UseCalendarSyncResult {
+  isSyncing: boolean;
+  syncStatus: string;
+  error: string | null;
+  lastSyncStats: CalendarSyncStats | null;
+  syncCalendar: () => Promise<void>;
+  clearError: () => void;
+}
+
 export function useCalendarSync(): UseCalendarSyncResult {
   const queryClient = useQueryClient();
   const [syncStatus, setSyncStatus] = useState<string>("");
@@ -62,24 +75,10 @@ export function useCalendarSync(): UseCalendarSyncResult {
         setSyncStatus("Connecting to Google Calendar...");
 
         // Direct sync call (following the proven Gmail pattern)
-        const result = await apiClient.post<
-          Result<
-            {
-              message?: string;
-              stats?: CalendarSyncStats;
-            },
-            { message: string; code: string }
-          >
-        >("/api/google/calendar/sync", {});
-
-        if (isErr(result)) {
-          throw new Error(result.error.message);
-        }
-        if (!isOk(result)) {
-          throw new Error("Invalid result state");
-        }
-
-        const syncResponse = result.data;
+        const syncResponse = await apiClient.post<{
+          message?: string;
+          stats?: CalendarSyncStats;
+        }>("/api/google/calendar/sync", {});
 
         setSyncStatus("Processing calendar events...");
 

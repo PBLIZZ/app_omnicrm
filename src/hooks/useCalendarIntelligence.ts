@@ -14,6 +14,21 @@ import { useMemo } from "react";
 import { CalendarBusinessIntelligence } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarBusinessIntelligence";
 import type { CalendarEvent, Client, Appointment, WeeklyStats } from "@/server/db/business-schemas";
 
+export interface SessionMetrics {
+  sessionsNext7Days: number;
+  sessionsThisMonth: number;
+}
+
+export interface UseCalendarIntelligenceResult {
+  biService: CalendarBusinessIntelligence;
+  enhancedAppointments: Appointment[];
+  weeklyStats: WeeklyStats;
+  sessionMetrics: SessionMetrics;
+  updateClientData: (newClients: Client[]) => void;
+  calculateRevenue: () => number;
+  getBusiestDay: () => string;
+}
+
 export function useCalendarIntelligence(
   events: CalendarEvent[],
   clients: Client[],

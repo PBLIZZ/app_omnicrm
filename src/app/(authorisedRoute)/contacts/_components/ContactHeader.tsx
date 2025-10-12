@@ -4,16 +4,19 @@ import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import {
-  Clock,
-  Calendar,
-  Edit,
-  Trash2,
-  NotebookPen,
-  Mail,
-  Phone,
-} from "lucide-react";
+import { Clock, Calendar, Edit, Trash2, NotebookPen, Mail, Phone } from "lucide-react";
 import type { ContactWithNotes } from "@/server/db/schema";
+
+/**
+ * Type guard to check if a value is a non-empty array of strings
+ */
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item): item is string => typeof item === "string")
+  );
+}
 
 interface ContactHeaderProps {
   contact: ContactWithNotes;
@@ -99,15 +102,15 @@ export function ContactHeader({
                   Referred by: {contact.referralSource}
                 </Badge>
               )}
-              {contact.tags && Array.isArray(contact.tags) && contact.tags.length > 0 && (
+              {isStringArray(contact.tags) ? (
                 <>
-                  {(contact.tags as string[]).map((tag: string, index: number) => (
-                    <Badge key={index} variant="outline" className="text-xs">
+                  {contact.tags.map((tag: string) => (
+                    <Badge key={tag} variant="outline" className="text-xs">
                       {tag}
                     </Badge>
                   ))}
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

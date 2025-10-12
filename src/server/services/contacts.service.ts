@@ -17,7 +17,6 @@ import {
 } from "@/server/services/storage.service";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
-import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
 import type { ContactWithLastNote as ContactWithLastNoteType } from "@/server/db/business-schemas/contacts";
 import { getContactSuggestions } from "../ai/contacts/suggest-contacts";
 
@@ -187,7 +186,7 @@ async function getLastNotePreviewForContacts(
   }
 
   // Validate and process database rows
-  const validatedRows = validateNotesQueryRows(notesData);
+  const validatedRows = extractNotesQueryRows(notesData);
   for (const row of validatedRows) {
     const preview = typeof row.last_note_preview === "string" ? row.last_note_preview : null;
     result.set(row.contact_id, preview);

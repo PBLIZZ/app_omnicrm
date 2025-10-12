@@ -119,42 +119,12 @@ export interface ContactSearchFilters {
   hasEmail?: boolean;
   hasPhone?: boolean;
   hasNotes?: boolean;
+  hasInteractions?: boolean;
   createdAfter?: Date;
   createdBefore?: Date;
   query?: string; // Alias for search
   dateRange?: { from?: Date; to?: Date };
-}
-
-/**
- * Contact Suggestion Data from Calendar Analysis
- * 
- * NOTE: This interface is NOT currently used. The actual API response structure
- * is defined in @/hooks/use-contacts.ts and uses different field names:
- * - email (not primaryEmail)
- * - eventCount, eventTitles (not calendarEvents array)
- * 
- * This may represent a future/desired structure but doesn't match the current
- * implementation in suggest-contacts.ts
- */
-export interface ContactSuggestion {
-  id: string;
-  displayName: string;
-  primaryEmail: string;
-  source: string;
-  confidence: string; // Confidence level as string: "high" | "medium" | "low"
-  aiInsights?: {
-    //this is more enrichment than ai insights, and these fields are not the 
-    //ones originally specified inthe jsonb structured storage of ai insights,
-    //next steps, etc
-    lifecycleStage: string;
-    tags: string[];
-    summary: string;
-  };
-  calendarEvents?: Array<{
-    title: string;
-    startTime: string;
-    eventType: string;
-  }>;
+  confidenceScore?: "high" | "medium" | "low";
 }
 
 /**

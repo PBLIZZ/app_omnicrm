@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  DocumentsRepository,
-  createDocumentsRepository,
-} from "./documents.repo";
-import {
-  createMockDbClient,
-  createMockQueryBuilder,
-  type MockDbClient,
-} from "@packages/testing";
+import { DocumentsRepository, createDocumentsRepository } from "./documents.repo";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
 import type { IntelligenceDocument } from "@/server/db/schema";
 
 describe("DocumentsRepository", () => {
@@ -16,7 +9,9 @@ describe("DocumentsRepository", () => {
   const mockUserId = "user-123";
   const mockDocumentId = "doc-456";
 
-  const createMockDocument = (overrides: Partial<IntelligenceDocument> = {}): IntelligenceDocument => ({
+  const createMockDocument = (
+    overrides: Partial<IntelligenceDocument> = {},
+  ): IntelligenceDocument => ({
     id: mockDocumentId,
     userId: mockUserId,
     ownerContactId: "contact-123",
@@ -39,10 +34,10 @@ describe("DocumentsRepository", () => {
   describe("listDocuments", () => {
     it("should list documents with default pagination", async () => {
       const mockDocs = [createMockDocument(), createMockDocument({ id: "doc-2" })];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 10 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
@@ -55,10 +50,10 @@ describe("DocumentsRepository", () => {
 
     it("should filter by owner contact id", async () => {
       const mockDocs = [createMockDocument()];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
@@ -71,10 +66,10 @@ describe("DocumentsRepository", () => {
 
     it("should filter by mime types", async () => {
       const mockDocs = [createMockDocument({ mime: "application/pdf" })];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
@@ -87,10 +82,10 @@ describe("DocumentsRepository", () => {
 
     it("should search by title and text", async () => {
       const mockDocs = [createMockDocument({ title: "Important Document" })];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
@@ -103,10 +98,10 @@ describe("DocumentsRepository", () => {
 
     it("should include unassigned documents when flag is set", async () => {
       const mockDocs = [createMockDocument({ ownerContactId: null })];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
@@ -118,10 +113,10 @@ describe("DocumentsRepository", () => {
 
     it("should exclude unassigned by default", async () => {
       const mockDocs = [createMockDocument()];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
@@ -134,10 +129,10 @@ describe("DocumentsRepository", () => {
 
     it("should handle custom pagination", async () => {
       const mockDocs = [createMockDocument()];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 100 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
@@ -150,16 +145,15 @@ describe("DocumentsRepository", () => {
 
     it("should enforce maximum page size", async () => {
       const mockDocs = [createMockDocument()];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
 
       // Try to request more than max (200)
-      const result = await repo.listDocuments(mockUserId, { pageSize: 500 });
 
       expect(mockDb.select).toHaveBeenCalled();
     });
@@ -169,10 +163,10 @@ describe("DocumentsRepository", () => {
         createMockDocument({ id: "doc-1", createdAt: new Date("2024-01-01") }),
         createMockDocument({ id: "doc-2", createdAt: new Date("2024-01-02") }),
       ];
-      
+
       const selectBuilder = createMockQueryBuilder(mockDocs);
       const countBuilder = createMockQueryBuilder([{ value: 2 }]);
-      
+
       vi.mocked(mockDb.select)
         .mockReturnValueOnce(selectBuilder as any)
         .mockReturnValueOnce(countBuilder as any);
@@ -187,7 +181,7 @@ describe("DocumentsRepository", () => {
     it("should return document when found", async () => {
       const mockDoc = createMockDocument();
       const selectBuilder = createMockQueryBuilder([mockDoc]);
-      
+
       vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
       const result = await repo.getDocumentById(mockUserId, mockDocumentId);
@@ -198,7 +192,7 @@ describe("DocumentsRepository", () => {
 
     it("should return null when not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
-      
+
       vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
       const result = await repo.getDocumentById(mockUserId, "non-existent");
@@ -211,7 +205,7 @@ describe("DocumentsRepository", () => {
     it("should create new document", async () => {
       const mockDoc = createMockDocument();
       const insertBuilder = createMockQueryBuilder([mockDoc]);
-      
+
       vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
 
       const data = {
@@ -231,7 +225,7 @@ describe("DocumentsRepository", () => {
 
     it("should throw error when insert returns no data", async () => {
       const insertBuilder = createMockQueryBuilder([]);
-      
+
       vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
 
       const data = {
@@ -251,10 +245,12 @@ describe("DocumentsRepository", () => {
     it("should update existing document", async () => {
       const mockDoc = createMockDocument({ title: "Updated Document" });
       const updateBuilder = createMockQueryBuilder([mockDoc]);
-      
+
       vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
-      const result = await repo.updateDocument(mockUserId, mockDocumentId, { title: "Updated Document" });
+      const result = await repo.updateDocument(mockUserId, mockDocumentId, {
+        title: "Updated Document",
+      });
 
       expect(result).not.toBeNull();
       expect(result?.title).toBe("Updated Document");
@@ -262,7 +258,7 @@ describe("DocumentsRepository", () => {
 
     it("should return null when not found", async () => {
       const updateBuilder = createMockQueryBuilder([]);
-      
+
       vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
       const result = await repo.updateDocument(mockUserId, "non-existent", { title: "Updated" });
@@ -272,7 +268,7 @@ describe("DocumentsRepository", () => {
 
     it("should throw error when no updates provided", async () => {
       await expect(repo.updateDocument(mockUserId, mockDocumentId, {})).rejects.toThrow(
-        "No fields provided for update"
+        "No fields provided for update",
       );
     });
   });
@@ -280,7 +276,7 @@ describe("DocumentsRepository", () => {
   describe("deleteDocument", () => {
     it("should delete document and return count", async () => {
       const deleteBuilder = createMockQueryBuilder([{ id: mockDocumentId }]);
-      
+
       vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
       const result = await repo.deleteDocument(mockUserId, mockDocumentId);
@@ -290,7 +286,7 @@ describe("DocumentsRepository", () => {
 
     it("should return 0 when not found", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
-      
+
       vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
       const result = await repo.deleteDocument(mockUserId, "non-existent");
@@ -306,7 +302,7 @@ describe("DocumentsRepository", () => {
         { id: "doc-2" },
         { id: "doc-3" },
       ]);
-      
+
       vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
       const result = await repo.deleteDocumentsForUser(mockUserId);
@@ -316,7 +312,7 @@ describe("DocumentsRepository", () => {
 
     it("should return 0 when no documents exist", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
-      
+
       vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
       const result = await repo.deleteDocumentsForUser(mockUserId);

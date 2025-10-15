@@ -18,6 +18,8 @@ MSW intercepts HTTP requests at the network level, providing several advantages 
 
 MSW is already installed as a dev dependency:
 
+**Note:** MSW is pre-installed in this project (`pnpm add -D msw` has already been run). The command below is for reference if setting up in a new project.
+
 ```bash
 pnpm add -D msw
 ```
@@ -123,6 +125,8 @@ it("creates a contact successfully", async () => {
   expect(result.current.data?.displayName).toBe("New Contact");
 });
 ```
+
+**Note:** For POST handlers in MSW (used for mutations like create/update), define them with `http.post('/api/contacts', async ({ request }) => { const body = await request.json(); return HttpResponse.json({ ... }); })`. This intercepts the request body and allows mocking the server response.
 
 ## Adding New Handlers
 

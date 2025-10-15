@@ -2,17 +2,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-// Direct retry logic (no abstraction)
-const shouldRetry = (error: unknown, retryCount: number): boolean => {
-  // Don't retry auth errors (401, 403)
-  if (error instanceof Error && error.message.includes("401")) return false;
-  if (error instanceof Error && error.message.includes("403")) return false;
+import { AppError } from "@/lib/errors/app-error";
 
-  // Retry network errors up to 3 times
-  if (
-    error instanceof Error &&
-    (error.message.includes("fetch") || error.message.includes("network"))
-  ) {
+// Retry logic using existing AppError system
+const shouldRetry = (error: unknown, retryCount: number): boolean => {
+  // Don't retry auth errors
+  if (error instanceof AppError && error.category === "authentication") return false;
+
+  // Don't retry validation errors
+  if (error instanceof AppError && error.category === "validation") return false;
+
+  // Retry network and system errors up to 3 times
+  if (error instanceof AppError && error.retryable) {
     return retryCount < 3;
   }
 
@@ -292,7 +293,13 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: async ({ taskId, data }: { taskId: string; data: UpdateTaskInput }): Promise<Task> => {
+    mutationFn: async ({
+      taskId,
+      data,
+    }: {
+      taskId: string;
+      data: UpdateTaskInput;
+    }): Promise<Task> => {
       return await apiClient.put<Task>(`/api/omni-momentum/tasks/${taskId}`, data);
     },
     onSuccess: (updatedTask) => {
@@ -527,7 +534,9 @@ export function useTodaysFocus() {
           if (b.dueDate) return 1;
 
           // Fall back to creation date
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bCreated - aCreated;
         })
         .slice(0, 3); // Max 3 items per research findings
     },

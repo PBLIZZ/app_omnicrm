@@ -203,8 +203,8 @@ Location: OmniRhythm dashboard → Calendar connection card → "Process Jobs" b
 
 ### ✅ **Pipeline Completion**
 
-1. **Implemented Full Cascading Pipeline** - normalize_google_email / normalize_google_event → extract_contacts → extract_identities → embed
-2. **Enhanced Normalize Processors** - Now create interactions and calendar_events records for their respective providers
+1. **Implemented Full Cascading Pipeline** - normalize_google_event (creates interactions and calendar_events) / normalize_google_email (creates interactions) → extract_contacts → extract_identities → embed
+2. **Enhanced Normalize Processors** - normalize_google_event now creates both interactions and calendar_events records; normalize_google_email creates interactions.
 3. **Added Job Chaining** - Each processor automatically enqueues the next stage
 4. **Corrected Pipeline Flow** - Updated from documentation to actual implementation
 
@@ -220,7 +220,7 @@ Location: OmniRhythm dashboard → Calendar connection card → "Process Jobs" b
 1. **Removed Technical Debt** - Cleaned up broken imports and unused references
 2. **Fixed Script Dependencies** - Updated backfill scripts to use JobRunner
 3. **Consistent Architecture** - All job processing now uses the same JobRunner pattern
-4. **Type Safety** - Using Drizzle ORM throughout provider-specific normalize processors for calendar_events creation
+4. **Type Safety** - Using Drizzle ORM in the provider-specific normalize processor normalize_google_event for calendar_events creation
 
 ## Outstanding Critical Work
 

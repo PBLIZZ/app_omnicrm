@@ -111,7 +111,7 @@ describe("Contacts API Routes - Unit Tests", () => {
 
       expect(listContactsService).toHaveBeenCalledWith(
         testUtils.defaultUserId,
-        expect.objectContaining({ search: "john" })
+        expect.objectContaining({ search: "john" }),
       );
     });
 
@@ -340,6 +340,21 @@ describe("Contacts API Routes - Unit Tests", () => {
       const response = await updateContact(request, context);
       expect(response.status).toBe(400);
     });
+
+    it("should require authentication", async () => {
+      const { getServerUserId } = await import("@/server/auth/user");
+      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+
+      const request = new Request("http://localhost:3000/api/contacts/contact-123", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName: "Test" }),
+      });
+      const context = makeRouteContext({ contactId: "contact-123" });
+
+      const response = await updateContact(request, context);
+      expect(response.status).toBe(401);
+    });
   });
 
   describe("DELETE /api/contacts/[contactId]", () => {
@@ -431,6 +446,17 @@ describe("Contacts API Routes - Unit Tests", () => {
       expect(response.status).toBe(200);
       expect(data.count).toBe(0);
     });
+
+    it("should require authentication", async () => {
+      const { getServerUserId } = await import("@/server/auth/user");
+      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+
+      const request = new Request("http://localhost:3000/api/contacts/count");
+      const context = makeRouteContext();
+
+      const response = await getContactCount(request, context);
+      expect(response.status).toBe(401);
+    });
   });
 
   describe("POST /api/contacts/bulk-delete", () => {
@@ -517,6 +543,21 @@ describe("Contacts API Routes - Unit Tests", () => {
       expect(response.status).toBe(200);
       expect(data.deleted).toBe(2);
       expect(data.failed).toHaveLength(1);
+    });
+
+    it("should require authentication", async () => {
+      const { getServerUserId } = await import("@/server/auth/user");
+      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+
+      const request = new Request("http://localhost:3000/api/contacts/bulk-delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contactIds: ["test"] }),
+      });
+      const context = makeRouteContext();
+
+      const response = await bulkDeleteContacts(request, context);
+      expect(response.status).toBe(401);
     });
   });
 

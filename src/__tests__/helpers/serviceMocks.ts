@@ -36,15 +36,18 @@ export const createListMock = <T>(items: T[] = [], total?: number) => {
  * @param defaultResponse - Default object to return
  * @returns Mock function that merges input with defaults
  */
-export const createCreateMock = <T extends { id: string }>(
-  defaultResponse?: Partial<T>
+export const createCreateMock = <T extends { id: string; userId: string }>(
+  defaultResponse?: Partial<Omit<T, "id" | "userId">>,
 ) => {
-  return vi.fn().mockImplementation(async (userId: string, data: unknown) => ({
-    id: `test-${Date.now()}`,
-    ...defaultResponse,
-    ...data,
-    userId,
-  }));
+  return vi.fn().mockImplementation(async (userId: string, data: Partial<T>) => {
+    const result: T = {
+      id: `test-${Date.now()}`,
+      userId,
+      ...defaultResponse,
+      ...data,
+    } as T; // Test-only assertion for mock flexibility
+    return result;
+  });
 };
 
 /**
@@ -57,14 +60,19 @@ export const createGetMock = <T>(item: T | null) => {
 };
 
 /**
- * Creates a mock for update service methods
- * @param item - Updated item to return (or null for not found)
- * @returns Mock function that merges updates
+ * Test mock for update operations - uses Partial<T> cast for flexibility, final result asserted as T
  */
-export const createUpdateMock = <T>(item: T | null) => {
-  return vi.fn().mockImplementation(async (userId: string, id: string, data: unknown) => {
-    if (!item) return null;
-    return { ...item, ...data };
+export const createUpdateMock = <T extends { id: string; userId: string }>(
+  defaultResponse?: Partial<Omit<T, "userId">>,
+) => {
+  return vi.fn().mockImplementation(async (userId: string, id: string, data: Partial<T>) => {
+    const result: T = {
+      id,
+      userId,
+      ...defaultResponse,
+      ...data,
+    } as T; // Test-only assertion
+    return result;
   });
 };
 

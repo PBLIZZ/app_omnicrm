@@ -5,7 +5,7 @@
  */
 
 import { expect } from "vitest";
-import type { AppError } from "@/lib/errors/app-error";
+import { AppError } from "@/lib/errors/app-error";
 
 /**
  * Expected AppError properties
@@ -16,6 +16,22 @@ export interface ExpectedAppError {
   category?: "validation" | "database" | "api" | "security" | "business_logic";
   statusCode?: number;
   isOperational?: boolean;
+}
+
+/**
+ * Type guard for AppError instances
+ */
+function isAppError(e: unknown): e is AppError {
+  if (!(e instanceof Error)) return false;
+
+  // Verify expected properties exist and have correct types when present
+  if (e.code !== undefined && typeof e.code !== "string" && typeof e.code !== "number")
+    return false;
+  if (e.category !== undefined && typeof e.category !== "string") return false;
+  if (e.statusCode !== undefined && typeof e.statusCode !== "number") return false;
+  if (e.isOperational !== undefined && typeof e.isOperational !== "boolean") return false;
+
+  return true;
 }
 
 /**
@@ -41,7 +57,12 @@ export function expectAppError(
   // Check if error is an instance of Error
   expect(error).toBeInstanceOf(Error);
 
-  const err = error as AppError;
+  // Use type guard
+  if (!isAppError(error)) {
+    throw new Error("Expected AppError but got different error type");
+  }
+
+  const err = error;
 
   // Check message if provided
   if (expected.message !== undefined) {
@@ -87,13 +108,13 @@ export function expectAppError(
  * ```
  */
 export async function expectAppErrorRejection(
-  promise: Promise<any>,
+  promise: Promise<unknown>,
   expected: ExpectedAppError,
 ): Promise<void> {
   try {
     await promise;
     throw new Error("Expected promise to reject but it resolved");
-  } catch (error) {
+  } catch (error: unknown) {
     expectAppError(error, expected);
   }
 }
@@ -111,12 +132,13 @@ export async function expectAppErrorRejection(
  * ```
  */
 export function createMockAppError(props: Partial<ExpectedAppError> = {}): AppError {
-  const error = new Error(props.message || "Test error") as AppError;
-  error.code = props.code || "TEST_ERROR";
-  error.category = props.category || "validation";
-  error.statusCode = props.statusCode || 500;
-  error.isOperational = props.isOperational ?? true;
-  return error;
+  return new AppError(
+    props.message || "Test error",
+    props.code || "TEST_ERROR",
+    props.category || "validation",
+    props.isOperational ?? true,
+    props.statusCode || 500,
+  );
 }
 
 /**

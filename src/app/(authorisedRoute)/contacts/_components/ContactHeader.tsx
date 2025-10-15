@@ -15,9 +15,7 @@ import type { ContactWithNotes } from "@/server/db/schema";
  */
 function isStringArray(value: unknown): value is string[] {
   return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every((item): item is string => typeof item === "string")
+    Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string")
   );
 }
 
@@ -118,7 +116,7 @@ export function ContactHeader({
               )}
               {isStringArray(contact.tags) ? (
                 <>
-                  {contact.tags.map((tag: string) => (
+                  {contact.tags.map((tag) => (
                     <Badge key={tag} variant="outline" className="text-xs">
                       {tag}
                     </Badge>

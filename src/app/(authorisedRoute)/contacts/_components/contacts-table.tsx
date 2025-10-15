@@ -78,6 +78,7 @@ function parseVisibilityState(json: string): VisibilityState | null {
  */
 function isVisibilityState(obj: unknown): obj is VisibilityState {
   if (!obj || typeof obj !== "object") return false;
+  if (Array.isArray(obj)) return false;
 
   // Check that all values in the record are booleans
   for (const value of Object.values(obj)) {

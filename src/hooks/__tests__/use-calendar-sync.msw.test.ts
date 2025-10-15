@@ -135,7 +135,7 @@ describe("useCalendarSync (MSW)", () => {
         "Starting calendar sync...",
         expect.objectContaining({
           description: "Preparing to sync your calendar events...",
-        })
+        }),
       );
     });
 
@@ -152,18 +152,15 @@ describe("useCalendarSync (MSW)", () => {
         "Google Calendar",
         expect.objectContaining({
           count: 25,
-        })
+        }),
       );
     });
 
     it("shows error toast on sync failure", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Sync failed" },
-            { status: 500 }
-          );
-        })
+          return HttpResponse.json({ error: "Sync failed" }, { status: 500 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -190,7 +187,7 @@ describe("useCalendarSync (MSW)", () => {
         "Google Calendar",
         expect.objectContaining({
           count: 25,
-        })
+        }),
       );
     });
   });
@@ -250,11 +247,8 @@ describe("useCalendarSync (MSW)", () => {
     it("sets failure status on sync error", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Network error" },
-            { status: 500 }
-          );
-        })
+          return HttpResponse.json({ error: "Network error" }, { status: 500 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -275,11 +269,8 @@ describe("useCalendarSync (MSW)", () => {
     it("clears failure status after delay on error", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Sync error" },
-            { status: 500 }
-          );
-        })
+          return HttpResponse.json({ error: "Sync error" }, { status: 500 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -309,11 +300,8 @@ describe("useCalendarSync (MSW)", () => {
     it("populates error state on sync failure", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Sync failed due to network issue" },
-            { status: 500 }
-          );
-        })
+          return HttpResponse.json({ error: "Sync failed due to network issue" }, { status: 500 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -336,11 +324,8 @@ describe("useCalendarSync (MSW)", () => {
     it("handles network errors gracefully", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Connection timeout" },
-            { status: 504 }
-          );
-        })
+          return HttpResponse.json({ error: "Connection timeout" }, { status: 504 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -362,11 +347,8 @@ describe("useCalendarSync (MSW)", () => {
     it("handles server errors with proper messaging", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Internal server error" },
-            { status: 500 }
-          );
-        })
+          return HttpResponse.json({ error: "Internal server error" }, { status: 500 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -387,11 +369,8 @@ describe("useCalendarSync (MSW)", () => {
     it("handles validation errors", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Invalid sync parameters" },
-            { status: 400 }
-          );
-        })
+          return HttpResponse.json({ error: "Invalid sync parameters" }, { status: 400 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -412,11 +391,8 @@ describe("useCalendarSync (MSW)", () => {
     it("clears error with clearError function", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Test error" },
-            { status: 500 }
-          );
-        })
+          return HttpResponse.json({ error: "Test error" }, { status: 500 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -442,11 +418,8 @@ describe("useCalendarSync (MSW)", () => {
     it("clears both error and status with clearError", async () => {
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Sync error" },
-            { status: 500 }
-          );
-        })
+          return HttpResponse.json({ error: "Sync error" }, { status: 500 });
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -473,11 +446,8 @@ describe("useCalendarSync (MSW)", () => {
       // Fail first sync
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "First error" },
-            { status: 500 }
-          );
-        })
+          return HttpResponse.json({ error: "First error" }, { status: 500 });
+        }),
       );
 
       try {
@@ -534,11 +504,8 @@ describe("useCalendarSync (MSW)", () => {
       // Fail first
       server.use(
         http.post("/api/google/calendar/sync", () => {
-          return HttpResponse.json(
-            { error: "Temporary failure" },
-            { status: 503 }
-          );
-        })
+          return HttpResponse.json({ error: "Temporary failure" }, { status: 503 });
+        }),
       );
 
       try {
@@ -613,7 +580,7 @@ describe("useCalendarSync (MSW)", () => {
             message: "Sync completed",
             // Missing stats field
           });
-        })
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -637,7 +604,7 @@ describe("useCalendarSync (MSW)", () => {
               // Missing batchId
             },
           });
-        })
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });
@@ -662,7 +629,7 @@ describe("useCalendarSync (MSW)", () => {
               batchId: "batch-empty",
             },
           });
-        })
+        }),
       );
 
       const { result } = renderHook(() => useCalendarSync(), { wrapper });

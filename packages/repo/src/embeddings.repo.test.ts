@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  EmbeddingsRepository,
-  createEmbeddingsRepository,
-} from "./embeddings.repo";
-import {
-  createMockDbClient,
-  createMockQueryBuilder,
-  type MockDbClient,
-} from "@packages/testing";
+import { EmbeddingsRepository, createEmbeddingsRepository } from "./embeddings.repo";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
 import type { Embedding } from "@/server/db/schema";
 
 describe("EmbeddingsRepository", () => {
@@ -38,10 +31,7 @@ describe("EmbeddingsRepository", () => {
 
   describe("listEmbeddings", () => {
     it("should list embeddings with default pagination", async () => {
-      const mockEmbs = [
-        createMockEmbedding(),
-        createMockEmbedding({ id: "emb-2" }),
-      ];
+      const mockEmbs = [createMockEmbedding(), createMockEmbedding({ id: "emb-2" })];
 
       const selectBuilder = createMockQueryBuilder(mockEmbs);
       const countBuilder = createMockQueryBuilder([{ value: 10 }]);
@@ -93,9 +83,7 @@ describe("EmbeddingsRepository", () => {
     });
 
     it("should filter embeddings that have embedding data", async () => {
-      const mockEmbs = [
-        createMockEmbedding({ embedding: "[1.0, 2.0, 3.0]" }),
-      ];
+      const mockEmbs = [createMockEmbedding({ embedding: "[1.0, 2.0, 3.0]" })];
 
       const selectBuilder = createMockQueryBuilder(mockEmbs);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
@@ -198,10 +186,7 @@ describe("EmbeddingsRepository", () => {
     });
 
     it("should sort ascending when specified", async () => {
-      const mockEmbs = [
-        createMockEmbedding({ id: "emb-1" }),
-        createMockEmbedding({ id: "emb-2" }),
-      ];
+      const mockEmbs = [createMockEmbedding({ id: "emb-1" }), createMockEmbedding({ id: "emb-2" })];
 
       const selectBuilder = createMockQueryBuilder(mockEmbs);
       const countBuilder = createMockQueryBuilder([{ value: 2 }]);
@@ -227,11 +212,7 @@ describe("EmbeddingsRepository", () => {
 
       vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await repo.listEmbeddingsForOwner(
-        mockUserId,
-        "document",
-        "doc-123"
-      );
+      const result = await repo.listEmbeddingsForOwner(mockUserId, "document", "doc-123");
 
       expect(result).toHaveLength(2);
     });
@@ -246,11 +227,7 @@ describe("EmbeddingsRepository", () => {
 
       vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await repo.listEmbeddingsForOwner(
-        mockUserId,
-        "document",
-        "doc-123"
-      );
+      const result = await repo.listEmbeddingsForOwner(mockUserId, "document", "doc-123");
 
       expect(result).toHaveLength(2);
       expect(result[0]?.chunkIndex).toBe(0);
@@ -317,18 +294,13 @@ describe("EmbeddingsRepository", () => {
         model: "text-embedding-ada-002",
       };
 
-      await expect(repo.createEmbedding(data)).rejects.toThrow(
-        "Insert returned no data"
-      );
+      await expect(repo.createEmbedding(data)).rejects.toThrow("Insert returned no data");
     });
   });
 
   describe("createEmbeddingsBulk", () => {
     it("should create multiple embeddings", async () => {
-      const mockEmbs = [
-        createMockEmbedding({ id: "emb-1" }),
-        createMockEmbedding({ id: "emb-2" }),
-      ];
+      const mockEmbs = [createMockEmbedding({ id: "emb-1" }), createMockEmbedding({ id: "emb-2" })];
 
       const insertBuilder = createMockQueryBuilder(mockEmbs);
 
@@ -394,26 +366,19 @@ describe("EmbeddingsRepository", () => {
     });
 
     it("should throw error when no updates provided", async () => {
-      await expect(
-        repo.updateEmbedding(mockUserId, mockEmbeddingId, {})
-      ).rejects.toThrow("No fields provided for update");
+      await expect(repo.updateEmbedding(mockUserId, mockEmbeddingId, {})).rejects.toThrow(
+        "No fields provided for update",
+      );
     });
   });
 
   describe("deleteEmbeddingsForOwner", () => {
     it("should delete all embeddings for owner", async () => {
-      const deleteBuilder = createMockQueryBuilder([
-        { id: "emb-1" },
-        { id: "emb-2" },
-      ]);
+      const deleteBuilder = createMockQueryBuilder([{ id: "emb-1" }, { id: "emb-2" }]);
 
       vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await repo.deleteEmbeddingsForOwner(
-        mockUserId,
-        "document",
-        "doc-123"
-      );
+      const result = await repo.deleteEmbeddingsForOwner(mockUserId, "document", "doc-123");
 
       expect(result).toBe(2);
     });
@@ -423,11 +388,7 @@ describe("EmbeddingsRepository", () => {
 
       vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await repo.deleteEmbeddingsForOwner(
-        mockUserId,
-        "document",
-        "doc-123"
-      );
+      const result = await repo.deleteEmbeddingsForOwner(mockUserId, "document", "doc-123");
 
       expect(result).toBe(0);
     });

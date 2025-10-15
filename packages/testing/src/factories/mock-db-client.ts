@@ -33,27 +33,27 @@ type ChainMethod =
 /**
  * Chainable query builder mock type
  */
-export interface MockQueryBuilder {
-  select: Mock<any[], MockQueryBuilder>;
-  from: Mock<any[], MockQueryBuilder>;
-  where: Mock<any[], MockQueryBuilder>;
-  orderBy: Mock<any[], MockQueryBuilder>;
-  limit: Mock<[number], MockQueryBuilder>;
-  offset: Mock<[number], MockQueryBuilder>;
-  insert: Mock<any[], MockQueryBuilder>;
-  values: Mock<any[], MockQueryBuilder>;
-  set: Mock<any[], MockQueryBuilder>;
-  returning: Mock<any[], Promise<any[]>>;
-  update: Mock<any[], MockQueryBuilder>;
-  delete: Mock<any[], MockQueryBuilder>;
-  innerJoin: Mock<any[], MockQueryBuilder>;
-  leftJoin: Mock<any[], MockQueryBuilder>;
-  rightJoin: Mock<any[], MockQueryBuilder>;
-  fullJoin: Mock<any[], MockQueryBuilder>;
-  onConflictDoUpdate: Mock<any[], MockQueryBuilder>;
-  onConflictDoNothing: Mock<any[], MockQueryBuilder>;
+export interface MockQueryBuilder<T = any[]> {
+  select: <U>(fields: U[]) => MockQueryBuilder<T>;
+  from: <U>(table: U) => MockQueryBuilder<T>;
+  where: <U>(clause: U) => MockQueryBuilder<T>;
+  orderBy: <U>(order: U) => MockQueryBuilder<T>;
+  limit: <U>(num: number) => MockQueryBuilder<T>;
+  offset: <U>(num: number) => MockQueryBuilder<T>;
+  insert: <U>(values: U[]) => MockQueryBuilder<T>;
+  values: <U>(values: U[]) => MockQueryBuilder<T>;
+  set: <U>(updates: U) => MockQueryBuilder<T>;
+  returning: <U>() => Promise<T>;
+  update: <U>(table: U) => MockQueryBuilder<T>;
+  delete: <U>(table: U) => MockQueryBuilder<T>;
+  innerJoin: <U>(join: U) => MockQueryBuilder<T>;
+  leftJoin: <U>(join: U) => MockQueryBuilder<T>;
+  rightJoin: <U>(join: U) => MockQueryBuilder<T>;
+  fullJoin: <U>(join: U) => MockQueryBuilder<T>;
+  onConflictDoUpdate: <U>(conflict: U) => MockQueryBuilder<T>;
+  onConflictDoNothing: <U>() => MockQueryBuilder<T>;
   // Promise compatibility for await
-  then: Mock<[(value: any[]) => any], Promise<any>>;
+  then: <U>(onfulfilled?: (value: T) => U | Promise<U>) => Promise<U>;
 }
 
 /**
@@ -181,11 +181,11 @@ export function createMockDbClient(): MockDbClient {
  * configureMockQuery(mockDb.select(), data);
  * ```
  */
-export function configureMockQuery(
-  mockBuilder: MockQueryBuilder,
-  data: any[],
-): MockQueryBuilder {
-  mockBuilder.returning.mockResolvedValue(data);
-  mockBuilder.then.mockImplementation((resolve) => Promise.resolve(resolve(data)));
+export function configureMockQuery<T>(
+  mockBuilder: MockQueryBuilder<T>,
+  data: T[],
+): MockQueryBuilder<T> {
+  mockBuilder.returning = vi.fn().mockResolvedValue(data);
+  mockBuilder.then = vi.fn((resolve) => Promise.resolve(resolve(data as T)));
   return mockBuilder;
 }

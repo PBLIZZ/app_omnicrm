@@ -52,9 +52,7 @@ export const makeRequest = (url: string, options?: RequestInit): Request => {
  * @param response - Response object
  * @returns Parsed JSON data
  */
-export const parseResponse = async <T = unknown>(response: Response): Promise<T> => {
-  return await response.json() as T;
-};
+export const parseResponse = <T = unknown>(response: Response): Promise<T> => response.json() as Promise<T>;
 ```
 
 ---
@@ -237,14 +235,14 @@ describe("[Module] Workflow - Integration Tests", () => {
   afterEach(async () => {
     // Cleanup test data after each test
     for (const id of cleanupIds) {
-      await db.delete([table]).where(eq([table].id, id));
+      await db.delete(table).where(eq(table.id, id)).execute();
     }
     cleanupIds.length = 0;
   });
 
   afterAll(async () => {
     // Final cleanup - remove all test user data
-    await db.delete([table]).where(eq([table].userId, testUserId));
+    await db.delete(table).where(eq(table.userId, testUserId)).execute();
   });
 
   describe("CRUD workflow", () => {

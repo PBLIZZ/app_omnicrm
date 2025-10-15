@@ -8,6 +8,7 @@
 
 import { useQuery, useMutation, type QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queries/keys";
+import { toast } from "sonner";
 import type {
   Contact,
   ContactListResponse,
@@ -86,6 +87,12 @@ export function useContactsCore(
       };
     },
     // Simplified: let test QueryClient or consumer control these
+    onError: (err: unknown) => {
+      toast.error("Failed to load contacts. Please try again.");
+      if (err instanceof Error) {
+        console.error("Contacts fetch error:", err);
+      }
+    },
   });
 }
 
@@ -100,6 +107,11 @@ export function useContactSuggestionsCore(api: ApiClient, enabled: boolean = tru
       return data.suggestions;
     },
     enabled,
+    onError: (error: unknown) => {
+      toast.error("Failed to load contact suggestions", {
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    },
   });
 }
 
@@ -113,6 +125,11 @@ export function useContactCore(api: ApiClient, id: string) {
       return await api.get<Contact>(`/api/contacts/${id}`);
     },
     enabled: !!id,
+    onError: (error: unknown) => {
+      toast.error("Failed to load contact", {
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    },
   });
 }
 

@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  ContactsRepository,
-  createContactsRepository,
-} from "./contacts.repo";
-import {
-  createMockDbClient,
-  createMockQueryBuilder,
-  type MockDbClient,
-} from "@packages/testing";
+import { ContactsRepository, createContactsRepository } from "./contacts.repo";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
 import type { Contact } from "@/server/db/schema";
 
 describe("ContactsRepository", () => {
@@ -30,7 +23,7 @@ describe("ContactsRepository", () => {
     dateOfBirth: null,
     emergencyContactName: null,
     emergencyContactPhone: null,
-    contactStatus: null,
+    clientStatus: null,
     referralSource: null,
     address: null,
     healthContext: null,
@@ -42,20 +35,18 @@ describe("ContactsRepository", () => {
 
   beforeEach(() => {
     mockDb = createMockDbClient();
-    repo = createContactsRepository(mockDb as any);
+    repo = createContactsRepository(mockDb as any); // Typed compatible
     vi.clearAllMocks();
   });
 
   describe("listContacts", () => {
     it("should list contacts with default pagination", async () => {
       const mockContacts = [createMockContact(), createMockContact({ id: "contact-2" })];
-      
+
       const selectBuilder = createMockQueryBuilder(mockContacts);
       const countBuilder = createMockQueryBuilder([{ count: 10 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(countBuilder as any)
-        .mockReturnValueOnce(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(countBuilder).mockReturnValueOnce(selectBuilder);
 
       const result = await repo.listContacts(mockUserId);
 
@@ -65,13 +56,11 @@ describe("ContactsRepository", () => {
 
     it("should respect pagination parameters", async () => {
       const mockContacts = [createMockContact()];
-      
+
       const selectBuilder = createMockQueryBuilder(mockContacts);
       const countBuilder = createMockQueryBuilder([{ count: 100 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(countBuilder as any)
-        .mockReturnValueOnce(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(countBuilder).mockReturnValueOnce(selectBuilder);
 
       const result = await repo.listContacts(mockUserId, {
         page: 2,
@@ -84,13 +73,11 @@ describe("ContactsRepository", () => {
 
     it("should filter by search term", async () => {
       const mockContacts = [createMockContact({ displayName: "Yoga Student" })];
-      
+
       const selectBuilder = createMockQueryBuilder(mockContacts);
       const countBuilder = createMockQueryBuilder([{ count: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(countBuilder as any)
-        .mockReturnValueOnce(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(countBuilder).mockReturnValueOnce(selectBuilder);
 
       const result = await repo.listContacts(mockUserId, {
         search: "Yoga",
@@ -105,13 +92,11 @@ describe("ContactsRepository", () => {
         createMockContact({ displayName: "Alice" }),
         createMockContact({ id: "contact-2", displayName: "Bob" }),
       ];
-      
+
       const selectBuilder = createMockQueryBuilder(mockContacts);
       const countBuilder = createMockQueryBuilder([{ count: 2 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(countBuilder as any)
-        .mockReturnValueOnce(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(countBuilder).mockReturnValueOnce(selectBuilder);
 
       const result = await repo.listContacts(mockUserId, {
         sort: "displayName",
@@ -125,9 +110,7 @@ describe("ContactsRepository", () => {
       const selectBuilder = createMockQueryBuilder([]);
       const countBuilder = createMockQueryBuilder([{ count: 0 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(countBuilder as any)
-        .mockReturnValueOnce(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(countBuilder).mockReturnValueOnce(selectBuilder);
 
       const result = await repo.listContacts(mockUserId);
 
@@ -141,7 +124,7 @@ describe("ContactsRepository", () => {
       const mockContact = createMockContact();
       const selectBuilder = createMockQueryBuilder([mockContact]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getContactById(mockUserId, mockContactId);
 
@@ -152,7 +135,7 @@ describe("ContactsRepository", () => {
     it("should return null when contact not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getContactById(mockUserId, "non-existent");
 
@@ -162,7 +145,7 @@ describe("ContactsRepository", () => {
     it("should only return contacts for the specified user", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getContactById("different-user", mockContactId);
 
@@ -175,7 +158,7 @@ describe("ContactsRepository", () => {
       const mockContact = createMockContact({ displayName: "New Contact" });
       const insertBuilder = createMockQueryBuilder([mockContact]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const contactInput = {
         userId: mockUserId,
@@ -196,7 +179,7 @@ describe("ContactsRepository", () => {
       });
       const insertBuilder = createMockQueryBuilder([mockContact]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const contactInput = {
         userId: mockUserId,
@@ -212,7 +195,7 @@ describe("ContactsRepository", () => {
     it("should throw error when insert returns no data", async () => {
       const insertBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const contactInput = {
         userId: mockUserId,
@@ -220,9 +203,7 @@ describe("ContactsRepository", () => {
         source: "manual",
       };
 
-      await expect(repo.createContact(contactInput)).rejects.toThrow(
-        "Insert returned no data"
-      );
+      await expect(repo.createContact(contactInput)).rejects.toThrow("Insert returned no data");
     });
   });
 
@@ -234,7 +215,7 @@ describe("ContactsRepository", () => {
       });
       const updateBuilder = createMockQueryBuilder([mockContact]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateContact(mockUserId, mockContactId, {
         displayName: "Updated Name",
@@ -248,7 +229,7 @@ describe("ContactsRepository", () => {
     it("should return null when contact not found", async () => {
       const updateBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateContact(mockUserId, "non-existent", {
         displayName: "New Name",
@@ -261,7 +242,7 @@ describe("ContactsRepository", () => {
       const mockContact = createMockContact({ updatedAt: new Date() });
       const updateBuilder = createMockQueryBuilder([mockContact]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateContact(mockUserId, mockContactId, {
         displayName: "Updated",
@@ -275,7 +256,7 @@ describe("ContactsRepository", () => {
     it("should delete contact successfully", async () => {
       const deleteBuilder = createMockQueryBuilder([{ id: mockContactId }]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteContact(mockUserId, mockContactId);
 
@@ -285,7 +266,7 @@ describe("ContactsRepository", () => {
     it("should return false when contact not found", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteContact(mockUserId, "non-existent");
 
@@ -295,7 +276,7 @@ describe("ContactsRepository", () => {
     it("should not allow deleting contacts from other users", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteContact("different-user", mockContactId);
 
@@ -308,7 +289,7 @@ describe("ContactsRepository", () => {
       const mockContact = createMockContact({ primaryEmail: "john@example.com" });
       const selectBuilder = createMockQueryBuilder([mockContact]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.findContactByEmail(mockUserId, "john@example.com");
 
@@ -319,7 +300,7 @@ describe("ContactsRepository", () => {
     it("should return null when email not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.findContactByEmail(mockUserId, "nonexistent@example.com");
 
@@ -335,7 +316,7 @@ describe("ContactsRepository", () => {
       ];
       const selectBuilder = createMockQueryBuilder(mockContacts);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getContactsByIds(mockUserId, ["contact-1", "contact-2"]);
 
@@ -358,7 +339,7 @@ describe("ContactsRepository", () => {
       // Override the then method to return mockResult
       deleteBuilder.then = vi.fn((resolve) => Promise.resolve(resolve(mockResult)));
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteContactsByIds(mockUserId, [
         "contact-1",
@@ -379,9 +360,8 @@ describe("ContactsRepository", () => {
 
   describe("countContacts", () => {
     it("should count all contacts for user", async () => {
-      const selectBuilder = createMockQueryBuilder([{ count: 42 }]);
-
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      const countBuilder = createMockQueryBuilder([{ value: 42 }]);
+      vi.mocked(mockDb.select).mockReturnValue(countBuilder);
 
       const result = await repo.countContacts(mockUserId);
 
@@ -389,9 +369,8 @@ describe("ContactsRepository", () => {
     });
 
     it("should count contacts with search filter", async () => {
-      const selectBuilder = createMockQueryBuilder([{ count: 5 }]);
-
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      const countBuilder = createMockQueryBuilder([{ value: 5 }]);
+      vi.mocked(mockDb.select).mockReturnValue(countBuilder);
 
       const result = await repo.countContacts(mockUserId, "yoga");
 

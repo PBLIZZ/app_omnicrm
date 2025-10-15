@@ -279,8 +279,8 @@ export const ConnectConnectionStatusSchema = z.object({
   service: z.string().optional(), // 'gmail' | 'unified' | 'auth'
   grantedScopes: z
     .object({
-      gmail: z.array(z.string()).nullable().optional(),
-      calendar: z.array(z.string()).nullable().optional(),
+      gmail: z.array(z.string()).optional(),
+      calendar: z.array(z.string()).optional(),
     })
     .optional(),
 });

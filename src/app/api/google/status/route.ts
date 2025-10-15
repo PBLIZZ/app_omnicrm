@@ -8,6 +8,15 @@ import { getStatusService } from "@/server/services/google-integration.service";
 import { createUserIntegrationsRepository } from "@repo";
 import { getDb } from "@/server/db/client";
 
+/**
+ * Handle GET /api/google/status by returning the authenticated user's Gmail and Calendar connection status.
+ *
+ * The response includes per-service connection state, whether tokens were auto-refreshed during the check,
+ * optional integration metadata (service, expiryDate ISO string or `null`, presence of a refresh token), feature flags,
+ * job counters, and `lastBatchId`. Expired tokens will be automatically refreshed when checking status.
+ *
+ * @returns A Response whose JSON body conforms to the GoogleStatusResponseSchema on success; on error returns a 500 Response with `{ error: "Failed to get status" }`.
+ */
 export async function GET(): Promise<Response> {
   try {
     const userId = await getAuthUserId();

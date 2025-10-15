@@ -19,20 +19,12 @@ export interface ExpectedAppError {
 }
 
 /**
- * Validates that an error is an AppError with expected properties
+ * Asserts that a value is an AppError and that its selected properties match the provided expectations.
  *
- * @example
- * ```typescript
- * try {
- *   await someService();
- * } catch (error) {
- *   expectAppError(error, {
- *     code: 'NOT_FOUND',
- *     statusCode: 404,
- *     category: 'validation'
- *   });
- * }
- * ```
+ * The `expected.message` supports `*` as a wildcard (matches any sequence of characters).
+ *
+ * @param error - The value to validate as an AppError.
+ * @param expected - Partial expectations to check on the error (only provided fields are asserted).
  */
 export function expectAppError(
   error: unknown,
@@ -76,15 +68,11 @@ export function expectAppError(
 }
 
 /**
- * Validates that a promise rejects with an AppError
+ * Asserts that a promise rejects with an AppError matching the provided expectations.
  *
- * @example
- * ```typescript
- * await expectAppErrorRejection(
- *   someService(),
- *   { code: 'DB_ERROR', statusCode: 500 }
- * );
- * ```
+ * @param promise - The promise expected to reject
+ * @param expected - Partial AppError properties to validate against the rejection
+ * @throws Throws an Error if the promise resolves instead of rejecting
  */
 export async function expectAppErrorRejection(
   promise: Promise<any>,
@@ -99,16 +87,13 @@ export async function expectAppErrorRejection(
 }
 
 /**
- * Creates a mock AppError for testing
+ * Create a mock AppError with sensible defaults and optional overrides.
  *
- * @example
- * ```typescript
- * const mockError = createMockAppError({
- *   message: 'Not found',
- *   code: 'NOT_FOUND',
- *   statusCode: 404
- * });
- * ```
+ * Defaults: `message` = "Test error", `code` = "TEST_ERROR", `category` = "validation",
+ * `statusCode` = 500, `isOperational` = true.
+ *
+ * @param props - Partial properties to override the default error fields (`message`, `code`, `category`, `statusCode`, `isOperational`)
+ * @returns The constructed `AppError` with provided overrides applied
  */
 export function createMockAppError(props: Partial<ExpectedAppError> = {}): AppError {
   const error = new Error(props.message || "Test error") as AppError;

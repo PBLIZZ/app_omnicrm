@@ -12,6 +12,11 @@ import { getAuthUserId } from "@/lib/auth-simple";
 import { getDashboardStateService } from "@/server/services/omni-connect-dashboard.service";
 import { ConnectDashboardStateSchema } from "@/server/db/business-schemas";
 
+/**
+ * Handle GET requests for the Omni Connect dashboard for the authenticated user and return the consolidated dashboard state.
+ *
+ * @returns A `Response` whose JSON body is the validated dashboard state on success, or an error object `{ error: "Failed to fetch dashboard data", message: string }` with HTTP status `500` on failure.
+ */
 export async function GET(): Promise<Response> {
   try {
     const userId = await getAuthUserId();

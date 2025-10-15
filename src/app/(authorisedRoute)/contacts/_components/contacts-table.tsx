@@ -94,6 +94,14 @@ interface ContactsTableProps {
   data: ContactWithLastNote[];
 }
 
+/**
+ * Render an interactive contacts table with filtering, sorting, pagination, column visibility, row selection,
+ * CSV export, and bulk delete functionality.
+ *
+ * @param columns - Column definitions used to build the table columns and cell renderers
+ * @param data - Array of contacts (including last note meta) to display in the table
+ * @returns The rendered JSX element containing the full contacts table UI
+ */
 export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Element {
   const bulkDeleteContacts = useDeleteContacts();
   const [sorting, setSorting] = useState<SortingState>([]);

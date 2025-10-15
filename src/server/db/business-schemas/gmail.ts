@@ -31,7 +31,7 @@ export const GmailOAuthStartResponseSchema = z.object({
  */
 export const GmailStatusResponseSchema = z.object({
   isConnected: z.boolean(),
-  reason: z.enum(['connected', 'no_integration', 'token_expired']),
+  reason: z.enum(["connected", "no_integration", "token_expired"]),
   expiryDate: z.string().nullable().optional(),
   hasRefreshToken: z.boolean().optional(),
   autoRefreshed: z.boolean().optional(),
@@ -96,16 +96,18 @@ export const GmailPreviewRequestSchema = z.object({
  * Gmail Preview Response Schema
  */
 export const GmailPreviewResponseSchema = z.object({
-  messages: z.array(z.object({
-    id: z.string(),
-    threadId: z.string(),
-    subject: z.string().nullable(),
-    from: z.string().nullable(),
-    to: z.string().nullable(),
-    date: z.string(),
-    snippet: z.string().optional(),
-    body: z.string().optional(),
-  })),
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      threadId: z.string(),
+      subject: z.string().nullable(),
+      from: z.string().nullable(),
+      to: z.string().nullable(),
+      date: z.string(),
+      snippet: z.string().optional(),
+      body: z.string().optional(),
+    }),
+  ),
   totalCount: z.number(),
   hasMore: z.boolean(),
 });
@@ -114,15 +116,17 @@ export const GmailPreviewResponseSchema = z.object({
  * Gmail Labels Response Schema
  */
 export const GmailLabelsResponseSchema = z.object({
-  labels: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    type: z.enum(['system', 'user']),
-    messagesTotal: z.number().optional(),
-    messagesUnread: z.number().optional(),
-    threadsTotal: z.number().optional(),
-    threadsUnread: z.number().optional(),
-  })),
+  labels: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      type: z.enum(["system", "user"]),
+      messagesTotal: z.number().optional(),
+      messagesUnread: z.number().optional(),
+      threadsTotal: z.number().optional(),
+      threadsUnread: z.number().optional(),
+    }),
+  ),
 });
 
 /**
@@ -131,9 +135,9 @@ export const GmailLabelsResponseSchema = z.object({
 export const GmailRawEventsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
-  provider: z.string().optional().default('gmail'),
-  sort: z.enum(['occurredAt', 'createdAt']).optional().default('occurredAt'),
-  order: z.enum(['asc', 'desc']).optional().default('desc'),
+  provider: z.string().optional().default("gmail"),
+  sort: z.enum(["occurredAt", "createdAt"]).optional().default("occurredAt"),
+  order: z.enum(["asc", "desc"]).optional().default("desc"),
   occurredAtFilter: z.string().optional(),
 });
 
@@ -141,18 +145,20 @@ export const GmailRawEventsQuerySchema = z.object({
  * Gmail Raw Events Response Schema
  */
 export const GmailRawEventsResponseSchema = z.object({
-  items: z.array(z.object({
-    id: z.string().uuid(),
-    userId: z.string().uuid(),
-    provider: z.string(),
-    payload: z.record(z.string(), z.unknown()),
-    contactId: z.string().uuid().nullable(),
-    occurredAt: z.string(),
-    sourceMeta: z.record(z.string(), z.unknown()).optional(),
-    batchId: z.string().uuid().nullable(),
-    sourceId: z.string().nullable(),
-    createdAt: z.string(),
-  })),
+  items: z.array(
+    z.object({
+      id: z.string().uuid(),
+      userId: z.string().uuid(),
+      provider: z.string(),
+      payload: z.record(z.string(), z.unknown()),
+      contactId: z.string().uuid().nullable(),
+      occurredAt: z.string(),
+      sourceMeta: z.record(z.string(), z.unknown()).optional(),
+      batchId: z.string().uuid().nullable(),
+      sourceId: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
   total: z.number(),
 });
 
@@ -271,6 +277,12 @@ export const ConnectConnectionStatusSchema = z.object({
   hasRefreshToken: z.boolean().optional(),
   autoRefreshed: z.boolean().optional(),
   service: z.string().optional(), // 'gmail' | 'unified' | 'auth'
+  grantedScopes: z
+    .object({
+      gmail: z.array(z.string()).nullable().optional(),
+      calendar: z.array(z.string()).nullable().optional(),
+    })
+    .optional(),
 });
 
 export type ConnectConnectionStatus = z.infer<typeof ConnectConnectionStatusSchema>;
@@ -282,17 +294,12 @@ export const JobSchema = z.object({
   id: z.string(),
   kind: z.string(),
   status: z.enum(["queued", "running", "completed", "error"]),
-  progress: z.number().optional(),
-  message: z.string().optional(),
   batchId: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  totalEmails: z.number().optional(),
-  processedEmails: z.number().optional(),
-  newEmails: z.number().optional(),
-  chunkSize: z.number().optional(),
-  chunksTotal: z.number().optional(),
-  chunksProcessed: z.number().optional(),
+  // Note: progress, message, totalEmails, processedEmails, newEmails,
+  // chunkSize, chunksTotal, chunksProcessed are not stored in database
+  // and should be removed from any UI that expects them
 });
 
 export type Job = z.infer<typeof JobSchema>;
@@ -303,50 +310,54 @@ export type Job = z.infer<typeof JobSchema>;
 export const ConnectDashboardStateSchema = z.object({
   connection: ConnectConnectionStatusSchema,
   hasConfiguredSettings: z.boolean().optional(),
-  syncStatus: z.object({
-    googleConnected: z.boolean(),
-    serviceTokens: z.object({
-      google: z.boolean(), // For backward compatibility
-      gmail: z.boolean(),
-      calendar: z.boolean(),
-      unified: z.boolean(),
-    }),
-    flags: z.object({
-      gmail: z.boolean(),
-      calendar: z.boolean(),
-    }),
-    lastSync: z.object({
-      gmail: z.string().nullable(),
-      calendar: z.string().nullable(),
-    }),
-    lastBatchId: z.string().nullable(),
-    grantedScopes: z.object({
-      gmail: z.unknown(),
-      calendar: z.unknown(),
-    }),
-    jobs: z.object({
-      queued: z.number(),
-      done: z.number(),
-      error: z.number(),
-    }),
-    embedJobs: z.object({
-      queued: z.number(),
-      done: z.number(),
-      error: z.number(),
-    }),
-  }).optional(),
-  jobs: z.object({
-    active: z.array(JobSchema),
-    summary: z.object({
-      queued: z.number(),
-      running: z.number(),
-      completed: z.number(),
-      failed: z.number(),
-    }),
-    currentBatch: z.string().nullable().optional(),
-    totalEmails: z.number().optional(),
-    processedEmails: z.number().optional(),
-  }).nullable(),
+  syncStatus: z
+    .object({
+      googleConnected: z.boolean(),
+      serviceTokens: z.object({
+        google: z.boolean(), // For backward compatibility
+        gmail: z.boolean(),
+        calendar: z.boolean(),
+        unified: z.boolean(),
+      }),
+      flags: z.object({
+        gmail: z.boolean(),
+        calendar: z.boolean(),
+      }),
+      lastSync: z.object({
+        gmail: z.string().nullable(),
+        calendar: z.string().nullable(),
+      }),
+      lastBatchId: z.string().nullable(),
+      grantedScopes: z.object({
+        gmail: z.unknown(),
+        calendar: z.unknown(),
+      }),
+      jobs: z.object({
+        queued: z.number(),
+        done: z.number(),
+        error: z.number(),
+      }),
+      embedJobs: z.object({
+        queued: z.number(),
+        done: z.number(),
+        error: z.number(),
+      }),
+    })
+    .optional(),
+  jobs: z
+    .object({
+      active: z.array(JobSchema),
+      summary: z.object({
+        queued: z.number(),
+        running: z.number(),
+        completed: z.number(),
+        failed: z.number(),
+      }),
+      currentBatch: z.string().nullable().optional(),
+      totalEmails: z.number().optional(),
+      processedEmails: z.number().optional(),
+    })
+    .nullable(),
   emailPreview: z.object({
     emails: z.array(EmailPreviewSchema),
     range: PreviewRangeSchema.nullable(),
@@ -368,9 +379,11 @@ export const SearchResultSchema = z.object({
   date: z.string(),
   snippet: z.string(),
   similarity: z.number(),
-  contactInfo: z.object({
-    displayName: z.string().optional(),
-  }).optional(),
+  contactInfo: z
+    .object({
+      displayName: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type SearchResult = z.infer<typeof SearchResultSchema>;
@@ -389,13 +402,14 @@ export const ContactDataSchema = z.object({
  */
 export const EmailInsightsSchema = z.object({
   patterns: z.array(z.string()).optional(),
-  emailVolume: z.object({
-    total: z.number(),
-    thisWeek: z.number(),
-    trend: z.enum(["up", "down", "stable"]),
-  }).optional(),
+  emailVolume: z
+    .object({
+      total: z.number(),
+      thisWeek: z.number(),
+      trend: z.enum(["up", "down", "stable"]),
+    })
+    .optional(),
   topContacts: z.array(ContactDataSchema).optional(),
 });
 
 export type EmailInsights = z.infer<typeof EmailInsightsSchema>;
-

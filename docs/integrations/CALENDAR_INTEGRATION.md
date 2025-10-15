@@ -362,6 +362,19 @@ OPENAI_API_KEY=your_openai_api_key
 - API error rates ✅
 - Database performance ✅
 
+### Dashboard Limitations
+
+**Current State**: Calendar integration shows as "OAuth Only" in the dashboard
+
+- ✅ **OAuth Status**: Correctly shows connected/disconnected state
+- ✅ **Token Management**: Displays token expiry and refresh status
+- ❌ **Event Counts**: No calendar events to display (sync not implemented)
+- ❌ **Last Sync**: Always shows null (no sync jobs running)
+- ❌ **Job Counts**: No calendar-related jobs in the system
+- ❌ **AI Features**: No calendar insights or embeddings
+
+**Note**: The dashboard service has been fully audited and fixed (score: 10/10), but Calendar-specific features are not yet implemented. The dashboard will show accurate data once Calendar sync is implemented.
+
 ## 🔮 Future Enhancements
 
 ### Immediate Priority

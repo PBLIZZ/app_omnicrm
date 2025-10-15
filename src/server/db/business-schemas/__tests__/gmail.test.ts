@@ -700,17 +700,9 @@ describe("JobSchema", () => {
       id: "job-123",
       kind: "gmail_sync",
       status: "running" as const,
-      progress: 50,
-      message: "Processing emails",
       batchId: "batch-456",
       createdAt: "2024-01-15T10:00:00Z",
       updatedAt: "2024-01-15T10:05:00Z",
-      totalEmails: 1000,
-      processedEmails: 500,
-      newEmails: 100,
-      chunkSize: 100,
-      chunksTotal: 10,
-      chunksProcessed: 5,
     };
 
     const result = JobSchema.safeParse(job);

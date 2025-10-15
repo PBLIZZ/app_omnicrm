@@ -2,7 +2,8 @@ import { logger } from "@/lib/observability";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
 import { contactTimeline } from "@/server/db/schema";
-import type { JobRecord, ContactExtractionPayload } from "../types";
+import type { JobRecord, ContactExtractionPayload } from "@/server/jobs/types";
+import type { GmailSourceMeta, CalendarSourceMeta } from "@/server/db/business-schemas";
 
 function isContactExtractionPayload(payload: unknown): payload is ContactExtractionPayload {
   return typeof payload === "object" && payload !== null;
@@ -21,38 +22,7 @@ interface ContactResolutionResult {
   newIdentities?: CandidateIdentity[];
 }
 
-// Type definitions for interaction source metadata
-interface GmailSourceMeta {
-  from?: string;
-  to?: string[];
-  cc?: string[];
-  bcc?: string[];
-  subject?: string;
-  threadId?: string;
-  messageId?: string;
-}
-
-interface CalendarSourceMeta {
-  attendees?: Array<{
-    email: string;
-    name?: string;
-    responseStatus?: string;
-  }>;
-  organizer?: {
-    email: string;
-    name?: string;
-  };
-  eventId?: string;
-  calendarId?: string;
-  summary?: string;
-  description?: string;
-  location?: string;
-  startTime?: string;
-  endTime?: string;
-  isAllDay?: boolean;
-  recurring?: boolean;
-  status?: string;
-}
+// Type definitions imported from business schemas (single source of truth)
 
 interface InteractionWithMeta {
   id: string;
@@ -491,7 +461,7 @@ async function createCalendarTimelineEntry(
 ): Promise<void> {
   const db = await getDb();
 
-  // Extract event details from source_meta
+  // Extract event details from source_meta (populated by normalize processor)
   const sourceMeta = interaction.source_meta as CalendarSourceMeta;
   const calendarId = sourceMeta.calendarId ?? null;
   const eventId = sourceMeta.eventId ?? interaction.source_id;
@@ -499,7 +469,7 @@ async function createCalendarTimelineEntry(
   const endTime = sourceMeta.endTime ?? null;
   const isAllDay = sourceMeta.isAllDay ?? false;
   const recurring = sourceMeta.recurring ?? false;
-  const status = sourceMeta.status ?? "confirmed";
+  const status = sourceMeta.eventStatus ?? "confirmed";
 
   // Determine event type based on event metadata
   let eventType = "appointment_scheduled";

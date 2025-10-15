@@ -19,16 +19,16 @@ import { z } from "zod";
  */
 export type CalendarEvent = {
   id: string;
-  googleEventId: string;
+  googleEventId?: string;
   title: string;
-  description: string | null;
+  description?: string | null;
   startTime: string;
   endTime: string;
-  attendees: Record<string, unknown> | null;
-  location: string | null;
-  status: string | null;
-  eventType: string | null;
-  businessCategory: string | null;
+  attendees: Array<{ email: string; name?: string; responseStatus?: string }> | null;
+  location?: string | null;
+  status?: string | null;
+  eventType?: string | null;
+  businessCategory?: string | null;
 };
 
 // ============================================================================
@@ -186,16 +186,22 @@ export const CalendarEventsResponseSchema = z.object({
   events: z.array(
     z.object({
       id: z.string().uuid(),
-      googleEventId: z.string(),
+      googleEventId: z.string().optional(),
       title: z.string(),
-      description: z.string().nullable(),
+      description: z.string().nullable().optional(),
       startTime: z.string(),
       endTime: z.string(),
-      attendees: z.record(z.string(), z.unknown()).nullable(),
-      location: z.string().nullable(),
-      status: z.string().nullable(),
-      eventType: z.string().nullable(),
-      businessCategory: z.string().nullable(),
+      attendees: z.array(
+        z.object({
+          email: z.string(),
+          name: z.string().optional(),
+          responseStatus: z.string().optional(),
+        })
+      ).nullable(),
+      location: z.string().nullable().optional(),
+      status: z.string().nullable().optional(),
+      eventType: z.string().nullable().optional(),
+      businessCategory: z.string().nullable().optional(),
     }),
   ),
   total: z.number(),

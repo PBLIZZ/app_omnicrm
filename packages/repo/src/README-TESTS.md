@@ -68,6 +68,7 @@ describe("RepositoryName", () => {
 ### Pagination Tests
 
 All list methods test:
+
 - Default pagination
 - Custom page size
 - Page size limits (min/max enforcement)
@@ -76,6 +77,7 @@ All list methods test:
 ### Filtering Tests
 
 List methods with filters test:
+
 - Each filter individually
 - Combined filters
 - Empty filter results
@@ -83,6 +85,7 @@ List methods with filters test:
 ### CRUD Operations
 
 Create/Update/Delete methods test:
+
 - Successful operations
 - Not found scenarios
 - Validation errors

@@ -5,108 +5,90 @@
  */
 
 import { z } from "zod";
-import { Result, ok, err } from "./result";
 
 /**
- * Safe Zod parsing that returns Result instead of throwing
+ * Validates and parses `data` against the provided Zod `schema`.
+ *
+ * @param schema - Zod schema describing the expected shape
+ * @param data - Value to validate and parse
+ * @returns The parsed value conforming to `schema`
+ * @throws z.ZodError when `data` does not match `schema`
  */
-export function safeParse<T>(schema: z.ZodSchema<T>, data: unknown): Result<T, z.ZodError> {
+export function validateSchema<T>(schema: z.Schema<T>, data: unknown): T {
+  return schema.parse(data);
+}
+
+/**
+ * Parses `data` against the provided Zod `schema` and returns the parsed value or `null` on validation failure.
+ *
+ * @param schema - Zod schema used to validate and parse the input
+ * @param data - The value to validate and parse
+ * @returns `T` if `data` conforms to `schema`, `null` otherwise
+ */
+export function validateSchemaSafe<T>(schema: z.Schema<T>, data: unknown): T | null {
   const result = schema.safeParse(data);
-
-  if (result.success) {
-    return ok(result.data);
-  } else {
-    return err(result.error);
-  }
+  return result.success ? result.data : null;
 }
 
 /**
- * Parse with custom error mapping
+ * Extracts and validates a named property from an object.
+ *
+ * @param obj - The source value; must be a non-null object
+ * @param key - The property name to extract
+ * @param schema - Zod schema used to validate the extracted property
+ * @returns The extracted property's value validated against `schema`
+ * @throws Error if `obj` is not a non-null object
+ * @throws z.ZodError if the extracted value does not conform to `schema`
  */
-export function parseWithError<T>(
-  schema: z.ZodSchema<T>,
-  data: unknown,
-  errorMessage?: string,
-): Result<T, string> {
-  const result = schema.safeParse(data);
-
-  if (result.success) {
-    return ok(result.data);
-  } else {
-    const message =
-      errorMessage ??
-      `Validation failed: ${result.error.issues
-        .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-        .join(", ")}`;
-    return err(message);
+export function extractProperty<T>(obj: unknown, key: string, schema: z.ZodSchema<T>): T {
+  if (typeof obj !== "object" || obj === null) {
+    throw new Error(`Expected object, got ${typeof obj}`);
   }
+
+  const value = Reflect.get(obj, key);
+  return validateSchema(schema, value);
 }
 
 /**
- * Validate API request body with proper error format
+ * Safely extracts a property by key from an object and validates it against the provided Zod schema, returning null on any failure.
+ *
+ * @param obj - The source value expected to be an object.
+ * @param key - The property key to extract from `obj`.
+ * @param schema - The Zod schema to validate the extracted property against.
+ * @returns The validated property of type `T` if present and valid, `null` otherwise.
  */
-export function validateApiBody<T>(
-  schema: z.ZodSchema<T>,
-  body: unknown,
-): Result<
-  T,
-  {
-    status: number;
-    message: string;
-    issues: Array<{ path: string; message: string }>;
-  }
-> {
-  const result = schema.safeParse(body);
-
-  if (result.success) {
-    return ok(result.data);
-  } else {
-    return err({
-      status: 400,
-      message: "Validation failed",
-      issues: result.error.issues.map((issue) => ({
-        path: issue.path.join("."),
-        message: issue.message,
-      })),
-    });
-  }
-}
-
-/**
- * Type-safe object property extraction using Zod
- */
-export function extractProperty<T>(
+export function extractPropertySafe<T>(
   obj: unknown,
   key: string,
   schema: z.ZodSchema<T>,
-): Result<T, string> {
+): T | null {
   if (typeof obj !== "object" || obj === null) {
-    return err(`Expected object, got ${typeof obj}`);
+    return null;
   }
 
-  const value = (obj as Record<string, unknown>)[key];
-  return parseWithError(schema, value, `Invalid property '${key}'`);
+  const value = Reflect.get(obj, key);
+  return validateSchemaSafe(schema, value);
 }
 
 /**
- * Type-safe array element validation
+ * Validates that the input is an array and parses each element using the provided Zod schema.
+ *
+ * @param data - The value to validate as an array of items
+ * @param itemSchema - Zod schema to apply to each array element
+ * @returns An array of parsed items of type `T`
  */
-export function validateArray<T>(data: unknown, itemSchema: z.ZodSchema<T>): Result<T[], string> {
+export function validateArray<T>(data: unknown, itemSchema: z.ZodSchema<T>): T[] {
   if (!Array.isArray(data)) {
-    return err(`Expected array, got ${typeof data}`);
+    throw new Error(`Expected array, got ${typeof data}`);
   }
 
-  const result: T[] = [];
-
-  for (let i = 0; i < data.length; i++) {
-    const itemResult = parseWithError(itemSchema, data[i], `Invalid item at index ${i}`);
-    if (itemResult.success === false) {
-      return err(itemResult.error);
+  return data.map((item, index) => {
+    const parsed = validateSchemaSafe(itemSchema, item);
+    if (parsed === null) {
+      throw new Error(`Invalid item at index ${index}`);
     }
-    result.push(itemResult.data);
-  }
-
-  return ok(result);
+    return parsed;
+  });
 }
 
 /**
@@ -127,17 +109,35 @@ export const EmailSchema = z.string().email();
 export const UrlSchema = z.string().url();
 
 /**
- * Narrow unknown database result to typed data
+ * Validate and cast a raw database result to the provided Zod schema.
+ *
+ * @param schema - Zod schema used to validate the database result
+ * @param data - The raw value (e.g., a database row) to validate and narrow
+ * @returns The validated value typed as `T`
+ * @throws Error if `data` does not conform to `schema` (message: "Database result does not match expected schema")
  */
-export function narrowDbResult<T>(schema: z.ZodSchema<T>, data: unknown): Result<T, string> {
-  return parseWithError(schema, data, "Database result does not match expected schema");
+export function narrowDbResult<T>(schema: z.ZodSchema<T>, data: unknown): T {
+  try {
+    return validateSchema(schema, data);
+  } catch {
+    throw new Error("Database result does not match expected schema");
+  }
 }
 
 /**
- * Narrow API response data
+ * Validate and narrow an API response to the provided Zod schema.
+ *
+ * @param schema - Zod schema used to validate the response
+ * @param response - The API response value to validate
+ * @returns The validated value typed as `T`
+ * @throws Error with message "API response does not match expected schema" when validation fails
  */
-export function narrowApiResponse<T>(schema: z.ZodSchema<T>, response: unknown): Result<T, string> {
-  return parseWithError(schema, response, "API response does not match expected schema");
+export function narrowApiResponse<T>(schema: z.ZodSchema<T>, response: unknown): T {
+  try {
+    return validateSchema(schema, response);
+  } catch {
+    throw new Error("API response does not match expected schema");
+  }
 }
 
 /**

@@ -17,6 +17,7 @@ export interface IntegrationTokens {
 export interface GoogleServiceStatus {
   connected: boolean;
   expiryDate: string | null;
+  autoRefreshed?: boolean;
 }
 
 export interface GoogleIntegrationStatus {
@@ -105,8 +106,10 @@ export async function getStatusService(
     };
 
     const autoRefresh = options.autoRefresh ?? true;
+    const gmailNeedsRefresh = needsRefresh("gmail");
+    const calendarNeedsRefresh = needsRefresh("calendar");
 
-    if (autoRefresh && (needsRefresh("gmail") || needsRefresh("calendar"))) {
+    if (autoRefresh && (gmailNeedsRefresh || calendarNeedsRefresh)) {
       try {
         await getGoogleClients(userId);
 
@@ -118,13 +121,14 @@ export async function getStatusService(
         const refreshedFind = (service: GoogleService): UserIntegrationDTO | undefined =>
           refreshedIntegrations.find(integration => integration.service === service);
 
-        const refreshedStatus = (service: GoogleService): GoogleServiceStatus => {
+        const refreshedStatus = (service: GoogleService, wasRefreshed: boolean): GoogleServiceStatus => {
           const integration = refreshedFind(service);
           
           if (!integration) {
             return {
               connected: false,
               expiryDate: null,
+              autoRefreshed: false,
             };
           }
 
@@ -135,12 +139,13 @@ export async function getStatusService(
           return {
             connected,
             expiryDate: integration.expiryDate?.toISOString() ?? null,
+            autoRefreshed: wasRefreshed,
           };
         };
 
         return {
-          gmail: refreshedStatus("gmail"),
-          calendar: refreshedStatus("calendar"),
+          gmail: refreshedStatus("gmail", gmailNeedsRefresh),
+          calendar: refreshedStatus("calendar", calendarNeedsRefresh),
         };
       } catch (error) {
         await logger.error(
@@ -156,8 +161,8 @@ export async function getStatusService(
     }
 
     return {
-      gmail: buildStatus("gmail"),
-      calendar: buildStatus("calendar"),
+      gmail: { ...buildStatus("gmail"), autoRefreshed: false },
+      calendar: { ...buildStatus("calendar"), autoRefreshed: false },
     };
   } catch (error) {
     throw new AppError(

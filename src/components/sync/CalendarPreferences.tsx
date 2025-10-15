@@ -11,8 +11,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Calendar, Clock, AlertTriangle, Info, CalendarDays } from "lucide-react";
-import type { CalendarPreferences, SyncPreviewResponse } from "@/lib/validation/schemas/sync";
 import type { CalendarItem } from "@/server/db/business-schemas";
+
+// Types for calendar sync preferences
+import type { CalendarPreferencesType } from "./index";
+
+type CalendarPreferences = CalendarPreferencesType;
+
+import type { SyncPreviewResponse } from "./index";
 import { get } from "@/lib/api";
 
 interface CalendarPreferencesProps {
@@ -23,6 +29,21 @@ interface CalendarPreferencesProps {
   disabled?: boolean;
 }
 
+/**
+ * UI for configuring Google Calendar synchronization preferences, generating a preview, and displaying preview results.
+ *
+ * @param onPreferencesChange - Called whenever the current calendar preferences change. Receives an object with the public preference shape:
+ *   - `calendarIds`: string[] — selected calendar IDs
+ *   - `calendarIncludePrivate`: boolean
+ *   - `calendarIncludeOrganizerSelf`: boolean
+ *   - `calendarTimeWindowDays`: number — past days to include
+ *   - `calendarFutureDays`: number — future days to include
+ * @param onPreview - Triggered to generate a sync preview using the current preferences; receives the same preference object as `onPreferencesChange`.
+ * @param isPreviewLoading - When `true`, the preview generation UI shows a loading state.
+ * @param previewData - Optional `SyncPreviewResponse` containing preview results to render (service-specific preview details, item counts, date range, warnings, etc.).
+ * @param disabled - When `true`, all interactive controls are disabled.
+ * @returns A React element containing the calendar preference controls, preview trigger, and (when available) sync preview results.
+ */
 export function CalendarPreferences({
   onPreferencesChange,
   onPreview,
@@ -40,11 +61,11 @@ export function CalendarPreferences({
   const [calendarError, setCalendarError] = useState<string | null>(null);
 
   const preferences: CalendarPreferences = {
-    selectedCalendarIds,
-    pastDays,
-    futureDays,
-    includePrivate,
-    includeOrganizerSelf,
+    calendarIds: selectedCalendarIds,
+    calendarIncludePrivate: includePrivate,
+    calendarIncludeOrganizerSelf: includeOrganizerSelf,
+    calendarTimeWindowDays: pastDays,
+    calendarFutureDays: futureDays,
   };
 
   // Load available calendars
@@ -348,7 +369,7 @@ export function CalendarPreferences({
       </Card>
 
       {/* Preview Results */}
-      {previewData?.service === "calendar" && (
+      {previewData && previewData.service === "google" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Sync Preview</CardTitle>
@@ -362,7 +383,7 @@ export function CalendarPreferences({
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Total Events</p>
                 <p className="text-2xl font-semibold">
-                  {previewData.estimatedItems.toLocaleString()}
+                  {previewData.itemsFound.toLocaleString()}
                 </p>
               </div>
               <div className="space-y-1">
@@ -372,7 +393,7 @@ export function CalendarPreferences({
             </div>
 
             {/* Calendar Breakdown */}
-            {previewData.details.calendars?.length && previewData.details.calendars.length > 0 && (
+            {previewData.details?.calendars && previewData.details.calendars.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm font-medium">Events by Calendar</p>
                 <div className="space-y-2">
@@ -381,8 +402,10 @@ export function CalendarPreferences({
                       key={cal.id}
                       className="flex items-center justify-between p-2 bg-muted rounded"
                     >
-                      <span className="text-sm">{cal.name}</span>
-                      <Badge variant="outline">{cal.eventCount.toLocaleString()} events</Badge>
+                      <span className="text-sm">{cal.summary}</span>
+                      <Badge variant="outline" aria-label={`Calendar: ${cal.summary}`}>
+                        Calendar
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -393,13 +416,15 @@ export function CalendarPreferences({
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Date Range</p>
               <p className="text-sm">
-                {new Date(previewData.dateRange.start).toLocaleDateString()} -{" "}
-                {new Date(previewData.dateRange.end).toLocaleDateString()}
+                {previewData.dateRange?.from && previewData.dateRange?.to
+                  ? `${new Date(previewData.dateRange.from).toLocaleDateString()} - ${new Date(previewData.dateRange.to).toLocaleDateString()}`
+                  : 'Date range not available'
+                }
               </p>
             </div>
 
             {/* Warnings */}
-            {previewData.warnings.length > 0 && (
+            {previewData.warnings && previewData.warnings.length > 0 && (
               <div className="space-y-2">
                 {previewData.warnings.map((warning: string, index: number) => (
                   <Alert key={index} variant="destructive">

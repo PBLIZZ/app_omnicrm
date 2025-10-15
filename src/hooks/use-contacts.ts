@@ -1,97 +1,60 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+/**
+ * Contact Hooks (Production wrappers with toasts + concrete apiClient)
+ *
+ * These hooks wrap the core injectable hooks and add:
+ * - Toast notifications for user feedback
+ * - Concrete apiClient injection
+ * - Production-appropriate caching strategies
+ *
+ * For testing, use the core hooks from `use-contacts-core.ts` instead.
+ */
+
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
-import { queryKeys } from "@/lib/queries/keys";
-import type {
-  Contact,
-  ContactListResponse,
-  ContactWithLastNote,
-} from "@/server/db/business-schemas/contacts";
+import {
+  useContactsCore,
+  useContactSuggestionsCore,
+  useContactCore,
+  useCreateContactCore,
+  useUpdateContactCore,
+  useDeleteContactCore,
+  useDeleteContactsCore,
+  type Contact,
+  type ContactWithLastNote,
+  type ContactSuggestion,
+} from "./use-contacts-core";
 
 // Re-export types for components
-export type { Contact, ContactWithLastNote };
-
-// This matches the actual API response from /api/contacts/suggestions
-// which calls getContactSuggestions() from suggest-contacts.ts
-export interface ContactSuggestion {
-  id: string;
-  displayName: string;
-  email: string; // API returns 'email', not 'primaryEmail'
-  source: string;
-  confidence: string;
-  eventCount: number;
-  lastEventDate: string;
-  eventTitles: string[];
-}
-
-interface ContactSuggestionsResponse {
-  suggestions: ContactSuggestion[];
-}
+export type { Contact, ContactWithLastNote, ContactSuggestion };
 
 // ============================================================================
-// QUERIES
+// PRODUCTION QUERY HOOKS (with apiClient injection + caching)
 // ============================================================================
 
 /**
  * GET /api/contacts - List contacts with pagination and filters
  */
-export function useContacts(searchQuery: string, page = 1, pageSize = 25) {
-  return useQuery({
-    queryKey: queryKeys.contacts.list({ search: searchQuery, page, pageSize }),
-    queryFn: async (): Promise<{ items: ContactWithLastNote[]; total: number }> => {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(pageSize),
-      });
-      if (searchQuery.trim()) {
-        params.set("search", searchQuery.trim());
-      }
-
-      // apiClient returns unwrapped data directly
-      const data = await apiClient.get<ContactListResponse>(`/api/contacts?${params.toString()}`);
-
-      return {
-        items: data.items,
-        total: data.pagination.total,
-      };
-    },
-    staleTime: 30 * 60 * 1000, // 30 minutes
-    gcTime: 60 * 60 * 1000, // 1 hour
-    refetchOnWindowFocus: true,
-    refetchOnMount: false,
-  });
+export function useContacts(searchQuery: string = "", page: number = 1, pageSize: number = 25) {
+  return useContactsCore(apiClient, searchQuery, page, pageSize);
 }
 
 /**
  * GET /api/contacts/suggestions - Calendar-based contact suggestions
  */
-export function useContactSuggestions(enabled = true) {
-  return useQuery({
-    queryKey: ["/api/contacts/suggestions"],
-    queryFn: async (): Promise<ContactSuggestion[]> => {
-      const data = await apiClient.get<ContactSuggestionsResponse>("/api/contacts/suggestions");
-      return data.suggestions;
-    },
-    enabled,
-  });
+export function useContactSuggestions(enabled: boolean = true) {
+  return useContactSuggestionsCore(apiClient, enabled);
 }
 
 /**
  * GET /api/contacts/:id - Fetch a single contact by ID
- * Returns ContactWithNotes (includes full notes array)
  */
 export function useContact(id: string) {
-  return useQuery({
-    queryKey: queryKeys.contacts.detail(id),
-    queryFn: async (): Promise<Contact> => {
-      return await apiClient.get<Contact>(`/api/contacts/${id}`);
-    },
-    enabled: !!id,
-  });
+  return useContactCore(apiClient, id);
 }
 
 // ============================================================================
-// MUTATIONS
+// PRODUCTION MUTATION HOOKS (with toasts)
 // ============================================================================
 
 /**
@@ -99,26 +62,45 @@ export function useContact(id: string) {
  */
 export function useCreateContact() {
   const queryClient = useQueryClient();
+  const mutation = useCreateContactCore(apiClient, queryClient);
 
-  return useMutation({
-    mutationFn: async (
-      input: Omit<Contact, "id" | "userId" | "createdAt" | "updatedAt">,
-    ): Promise<Contact> => {
-      return await apiClient.post<Contact>("/api/contacts", {
-        ...input,
-        source: input.source ?? "manual",
+  // Wrap mutation to add toasts
+  return {
+    ...mutation,
+    mutate: (
+      input: Parameters<typeof mutation.mutate>[0],
+      options?: Parameters<typeof mutation.mutate>[1],
+    ) => {
+      mutation.mutate(input, {
+        ...options,
+        onSuccess: (data, variables, context) => {
+          toast.success("Contact created successfully");
+          options?.onSuccess?.(data, variables, context);
+        },
+        onError: (error, variables, context) => {
+          toast.error("Failed to create contact", {
+            description: error instanceof Error ? error.message : "Unknown error",
+          });
+          options?.onError?.(error, variables, context);
+        },
       });
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
-      toast.success("Contact created successfully");
+    mutateAsync: async (
+      input: Parameters<typeof mutation.mutateAsync>[0],
+      options?: Parameters<typeof mutation.mutateAsync>[1],
+    ) => {
+      try {
+        const result = await mutation.mutateAsync(input, options);
+        toast.success("Contact created successfully");
+        return result;
+      } catch (error) {
+        toast.error("Failed to create contact", {
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+        throw error;
+      }
     },
-    onError: (error: Error) => {
-      toast.error("Failed to create contact", {
-        description: error.message,
-      });
-    },
-  });
+  };
 }
 
 /**
@@ -126,30 +108,44 @@ export function useCreateContact() {
  */
 export function useUpdateContact() {
   const queryClient = useQueryClient();
+  const mutation = useUpdateContactCore(apiClient, queryClient);
 
-  return useMutation({
-    mutationFn: async ({
-      id,
-      input,
-    }: {
-      id: string;
-      input: Partial<Omit<Contact, "id" | "userId" | "createdAt" | "updatedAt">>;
-    }): Promise<Contact> => {
-      return await apiClient.put<Contact>(`/api/contacts/${id}`, input);
-    },
-    onSuccess: (updatedContact) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.contacts.detail(updatedContact.id),
-      });
-      toast.success("Contact updated successfully");
-    },
-    onError: (error: Error) => {
-      toast.error("Failed to update contact", {
-        description: error.message,
+  return {
+    ...mutation,
+    mutate: (
+      input: Parameters<typeof mutation.mutate>[0],
+      options?: Parameters<typeof mutation.mutate>[1],
+    ) => {
+      mutation.mutate(input, {
+        ...options,
+        onSuccess: (data, variables, context) => {
+          toast.success("Contact updated successfully");
+          options?.onSuccess?.(data, variables, context);
+        },
+        onError: (error, variables, context) => {
+          toast.error("Failed to update contact", {
+            description: error instanceof Error ? error.message : "Unknown error",
+          });
+          options?.onError?.(error, variables, context);
+        },
       });
     },
-  });
+    mutateAsync: async (
+      input: Parameters<typeof mutation.mutateAsync>[0],
+      options?: Parameters<typeof mutation.mutateAsync>[1],
+    ) => {
+      try {
+        const result = await mutation.mutateAsync(input, options);
+        toast.success("Contact updated successfully");
+        return result;
+      } catch (error) {
+        toast.error("Failed to update contact", {
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+        throw error;
+      }
+    },
+  };
 }
 
 /**
@@ -157,21 +153,41 @@ export function useUpdateContact() {
  */
 export function useDeleteContact() {
   const queryClient = useQueryClient();
+  const mutation = useDeleteContactCore(apiClient, queryClient);
 
-  return useMutation({
-    mutationFn: async (contactId: string): Promise<void> => {
-      await apiClient.delete<{ deleted: number }>(`/api/contacts/${contactId}`);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
-      toast.success("Contact deleted successfully");
-    },
-    onError: (error: Error) => {
-      toast.error("Failed to delete contact", {
-        description: error.message,
+  return {
+    ...mutation,
+    mutate: (contactId: string, options?: Parameters<typeof mutation.mutate>[1]) => {
+      mutation.mutate(contactId, {
+        ...options,
+        onSuccess: (data, variables, context) => {
+          toast.success("Contact deleted successfully");
+          options?.onSuccess?.(data, variables, context);
+        },
+        onError: (error, variables, context) => {
+          toast.error("Failed to delete contact", {
+            description: error instanceof Error ? error.message : "Unknown error",
+          });
+          options?.onError?.(error, variables, context);
+        },
       });
     },
-  });
+    mutateAsync: async (
+      contactId: string,
+      options?: Parameters<typeof mutation.mutateAsync>[1],
+    ) => {
+      try {
+        const result = await mutation.mutateAsync(contactId, options);
+        toast.success("Contact deleted successfully");
+        return result;
+      } catch (error) {
+        toast.error("Failed to delete contact", {
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+        throw error;
+      }
+    },
+  };
 }
 
 /**
@@ -179,26 +195,42 @@ export function useDeleteContact() {
  */
 export function useDeleteContacts() {
   const queryClient = useQueryClient();
+  const mutation = useDeleteContactsCore(apiClient, queryClient);
 
-  return useMutation({
-    mutationFn: async (ids: string[]): Promise<number> => {
-      const result = await apiClient.post<{ deleted: number }>("/api/contacts/bulk-delete", {
-        ids,
+  return {
+    ...mutation,
+    mutate: (ids: string[], options?: Parameters<typeof mutation.mutate>[1]) => {
+      mutation.mutate(ids, {
+        ...options,
+        onSuccess: (deletedCount, variables, context) => {
+          toast.success("Contacts deleted", {
+            description: `${deletedCount} contact${deletedCount === 1 ? "" : "s"} deleted successfully.`,
+          });
+          options?.onSuccess?.(deletedCount, variables, context);
+        },
+        onError: (error, variables, context) => {
+          toast.error("Failed to delete contacts", {
+            description: error instanceof Error ? error.message : "Unknown error",
+          });
+          options?.onError?.(error, variables, context);
+        },
       });
-      return result.deleted;
     },
-    onSuccess: (deletedCount) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
-      toast.success("Contacts deleted", {
-        description: `${deletedCount} contact${deletedCount === 1 ? "" : "s"} deleted successfully.`,
-      });
+    mutateAsync: async (ids: string[], options?: Parameters<typeof mutation.mutateAsync>[1]) => {
+      try {
+        const result = await mutation.mutateAsync(ids, options);
+        toast.success("Contacts deleted", {
+          description: `${result} contact${result === 1 ? "" : "s"} deleted successfully.`,
+        });
+        return result;
+      } catch (error) {
+        toast.error("Failed to delete contacts", {
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+        throw error;
+      }
     },
-    onError: (error: Error) => {
-      toast.error("Failed to delete contacts", {
-        description: error.message,
-      });
-    },
-  });
+  };
 }
 
 /**

@@ -13,34 +13,16 @@ interface BatchJobPayload {
   provider?: string;
 }
 
-interface GmailPayload {
-  payload?: {
-    headers?: Array<{ name?: string | null; value?: string | null }>;
-    parts?: Array<{
-      mimeType?: string;
-      body?: { data?: string };
-      parts?: Array<{
-        mimeType?: string;
-        body?: { data?: string };
-        parts?: unknown[];
-      }>;
-    }>;
-  };
-  snippet?: string | null;
-  id?: string | null;
-  threadId?: string | null;
-  labelIds?: string[];
-  historyId?: string | null;
-  headers?: Array<{ name?: string | null; value?: string | null }>;
-}
+import { GmailMessagePayload, isGmailPayload } from "@/server/db/business-schemas";
+
+// Use the properly validated Gmail payload type
+type GmailPayload = GmailMessagePayload;
 
 function isBatchJobPayload(payload: unknown): payload is BatchJobPayload {
   return typeof payload === "object" && payload !== null;
 }
 
-function isGmailPayload(payload: unknown): payload is GmailPayload {
-  return typeof payload === "object" && payload !== null;
-}
+// Use the imported validation function
 
 // No verbose logging here to keep normalization fast and predictable
 /**
@@ -407,12 +389,59 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
 
       // Create enriched source metadata for interaction
       const enrichedSourceMeta = {
-        ...(row.sourceMeta as Record<string, unknown>),
+        ...(row.sourceMeta ?? {}),
         // Add additional event details for timeline creation
         attendees: payload["attendees"] ?? [],
         location: payload["location"] ?? null,
         organizer: payload["organizer"] ?? null,
-        timeZone: (payload["start"] as Record<string, unknown>)?.["timeZone"] ?? null,
+        timeZone: (() => {
+          if (
+            payload.start &&
+            typeof payload.start === "object" &&
+            payload.start !== null &&
+            "timeZone" in payload.start
+          ) {
+            return (payload.start as any).timeZone ?? null;
+          }
+          return null;
+        })(),
+        eventStatus: payload["status"] ?? "confirmed",
+        recurring: Array.isArray(payload["recurrence"]) && payload["recurrence"].length > 0,
+        startTime: (() => {
+          if (payload.start && typeof payload.start === "object" && payload.start !== null) {
+            const start = payload.start;
+            if ("dateTime" in start) {
+              return (start as any).dateTime ?? null;
+            }
+            if ("date" in start) {
+              return (start as any).date ?? null;
+            }
+          }
+          return null;
+        })(),
+        endTime: (() => {
+          if (payload.end && typeof payload.end === "object" && payload.end !== null) {
+            const end = payload.end;
+            if ("dateTime" in end) {
+              return (end as any).dateTime ?? null;
+            }
+            if ("date" in end) {
+              return (end as any).date ?? null;
+            }
+          }
+          return null;
+        })(),
+        isAllDay: (() => {
+          if (
+            payload.start &&
+            typeof payload.start === "object" &&
+            payload.start !== null &&
+            "date" in payload.start
+          ) {
+            return true;
+          }
+          return false;
+        })(),
       };
 
       // Create interaction record

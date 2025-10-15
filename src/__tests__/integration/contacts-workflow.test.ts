@@ -210,23 +210,30 @@ describe("Contacts End-to-End Workflow Integration", () => {
 
     // Verify all contacts were created successfully
     expect(createdContacts).toHaveLength(5);
-    expect(contact).toBeTruthy();
-    expect(contact?.displayName).toBe(`Concurrent Contact ${i + 1}`);
+    createdContacts.forEach((result, i) => {
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toBeTruthy();
+        expect(result.data.displayName).toBe(`Concurrent Contact ${i + 1}`);
+      }
+    });
+
+    // Verify all contacts can be retrieved
+    const listResult = await listContactsService(testUserId, {
+      page: 1,
+      pageSize: 10,
+      sort: "displayName",
+      order: "asc",
+    });
+
+    expect(listResult.success).toBe(true);
+    if (listResult.success) {
+      expect(listResult.data.total).toBe(5);
+      expect(listResult.data.items).toHaveLength(5);
+    }
   });
 
-  // Verify all contacts can be retrieved
-  const listResult = await listContactsService(testUserId, {
-    page: 1,
-    pageSize: 10,
-    sort: "displayName",
-    order: "asc",
-  });
-
-  expect(listResult.total).toBe(5);
-  expect(listResult.items).toHaveLength(5);
-});
-
-it("should handle pagination correctly across service and repository layers", async () => {
+  it("should handle pagination correctly across service and repository layers", async () => {
   // Create 15 test contacts
   const contactPromises = Array.from({ length: 15 }, (_, i) =>
     createContactService(testUserId, {
@@ -282,4 +289,10 @@ it("should handle pagination correctly across service and repository layers", as
     sort: "displayName",
     order: "asc",
   });
+
+  expect(page4.success).toBe(true);
+  if (page4.success) {
+    expect(page4.data.items).toHaveLength(0);
+    expect(page4.data.total).toBe(15);
+  }
 });

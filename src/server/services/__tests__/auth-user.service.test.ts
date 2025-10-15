@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AuthUserService, type UserData } from "../auth-user.service";
+import { AuthUserService } from "../auth-user.service";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 

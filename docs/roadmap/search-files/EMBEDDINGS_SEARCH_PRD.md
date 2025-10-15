@@ -71,7 +71,7 @@ Provide a single, trustworthy search experience that pivots between lightning-fa
    - Stores vector using `createEmbeddingsBulk` with metadata & freshness timestamps.
    - Records success/failure metrics in `embedding_jobs` table.
 4. **Privacy Controls:**
-   - Add `allow_embeddings` boolean to notes, documents, AI insights (default true; user can opt-out).
+   - Add `allow_embeddings` boolean to notes, documents, AI insights. Default to `true` for documents and AI insights, while new notes marked as private default to `false` (must be explicitly enabled). Surface a user-facing toggle everywhere content is created.
    - Enforce in ingestion pipeline & search queries.
 5. **Assistant Integration:**
    - Update assistant service to call retrieval pipeline before LLM response.
@@ -135,7 +135,7 @@ Provide a single, trustworthy search experience that pivots between lightning-fa
 
 ## 10. Privacy & Compliance
 
-- Default `allow_embeddings` false for newly created private notes (user must opt-in).
+- Default behavior: documents and AI insights start with `allow_embeddings = true`; newly created private notes default to `false` and require explicit opt-in before indexing.
 - Retrieval logs accessible per user; redacted content never displayed without permission.
 - Assistant prompts must include guardrails to avoid divulging excluded notes.
 

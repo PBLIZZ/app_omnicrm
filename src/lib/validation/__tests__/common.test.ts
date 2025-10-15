@@ -85,14 +85,14 @@ describe("common validation schemas", () => {
       ).toThrow();
     });
 
-    it("should handle decimal numbers by rounding", () => {
-      const result = PaginationQuerySchema.parse({
-        page: 2.7,
-        pageSize: 15.3,
-      });
-
-      expect(Number.isInteger(result.page)).toBe(true);
-      expect(Number.isInteger(result.pageSize)).toBe(true);
+    it("should reject decimal numbers (int validation)", () => {
+      // Schema enforces .int() which rejects decimals
+      expect(() =>
+        PaginationQuerySchema.parse({ page: 2.7 }),
+      ).toThrow();
+      expect(() =>
+        PaginationQuerySchema.parse({ pageSize: 15.3 }),
+      ).toThrow();
     });
   });
 

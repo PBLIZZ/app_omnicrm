@@ -17,7 +17,6 @@ import {
 } from "@/server/services/storage.service";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
-import { validateNotesQueryRows } from "@/lib/utils/type-guards/contacts";
 import type { ContactWithLastNote as ContactWithLastNoteType } from "@/server/db/business-schemas/contacts";
 import { getContactSuggestions } from "../ai/contacts/suggest-contacts";
 
@@ -143,7 +142,51 @@ export async function createContactsFromSuggestionsService(
 // ============================================================================
 
 /**
- * Get last note preview (first 500 chars) for each contact
+ * Extracts and validates note query rows from Drizzle query result
+ * @param notesData - Result from db.execute() containing contact notes data
+ * @returns Array of validated rows with contact_id and last_note_preview
+ */
+function extractNotesQueryRows(
+  notesData: unknown,
+): Array<{ contact_id: string; last_note_preview: string | null }> {
+  // Defensive validation of query result
+  if (!notesData || typeof notesData !== "object") {
+    return [];
+  }
+
+  // Extract rows array from Drizzle result
+  // Drizzle returns either an array directly or an object with a rows property
+  let rows: unknown[];
+  if (Array.isArray(notesData)) {
+    rows = notesData;
+  } else if ("rows" in notesData && Array.isArray(notesData.rows)) {
+    rows = notesData.rows;
+  } else {
+    return [];
+  }
+
+  // Validate and transform each row
+  return rows
+    .filter((row): row is Record<string, unknown> => {
+      if (row === null || typeof row !== "object") {
+        return false;
+      }
+      const record = row as Record<string, unknown>;
+      return typeof record.contact_id === "string";
+    })
+    .map((row) => ({
+      contact_id: row.contact_id as string,
+      last_note_preview:
+        typeof row.last_note_preview === "string" ? row.last_note_preview : null,
+    }));
+}
+
+/**
+ * Fetches the most recent note preview (first 500 characters) for each specified contact.
+ *
+ * @param userId - ID of the user who owns the contacts
+ * @param contactIds - Array of contact IDs to retrieve previews for
+ * @returns A Map where each key is a contact ID and the value is the note preview string (first 500 characters) or `null` if the contact has no notes
  */
 async function getLastNotePreviewForContacts(
   userId: string,
@@ -187,7 +230,7 @@ async function getLastNotePreviewForContacts(
   }
 
   // Validate and process database rows
-  const validatedRows = validateNotesQueryRows(notesData);
+  const validatedRows = extractNotesQueryRows(notesData);
   for (const row of validatedRows) {
     const preview = typeof row.last_note_preview === "string" ? row.last_note_preview : null;
     result.set(row.contact_id, preview);

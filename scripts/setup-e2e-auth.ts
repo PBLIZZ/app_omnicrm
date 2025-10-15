@@ -5,7 +5,6 @@
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { setupTestOAuthTokens } from "../src/server/test/setup-oauth";
-import { logSync } from "../src/lib/api/sync-audit";
 import { appendFileSync } from "fs";
 
 // Load environment variables from .env.local

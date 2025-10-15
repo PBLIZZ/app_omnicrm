@@ -6,7 +6,8 @@
  * - CreateInteraction (insert type)
  * - UpdateInteraction (partial insert type)
  *
- * Per architecture blueprint: JSONB fields use validated schemas from @/lib/validation/jsonb
+ * Per architecture blueprint: JSONB fields use validated schemas from raw-events-payloads
+ * (single source of truth for all JSONB payload and source_meta structures)
  */
 
 import { createSelectSchema } from "drizzle-zod";
@@ -14,27 +15,25 @@ import { z } from "zod";
 
 import { interactions } from "@/server/db/schema";
 import {
-  SourceMetaSchema,
   GmailSourceMetaSchema,
   CalendarSourceMetaSchema,
-  GenericSourceMetaSchema,
-  type SourceMeta,
+  RawEventSourceMetaSchema,
   type GmailSourceMeta,
   type CalendarSourceMeta,
-} from "@/lib/validation/jsonb";
+  type RawEventSourceMeta,
+} from "./raw-events-payloads";
 import { PaginationQuerySchema, createPaginatedResponseSchema } from "@/lib/validation/common";
 
 export type { Interaction, CreateInteraction, UpdateInteraction } from "@/server/db/schema";
 
-// Re-export source metadata schemas
+// Re-export source metadata schemas from raw-events-payloads (single source of truth)
 export {
-  SourceMetaSchema,
   GmailSourceMetaSchema,
   CalendarSourceMetaSchema,
-  GenericSourceMetaSchema,
-  type SourceMeta,
+  RawEventSourceMetaSchema as SourceMetaSchema,
   type GmailSourceMeta,
   type CalendarSourceMeta,
+  type RawEventSourceMeta as SourceMeta,
 };
 
 // ============================================================================
@@ -47,7 +46,7 @@ const BaseInteractionSchema = createSelectSchema(interactions);
  * Interaction schema with validated JSONB field
  */
 export const InteractionSchema = BaseInteractionSchema.extend({
-  sourceMeta: SourceMetaSchema.optional(),
+  sourceMeta: RawEventSourceMetaSchema.optional(),
 });
 
 export type InteractionDTO = z.infer<typeof InteractionSchema>;
@@ -61,10 +60,10 @@ export const CreateInteractionBodySchema = z.object({
   type: z.string().min(1, "type is required"),
   subject: z.string().optional(),
   bodyText: z.string().optional(),
-  occurredAt: z.coerce.date(),
+  occurredAt: z.date(),
   source: z.string().min(1, "source is required"),
   sourceId: z.string().min(1, "sourceId is required"),
-  sourceMeta: SourceMetaSchema.optional(),
+  sourceMeta: RawEventSourceMetaSchema.optional(),
   batchId: z.string().uuid().optional(),
 });
 
@@ -75,10 +74,10 @@ export const UpdateInteractionBodySchema = z
     type: z.string().min(1).optional(),
     subject: z.string().nullish(),
     bodyText: z.string().nullish(),
-    occurredAt: z.coerce.date().optional(),
+    occurredAt: z.date().optional(),
     source: z.string().min(1).optional(),
     sourceId: z.string().min(1).optional(),
-    sourceMeta: SourceMetaSchema.nullish(),
+    sourceMeta: RawEventSourceMetaSchema.nullish(),
     batchId: z.string().uuid().nullish(),
   })
   .refine(

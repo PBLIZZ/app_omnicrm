@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { Result, isErr } from "@/lib/utils/result";
 // Direct retry logic (no abstraction)
 const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Don't retry auth errors (401, 403)
@@ -19,7 +18,7 @@ const shouldRetry = (error: unknown, retryCount: number): boolean => {
   // Retry other errors up to 2 times
   return retryCount < 2;
 };
-import type { Zone, ZoneWithStats } from "@/server/db/business-schemas";
+import type { Zone } from "@/server/db/business-schemas";
 
 // ============================================================================
 // TYPES
@@ -28,6 +27,13 @@ import type { Zone, ZoneWithStats } from "@/server/db/business-schemas";
 interface ZonesResponse {
   items: Zone[];
   total: number;
+}
+
+// Zone with stats (what the service actually returns)
+interface ZoneWithStats extends Zone {
+  projectCount: number;
+  taskCount: number;
+  activeTaskCount: number;
 }
 
 interface ZonesWithStatsResponse {
@@ -44,7 +50,7 @@ interface UseZonesReturn {
   zones: Zone[] | ZoneWithStats[];
   isLoading: boolean;
   error: unknown;
-  refetch: () => Promise<{ data: (Zone[] | ZoneWithStats[]) | undefined; error: unknown }>;
+  refetch: () => void;
 }
 
 // ============================================================================
@@ -52,16 +58,15 @@ interface UseZonesReturn {
 // ============================================================================
 
 /**
- * Hook to fetch wellness zones
+ * Fetches wellness zones from the API, optionally including per-zone statistics.
  *
- * Zones are the life-business categories that wellness practitioners use
- * to organize their work and personal tasks:
- * - Personal Wellness
- * - Self Care
- * - Admin & Finances
- * - Business Development
- * - Social Media & Marketing
- * - Client Care
+ * @param options.withStats - If `true`, include `projectCount`, `taskCount`, and `activeTaskCount` on each zone.
+ * @param options.autoRefetch - If `true`, poll the API every 5 minutes to keep results up to date; otherwise disable polling.
+ * @returns An object containing:
+ *  - `zones`: the fetched list of zones (each item is a `Zone` or `ZoneWithStats` when `withStats` is `true`),
+ *  - `isLoading`: whether the query is currently loading,
+ *  - `error`: any error returned by the query,
+ *  - `refetch`: a function to manually refetch the zones.
  */
 export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
   const { withStats = false, autoRefetch = true } = options;
@@ -80,24 +85,11 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
     queryKey: queryKeys.zones.list(withStats),
     queryFn: async (): Promise<Zone[] | ZoneWithStats[]> => {
       if (withStats) {
-        const result =
-          await apiClient.get<Result<ZonesWithStatsResponse, { message: string; code: string }>>(
-            apiUrl,
-          );
-        if (isErr(result)) {
-          throw new Error(result.error.message);
-        }
-        if (!result.success) {
-          throw new Error("Invalid result state");
-        }
-        return result.data.items ?? [];
+        const result = await apiClient.get<ZonesWithStatsResponse>(apiUrl);
+        return result.items ?? [];
       } else {
-        const result =
-          await apiClient.get<Result<ZonesResponse, { message: string; code: string }>>(apiUrl);
-        if (!result.success) {
-          throw new Error(result.error.message);
-        }
-        return result.data.items ?? [];
+        const result = await apiClient.get<ZonesResponse>(apiUrl);
+        return result.items ?? [];
       }
     },
     refetchInterval: autoRefetch ? 300000 : false, // Auto-refresh every 5 minutes (zones change rarely)

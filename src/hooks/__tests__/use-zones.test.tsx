@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { ReactNode } from "react";
-import { useZones, useZonesWithStats, useZoneByName, useZoneById, useZoneOptions, WELLNESS_ZONES, isValidWellnessZone, getZoneColor, getZoneIcon } from "../use-zones";
+import { useZones, useZoneByName, useZoneById, useZoneOptions, WELLNESS_ZONES, isValidWellnessZone, getZoneColor, getZoneIcon } from "../use-zones";
 import { apiClient } from "../../lib/api/client";
 
 vi.mock("@/lib/api/client", () => ({

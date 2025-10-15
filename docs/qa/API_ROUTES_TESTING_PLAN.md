@@ -71,7 +71,7 @@ This plan outlines a systematic approach to test all API routes in the OmniCRM a
 - `/api/omni-momentum/inbox/[itemId]` - GET, PUT, DELETE
 - `/api/omni-momentum/inbox/process` - POST
 
-#### Data Intelligence (10 routes) - Medium Priority
+#### Data Intelligence (12 routes) - Medium Priority
 
 - `/api/data-intelligence/ai-insights` - GET, POST
 - `/api/data-intelligence/ai-insights/[aiInsightId]` - GET, PUT, DELETE
@@ -119,7 +119,7 @@ This plan outlines a systematic approach to test all API routes in the OmniCRM a
 - `/api/jobs/runner` - POST
 - `/api/cron/process-jobs` - POST
 
-#### Onboarding (5 routes) - Low Priority
+#### Onboarding (4 routes) - Medium Priority
 
 - `/api/onboarding/admin/generate-tokens` - POST
 - `/api/onboarding/admin/tokens` - GET
@@ -514,7 +514,7 @@ Each phase covers specific modules with:
 | User Management | 2 | Medium | 75%+ |
 | Storage | 1 | Medium | 75%+ |
 | Jobs/Cron | 2 | Medium | 75%+ |
-| Onboarding | 5 | Low | 80%+ |
+| Onboarding | Medium | 80%+ | CRUD flows, auth tokens |
 
 **Overall Target**: 80% code coverage across all API routes
 
@@ -687,15 +687,15 @@ pnpm ci:architecture
 | Phase 3: Notes | 3 hours | 9 hours |
 | Phase 4: Tasks | 5 hours | 14 hours |
 | Phase 5: Projects/Zones/Inbox | 4 hours | 18 hours |
-| Phase 6: Data Intelligence | 6 hours | 24 hours |
-| Phase 7: Google Integration | 3 hours | 27 hours |
-| Phase 8: Authentication | 3 hours | 30 hours |
-| Phase 9: Admin/User/Storage/Jobs | 4 hours | 34 hours |
-| Phase 10: Onboarding | 3 hours | 37 hours |
-| Phase 11: Coverage Check | 1 hour | 38 hours |
-| Phase 12: Documentation | 2 hours | 40 hours |
+| Phase 6: Data Intelligence | 7 hours | 25 hours |
+| Phase 7: Google Integration | 3 hours | 28 hours |
+| Phase 8: Authentication | 3 hours | 31 hours |
+| Phase 9: Admin/User/Storage/Jobs | 4 hours | 35 hours |
+| Phase 10: Onboarding | 3 hours | 38 hours |
+| Phase 11: Coverage Check | 1 hour | 39 hours |
+| Phase 12: Documentation | 2 hours | 41 hours |
 
-**Total Estimated Time**: 40 hours (~1 week for 1 developer, or 2-3 days for 2 developers)
+**Total Estimated Time**: 41 hours (~1 week for 1 developer, or 2-3 days for 2 developers)
 
 ---
 

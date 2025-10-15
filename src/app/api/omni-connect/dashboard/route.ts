@@ -1,6 +1,6 @@
 /**
  * GET /api/omni-connect/dashboard
- * 
+ *
  * Unified dashboard endpoint that consolidates:
  * - Gmail/Calendar connection status
  * - Email previews
@@ -8,9 +8,10 @@
  * - Sync status and statistics
  */
 
-import { getAuthUserId } from "@/lib/auth-simple";
+import { handleAuth } from "@/lib/api";
 import { getDashboardStateService } from "@/server/services/omni-connect-dashboard.service";
 import { ConnectDashboardStateSchema } from "@/server/db/business-schemas";
+import { z } from "zod";
 
 /**
  * Handle GET requests for the Omni Connect dashboard for the authenticated user and return the consolidated dashboard state.
@@ -19,7 +20,7 @@ import { ConnectDashboardStateSchema } from "@/server/db/business-schemas";
  */
 export async function GET(): Promise<Response> {
   try {
-    const userId = await getAuthUserId();
+  const userId = await getAuthUserId();
     
     const dashboardState = await getDashboardStateService(userId);
     

@@ -3,11 +3,7 @@ import {
   UserIntegrationsRepository,
   createUserIntegrationsRepository,
 } from "./user-integrations.repo";
-import {
-  createMockDbClient,
-  createMockQueryBuilder,
-  type MockDbClient,
-} from "@packages/testing";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
 
 type IntegrationRow = {
   userId: string;
@@ -47,13 +43,13 @@ describe("UserIntegrationsRepository", () => {
 
   describe("listUserIntegrations", () => {
     it("should list all integrations for a user", async () => {
-      const mockIntegrations = [
+      const mockIntegrations: IntegrationRow[] = [
         createMockIntegration({ service: "gmail" }),
         createMockIntegration({ service: "calendar" }),
       ];
 
       const selectBuilder = createMockQueryBuilder(mockIntegrations);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listUserIntegrations(mockUserId);
 
@@ -65,7 +61,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should return empty array when no integrations exist", async () => {
       const selectBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listUserIntegrations(mockUserId);
 
@@ -78,7 +74,7 @@ describe("UserIntegrationsRepository", () => {
       });
 
       const selectBuilder = createMockQueryBuilder([expiredIntegration]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listUserIntegrations(mockUserId);
 
@@ -91,7 +87,7 @@ describe("UserIntegrationsRepository", () => {
       });
 
       const selectBuilder = createMockQueryBuilder([noExpiryIntegration]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listUserIntegrations(mockUserId);
 
@@ -104,7 +100,7 @@ describe("UserIntegrationsRepository", () => {
       const mockIntegration = createMockIntegration();
       const selectBuilder = createMockQueryBuilder([mockIntegration]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getUserIntegration(mockUserId, "google", "gmail");
 
@@ -115,7 +111,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should return null when integration not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getUserIntegration(mockUserId, "google", "drive");
 
@@ -124,7 +120,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should filter by userId, provider, and service", async () => {
       const selectBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       await repo.getUserIntegration("different-user", "google", "gmail");
 
@@ -135,14 +131,14 @@ describe("UserIntegrationsRepository", () => {
 
   describe("getUserIntegrationsByProvider", () => {
     it("should retrieve all integrations for a provider", async () => {
-      const mockIntegrations = [
+      const mockIntegrations: IntegrationRow[] = [
         createMockIntegration({ service: "gmail" }),
         createMockIntegration({ service: "calendar" }),
         createMockIntegration({ service: "drive" }),
       ];
 
       const selectBuilder = createMockQueryBuilder(mockIntegrations);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getUserIntegrationsByProvider(mockUserId, "google");
 
@@ -152,7 +148,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should return empty array when no integrations exist for provider", async () => {
       const selectBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getUserIntegrationsByProvider(mockUserId, "microsoft");
 
@@ -165,7 +161,7 @@ describe("UserIntegrationsRepository", () => {
       const mockIntegration = createMockIntegration();
       const insertBuilder = createMockQueryBuilder([mockIntegration]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const result = await repo.upsertUserIntegration(mockUserId, {
         provider: "google",
@@ -186,7 +182,7 @@ describe("UserIntegrationsRepository", () => {
       });
       const insertBuilder = createMockQueryBuilder([updatedIntegration]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const result = await repo.upsertUserIntegration(mockUserId, {
         provider: "google",
@@ -208,7 +204,7 @@ describe("UserIntegrationsRepository", () => {
       });
       const insertBuilder = createMockQueryBuilder([mockIntegration]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const result = await repo.upsertUserIntegration(mockUserId, {
         provider: "google",
@@ -223,7 +219,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should throw error when insert returns no data", async () => {
       const insertBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       await expect(
         repo.upsertUserIntegration(mockUserId, {
@@ -242,7 +238,7 @@ describe("UserIntegrationsRepository", () => {
       });
       const updateBuilder = createMockQueryBuilder([updatedIntegration]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateUserIntegration(mockUserId, "google", "gmail", {
         accessToken: "new-token",
@@ -254,7 +250,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should return null when integration not found", async () => {
       const updateBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateUserIntegration(mockUserId, "google", "drive", {
         accessToken: "token",
@@ -264,9 +260,9 @@ describe("UserIntegrationsRepository", () => {
     });
 
     it("should throw error when no fields provided", async () => {
-      await expect(
-        repo.updateUserIntegration(mockUserId, "google", "gmail", {}),
-      ).rejects.toThrow("No integration fields provided for update");
+      await expect(repo.updateUserIntegration(mockUserId, "google", "gmail", {})).rejects.toThrow(
+        "No integration fields provided for update",
+      );
     });
 
     it("should handle partial updates", async () => {
@@ -275,7 +271,7 @@ describe("UserIntegrationsRepository", () => {
       });
       const updateBuilder = createMockQueryBuilder([updatedIntegration]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateUserIntegration(mockUserId, "google", "gmail", {
         expiryDate: new Date(),
@@ -288,7 +284,8 @@ describe("UserIntegrationsRepository", () => {
   describe("deleteUserIntegration", () => {
     it("should delete a specific integration", async () => {
       const deleteBuilder = createMockQueryBuilder([{ id: mockUserId }]);
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteUserIntegration(mockUserId, "google", "gmail");
 
@@ -297,7 +294,8 @@ describe("UserIntegrationsRepository", () => {
 
     it("should return false when integration not found", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteUserIntegration(mockUserId, "google", "drive");
 
@@ -312,7 +310,8 @@ describe("UserIntegrationsRepository", () => {
         { id: mockUserId },
         { id: mockUserId },
       ]);
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteUserIntegrationsByProvider(mockUserId, "google");
 
@@ -321,7 +320,8 @@ describe("UserIntegrationsRepository", () => {
 
     it("should return 0 when no integrations found", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteUserIntegrationsByProvider(mockUserId, "microsoft");
 
@@ -336,7 +336,7 @@ describe("UserIntegrationsRepository", () => {
       });
       const selectBuilder = createMockQueryBuilder([mockIntegration]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.hasActiveIntegration(mockUserId, "google", "gmail");
 
@@ -349,7 +349,7 @@ describe("UserIntegrationsRepository", () => {
       });
       const selectBuilder = createMockQueryBuilder([mockIntegration]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.hasActiveIntegration(mockUserId, "google", "gmail");
 
@@ -358,7 +358,8 @@ describe("UserIntegrationsRepository", () => {
 
     it("should return false when integration not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.hasActiveIntegration(mockUserId, "google", "drive");
 
@@ -371,7 +372,7 @@ describe("UserIntegrationsRepository", () => {
       });
       const selectBuilder = createMockQueryBuilder([mockIntegration]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.hasActiveIntegration(mockUserId, "google", "gmail");
 
@@ -386,7 +387,7 @@ describe("UserIntegrationsRepository", () => {
       });
       const selectBuilder = createMockQueryBuilder([expiringIntegration]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getExpiringIntegrations(mockUserId);
 
@@ -398,7 +399,7 @@ describe("UserIntegrationsRepository", () => {
       // Already expired tokens should be filtered out by the WHERE clause
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getExpiringIntegrations(mockUserId);
 
@@ -409,7 +410,7 @@ describe("UserIntegrationsRepository", () => {
       // Tokens expiring > 1 hour away should be filtered out by the WHERE clause
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getExpiringIntegrations(mockUserId);
 
@@ -419,13 +420,13 @@ describe("UserIntegrationsRepository", () => {
 
   describe("getRawIntegrationData", () => {
     it("should return raw integration data for a provider", async () => {
-      const mockIntegrations = [
+      const mockIntegrations: IntegrationRow[] = [
         createMockIntegration({ service: "gmail" }),
         createMockIntegration({ service: "calendar" }),
       ];
       const selectBuilder = createMockQueryBuilder(mockIntegrations);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getRawIntegrationData(mockUserId, "google");
 
@@ -435,7 +436,8 @@ describe("UserIntegrationsRepository", () => {
 
     it("should return empty array when no integrations found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getRawIntegrationData(mockUserId, "microsoft");
 
@@ -446,7 +448,7 @@ describe("UserIntegrationsRepository", () => {
   describe("updateRawTokens", () => {
     it("should update access token", async () => {
       const updateBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       await repo.updateRawTokens(mockUserId, "google", "gmail", {
         accessToken: "new-access-token",
@@ -457,7 +459,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should update refresh token", async () => {
       const updateBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       await repo.updateRawTokens(mockUserId, "google", "gmail", {
         refreshToken: "new-refresh-token",
@@ -468,7 +470,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should update expiry date", async () => {
       const updateBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       await repo.updateRawTokens(mockUserId, "google", "gmail", {
         expiryDate: new Date(),
@@ -479,7 +481,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should update multiple fields at once", async () => {
       const updateBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       await repo.updateRawTokens(mockUserId, "google", "gmail", {
         accessToken: "new-token",
@@ -492,7 +494,7 @@ describe("UserIntegrationsRepository", () => {
 
     it("should handle null values", async () => {
       const updateBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       await repo.updateRawTokens(mockUserId, "google", "gmail", {
         refreshToken: null,

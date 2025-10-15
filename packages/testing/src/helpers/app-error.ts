@@ -5,7 +5,7 @@
  */
 
 import { expect } from "vitest";
-import type { AppError } from "@/lib/errors/app-error";
+import { AppError } from "@/lib/errors/app-error";
 
 /**
  * Expected AppError properties
@@ -33,7 +33,12 @@ export function expectAppError(
   // Check if error is an instance of Error
   expect(error).toBeInstanceOf(Error);
 
-  const err = error as AppError;
+  // Use type guard
+  if (!isAppError(error)) {
+    throw new Error("Expected AppError but got different error type");
+  }
+
+  const err = error;
 
   // Check message if provided
   if (expected.message !== undefined) {
@@ -75,13 +80,13 @@ export function expectAppError(
  * @throws Throws an Error if the promise resolves instead of rejecting
  */
 export async function expectAppErrorRejection(
-  promise: Promise<any>,
+  promise: Promise<unknown>,
   expected: ExpectedAppError,
 ): Promise<void> {
   try {
     await promise;
     throw new Error("Expected promise to reject but it resolved");
-  } catch (error) {
+  } catch (error: unknown) {
     expectAppError(error, expected);
   }
 }
@@ -96,12 +101,13 @@ export async function expectAppErrorRejection(
  * @returns The constructed `AppError` with provided overrides applied
  */
 export function createMockAppError(props: Partial<ExpectedAppError> = {}): AppError {
-  const error = new Error(props.message || "Test error") as AppError;
-  error.code = props.code || "TEST_ERROR";
-  error.category = props.category || "validation";
-  error.statusCode = props.statusCode || 500;
-  error.isOperational = props.isOperational ?? true;
-  return error;
+  return new AppError(
+    props.message || "Test error",
+    props.code || "TEST_ERROR",
+    props.category || "validation",
+    props.isOperational ?? true,
+    props.statusCode || 500,
+  );
 }
 
 /**

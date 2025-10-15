@@ -1,6 +1,6 @@
 /**
  * Auth Hook Tests
- * 
+ *
  * Tests for useAuth hook which manages authentication state
  */
 
@@ -113,7 +113,7 @@ describe("useAuth", () => {
   describe("Loading States", () => {
     it("should start with loading state", () => {
       vi.mocked(fetchCurrentUser).mockImplementation(
-        () => new Promise(() => {}) // Never resolves
+        () => new Promise(() => {}), // Never resolves
       );
 
       const { result } = renderHook(() => useAuth());
@@ -139,70 +139,62 @@ describe("useAuth", () => {
   });
 
   describe("Failsafe Timeout", () => {
-    it(
-      "should trigger failsafe timeout after 15 seconds",
-      async () => {
-        vi.useFakeTimers();
+    it("should trigger failsafe timeout after 15 seconds", async () => {
+      vi.useFakeTimers();
 
-        // Mock fetchCurrentUser to never resolve
-        vi.mocked(fetchCurrentUser).mockImplementation(
-          () => new Promise(() => {}) // Never resolves
-        );
+      // Mock fetchCurrentUser to never resolve
+      vi.mocked(fetchCurrentUser).mockImplementation(
+        () => new Promise(() => {}), // Never resolves
+      );
 
-        const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth());
 
-        expect(result.current.isLoading).toBe(true);
+      expect(result.current.isLoading).toBe(true);
 
-        // Fast-forward time by 15 seconds and wrap in act
-        await act(async () => {
-          vi.advanceTimersByTime(15000);
-        });
+      // Fast-forward time by 15 seconds and wrap in act
+      await act(async () => {
+        vi.advanceTimersByTime(15000);
+      });
 
-        // Check that timeout triggered
-        expect(result.current.isLoading).toBe(false);
-        expect(result.current.error).toBeInstanceOf(Error);
-        expect(result.current.error?.message).toBe("Authentication check timed out");
-        expect(result.current.user).toBeNull();
+      // Check that timeout triggered
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.error).toBeInstanceOf(Error);
+      expect(result.current.error?.message).toBe("Authentication check timed out");
+      expect(result.current.user).toBeNull();
 
-        vi.useRealTimers();
-      },
-      10000 // 10 second timeout for this test
-    );
+      vi.useRealTimers();
+    }, 10000); // 10 second timeout for this test
 
-    it(
-      "should clear failsafe timeout on successful auth",
-      async () => {
-        const mockUser: User = {
-          id: "test-user-id",
-          email: "test@example.com",
-          aud: "authenticated",
-          created_at: "2024-01-01T00:00:00Z",
-          app_metadata: {},
-          user_metadata: {},
-        };
+    it("should clear failsafe timeout on successful auth", async () => {
+      const mockUser: User = {
+        id: "test-user-id",
+        email: "test@example.com",
+        aud: "authenticated",
+        created_at: "2024-01-01T00:00:00Z",
+        app_metadata: {},
+        user_metadata: {},
+      };
 
-        vi.useFakeTimers();
+      vi.useFakeTimers();
 
-        vi.mocked(fetchCurrentUser).mockResolvedValueOnce({
-          user: mockUser,
-        });
+      vi.mocked(fetchCurrentUser).mockResolvedValueOnce({
+        user: mockUser,
+      });
 
-        const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth());
 
-        // Run all timers
-        await act(async () => {
-          await vi.runAllTimersAsync();
-        });
+      // Run all timers
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
 
-        // Should have user, no timeout error
-        expect(result.current.isLoading).toBe(false);
-        expect(result.current.user).toEqual(mockUser);
-        expect(result.current.error).toBeNull();
+      // Should have user, no timeout error
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.user).toEqual(mockUser);
+      expect(result.current.error).toBeNull();
 
-        vi.useRealTimers();
-      },
-      10000 // 10 second timeout for this test
-    );
+      vi.useRealTimers();
+    }, 10000); // 10 second timeout for this test
   });
 
   describe("Cleanup and Unmount", () => {
@@ -210,7 +202,7 @@ describe("useAuth", () => {
       vi.useFakeTimers();
 
       vi.mocked(fetchCurrentUser).mockImplementation(
-        () => new Promise(() => {}) // Never resolves
+        () => new Promise(() => {}), // Never resolves
       );
 
       const { unmount, result } = renderHook(() => useAuth());
@@ -277,7 +269,7 @@ describe("useAuth", () => {
   describe("Edge Cases", () => {
     it("should handle undefined user in response", async () => {
       vi.mocked(fetchCurrentUser).mockResolvedValueOnce({
-        user: undefined as unknown as null,
+        user: null,
       });
 
       const { result } = renderHook(() => useAuth());

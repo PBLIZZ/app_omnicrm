@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  OnboardingRepository,
-  createOnboardingRepository,
-} from "./onboarding.repo";
-import {
-  createMockDbClient,
-  createMockQueryBuilder,
-  type MockDbClient,
-} from "@packages/testing";
+import { OnboardingRepository, createOnboardingRepository } from "./onboarding.repo";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
 import type { OnboardingToken } from "./onboarding.repo";
 
 describe("OnboardingRepository", () => {
@@ -41,7 +34,7 @@ describe("OnboardingRepository", () => {
       const mockToken = createMockToken();
       const insertBuilder = createMockQueryBuilder([mockToken]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const expiresAt = new Date(Date.now() + 86400000);
       const result = await repo.createToken(mockUserId, expiresAt, "Test Label", 1);
@@ -54,12 +47,12 @@ describe("OnboardingRepository", () => {
     it("should throw error when insert fails", async () => {
       const insertBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const expiresAt = new Date(Date.now() + 86400000);
 
       await expect(repo.createToken(mockUserId, expiresAt)).rejects.toThrow(
-        "Failed to create token"
+        "Failed to create token",
       );
     });
   });
@@ -72,7 +65,7 @@ describe("OnboardingRepository", () => {
       ];
       const selectBuilder = createMockQueryBuilder(mockTokens);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listTokens(mockUserId, 10, 0);
 
@@ -84,7 +77,7 @@ describe("OnboardingRepository", () => {
       const mockTokens = [createMockToken()];
       const selectBuilder = createMockQueryBuilder(mockTokens);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listTokens(mockUserId, 5, 5);
 
@@ -97,7 +90,7 @@ describe("OnboardingRepository", () => {
       const mockToken = createMockToken();
       const selectBuilder = createMockQueryBuilder([mockToken]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getTokenById(mockUserId, mockTokenId);
 
@@ -108,7 +101,7 @@ describe("OnboardingRepository", () => {
     it("should return null when token not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getTokenById(mockUserId, "non-existent");
 
@@ -120,7 +113,7 @@ describe("OnboardingRepository", () => {
     it("should delete token successfully", async () => {
       const deleteBuilder = createMockQueryBuilder([{ id: mockTokenId }]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteToken(mockUserId, mockTokenId);
 
@@ -130,7 +123,7 @@ describe("OnboardingRepository", () => {
     it("should return false when token not found", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteToken(mockUserId, "non-existent");
 
@@ -148,7 +141,7 @@ describe("OnboardingRepository", () => {
       });
       const selectBuilder = createMockQueryBuilder([mockToken]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.validateToken("abc-123-def");
 
@@ -159,7 +152,7 @@ describe("OnboardingRepository", () => {
     it("should reject non-existent token", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.validateToken("non-existent");
 
@@ -171,7 +164,7 @@ describe("OnboardingRepository", () => {
       const mockToken = createMockToken({ disabled: true });
       const selectBuilder = createMockQueryBuilder([mockToken]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.validateToken("abc-123-def");
 
@@ -185,7 +178,7 @@ describe("OnboardingRepository", () => {
       });
       const selectBuilder = createMockQueryBuilder([mockToken]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.validateToken("abc-123-def");
 
@@ -197,7 +190,7 @@ describe("OnboardingRepository", () => {
       const mockToken = createMockToken({ usedCount: 5, maxUses: 5 });
       const selectBuilder = createMockQueryBuilder([mockToken]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.validateToken("abc-123-def");
 
@@ -211,7 +204,7 @@ describe("OnboardingRepository", () => {
       // Mock valid token
       const mockToken = createMockToken();
       const tokenSelectBuilder = createMockQueryBuilder([mockToken]);
-      vi.mocked(mockDb.select).mockReturnValue(tokenSelectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(tokenSelectBuilder);
 
       // Mock transaction
       const contactId = "new-contact-123";
@@ -234,7 +227,7 @@ describe("OnboardingRepository", () => {
         mockUserId,
         "abc-123-def",
         clientData,
-        consentData
+        consentData,
       );
 
       expect(result).toBe(contactId);
@@ -243,7 +236,7 @@ describe("OnboardingRepository", () => {
 
     it("should reject invalid token", async () => {
       const selectBuilder = createMockQueryBuilder([]);
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const clientData = {
         display_name: "John Doe",
@@ -259,7 +252,7 @@ describe("OnboardingRepository", () => {
       };
 
       await expect(
-        repo.createContactWithConsent(mockUserId, "invalid-token", clientData, consentData)
+        repo.createContactWithConsent(mockUserId, "invalid-token", clientData, consentData),
       ).rejects.toThrow("Token not found");
     });
   });

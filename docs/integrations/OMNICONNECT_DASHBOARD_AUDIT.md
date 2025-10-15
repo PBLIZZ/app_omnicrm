@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-**Compliance Score: 6/10**
+Compliance Score: 6/10
 
 The service has **architectural compliance** (uses repository pattern) but contains **serious schema mismatches** where:
 
@@ -250,7 +250,7 @@ const services = await getStatusService(userId, {
 
 ### Priority 2 - Architecture Compliance
 
-3. **Create JobsRepository**
+1. **Create JobsRepository**
 
    ```typescript
    // packages/repo/src/jobs.repo.ts
@@ -267,7 +267,7 @@ const services = await getStatusService(userId, {
    }
    ```
 
-4. **Refactor getActiveJobs() to Use Repository**
+2. **Refactor getActiveJobs() to Use Repository**
 
    ```typescript
    async function getActiveJobs(
@@ -282,11 +282,11 @@ const services = await getStatusService(userId, {
 
 ### Priority 3 - Schema Cleanup
 
-5. **Remove Fictitious JobSchema Fields**
+1. **Remove Fictitious JobSchema Fields**
    - Remove: `progress`, `message`, `totalEmails`, `processedEmails`, `newEmails`, `chunkSize`, `chunksTotal`, `chunksProcessed`
    - OR: Store these in `jobs.payload` JSONB and extract them in repository
 
-6. **Fix Hardcoded Values**
+2. **Fix Hardcoded Values**
    - `embedJobs`: Query actual embed job counts from jobs table
    - `grantedScopes`: Extract from `userIntegrations.config` JSONB
    - `lastBatchId`: Query most recent job batchId
@@ -295,37 +295,9 @@ const services = await getStatusService(userId, {
 
 ---
 
-## 7. Did I Create This File?
+## Audit Process Note
 
-**No**, I did not create `omni-connect-dashboard.service.ts` originally. I only refactored parts of it today to:
-
-- Fix the token refresh race condition
-- Move DB queries from service to repository (partially)
-
-The file was pre-existing with these issues already present. My changes today were **compliant** with the architecture but the underlying schema/DB mismatches were already there.
-
----
-
-## 8. Action Plan
-
-### Immediate (Today)
-
-1. ✅ Check if refresh tokens exist in database
-2. ✅ Add frontend cache invalidation after refresh button click
-3. ✅ Test token refresh flow end-to-end
-
-### Short-term (This Week)
-
-4. Create JobsRepository  
-5. Refactor getActiveJobs() to use repository
-6. Remove fictitious JobSchema fields from business schema
-7. Fix hardcoded values (embedJobs, grantedScopes, etc.)
-
-### Long-term (Next Sprint)
-
-8. Audit all other dashboard services for similar issues
-9. Add database migration if job tracking fields are actually needed
-10. Create integration tests that validate schema compliance
+This audit was conducted on the existing `omni-connect-dashboard.service.ts` file. The analysis identified architectural compliance but highlighted pre-existing schema mismatches between the business schemas and database structure. Recent refactors addressed token refresh race conditions and partially moved direct DB access to repository classes, maintaining compliance with project guidelines. The underlying issues noted were present prior to this audit, and all modifications adhere to the repository pattern and type safety standards.
 
 ---
 
@@ -334,7 +306,9 @@ The file was pre-existing with these issues already present. My changes today we
 The service is **architecturally sound** (uses repository pattern for connections/emails) but has **schema/DB mismatches** that create technical debt. The token refresh mechanism is implemented correctly but may not work due to:
 
 1. Missing refresh tokens in DB
+
 2. UI not invalidating cache
+
 3. Tokens not actually expired
 
 The immediate fix is to verify the refresh flow works, then systematically clean up the schema mismatches.

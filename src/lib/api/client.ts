@@ -18,19 +18,26 @@ import { toast } from "sonner";
 /**
  * Get CSRF token from cookies
  */
-function getCsrfToken(): string | null {
-  if (typeof document === "undefined") {
-    return null; // Server-side rendering
+export function getCsrfToken(): string | null {
+  if (typeof window === "undefined") return null;
+
+  const name = "csrf=";
+  const cookies = document.cookie;
+  const start = cookies.indexOf(name);
+  if (start === -1) return null;
+
+  let end = cookies.indexOf(";", start);
+  if (end === -1) end = cookies.length;
+
+  const rawValue = cookies.substring(start + name.length, end);
+  const value = rawValue.trim();
+  if (value === "") return null;
+
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
-
-  const cookies = document.cookie.split(";");
-  const csrfCookie = cookies.find((cookie) => cookie.trim().startsWith("csrf="));
-
-  if (!csrfCookie) {
-    return null;
-  }
-
-  return csrfCookie.split("=")[1] ?? null;
 }
 
 // ============================================================================
@@ -156,12 +163,13 @@ export async function apiRequest<T = unknown>(
   // Resolve absolute URL for testing environment
   let absoluteUrl = url;
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    // Get base URL from browser or environment
-    let baseUrl = "http://localhost:3000"; // Default fallback
-    if (typeof window !== "undefined" && window.location && window.location.origin) {
-      baseUrl = window.location.origin;
-    } else if (process.env["NEXT_PUBLIC_API_URL"]) {
-      baseUrl = process.env["NEXT_PUBLIC_API_URL"];
+    const baseUrl =
+      typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_API_URL;
+
+    if (!baseUrl) {
+      throw new Error(
+        "API base URL not configured. Set NEXT_PUBLIC_API_URL for server-side rendering.",
+      );
     }
     absoluteUrl = new URL(url, baseUrl).toString();
   }
@@ -179,7 +187,17 @@ export async function apiRequest<T = unknown>(
   ) {
     const csrfToken = getCsrfToken();
     if (csrfToken) {
-      (headers as Record<string, string>)["x-csrf-token"] = csrfToken;
+      const setCsrfHeader = (h: HeadersInit) => {
+        if (h instanceof Headers) {
+          h.set("x-csrf-token", csrfToken);
+        } else if (Array.isArray(h)) {
+          h.push(["x-csrf-token", csrfToken]);
+        } else if (h && typeof h === "object") {
+          (h as Record<string, string>)["x-csrf-token"] = csrfToken;
+        }
+        return h;
+      };
+      fetchOptions.headers = setCsrfHeader(fetchOptions.headers || {});
     }
   }
 
@@ -427,6 +445,54 @@ export async function safeRequest<T>(
 
     return fallback;
   }
+}
+
+function extractString(obj: unknown, key: string): string | undefined {
+  if (
+    typeof obj === "object" &&
+    obj !== null &&
+    key in obj &&
+    typeof (obj as Record<string, unknown>)[key] === "string"
+  ) {
+    return (obj as Record<string, unknown>)[key] as string;
+  }
+  return undefined;
+}
+
+async function handleError(response: Response, rawBody: string): Promise<never> {
+  let parsedBody: unknown;
+  let message = response.statusText || rawBody || "Request failed";
+  let code = "UNKNOWN_ERROR";
+  let details: unknown = null;
+
+  try {
+    parsedBody = await response.json();
+    message = extractString(parsedBody, "message") || extractString(parsedBody, "error") || message;
+    code = extractString(parsedBody, "code") || code;
+    details = extractString(parsedBody, "details") || null;
+  } catch {
+    // If JSON parse fails, check if it's text
+    try {
+      parsedBody = await response.text();
+      message =
+        extractString(parsedBody, "message") || extractString(parsedBody, "error") || message;
+    } catch {
+      // Fall back to raw body if it's short
+      if (rawBody.length < 1000) {
+        message = rawBody;
+      }
+    }
+  }
+
+  throw new ApiError(message, code, "api", false, response.status, details);
+}
+
+export async function parseJson<T = unknown>(response: Response): Promise<unknown> {
+  return response.json();
+}
+
+export async function parseText(response: Response): Promise<unknown> {
+  return response.text();
 }
 
 // ============================================================================

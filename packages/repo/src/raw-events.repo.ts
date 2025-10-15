@@ -146,31 +146,29 @@ export class RawEventsRepository {
     const orderByColumn = sortColumnMap[sortKey];
     const orderDirection = params.order === "asc" ? asc : desc;
 
-    const rows = (await this.db
+    const rows = await this.db
       .select()
       .from(rawEvents)
       .where(whereClause)
       .orderBy(orderDirection(orderByColumn))
       .limit(pageSize)
-      .offset(offset)) as RawEventRow[];
+      .offset(offset);
 
-    const totalRows = (await this.db
-      .select({ value: count() })
-      .from(rawEvents)
-      .where(whereClause)) as Array<{ value: number | bigint }>;
+    const totalResult = await this.db.select({ value: count() }).from(rawEvents).where(whereClause);
+    const total = Number(totalResult[0]?.value ?? 0);
 
     return {
       items: rows.map((row) => mapRowToListItem(row)),
-      total: Number(totalRows[0]?.value ?? 0),
+      total: total,
     };
   }
 
   async getRawEventById(userId: string, rawEventId: string): Promise<RawEvent | null> {
-    const rows = (await this.db
+    const rows = await this.db
       .select()
       .from(rawEvents)
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, rawEventId)))
-      .limit(1)) as RawEventRow[];
+      .limit(1);
 
     return rows[0] ?? null;
   }
@@ -359,20 +357,11 @@ export class RawEventsRepository {
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, provider)))
       .limit(1);
 
-    const rawCount: unknown = result[0]?.value ?? 0;
-    const emailCount: number = typeof rawCount === 'string' 
-      ? parseInt(rawCount, 10) 
-      : typeof rawCount === 'number' 
-      ? rawCount 
-      : 0;
-
+    const emailCount = Number(result[0]?.value ?? 0);
     return emailCount;
   }
 
-  async getLatestEventByProvider(
-    userId: string,
-    provider: ProviderType
-  ): Promise<RawEvent | null> {
+  async getLatestEventByProvider(userId: string, provider: ProviderType): Promise<RawEvent | null> {
     const rows = (await this.db
       .select()
       .from(rawEvents)

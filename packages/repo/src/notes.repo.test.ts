@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  NotesRepository,
-  createNotesRepository,
-} from "./notes.repo";
-import {
-  createMockDbClient,
-  createMockQueryBuilder,
-  type MockDbClient,
-} from "@packages/testing";
+import { NotesRepository, createNotesRepository } from "./notes.repo";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
 import type { Note } from "@/server/db/schema";
 
 describe("NotesRepository", () => {
@@ -42,7 +35,7 @@ describe("NotesRepository", () => {
       const mockNotes = [createMockNote(), createMockNote({ id: "note-2" })];
       const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listNotes(mockUserId);
 
@@ -54,7 +47,7 @@ describe("NotesRepository", () => {
       const mockNotes = [createMockNote()];
       const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listNotes(mockUserId, mockContactId);
 
@@ -65,7 +58,7 @@ describe("NotesRepository", () => {
     it("should return empty array when no notes exist", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listNotes(mockUserId);
 
@@ -79,7 +72,7 @@ describe("NotesRepository", () => {
       ];
       const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.listNotes(mockUserId);
 
@@ -92,7 +85,7 @@ describe("NotesRepository", () => {
       const mockNote = createMockNote();
       const selectBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getNoteById(mockUserId, mockNoteId);
 
@@ -104,7 +97,7 @@ describe("NotesRepository", () => {
     it("should return null when note does not exist", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getNoteById(mockUserId, "non-existent");
 
@@ -120,7 +113,7 @@ describe("NotesRepository", () => {
       ];
       const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getNotesByContactId(mockUserId, mockContactId);
 
@@ -133,7 +126,7 @@ describe("NotesRepository", () => {
     it("should return empty array when contact has no notes", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getNotesByContactId(mockUserId, "contact-no-notes");
 
@@ -150,7 +143,7 @@ describe("NotesRepository", () => {
       ];
       const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.searchNotes(mockUserId, searchTerm);
 
@@ -163,7 +156,7 @@ describe("NotesRepository", () => {
     it("should return empty array when no matches found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.searchNotes(mockUserId, "nonexistent");
 
@@ -173,7 +166,7 @@ describe("NotesRepository", () => {
     it("should handle special characters in search term", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.searchNotes(mockUserId, "test%_search");
 
@@ -186,7 +179,7 @@ describe("NotesRepository", () => {
       const mockNote = createMockNote();
       const insertBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const data = {
         userId: mockUserId,
@@ -205,7 +198,7 @@ describe("NotesRepository", () => {
       const mockNote = createMockNote({ contactId: null });
       const insertBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const data = {
         userId: mockUserId,
@@ -222,7 +215,7 @@ describe("NotesRepository", () => {
       const mockNote = createMockNote({ sourceType: "voice" });
       const insertBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const data = {
         userId: mockUserId,
@@ -238,7 +231,7 @@ describe("NotesRepository", () => {
     it("should throw error when insert returns no data", async () => {
       const insertBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const data = {
         userId: mockUserId,
@@ -246,9 +239,7 @@ describe("NotesRepository", () => {
         sourceType: "typed" as const,
       };
 
-      await expect(repo.createNote(data)).rejects.toThrow(
-        "Insert returned no data"
-      );
+      await expect(repo.createNote(data)).rejects.toThrow("Insert returned no data");
     });
   });
 
@@ -260,7 +251,7 @@ describe("NotesRepository", () => {
       });
       const updateBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateNote(mockUserId, mockNoteId, {
         contentPlain: "Updated content",
@@ -274,7 +265,7 @@ describe("NotesRepository", () => {
       const mockNote = createMockNote({ tags: ["updated", "tags"] });
       const updateBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateNote(mockUserId, mockNoteId, {
         tags: ["updated", "tags"],
@@ -287,7 +278,7 @@ describe("NotesRepository", () => {
     it("should return null when note not found", async () => {
       const updateBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateNote(mockUserId, "non-existent", {
         contentPlain: "Update",
@@ -301,7 +292,7 @@ describe("NotesRepository", () => {
       const mockNote = createMockNote({ updatedAt: now });
       const updateBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateNote(mockUserId, mockNoteId, {
         contentPlain: "New content",
@@ -315,7 +306,7 @@ describe("NotesRepository", () => {
     it("should delete note successfully", async () => {
       const deleteBuilder = createMockQueryBuilder([{ id: mockNoteId }]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteNote(mockUserId, mockNoteId);
 
@@ -325,7 +316,7 @@ describe("NotesRepository", () => {
     it("should return false when note not found", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteNote(mockUserId, "non-existent");
 
@@ -335,7 +326,7 @@ describe("NotesRepository", () => {
     it("should not allow deleting notes from other users", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteNote("different-user", mockNoteId);
 

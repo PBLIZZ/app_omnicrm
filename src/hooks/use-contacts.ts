@@ -67,7 +67,10 @@ export function useCreateContact() {
   // Wrap mutation to add toasts
   return {
     ...mutation,
-    mutate: (input: Parameters<typeof mutation.mutate>[0], options?: Parameters<typeof mutation.mutate>[1]) => {
+    mutate: (
+      input: Parameters<typeof mutation.mutate>[0],
+      options?: Parameters<typeof mutation.mutate>[1],
+    ) => {
       mutation.mutate(input, {
         ...options,
         onSuccess: (data, variables, context) => {
@@ -82,7 +85,10 @@ export function useCreateContact() {
         },
       });
     },
-    mutateAsync: async (input: Parameters<typeof mutation.mutateAsync>[0], options?: Parameters<typeof mutation.mutateAsync>[1]) => {
+    mutateAsync: async (
+      input: Parameters<typeof mutation.mutateAsync>[0],
+      options?: Parameters<typeof mutation.mutateAsync>[1],
+    ) => {
       try {
         const result = await mutation.mutateAsync(input, options);
         toast.success("Contact created successfully");
@@ -106,7 +112,10 @@ export function useUpdateContact() {
 
   return {
     ...mutation,
-    mutate: (input: Parameters<typeof mutation.mutate>[0], options?: Parameters<typeof mutation.mutate>[1]) => {
+    mutate: (
+      input: Parameters<typeof mutation.mutate>[0],
+      options?: Parameters<typeof mutation.mutate>[1],
+    ) => {
       mutation.mutate(input, {
         ...options,
         onSuccess: (data, variables, context) => {
@@ -121,7 +130,10 @@ export function useUpdateContact() {
         },
       });
     },
-    mutateAsync: async (input: Parameters<typeof mutation.mutateAsync>[0], options?: Parameters<typeof mutation.mutateAsync>[1]) => {
+    mutateAsync: async (
+      input: Parameters<typeof mutation.mutateAsync>[0],
+      options?: Parameters<typeof mutation.mutateAsync>[1],
+    ) => {
       try {
         const result = await mutation.mutateAsync(input, options);
         toast.success("Contact updated successfully");
@@ -160,7 +172,10 @@ export function useDeleteContact() {
         },
       });
     },
-    mutateAsync: async (contactId: string, options?: Parameters<typeof mutation.mutateAsync>[1]) => {
+    mutateAsync: async (
+      contactId: string,
+      options?: Parameters<typeof mutation.mutateAsync>[1],
+    ) => {
       try {
         const result = await mutation.mutateAsync(contactId, options);
         toast.success("Contact deleted successfully");

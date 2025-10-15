@@ -1,30 +1,22 @@
 # Google Calendar Integration - Complete Implementation Guide
 
-**Status**: ✅ Production Ready  
+**Status**: 🚧 OAuth Only (Sync & AI Pending)  
 **Last Updated**: 2025-10-15  
-**Implementation**: Fully functional OAuth + AI-powered insights
+**Implementation**: OAuth flow complete, sync and AI features planned
 
 ## Executive Summary
 
-Successfully implemented and deployed a complete Google Calendar OAuth integration with AI-powered features including event synchronization, semantic embeddings, and intelligent insights generation.
+Google Calendar OAuth integration is fully implemented and working. The OAuth flow provides secure authentication with CSRF protection and encrypted token storage. Calendar sync, event processing, and AI features are planned for future implementation.
 
 ## 🚀 Features
 
 ### ✅ Implemented & Working
 
 - **OAuth 2.0 Flow**: Complete authorization with CSRF protection
-- **Event Synchronization**: Bidirectional calendar sync (30 days past, 90 days future)
-- **AI Embeddings**: OpenAI-powered semantic search for calendar events
-- **Intelligent Insights**: Pattern analysis and scheduling recommendations
-- **Security**: Encrypted token storage with Row Level Security
+- **Token Management**: Encrypted token storage with Row Level Security
 - **Error Handling**: Comprehensive error handling and user feedback
 
-### 📊 Current Capabilities
-
-- **Event Storage**: 1000+ events per sync cycle
-- **AI Processing**: 1536-dimension embeddings for semantic search
-- **Pattern Recognition**: Identifies busy times, client engagement patterns
-- **Multi-Calendar Support**: Syncs across multiple Google Calendar accounts
+### 🚧 Planned Features (Not Yet Implemented)
 
 ## 📁 File Structure
 
@@ -178,7 +170,7 @@ await createCalendarEventJobsService(userId);
 ```sql
 -- Ensure users can only access their own data
 CREATE POLICY "Users can manage their own calendar events" 
-ON calendar_events FOR ALL USING (user_id = auth.uid());
+ON raw_events FOR ALL USING (user_id = auth.uid());
 
 CREATE POLICY "Users can manage their own integrations" 
 ON user_integrations FOR ALL USING (user_id = auth.uid());
@@ -281,10 +273,15 @@ OPENAI_API_KEY=your_openai_api_key
 ### Manual Testing Checklist
 
 - [x] OAuth flow completes successfully
+
 - [x] Tokens are encrypted and stored
+
 - [ ] Event sync retrieves calendar data (not implemented)
+
 - [ ] AI embeddings generate without errors (not implemented)
+
 - [ ] Insights provide meaningful analysis (not implemented)
+
 - [x] Error handling works for edge cases
 
 ### Test Scenarios

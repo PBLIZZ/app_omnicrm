@@ -63,13 +63,13 @@ export async function getDashboardStateService(userId: string): Promise<ConnectD
           calendar: googleStatus.calendar.connected,
         },
         lastSync: {
-          gmail: connection.lastSync ?? null,
-          calendar: null,
+          gmail: connection.lastSync ?? undefined,
+          calendar: undefined,
         },
         lastBatchId: jobsData?.currentBatch ?? null,
         grantedScopes: {
-          gmail: connection.grantedScopes?.gmail ?? null,
-          calendar: connection.grantedScopes?.calendar ?? null,
+          gmail: connection.grantedScopes?.gmail ?? undefined,
+          calendar: connection.grantedScopes?.calendar ?? undefined,
         },
         jobs: {
           queued: jobsData?.summary.queued ?? 0,
@@ -154,7 +154,7 @@ async function getConnectionStatus(
       service: gmailIntegration.service ?? undefined,
       grantedScopes: {
         gmail: grantedScopes,
-        calendar: null, // Will be populated when calendar integration is added
+        calendar: undefined,
       },
     };
   } catch (error) {
@@ -280,12 +280,12 @@ async function getActiveJobs(
       failed: jobCounts.statusCounts["error"] ?? 0,
     };
 
-    // Calculate embed job counts by getting embed jobs specifically
-    const embedJobsData = await jobsRepo.listJobs(userId, { kind: ["embed"] });
+    // Calculate embed job counts using filtered getJobCounts
+    const embedCounts = await jobsRepo.getJobCounts(userId, undefined, ["embed"]);
     const embedJobs = {
-      queued: embedJobsData.filter((j) => j.status === "queued").length,
-      done: embedJobsData.filter((j) => j.status === "completed").length,
-      error: embedJobsData.filter((j) => j.status === "error").length,
+      queued: embedCounts.statusCounts["queued"] ?? 0,
+      done: embedCounts.statusCounts["completed"] ?? 0,
+      error: embedCounts.statusCounts["error"] ?? 0,
     };
 
     const currentBatch =

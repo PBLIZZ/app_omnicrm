@@ -322,10 +322,7 @@ Phase 10: ░░░░░░░░░░░░░░░░░░░░   0%
    - Estimated time: 2-3 hours
    - Impact: Foundation for API route tests
 
-2. **Add 2-3 More Custom Hook Tests**
-   - Priority: `use-zones.ts`, `use-inbox.ts`, `use-tasks.ts`
-   - Estimated time: 3-4 hours
-   - Pattern: Reuse MSW handlers from use-contacts
+2. **Add Custom Hook Tests** - Priority: use-tasks.ts, use-momentum.ts - Estimated time: 2-3 hours
 
 ### Short Term (Next 2 Weeks)
 

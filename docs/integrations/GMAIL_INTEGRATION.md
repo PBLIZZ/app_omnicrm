@@ -124,7 +124,7 @@ export async function runGmailSync(job: unknown, userId: string): Promise<void> 
 - ✅ Background job system implemented
 - ✅ Gmail sync processor implemented
 - ✅ Raw events storage working
-- ✅ Dashboard service fully compliant (audit score: 10/10)
+- ✅ Dashboard service fully compliant (audit score: 10/10, conducted 2025-10-15 per OMNICONNECT_DASHBOARD_AUDIT.md, evaluated against repository pattern compliance, error handling, and security guidelines. See [OMNICONNECT_DASHBOARD_AUDIT.md](OMNICONNECT_DASHBOARD_AUDIT.md) for full details.)
 - ✅ Real-time job counts and status tracking
 - ✅ OAuth scopes properly displayed
 - ✅ Contact counts from database
@@ -142,9 +142,12 @@ The OmniConnect dashboard now provides accurate, real-time data:
 
 ### 🔧 **Technical Improvements (2025-10-15)**
 
-- Fixed all architectural violations (repository pattern compliance)
+- Fixed all architectural violations (repository pattern compliance): Updated service layers to use dedicated repository classes, moved direct DB calls from google-integration.service.ts to UserIntegrationsRepository, and added interfaces for all CRUD operations to ensure consistent data access patterns.
+
 - Replaced hardcoded values with real database queries
+
 - Resolved schema mismatches in JobSchema
+
 - Implemented proper error handling and type safety
 
 ## Changelog

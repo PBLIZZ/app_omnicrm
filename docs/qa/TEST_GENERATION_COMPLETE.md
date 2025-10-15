@@ -151,20 +151,35 @@ const createMockDb = () => {
 
 ```bash
 # All new tests
-npm test packages/repo/src/ai-insights.repo.test.ts
-npm test packages/repo/src/contact-identities.repo.test.ts
-npm test packages/repo/src/documents.repo.test.ts
-npm test packages/repo/src/embeddings.repo.test.ts
-npm test packages/repo/src/ignored-identifiers.repo.test.ts
+
+pnpm test packages/repo/src/ai-insights.repo.test.ts
+
+pnpm test packages/repo/src/contact-identities.repo.test.ts
+
+pnpm test packages/repo/src/documents.repo.test.ts
+
+pnpm test packages/repo/src/embeddings.repo.test.ts
+
+pnpm test packages/repo/src/ignored-identifiers.repo.test.ts
+
+
 
 # All repository tests at once
-npm test packages/repo
+
+pnpm test packages/repo
+
+
 
 # Watch mode (for development)
-npm test:watch packages/repo
+
+pnpm test -- --watch packages/repo
+
+
 
 # With coverage report
-npm test -- --coverage packages/repo
+
+pnpm test -- --coverage packages/repo
+
 ```
 
 ## Test Statistics

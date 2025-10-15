@@ -760,6 +760,32 @@ describe('ContactsRepository', () => {
 - Promise-based terminal methods
 - TypeScript type safety
 
+### Transaction Mock Example
+
+```typescript
+import { getDb } from '@/server/db/client';
+
+let mockDb = createMockDbClient();
+
+vi.mocked(getDb).mockResolvedValue(mockDb);
+
+describe('Repository with transaction', () => {
+  it('mocks transaction callback', async () => {
+    const mockDb = createMockDbClient();
+    const mockInsert = vi.fn().mockResolvedValue([{ id: 'test-id' }]);
+    mockDb.insert.mockReturnValue({ returning: mockInsert });
+
+    const result = await repo.createContactInTransaction(mockUserId, data);
+    expect(mockDb.transaction).toHaveBeenCalled();
+    const callback = (mockDb.transaction as any).mock.calls[0][0];
+    expect(callback).toBeTypeOf('function');
+    const txResult = await callback(mockDb); // Simulate tx execution
+    expect(txResult).toBe(result);
+    expect(result.id).toBe('test-id');
+  });
+});
+```
+
 ### AppError Test Helpers
 
 Validate AppError instances in service and route tests.
@@ -807,6 +833,9 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { createTestQueryClient, createQueryClientWrapper } from '@packages/testing';
 import { useContacts } from '../use-contacts';
 import { fetchGet } from '@/lib/api/client';
+import type { QueryClient } from '@tanstack/react-query';
+
+let queryClient: QueryClient;
 
 vi.mock('@/lib/api/client', () => ({
   fetchGet: vi.fn()

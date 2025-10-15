@@ -40,16 +40,12 @@ export function validateSchemaSafe<T>(schema: z.Schema<T>, data: unknown): T | n
  * @throws Error if `obj` is not a non-null object
  * @throws z.ZodError if the extracted value does not conform to `schema`
  */
-export function extractProperty<T>(
-  obj: unknown,
-  key: string,
-  schema: z.ZodSchema<T>,
-): T {
+export function extractProperty<T>(obj: unknown, key: string, schema: z.ZodSchema<T>): T {
   if (typeof obj !== "object" || obj === null) {
     throw new Error(`Expected object, got ${typeof obj}`);
   }
 
-  const value = (obj as Record<string, unknown>)[key];
+  const value = Reflect.get(obj, key);
   return validateSchema(schema, value);
 }
 
@@ -70,7 +66,7 @@ export function extractPropertySafe<T>(
     return null;
   }
 
-  const value = (obj as Record<string, unknown>)[key];
+  const value = Reflect.get(obj, key);
   return validateSchemaSafe(schema, value);
 }
 
@@ -123,7 +119,7 @@ export const UrlSchema = z.string().url();
 export function narrowDbResult<T>(schema: z.ZodSchema<T>, data: unknown): T {
   try {
     return validateSchema(schema, data);
-  } catch (_error) {
+  } catch {
     throw new Error("Database result does not match expected schema");
   }
 }
@@ -139,7 +135,7 @@ export function narrowDbResult<T>(schema: z.ZodSchema<T>, data: unknown): T {
 export function narrowApiResponse<T>(schema: z.ZodSchema<T>, response: unknown): T {
   try {
     return validateSchema(schema, response);
-  } catch (_error) {
+  } catch {
     throw new Error("API response does not match expected schema");
   }
 }

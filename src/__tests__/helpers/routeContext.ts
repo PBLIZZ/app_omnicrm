@@ -12,9 +12,17 @@ type RouteParams = Record<string, string>;
  * @param params - Route parameters (e.g., { contactId: "contact-123" })
  * @returns RouteContext with params wrapped in Promise
  */
-export const makeRouteContext = <T extends RouteParams = RouteParams>(params?: T) => ({
-  params: Promise.resolve(params || ({} as T))
-});
+export function makeRouteContext<T extends RouteParams = RouteParams>(
+  params?: T,
+): { params: Promise<T> } {
+  return {
+    params: Promise.resolve(params || ({} as RouteParams)),
+  };
+}
+
+// Overload for default
+export function makeRouteContext(): { params: Promise<RouteParams> };
+export function makeRouteContext<T extends RouteParams>(params: T): { params: Promise<T> };
 
 /**
  * Creates a mock Request object for testing
@@ -31,6 +39,13 @@ export const makeRequest = (url: string, options?: RequestInit): Request => {
  * @param response - Response object
  * @returns Parsed JSON data
  */
-export const parseResponse = async <T = unknown>(response: Response): Promise<T> => {
-  return await response.json() as T;
-};
+export async function parseResponse<T>(
+  response: Response,
+  validator?: (value: unknown) => value is T,
+): Promise<T | unknown> {
+  const data = await response.json();
+  if (validator && validator(data)) {
+    return data;
+  }
+  return data;
+}

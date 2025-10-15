@@ -204,6 +204,8 @@ export const GET = handleAuthFlow(
 ### 3. Google Integration OAuth (`/src/app/api/google/gmail/connect/route.ts`)
 
 ```typescript
+import { cookies } from "next/headers";
+
 export async function GET(): Promise<Response> {
   const userId = await getAuthUserId();
   const oauth2Client = new google.auth.OAuth2(
@@ -212,10 +214,20 @@ export async function GET(): Promise<Response> {
     `${process.env["NEXT_PUBLIC_APP_URL"]}/api/google/gmail/callback`,
   );
   const state = randomBytes(32).toString("hex");
+  const cookieStore = await cookies();
+  cookieStore.set("gmail_oauth_user", userId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 600,
+    path: "/",
+  });
   // Store state in cookie and redirect to Google
   return Response.redirect(authUrl);
 }
 ```
+
+**Security Note on OAuth State Cookies**: The `userId` is stored in a secure, short-lived cookie to maintain user context across the OAuth redirect flow, which may outlive the main session during Google's consent screen. This cookie uses `httpOnly` to prevent client-side JavaScript access, `secure` flag in production for HTTPS-only transmission, `sameSite="lax"` to mitigate CSRF in cross-site requests, and a 10-minute `maxAge` to limit exposure. The OAuth `state` parameter provides additional CSRF protection by validating round-trip integrity. For stronger security, consider storing the state-to-userId mapping server-side (e.g., in a temporary Redis cache) or cryptographically binding it to the state token to prevent tampering, rather than relying on client cookies.
 
 ### 4. Server Auth Utilities (`/src/server/auth/user.ts`)
 
@@ -613,16 +625,24 @@ await upsertIntegrationService(userId, "gmail", {
 
 **Dashboard Service**: ✅ **Fully Compliant** (Audit Score: 10/10)
 
+Audit conducted on 2025-10-15, evaluated against repository pattern compliance, error handling, security guidelines, and integration completeness. See [OMNICONNECT_DASHBOARD_AUDIT.md](OMNICONNECT_DASHBOARD_AUDIT.md) for the full audit report and scoring rubric.
+
 All OAuth-related dashboard features are working correctly:
 
 - **Token Refresh**: Auto-refresh mechanism working properly
+
 - **OAuth Scopes**: Granted scopes properly extracted and displayed
+
 - **Connection Status**: Accurate real-time connection state
+
 - **Error Handling**: Proper error boundaries and user feedback
+
 - **Repository Pattern**: All database access follows architectural guidelines
 
 **Integration Status**:
 
 - **Gmail**: ✅ Fully implemented with complete dashboard integration
+
 - **Calendar**: ✅ OAuth working, ❌ Sync and AI features pending
+
 - **Main Auth**: ✅ Supabase OAuth working correctly

@@ -3,11 +3,7 @@ import {
   ContactIdentitiesRepository,
   createContactIdentitiesRepository,
 } from "./contact-identities.repo";
-import {
-  createMockDbClient,
-  createMockQueryBuilder,
-  type MockDbClient,
-} from "@packages/testing";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
 import type { ContactIdentity } from "@/server/db/schema";
 
 describe("ContactIdentitiesRepository", () => {
@@ -17,9 +13,7 @@ describe("ContactIdentitiesRepository", () => {
   const mockIdentityId = "identity-456";
   const mockContactId = "contact-789";
 
-  const createMockIdentity = (
-    overrides: Partial<ContactIdentity> = {}
-  ): ContactIdentity => ({
+  const createMockIdentity = (overrides: Partial<ContactIdentity> = {}): ContactIdentity => ({
     id: mockIdentityId,
     userId: mockUserId,
     contactId: mockContactId,
@@ -38,17 +32,12 @@ describe("ContactIdentitiesRepository", () => {
 
   describe("listContactIdentities", () => {
     it("should list identities with default pagination", async () => {
-      const mockIds = [
-        createMockIdentity(),
-        createMockIdentity({ id: "identity-2" }),
-      ];
+      const mockIds = [createMockIdentity(), createMockIdentity({ id: "identity-2" })];
 
       const selectBuilder = createMockQueryBuilder(mockIds);
       const countBuilder = createMockQueryBuilder([{ value: 10 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listContactIdentities(mockUserId);
 
@@ -62,9 +51,7 @@ describe("ContactIdentitiesRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockIds);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listContactIdentities(mockUserId, {
         contactId: mockContactId,
@@ -80,9 +67,7 @@ describe("ContactIdentitiesRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockIds);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listContactIdentities(mockUserId, {
         kinds: ["email"],
@@ -98,9 +83,7 @@ describe("ContactIdentitiesRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockIds);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listContactIdentities(mockUserId, {
         provider: "google",
@@ -116,9 +99,7 @@ describe("ContactIdentitiesRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockIds);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listContactIdentities(mockUserId, {
         search: "test",
@@ -134,9 +115,7 @@ describe("ContactIdentitiesRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockIds);
       const countBuilder = createMockQueryBuilder([{ value: 100 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listContactIdentities(mockUserId, {
         page: 2,
@@ -153,9 +132,7 @@ describe("ContactIdentitiesRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockIds);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
       await repo.listContactIdentities(mockUserId, { pageSize: 500 });
 
@@ -171,9 +148,7 @@ describe("ContactIdentitiesRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockIds);
       const countBuilder = createMockQueryBuilder([{ value: 2 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listContactIdentities(mockUserId, {
         order: "asc",
@@ -188,13 +163,13 @@ describe("ContactIdentitiesRepository", () => {
       const mockId = createMockIdentity();
       const selectBuilder = createMockQueryBuilder([mockId]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.findByKindAndValue(
         mockUserId,
         "email",
         "test@example.com",
-        "google"
+        "google",
       );
 
       expect(result).not.toBeNull();
@@ -206,14 +181,9 @@ describe("ContactIdentitiesRepository", () => {
       const mockId = createMockIdentity({ provider: null });
       const selectBuilder = createMockQueryBuilder([mockId]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
-      const result = await repo.findByKindAndValue(
-        mockUserId,
-        "email",
-        "test@example.com",
-        null
-      );
+      const result = await repo.findByKindAndValue(mockUserId, "email", "test@example.com", null);
 
       expect(result).not.toBeNull();
       expect(result?.provider).toBeNull();
@@ -222,13 +192,9 @@ describe("ContactIdentitiesRepository", () => {
     it("should return null when not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
-      const result = await repo.findByKindAndValue(
-        mockUserId,
-        "email",
-        "nonexistent@example.com"
-      );
+      const result = await repo.findByKindAndValue(mockUserId, "email", "nonexistent@example.com");
 
       expect(result).toBeNull();
     });
@@ -239,7 +205,7 @@ describe("ContactIdentitiesRepository", () => {
       const mockId = createMockIdentity();
       const insertBuilder = createMockQueryBuilder([mockId]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const data = {
         userId: mockUserId,
@@ -258,7 +224,7 @@ describe("ContactIdentitiesRepository", () => {
     it("should throw error when insert returns no data", async () => {
       const insertBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const data = {
         userId: mockUserId,
@@ -267,9 +233,7 @@ describe("ContactIdentitiesRepository", () => {
         value: "test@example.com",
       };
 
-      await expect(repo.createContactIdentity(data)).rejects.toThrow(
-        "Insert returned no data"
-      );
+      await expect(repo.createContactIdentity(data)).rejects.toThrow("Insert returned no data");
     });
   });
 
@@ -282,7 +246,7 @@ describe("ContactIdentitiesRepository", () => {
 
       const insertBuilder = createMockQueryBuilder(mockIds);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const items = [
         {
@@ -317,13 +281,11 @@ describe("ContactIdentitiesRepository", () => {
       const mockId = createMockIdentity({ value: "updated@example.com" });
       const updateBuilder = createMockQueryBuilder([mockId]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
-      const result = await repo.updateContactIdentity(
-        mockUserId,
-        mockIdentityId,
-        { value: "updated@example.com" }
-      );
+      const result = await repo.updateContactIdentity(mockUserId, mockIdentityId, {
+        value: "updated@example.com",
+      });
 
       expect(result).not.toBeNull();
       expect(result?.value).toBe("updated@example.com");
@@ -332,21 +294,19 @@ describe("ContactIdentitiesRepository", () => {
     it("should return null when not found", async () => {
       const updateBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
-      const result = await repo.updateContactIdentity(
-        mockUserId,
-        "non-existent",
-        { value: "updated@example.com" }
-      );
+      const result = await repo.updateContactIdentity(mockUserId, "non-existent", {
+        value: "updated@example.com",
+      });
 
       expect(result).toBeNull();
     });
 
     it("should throw error when no updates provided", async () => {
-      await expect(
-        repo.updateContactIdentity(mockUserId, mockIdentityId, {})
-      ).rejects.toThrow("No fields provided for update");
+      await expect(repo.updateContactIdentity(mockUserId, mockIdentityId, {})).rejects.toThrow(
+        "No fields provided for update",
+      );
     });
   });
 
@@ -354,7 +314,7 @@ describe("ContactIdentitiesRepository", () => {
     it("should delete identity and return count", async () => {
       const deleteBuilder = createMockQueryBuilder([{ id: mockIdentityId }]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteContactIdentity(mockUserId, mockIdentityId);
 
@@ -364,7 +324,7 @@ describe("ContactIdentitiesRepository", () => {
     it("should return 0 when not found", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteContactIdentity(mockUserId, "non-existent");
 
@@ -374,12 +334,9 @@ describe("ContactIdentitiesRepository", () => {
 
   describe("deleteIdentitiesForContact", () => {
     it("should delete all identities for a contact", async () => {
-      const deleteBuilder = createMockQueryBuilder([
-        { id: "identity-1" },
-        { id: "identity-2" },
-      ]);
+      const deleteBuilder = createMockQueryBuilder([{ id: "identity-1" }, { id: "identity-2" }]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteIdentitiesForContact(mockUserId, mockContactId);
 
@@ -389,7 +346,7 @@ describe("ContactIdentitiesRepository", () => {
     it("should return 0 when no identities exist", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteIdentitiesForContact(mockUserId, mockContactId);
 

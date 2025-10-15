@@ -13,7 +13,7 @@ import { z } from "zod";
 
 import { rawEvents } from "@/server/db/schema";
 import type { ProviderType } from "@repo";
-import { RawEventPayloadSchema, SourceMetaSchema } from "@/lib/validation/jsonb";
+import { RawEventPayloadSchema, RawEventSourceMetaSchema } from "./raw-events-payloads";
 import { PaginationQuerySchema, createPaginatedResponseSchema } from "@/lib/validation/common";
 
 export type { RawEvent, CreateRawEvent, UpdateRawEvent } from "@/server/db/schema";
@@ -41,15 +41,16 @@ export const RawEventContactExtractionStatusValues = [
   "REJECTED",
 ] as const;
 
-export const RawEventContactExtractionStatusSchema = z.enum(
-  RawEventContactExtractionStatusValues,
-);
-export type RawEventContactExtractionStatus = z.infer<
-  typeof RawEventContactExtractionStatusSchema
->;
+export const RawEventContactExtractionStatusSchema = z.enum(RawEventContactExtractionStatusValues);
+export type RawEventContactExtractionStatus = z.infer<typeof RawEventContactExtractionStatusSchema>;
 
 // Use the ProviderType from @repo to ensure type consistency
-const ProviderTypeSchema = z.enum(["gmail", "calendar", "drive", "upload"] as const) satisfies z.ZodType<ProviderType>;
+const ProviderTypeSchema = z.enum([
+  "gmail",
+  "calendar",
+  "drive",
+  "upload",
+] as const) satisfies z.ZodType<ProviderType>;
 
 // ============================================================================
 // BASE SCHEMAS
@@ -80,7 +81,7 @@ const BaseRawEventPayloadSchema = z.object({
   payload: RawEventPayloadSchema,
   occurredAt: z.coerce.date(),
   sourceId: z.string().min(1, "sourceId is required"),
-  sourceMeta: SourceMetaSchema.optional(),
+  sourceMeta: RawEventSourceMetaSchema.optional(),
   batchId: z.string().uuid().optional(),
   processingStatus: RawEventProcessingStatusSchema.optional(),
   processingAttempts: z.coerce.number().int().min(0).optional(),

@@ -14,16 +14,16 @@ const ParamsSchema = z.object({
 export const GET = handleAuthWithParams(
   z.void(),
   TokenInfoSchema,
-  async (_voidInput, userId, params): Promise<z.infer<typeof TokenInfoSchema>> => {
+  async (voidInput, userId, params) => {
     const { tokenId } = ParamsSchema.parse(params);
-    return await getTokenByIdService(userId, tokenId);
+    return getTokenByIdService(userId, tokenId);
   },
 );
 
 export const DELETE = handleAuthWithParams(
   z.void(),
   DeleteTokenResponseSchema,
-  async (_voidInput, userId, params): Promise<z.infer<typeof DeleteTokenResponseSchema>> => {
+  async (voidInput, userId, params) => {
     const { tokenId } = ParamsSchema.parse(params);
     return await deleteTokenService(userId, tokenId);
   },

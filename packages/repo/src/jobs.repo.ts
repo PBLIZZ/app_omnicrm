@@ -96,6 +96,7 @@ export class JobsRepository {
   async getJobCounts(
     userId: string,
     batchId?: string,
+    kind?: string[],
   ): Promise<{
     statusCounts: Record<string, number>;
     kindCounts: Record<string, number>;
@@ -104,6 +105,10 @@ export class JobsRepository {
 
     if (batchId) {
       conditions.push(eq(jobs.batchId, batchId));
+    }
+
+    if (kind?.length) {
+      conditions.push(inArray(jobs.kind, kind));
     }
 
     const rows = (await this.db

@@ -163,94 +163,32 @@ export const AiInsightContentSchema = z.union([z.string(), z.record(z.string(), 
 export type AiInsightContent = z.infer<typeof AiInsightContentSchema>;
 
 // ============================================================================
-// SOURCE METADATA SCHEMAS
+// SOURCE METADATA & RAW EVENT PAYLOAD SCHEMAS
 // ============================================================================
 
 /**
- * Gmail Source Metadata Schema
+ * DEPRECATED: These schemas have been moved to @/server/db/business-schemas/raw-events-payloads
+ *
+ * Use the schemas from raw-events-payloads.ts instead - they are the single source of truth
+ * for all JSONB payload and source_meta structures based on the actual database schema.
+ *
+ * Temporary re-exports are provided below for backward compatibility during migration.
+ * Update your imports to the new location and remove these re-exports once all consumers are migrated.
+ *
+ * Migration example:
+ * - OLD: import { GmailSourceMetaSchema } from "@/lib/validation/jsonb"
+ * - NEW: import { GmailSourceMetaSchema } from "@/server/db/business-schemas/raw-events-payloads"
  */
-export const GmailSourceMetaSchema = z
-  .object({
-    from: z.string().optional(),
-    to: z.array(z.string()).optional(),
-    cc: z.array(z.string()).optional(),
-    bcc: z.array(z.string()).optional(),
-    subject: z.string().optional(),
-    threadId: z.string().optional(),
-    messageId: z.string().optional(),
-    labelIds: z.array(z.string()).optional(),
-    fetchedAt: z.string().optional(),
-    matchedQuery: z.string().optional(),
-  })
-  .strict()
-  .optional();
 
-export type GmailSourceMeta = z.infer<typeof GmailSourceMetaSchema>;
-
-/**
- * Calendar Source Metadata Schema
- */
-export const CalendarSourceMetaSchema = z
-  .object({
-    attendees: z
-      .array(
-        z.object({
-          email: z.string(),
-          name: z.string().optional(),
-          responseStatus: z.string().optional(),
-        }),
-      )
-      .optional(),
-    organizer: z
-      .object({
-        email: z.string(),
-        name: z.string().optional(),
-      })
-      .optional(),
-    eventId: z.string().optional(),
-    calendarId: z.string().optional(),
-    summary: z.string().optional(),
-    description: z.string().optional(),
-    location: z.string().optional(),
-    startTime: z.string().optional(),
-    endTime: z.string().optional(),
-    isAllDay: z.boolean().optional(),
-    recurring: z.boolean().optional(),
-    status: z.string().optional(),
-    fetchedAt: z.string().optional(),
-  })
-  .strict()
-  .optional();
-
-export type CalendarSourceMeta = z.infer<typeof CalendarSourceMetaSchema>;
-
-/**
- * Generic Source Metadata Schema (fallback)
- */
-export const GenericSourceMetaSchema = z.record(z.string(), z.unknown()).optional();
-
-/**
- * Union of all source metadata types
- */
-export const SourceMetaSchema = z.union([
+// Deprecated re-exports for migration - forward to new location
+export {
   GmailSourceMetaSchema,
   CalendarSourceMetaSchema,
-  GenericSourceMetaSchema,
-]);
-
-export type SourceMeta = z.infer<typeof SourceMetaSchema>;
-
-// ============================================================================
-// RAW EVENT PAYLOAD SCHEMAS
-// ============================================================================
-
-/**
- * Raw Event Payload Schema
- * Generic validation for raw event payloads
- */
-export const RawEventPayloadSchema = z.record(z.string(), z.unknown());
-
-export type RawEventPayload = z.infer<typeof RawEventPayloadSchema>;
+  GmailMessagePayloadSchema,
+  GoogleCalendarEventPayloadSchema,
+  RawEventPayloadSchema,
+  RawEventSourceMetaSchema,
+} from "@/server/db/business-schemas/raw-events-payloads";
 
 // ============================================================================
 // SANITIZATION HELPERS

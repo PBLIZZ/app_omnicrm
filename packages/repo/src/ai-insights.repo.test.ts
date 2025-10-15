@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  AiInsightsRepository,
-  createAiInsightsRepository,
-} from "./ai-insights.repo";
-import {
-  createMockDbClient,
-  createMockQueryBuilder,
-  type MockDbClient,
-} from "@packages/testing";
+import { AiInsightsRepository, createAiInsightsRepository } from "./ai-insights.repo";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
 import type { AiInsight } from "@/server/db/schema";
 
 describe("AiInsightsRepository", () => {
@@ -38,17 +31,12 @@ describe("AiInsightsRepository", () => {
 
   describe("listAiInsights", () => {
     it("should list insights with default pagination", async () => {
-      const mockInsights = [
-        createMockInsight(),
-        createMockInsight({ id: "insight-2" }),
-      ];
+      const mockInsights = [createMockInsight(), createMockInsight({ id: "insight-2" })];
 
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 10 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listAiInsights(mockUserId);
 
@@ -62,9 +50,7 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listAiInsights(mockUserId, {
         subjectType: "contact",
@@ -80,9 +66,7 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listAiInsights(mockUserId, {
         subjectId: "contact-123",
@@ -98,9 +82,7 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listAiInsights(mockUserId, {
         kinds: ["wellness_goal"],
@@ -111,16 +93,12 @@ describe("AiInsightsRepository", () => {
     });
 
     it("should search insights by content", async () => {
-      const mockInsights = [
-        createMockInsight({ content: "Yoga enthusiast" }),
-      ];
+      const mockInsights = [createMockInsight({ content: "Yoga enthusiast" })];
 
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listAiInsights(mockUserId, {
         search: "Yoga",
@@ -136,9 +114,7 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 100 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listAiInsights(mockUserId, {
         page: 2,
@@ -155,9 +131,7 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       await repo.listAiInsights(mockUserId, { pageSize: 500 });
 
@@ -170,9 +144,7 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       await repo.listAiInsights(mockUserId, { pageSize: 0 });
 
@@ -188,9 +160,7 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 2 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listAiInsights(mockUserId, { order: "asc" });
 
@@ -201,9 +171,7 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder([]);
       const countBuilder = createMockQueryBuilder([{ value: 0 }]);
 
-      vi.mocked(mockDb.select)
-        .mockReturnValueOnce(selectBuilder as any)
-        .mockReturnValueOnce(countBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
 
       const result = await repo.listAiInsights(mockUserId);
 
@@ -217,7 +185,7 @@ describe("AiInsightsRepository", () => {
       const mockInsight = createMockInsight();
       const selectBuilder = createMockQueryBuilder([mockInsight]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getAiInsightById(mockUserId, mockInsightId);
 
@@ -228,7 +196,7 @@ describe("AiInsightsRepository", () => {
     it("should return null when not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getAiInsightById(mockUserId, "non-existent");
 
@@ -238,7 +206,7 @@ describe("AiInsightsRepository", () => {
     it("should respect user isolation", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.getAiInsightById("different-user", mockInsightId);
 
@@ -251,7 +219,7 @@ describe("AiInsightsRepository", () => {
       const mockInsight = createMockInsight({ fingerprint: "unique-fp" });
       const selectBuilder = createMockQueryBuilder([mockInsight]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.findByFingerprint(mockUserId, "unique-fp");
 
@@ -262,7 +230,7 @@ describe("AiInsightsRepository", () => {
     it("should return null when fingerprint not found", async () => {
       const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
       const result = await repo.findByFingerprint(mockUserId, "nonexistent");
 
@@ -275,7 +243,7 @@ describe("AiInsightsRepository", () => {
       const mockInsight = createMockInsight();
       const insertBuilder = createMockQueryBuilder([mockInsight]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const data = {
         userId: mockUserId,
@@ -296,7 +264,7 @@ describe("AiInsightsRepository", () => {
     it("should throw error when insert returns no data", async () => {
       const insertBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
 
       const data = {
         userId: mockUserId,
@@ -308,22 +276,20 @@ describe("AiInsightsRepository", () => {
         fingerprint: "fp789",
       };
 
-      await expect(repo.createAiInsight(data)).rejects.toThrow(
-        "Insert returned no data"
-      );
+      await expect(repo.createAiInsight(data)).rejects.toThrow("Insert returned no data");
     });
   });
 
   describe("updateAiInsight", () => {
     it("should update existing insight", async () => {
-      const mockInsight = createMockInsight({ confidence: 0.95 });
+      const mockInsight = createMockInsight({ confidence: 0.95 } as any);
       const updateBuilder = createMockQueryBuilder([mockInsight]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateAiInsight(mockUserId, mockInsightId, {
         confidence: 0.95,
-      });
+      } as any);
 
       expect(result).not.toBeNull();
       expect(result?.confidence).toBe(0.95);
@@ -332,7 +298,7 @@ describe("AiInsightsRepository", () => {
     it("should return null when insight not found", async () => {
       const updateBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateAiInsight(mockUserId, "non-existent", {
         confidence: 0.9,
@@ -342,9 +308,9 @@ describe("AiInsightsRepository", () => {
     });
 
     it("should throw error when no updates provided", async () => {
-      await expect(
-        repo.updateAiInsight(mockUserId, mockInsightId, {})
-      ).rejects.toThrow("No fields provided for update");
+      await expect(repo.updateAiInsight(mockUserId, mockInsightId, {})).rejects.toThrow(
+        "No fields provided for update",
+      );
     });
   });
 
@@ -352,7 +318,7 @@ describe("AiInsightsRepository", () => {
     it("should delete insight and return count", async () => {
       const deleteBuilder = createMockQueryBuilder([{ id: mockInsightId }]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteAiInsight(mockUserId, mockInsightId);
 
@@ -362,7 +328,7 @@ describe("AiInsightsRepository", () => {
     it("should return 0 when insight not found", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteAiInsight(mockUserId, "non-existent");
 
@@ -378,7 +344,7 @@ describe("AiInsightsRepository", () => {
         { id: "insight-3" },
       ]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteAiInsightsForUser(mockUserId);
 
@@ -388,7 +354,7 @@ describe("AiInsightsRepository", () => {
     it("should return 0 when no insights exist", async () => {
       const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
       const result = await repo.deleteAiInsightsForUser(mockUserId);
 
@@ -405,49 +371,38 @@ describe("AiInsightsRepository", () => {
 
       const selectBuilder = createMockQueryBuilder(mockInsights);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
-      const result = await repo.findBySubjectIds(mockUserId, [
-        "contact-1",
-        "contact-2",
-      ]);
+      const result = await repo.findBySubjectIds(mockUserId, ["contact-1", "contact-2"]);
 
       expect(result).toHaveLength(2);
     });
 
     it("should filter by subject type", async () => {
-      const mockInsights = [
-        createMockInsight({ subjectType: "contact", subjectId: "contact-1" }),
-      ];
+      const mockInsights = [createMockInsight({ subjectType: "contact", subjectId: "contact-1" })];
 
       const selectBuilder = createMockQueryBuilder(mockInsights);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
-      const result = await repo.findBySubjectIds(
-        mockUserId,
-        ["contact-1"],
-        { subjectType: "contact" }
-      );
+      const result = await repo.findBySubjectIds(mockUserId, ["contact-1"], {
+        subjectType: "contact",
+      });
 
       expect(result).toHaveLength(1);
       expect(result[0]?.subjectType).toBe("contact");
     });
 
     it("should filter by kind", async () => {
-      const mockInsights = [
-        createMockInsight({ kind: "wellness_goal", subjectId: "contact-1" }),
-      ];
+      const mockInsights = [createMockInsight({ kind: "wellness_goal", subjectId: "contact-1" })];
 
       const selectBuilder = createMockQueryBuilder(mockInsights);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
-      const result = await repo.findBySubjectIds(
-        mockUserId,
-        ["contact-1"],
-        { kind: "wellness_goal" }
-      );
+      const result = await repo.findBySubjectIds(mockUserId, ["contact-1"], {
+        kind: "wellness_goal",
+      });
 
       expect(result).toHaveLength(1);
       expect(result[0]?.kind).toBe("wellness_goal");

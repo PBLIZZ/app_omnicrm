@@ -44,6 +44,37 @@ export { faker } from "@faker-js/faker";
 export type { MockedFunction } from "vitest";
 
 // =============================================================================
+// MOCK FACTORIES
+// =============================================================================
+
+export {
+  createMockDbClient,
+  createMockQueryBuilder,
+  configureMockQuery,
+  type MockDbClient,
+  type MockQueryBuilder,
+} from "./factories/mock-db-client";
+
+// =============================================================================
+// TEST HELPERS
+// =============================================================================
+
+export {
+  expectAppError,
+  expectAppErrorRejection,
+  createMockAppError,
+  commonAppErrors,
+  type ExpectedAppError,
+} from "./helpers/app-error";
+
+export {
+  createTestQueryClient,
+  createQueryClientWrapper,
+  clearQueryClient,
+  waitForQueries,
+} from "./helpers/query-client";
+
+// =============================================================================
 // TESTING UTILITIES
 // =============================================================================
 

@@ -142,6 +142,46 @@ export async function createContactsFromSuggestionsService(
 // ============================================================================
 
 /**
+ * Extracts and validates note query rows from Drizzle query result
+ * @param notesData - Result from db.execute() containing contact notes data
+ * @returns Array of validated rows with contact_id and last_note_preview
+ */
+function extractNotesQueryRows(
+  notesData: unknown,
+): Array<{ contact_id: string; last_note_preview: string | null }> {
+  // Defensive validation of query result
+  if (!notesData || typeof notesData !== "object") {
+    return [];
+  }
+
+  // Extract rows array from Drizzle result
+  // Drizzle returns either an array directly or an object with a rows property
+  let rows: unknown[];
+  if (Array.isArray(notesData)) {
+    rows = notesData;
+  } else if ("rows" in notesData && Array.isArray(notesData.rows)) {
+    rows = notesData.rows;
+  } else {
+    return [];
+  }
+
+  // Validate and transform each row
+  return rows
+    .filter((row): row is Record<string, unknown> => {
+      if (row === null || typeof row !== "object") {
+        return false;
+      }
+      const record = row as Record<string, unknown>;
+      return typeof record.contact_id === "string";
+    })
+    .map((row) => ({
+      contact_id: row.contact_id as string,
+      last_note_preview:
+        typeof row.last_note_preview === "string" ? row.last_note_preview : null,
+    }));
+}
+
+/**
  * Fetches the most recent note preview (first 500 characters) for each specified contact.
  *
  * @param userId - ID of the user who owns the contacts

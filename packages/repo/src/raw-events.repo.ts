@@ -351,6 +351,37 @@ export class RawEventsRepository {
 
     return rows.map((row) => mapRowToListItem(row));
   }
+
+  async getEmailCountByProvider(userId: string, provider: ProviderType): Promise<number> {
+    const result = await this.db
+      .select({ value: count() })
+      .from(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, provider)))
+      .limit(1);
+
+    const rawCount: unknown = result[0]?.value ?? 0;
+    const emailCount: number = typeof rawCount === 'string' 
+      ? parseInt(rawCount, 10) 
+      : typeof rawCount === 'number' 
+      ? rawCount 
+      : 0;
+
+    return emailCount;
+  }
+
+  async getLatestEventByProvider(
+    userId: string,
+    provider: ProviderType
+  ): Promise<RawEvent | null> {
+    const rows = (await this.db
+      .select()
+      .from(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, provider)))
+      .orderBy(desc(rawEvents.createdAt))
+      .limit(1)) as RawEventRow[];
+
+    return rows[0] ?? null;
+  }
 }
 
 export function createRawEventsRepository(db: DbClient): RawEventsRepository {

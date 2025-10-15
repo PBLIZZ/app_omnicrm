@@ -12,6 +12,28 @@
 import { toast } from "sonner";
 
 // ============================================================================
+// CSRF TOKEN UTILITIES
+// ============================================================================
+
+/**
+ * Get CSRF token from cookies
+ */
+function getCsrfToken(): string | null {
+  if (typeof document === "undefined") {
+    return null; // Server-side rendering
+  }
+
+  const cookies = document.cookie.split(";");
+  const csrfCookie = cookies.find((cookie) => cookie.trim().startsWith("csrf="));
+
+  if (!csrfCookie) {
+    return null;
+  }
+
+  return csrfCookie.split("=")[1] ?? null;
+}
+
+// ============================================================================
 // TYPE GUARDS
 // ============================================================================
 
@@ -131,11 +153,35 @@ export async function apiRequest<T = unknown>(
     finalSignal = combinedController.signal;
   }
 
+  // Resolve absolute URL for testing environment
+  let absoluteUrl = url;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    // Get base URL from browser or environment
+    let baseUrl = "http://localhost:3000"; // Default fallback
+    if (typeof window !== "undefined" && window.location && window.location.origin) {
+      baseUrl = window.location.origin;
+    } else if (process.env["NEXT_PUBLIC_API_URL"]) {
+      baseUrl = process.env["NEXT_PUBLIC_API_URL"];
+    }
+    absoluteUrl = new URL(url, baseUrl).toString();
+  }
+
   // Build headers
   const headers: HeadersInit = {
     credentials: "same-origin",
     ...fetchOptions.headers,
   };
+
+  // Add CSRF token for unsafe methods (POST, PUT, PATCH, DELETE)
+  if (
+    fetchOptions.method &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(fetchOptions.method.toUpperCase())
+  ) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      (headers as Record<string, string>)["x-csrf-token"] = csrfToken;
+    }
+  }
 
   // Add content-type for requests with body
   if (
@@ -147,7 +193,7 @@ export async function apiRequest<T = unknown>(
   }
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(absoluteUrl, {
       credentials: "same-origin",
       ...fetchOptions,
       headers,
@@ -173,10 +219,18 @@ export async function apiRequest<T = unknown>(
       const message =
         (() => {
           // Check if parsedBody is a record and has message or error properties
-          if (isRecord(parsedBody) && "message" in parsedBody && typeof parsedBody["message"] === "string") {
+          if (
+            isRecord(parsedBody) &&
+            "message" in parsedBody &&
+            typeof parsedBody["message"] === "string"
+          ) {
             return parsedBody["message"];
           }
-          if (isRecord(parsedBody) && "error" in parsedBody && typeof parsedBody["error"] === "string") {
+          if (
+            isRecord(parsedBody) &&
+            "error" in parsedBody &&
+            typeof parsedBody["error"] === "string"
+          ) {
             return parsedBody["error"];
           }
           return undefined;
@@ -185,14 +239,17 @@ export async function apiRequest<T = unknown>(
         response.statusText ||
         "Request failed";
 
-      const code =
-        (() => {
-          // Check if parsedBody is a record and has code property
-          if (isRecord(parsedBody) && "code" in parsedBody && typeof parsedBody["code"] === "string") {
-            return parsedBody["code"];
-          }
-          return undefined;
-        })();
+      const code = (() => {
+        // Check if parsedBody is a record and has code property
+        if (
+          isRecord(parsedBody) &&
+          "code" in parsedBody &&
+          typeof parsedBody["code"] === "string"
+        ) {
+          return parsedBody["code"];
+        }
+        return undefined;
+      })();
 
       throw new ApiError(message, response.status, code, parsedBody ?? rawBody);
     }
@@ -355,7 +412,11 @@ export async function safeRequest<T>(
   } catch (error) {
     if (logError) {
       const errorInstance = error instanceof Error ? error : new Error(String(error));
-      console.error("API request failed, using fallback", { operation: "safe_request" }, errorInstance);
+      console.error(
+        "API request failed, using fallback",
+        { operation: "safe_request" },
+        errorInstance,
+      );
     }
 
     if (showErrorToast && error instanceof Error) {

@@ -61,7 +61,7 @@ Self-referential foreign keys (e.g., `tasks.parentTaskId → tasks.id`) break Ty
 
 ### Example
 
-```
+```typescript
 // Explicit type definition
 export type Task = {
   id: string;

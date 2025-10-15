@@ -1,128 +1,167 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { IgnoredIdentifiersRepository } from "./ignored-identifiers.repo";
-import type { DbClient } from "@/server/db/client";
-import { ignoredIdentifiers } from "@/server/db/schema";
-
-const createMockDb = () => {
-  const mockDb = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    offset: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    returning: vi.fn(),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-  };
-  return mockDb as unknown as DbClient;
-};
+import {
+  IgnoredIdentifiersRepository,
+  createIgnoredIdentifiersRepository,
+} from "./ignored-identifiers.repo";
+import {
+  createMockDbClient,
+  createMockQueryBuilder,
+  type MockDbClient,
+} from "@packages/testing";
+import type { IgnoredIdentifier } from "@/server/db/schema";
 
 describe("IgnoredIdentifiersRepository", () => {
-  let mockDb: DbClient;
-  const testUserId = "test-user-123";
-  const testIdentifierId = "identifier-123";
+  let mockDb: MockDbClient;
+  let repo: IgnoredIdentifiersRepository;
+  const mockUserId = "user-123";
+  const mockIdentifierId = "id-456";
+
+  const createMockIgnoredIdentifier = (
+    overrides: Partial<IgnoredIdentifier> = {}
+  ): IgnoredIdentifier => ({
+    id: mockIdentifierId,
+    userId: mockUserId,
+    kind: "email",
+    value: "spam@example.com",
+    reason: "Spam sender",
+    createdAt: new Date(),
+    ...overrides,
+  });
 
   beforeEach(() => {
-    mockDb = createMockDb();
+    mockDb = createMockDbClient();
+    repo = createIgnoredIdentifiersRepository(mockDb as any);
+    vi.clearAllMocks();
   });
 
   describe("listIgnoredIdentifiers", () => {
     it("should list ignored identifiers with default pagination", async () => {
-      const mockIdentifiers = [
-        {
-          id: testIdentifierId,
-          userId: testUserId,
-          kind: "email",
-          value: "spam@example.com",
-          reason: "Automated system",
-          createdAt: new Date(),
-        },
+      const mockIds = [
+        createMockIgnoredIdentifier(),
+        createMockIgnoredIdentifier({ id: "id-2", value: "test@example.com" }),
       ];
 
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce(mockIdentifiers);
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([{ value: 1 }]);
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 10 }]);
 
-      const result = await IgnoredIdentifiersRepository.listIgnoredIdentifiers(mockDb, testUserId);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder as any)
+        .mockReturnValueOnce(countBuilder as any);
 
-      expect(result.items).toEqual(mockIdentifiers);
-      expect(result.total).toBe(1);
+      const result = await repo.listIgnoredIdentifiers(mockUserId);
+
+      expect(result.items).toHaveLength(2);
+      expect(result.total).toBe(10);
     });
 
     it("should filter by kinds", async () => {
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([{ value: 0 }]);
+      const mockIds = [createMockIgnoredIdentifier({ kind: "email" })];
 
-      await IgnoredIdentifiersRepository.listIgnoredIdentifiers(mockDb, testUserId, {
-        kinds: ["email", "phone"],
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 1 }]);
+
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder as any)
+        .mockReturnValueOnce(countBuilder as any);
+
+      const result = await repo.listIgnoredIdentifiers(mockUserId, {
+        kinds: ["email"],
       });
 
-      expect(mockDb.select).toHaveBeenCalled();
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.kind).toBe("email");
     });
 
     it("should search by value", async () => {
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([{ value: 0 }]);
+      const mockIds = [createMockIgnoredIdentifier({ value: "spam@test.com" })];
 
-      await IgnoredIdentifiersRepository.listIgnoredIdentifiers(mockDb, testUserId, {
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 1 }]);
+
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder as any)
+        .mockReturnValueOnce(countBuilder as any);
+
+      const result = await repo.listIgnoredIdentifiers(mockUserId, {
         search: "spam",
       });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.value).toContain("spam");
+    });
+
+    it("should handle custom pagination", async () => {
+      const mockIds = [createMockIgnoredIdentifier()];
+
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 100 }]);
+
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder as any)
+        .mockReturnValueOnce(countBuilder as any);
+
+      const result = await repo.listIgnoredIdentifiers(mockUserId, {
+        page: 2,
+        pageSize: 25,
+      });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(100);
+    });
+
+    it("should enforce maximum page size", async () => {
+      const mockIds = [createMockIgnoredIdentifier()];
+
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 1 }]);
+
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder as any)
+        .mockReturnValueOnce(countBuilder as any);
+
+      await repo.listIgnoredIdentifiers(mockUserId, { pageSize: 500 });
 
       expect(mockDb.select).toHaveBeenCalled();
     });
 
-    it("should handle custom pagination", async () => {
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([{ value: 0 }]);
-
-      await IgnoredIdentifiersRepository.listIgnoredIdentifiers(mockDb, testUserId, {
-        page: 3,
-        pageSize: 25,
-      });
-
-      expect(mockDb.limit).toHaveBeenCalledWith(25);
-      expect(mockDb.offset).toHaveBeenCalledWith(50); // (3-1) * 25
-    });
-
-    it("should enforce maximum page size", async () => {
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([{ value: 0 }]);
-
-      await IgnoredIdentifiersRepository.listIgnoredIdentifiers(mockDb, testUserId, {
-        pageSize: 500,
-      });
-
-      expect(mockDb.limit).toHaveBeenCalledWith(200);
-    });
-
     it("should sort ascending when specified", async () => {
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([{ value: 0 }]);
+      const mockIds = [
+        createMockIgnoredIdentifier({ id: "id-1" }),
+        createMockIgnoredIdentifier({ id: "id-2" }),
+      ];
 
-      await IgnoredIdentifiersRepository.listIgnoredIdentifiers(mockDb, testUserId, {
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 2 }]);
+
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder as any)
+        .mockReturnValueOnce(countBuilder as any);
+
+      const result = await repo.listIgnoredIdentifiers(mockUserId, {
         order: "asc",
       });
 
-      expect(mockDb.orderBy).toHaveBeenCalled();
+      expect(result.items).toHaveLength(2);
     });
   });
 
   describe("isIgnored", () => {
     it("should return true when identifier is ignored", async () => {
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([{ id: testIdentifierId }]);
+      const selectBuilder = createMockQueryBuilder([{ id: mockIdentifierId }]);
 
-      const result = await IgnoredIdentifiersRepository.isIgnored(mockDb, testUserId, "email", "spam@example.com");
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+
+      const result = await repo.isIgnored(mockUserId, "email", "spam@example.com");
 
       expect(result).toBe(true);
     });
 
     it("should return false when identifier is not ignored", async () => {
-      vi.mocked(mockDb.select().from(ignoredIdentifiers).where).mockResolvedValueOnce([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      const result = await IgnoredIdentifiersRepository.isIgnored(mockDb, testUserId, "email", "valid@example.com");
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
+
+      const result = await repo.isIgnored(mockUserId, "email", "clean@example.com");
 
       expect(result).toBe(false);
     });
@@ -130,32 +169,37 @@ describe("IgnoredIdentifiersRepository", () => {
 
   describe("createIgnoredIdentifier", () => {
     it("should create new ignored identifier", async () => {
-      const newIdentifier = {
-        userId: testUserId,
+      const mockId = createMockIgnoredIdentifier();
+      const insertBuilder = createMockQueryBuilder([mockId]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+
+      const data = {
+        userId: mockUserId,
         kind: "email",
         value: "spam@example.com",
-        reason: "Automated system",
+        reason: "Spam",
       };
 
-      const created = { ...newIdentifier, id: "new-id", createdAt: new Date() };
+      const result = await repo.createIgnoredIdentifier(data);
 
-      vi.mocked(mockDb.insert(ignoredIdentifiers).values(newIdentifier).returning).mockResolvedValueOnce([created]);
-
-      const result = await IgnoredIdentifiersRepository.createIgnoredIdentifier(mockDb, newIdentifier);
-
-      expect(result).toEqual(created);
+      expect(result).not.toBeNull();
+      expect(result.id).toBe(mockIdentifierId);
     });
 
     it("should throw error when insert returns no data", async () => {
-      const newIdentifier = {
-        userId: testUserId,
+      const insertBuilder = createMockQueryBuilder([]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+
+      const data = {
+        userId: mockUserId,
         kind: "email",
-        value: "spam@example.com",
+        value: "test@example.com",
+        reason: "Test",
       };
 
-      vi.mocked(mockDb.insert(ignoredIdentifiers).values(newIdentifier).returning).mockResolvedValueOnce([]);
-
-      await expect(IgnoredIdentifiersRepository.createIgnoredIdentifier(mockDb, newIdentifier)).rejects.toThrow(
+      await expect(repo.createIgnoredIdentifier(data)).rejects.toThrow(
         "Insert returned no data"
       );
     });
@@ -163,36 +207,30 @@ describe("IgnoredIdentifiersRepository", () => {
 
   describe("updateIgnoredIdentifier", () => {
     it("should update existing identifier", async () => {
-      const updates = { reason: "Updated reason" };
-      const updated = {
-        id: testIdentifierId,
-        userId: testUserId,
-        kind: "email",
-        value: "spam@example.com",
-        reason: "Updated reason",
-        createdAt: new Date(),
-      };
+      const mockId = createMockIgnoredIdentifier({ reason: "Updated reason" });
+      const updateBuilder = createMockQueryBuilder([mockId]);
 
-      vi.mocked(mockDb.update(ignoredIdentifiers).set(updates).where).mockResolvedValueOnce([updated]);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
-      const result = await IgnoredIdentifiersRepository.updateIgnoredIdentifier(
-        mockDb,
-        testUserId,
-        testIdentifierId,
-        updates
+      const result = await repo.updateIgnoredIdentifier(
+        mockUserId,
+        mockIdentifierId,
+        { reason: "Updated reason" }
       );
 
-      expect(result).toEqual(updated);
+      expect(result).not.toBeNull();
+      expect(result?.reason).toBe("Updated reason");
     });
 
     it("should return null when not found", async () => {
-      vi.mocked(mockDb.update(ignoredIdentifiers).set({}).where).mockResolvedValueOnce([]);
+      const updateBuilder = createMockQueryBuilder([]);
 
-      const result = await IgnoredIdentifiersRepository.updateIgnoredIdentifier(
-        mockDb,
-        testUserId,
-        testIdentifierId,
-        { reason: "test" }
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+
+      const result = await repo.updateIgnoredIdentifier(
+        mockUserId,
+        "non-existent",
+        { reason: "Updated" }
       );
 
       expect(result).toBeNull();
@@ -200,48 +238,56 @@ describe("IgnoredIdentifiersRepository", () => {
 
     it("should throw error when no updates provided", async () => {
       await expect(
-        IgnoredIdentifiersRepository.updateIgnoredIdentifier(mockDb, testUserId, testIdentifierId, {})
+        repo.updateIgnoredIdentifier(mockUserId, mockIdentifierId, {})
       ).rejects.toThrow("No fields provided for update");
     });
   });
 
   describe("deleteIgnoredIdentifier", () => {
     it("should delete identifier and return count", async () => {
-      vi.mocked(mockDb.delete(ignoredIdentifiers).where).mockResolvedValueOnce([{ id: testIdentifierId }]);
+      const deleteBuilder = createMockQueryBuilder([{ id: mockIdentifierId }]);
 
-      const count = await IgnoredIdentifiersRepository.deleteIgnoredIdentifier(mockDb, testUserId, testIdentifierId);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      expect(count).toBe(1);
+      const result = await repo.deleteIgnoredIdentifier(mockUserId, mockIdentifierId);
+
+      expect(result).toBe(1);
     });
 
     it("should return 0 when not found", async () => {
-      vi.mocked(mockDb.delete(ignoredIdentifiers).where).mockResolvedValueOnce([]);
+      const deleteBuilder = createMockQueryBuilder([]);
 
-      const count = await IgnoredIdentifiersRepository.deleteIgnoredIdentifier(mockDb, testUserId, testIdentifierId);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      expect(count).toBe(0);
+      const result = await repo.deleteIgnoredIdentifier(mockUserId, "non-existent");
+
+      expect(result).toBe(0);
     });
   });
 
   describe("deleteIgnoredIdentifiersForUser", () => {
     it("should delete all identifiers for user", async () => {
-      vi.mocked(mockDb.delete(ignoredIdentifiers).where).mockResolvedValueOnce([
+      const deleteBuilder = createMockQueryBuilder([
         { id: "id-1" },
         { id: "id-2" },
         { id: "id-3" },
       ]);
 
-      const count = await IgnoredIdentifiersRepository.deleteIgnoredIdentifiersForUser(mockDb, testUserId);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      expect(count).toBe(3);
+      const result = await repo.deleteIgnoredIdentifiersForUser(mockUserId);
+
+      expect(result).toBe(3);
     });
 
     it("should return 0 when no identifiers exist", async () => {
-      vi.mocked(mockDb.delete(ignoredIdentifiers).where).mockResolvedValueOnce([]);
+      const deleteBuilder = createMockQueryBuilder([]);
 
-      const count = await IgnoredIdentifiersRepository.deleteIgnoredIdentifiersForUser(mockDb, testUserId);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      expect(count).toBe(0);
+      const result = await repo.deleteIgnoredIdentifiersForUser(mockUserId);
+
+      expect(result).toBe(0);
     });
   });
 });

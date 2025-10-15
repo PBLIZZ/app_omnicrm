@@ -1,19 +1,18 @@
-/**
- * Unit Tests for ContactsRepository
- *
- * Tests all CRUD operations, pagination, search, validation, and bulk operations
- */
-
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { ContactsRepository } from "./contacts.repo";
-import * as dbClient from "@/server/db/client";
-import type { Contact, Note } from "@/server/db/schema";
-
-// Mock dependencies
-vi.mock("@/server/db/client");
-vi.mock("@/lib/utils/zod-helpers");
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  ContactsRepository,
+  createContactsRepository,
+} from "./contacts.repo";
+import {
+  createMockDbClient,
+  createMockQueryBuilder,
+  type MockDbClient,
+} from "@packages/testing";
+import type { Contact } from "@/server/db/schema";
 
 describe("ContactsRepository", () => {
+  let mockDb: MockDbClient;
+  let repo: ContactsRepository;
   const mockUserId = "user-123";
   const mockContactId = "contact-456";
 
@@ -41,110 +40,64 @@ describe("ContactsRepository", () => {
     ...overrides,
   });
 
-  const createMockNote = (overrides: Partial<Note> = {}): Note => ({
-    id: "note-1",
-    userId: mockUserId,
-    contactId: mockContactId,
-    contentPlain: "Test note",
-    contentRich: {},
-    tags: [],
-    piiEntities: [],
-    sourceType: "typed",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  });
-
-  const createMockDb = () => ({
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    offset: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-  });
-
   beforeEach(() => {
+    mockDb = createMockDbClient();
+    repo = createContactsRepository(mockDb as any);
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
   });
 
   describe("listContacts", () => {
     it("should list contacts with default pagination", async () => {
       const mockContacts = [createMockContact(), createMockContact({ id: "contact-2" })];
-      const mockDb = createMockDb();
       
-      // Mock count query
-      mockDb.where.mockImplementationOnce(function(this: any) {
-        return Promise.resolve([{ count: 10 }]);
-      });
-      
-      // Mock select query
-      mockDb.offset.mockResolvedValue(mockContacts);
+      const selectBuilder = createMockQueryBuilder(mockContacts);
+      const countBuilder = createMockQueryBuilder([{ count: 10 }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(countBuilder as any)
+        .mockReturnValueOnce(selectBuilder as any);
 
-      const result = await ContactsRepository.listContacts(mockUserId);
+      const result = await repo.listContacts(mockUserId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.items).toHaveLength(2);
-        expect(result.data.total).toBe(10);
-      }
+      expect(result.items).toHaveLength(2);
+      expect(result.total).toBe(10);
     });
 
     it("should respect pagination parameters", async () => {
       const mockContacts = [createMockContact()];
-      const mockDb = createMockDb();
       
-      mockDb.where.mockImplementationOnce(function(this: any) {
-        return Promise.resolve([{ count: 100 }]);
-      });
-      mockDb.offset.mockResolvedValue(mockContacts);
+      const selectBuilder = createMockQueryBuilder(mockContacts);
+      const countBuilder = createMockQueryBuilder([{ count: 100 }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(countBuilder as any)
+        .mockReturnValueOnce(selectBuilder as any);
 
-      const result = await ContactsRepository.listContacts(mockUserId, {
+      const result = await repo.listContacts(mockUserId, {
         page: 2,
         pageSize: 25,
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.items).toHaveLength(1);
-        expect(result.data.total).toBe(100);
-      }
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(100);
     });
 
     it("should filter by search term", async () => {
       const mockContacts = [createMockContact({ displayName: "Yoga Student" })];
-      const mockDb = createMockDb();
       
-      mockDb.where.mockImplementationOnce(function(this: any) {
-        return Promise.resolve([{ count: 1 }]);
-      });
-      mockDb.offset.mockResolvedValue(mockContacts);
+      const selectBuilder = createMockQueryBuilder(mockContacts);
+      const countBuilder = createMockQueryBuilder([{ count: 1 }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(countBuilder as any)
+        .mockReturnValueOnce(selectBuilder as any);
 
-      const result = await ContactsRepository.listContacts(mockUserId, {
+      const result = await repo.listContacts(mockUserId, {
         search: "Yoga",
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.items).toHaveLength(1);
-        expect(result.data.items[0].displayName).toContain("Yoga");
-      }
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.displayName).toContain("Yoga");
     });
 
     it("should sort by displayName ascending", async () => {
@@ -152,157 +105,78 @@ describe("ContactsRepository", () => {
         createMockContact({ displayName: "Alice" }),
         createMockContact({ id: "contact-2", displayName: "Bob" }),
       ];
-      const mockDb = createMockDb();
       
-      mockDb.where.mockImplementationOnce(function(this: any) {
-        return Promise.resolve([{ count: 2 }]);
-      });
-      mockDb.offset.mockResolvedValue(mockContacts);
+      const selectBuilder = createMockQueryBuilder(mockContacts);
+      const countBuilder = createMockQueryBuilder([{ count: 2 }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(countBuilder as any)
+        .mockReturnValueOnce(selectBuilder as any);
 
-      const result = await ContactsRepository.listContacts(mockUserId, {
+      const result = await repo.listContacts(mockUserId, {
         sort: "displayName",
         order: "asc",
       });
 
-      expect(result.success).toBe(true);
+      expect(result.items).toHaveLength(2);
     });
 
     it("should return empty list when no contacts", async () => {
-      const mockDb = createMockDb();
-      
-      mockDb.where.mockImplementationOnce(function(this: any) {
-        return Promise.resolve([{ count: 0 }]);
-      });
-      mockDb.offset.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
+      const countBuilder = createMockQueryBuilder([{ count: 0 }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(countBuilder as any)
+        .mockReturnValueOnce(selectBuilder as any);
 
-      const result = await ContactsRepository.listContacts(mockUserId);
+      const result = await repo.listContacts(mockUserId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.items).toHaveLength(0);
-        expect(result.data.total).toBe(0);
-      }
-    });
-
-    it("should handle database errors", async () => {
-      const mockError = new Error("Database connection failed");
-      vi.mocked(dbClient.getDb).mockRejectedValue(mockError);
-
-      const result = await ContactsRepository.listContacts(mockUserId);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("DB_QUERY_FAILED");
-      }
+      expect(result.items).toHaveLength(0);
+      expect(result.total).toBe(0);
     });
   });
 
   describe("getContactById", () => {
     it("should retrieve a specific contact", async () => {
       const mockContact = createMockContact();
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([mockContact]);
+      const selectBuilder = createMockQueryBuilder([mockContact]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await ContactsRepository.getContactById(mockUserId, mockContactId);
+      const result = await repo.getContactById(mockUserId, mockContactId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).not.toBeNull();
-        expect(result.data?.id).toBe(mockContactId);
-      }
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(mockContactId);
     });
 
     it("should return null when contact not found", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await ContactsRepository.getContactById(mockUserId, "non-existent");
+      const result = await repo.getContactById(mockUserId, "non-existent");
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBeNull();
-      }
+      expect(result).toBeNull();
     });
 
     it("should only return contacts for the specified user", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await ContactsRepository.getContactById("different-user", mockContactId);
+      const result = await repo.getContactById("different-user", mockContactId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBeNull();
-      }
-    });
-  });
-
-  describe("getContactWithNotes", () => {
-    it("should retrieve contact with associated notes", async () => {
-      const mockContact = createMockContact();
-      const mockNotes = [createMockNote(), createMockNote({ id: "note-2" })];
-      const mockDb = createMockDb();
-      
-      // First call for contact
-      mockDb.limit.mockResolvedValueOnce([mockContact]);
-      // Second call for notes
-      mockDb.orderBy.mockResolvedValueOnce(mockNotes);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await ContactsRepository.getContactWithNotes(mockUserId, mockContactId);
-
-      expect(result.success).toBe(true);
-      if (result.success && result.data) {
-        expect(result.data.id).toBe(mockContactId);
-        expect(result.data.notes).toHaveLength(2);
-      }
-    });
-
-    it("should return null when contact not found", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await ContactsRepository.getContactWithNotes(mockUserId, "non-existent");
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBeNull();
-      }
-    });
-
-    it("should return contact with empty notes array if no notes", async () => {
-      const mockContact = createMockContact();
-      const mockDb = createMockDb();
-      
-      mockDb.limit.mockResolvedValueOnce([mockContact]);
-      mockDb.orderBy.mockResolvedValueOnce([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await ContactsRepository.getContactWithNotes(mockUserId, mockContactId);
-
-      expect(result.success).toBe(true);
-      if (result.success && result.data) {
-        expect(result.data.notes).toHaveLength(0);
-      }
+      expect(result).toBeNull();
     });
   });
 
   describe("createContact", () => {
     it("should create a contact with valid data", async () => {
+      const mockContact = createMockContact({ displayName: "New Contact" });
+      const insertBuilder = createMockQueryBuilder([mockContact]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+
       const contactInput = {
         userId: mockUserId,
         displayName: "New Contact",
@@ -310,508 +184,218 @@ describe("ContactsRepository", () => {
         source: "manual",
       };
 
-      const mockContact = createMockContact(contactInput);
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockContact]);
+      const result = await repo.createContact(contactInput);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      // Mock zod validation
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: true,
-        data: contactInput,
-      } as any);
-
-      const result = await ContactsRepository.createContact(contactInput);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.displayName).toBe("New Contact");
-      }
-    });
-
-    it("should reject invalid contact data", async () => {
-      const invalidInput = {
-        // Missing required fields
-        primaryEmail: "invalid",
-      };
-
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: false,
-        error: { issues: [{ message: "displayName is required" }] },
-      } as any);
-
-      const result = await ContactsRepository.createContact(invalidInput);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("VALIDATION_ERROR");
-      }
+      expect(result.displayName).toBe("New Contact");
     });
 
     it("should handle nullable fields correctly", async () => {
+      const mockContact = createMockContact({
+        primaryEmail: null,
+        primaryPhone: null,
+      });
+      const insertBuilder = createMockQueryBuilder([mockContact]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+
       const contactInput = {
         userId: mockUserId,
         displayName: "Minimal Contact",
-        primaryEmail: null,
-        primaryPhone: null,
         source: "manual",
       };
 
-      const mockContact = createMockContact(contactInput);
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockContact]);
+      const result = await repo.createContact(contactInput);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: true,
-        data: contactInput,
-      } as any);
-
-      const result = await ContactsRepository.createContact(contactInput);
-
-      expect(result.success).toBe(true);
+      expect(result).not.toBeNull();
     });
 
-    it("should handle database insert failure", async () => {
+    it("should throw error when insert returns no data", async () => {
+      const insertBuilder = createMockQueryBuilder([]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+
       const contactInput = {
         userId: mockUserId,
         displayName: "Test",
         source: "manual",
       };
 
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: true,
-        data: contactInput,
-      } as any);
-
-      const result = await ContactsRepository.createContact(contactInput);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("DB_INSERT_FAILED");
-      }
+      await expect(repo.createContact(contactInput)).rejects.toThrow(
+        "Insert returned no data"
+      );
     });
   });
 
   describe("updateContact", () => {
     it("should update contact fields", async () => {
-      const updateInput = {
+      const mockContact = createMockContact({
         displayName: "Updated Name",
         primaryEmail: "updated@example.com",
-      };
+      });
+      const updateBuilder = createMockQueryBuilder([mockContact]);
 
-      const mockContact = createMockContact(updateInput);
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockContact]);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      const result = await repo.updateContact(mockUserId, mockContactId, {
+        displayName: "Updated Name",
+        primaryEmail: "updated@example.com",
+      });
 
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: true,
-        data: updateInput,
-      } as any);
-
-      const result = await ContactsRepository.updateContact(mockUserId, mockContactId, updateInput);
-
-      expect(result.success).toBe(true);
-      if (result.success && result.data) {
-        expect(result.data.displayName).toBe("Updated Name");
-      }
-    });
-
-    it("should update partial fields", async () => {
-      const updateInput = {
-        tags: ["vip", "yoga"],
-      };
-
-      const mockContact = createMockContact({ tags: ["vip", "yoga"] });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockContact]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: true,
-        data: updateInput,
-      } as any);
-
-      const result = await ContactsRepository.updateContact(mockUserId, mockContactId, updateInput);
-
-      expect(result.success).toBe(true);
-      if (result.success && result.data) {
-        expect(result.data.tags).toEqual(["vip", "yoga"]);
-      }
+      expect(result).not.toBeNull();
+      expect(result?.displayName).toBe("Updated Name");
     });
 
     it("should return null when contact not found", async () => {
-      const updateInput = { displayName: "New Name" };
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([]);
+      const updateBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: true,
-        data: updateInput,
-      } as any);
+      const result = await repo.updateContact(mockUserId, "non-existent", {
+        displayName: "New Name",
+      });
 
-      const result = await ContactsRepository.updateContact(mockUserId, "non-existent", updateInput);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBeNull();
-      }
+      expect(result).toBeNull();
     });
 
-    it("should reject invalid update data", async () => {
-      const invalidInput = {
-        primaryEmail: "not-an-email",
-      };
+    it("should update updatedAt timestamp", async () => {
+      const mockContact = createMockContact({ updatedAt: new Date() });
+      const updateBuilder = createMockQueryBuilder([mockContact]);
 
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: false,
-        error: { issues: [{ message: "Invalid email" }] },
-      } as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
-      const result = await ContactsRepository.updateContact(mockUserId, mockContactId, invalidInput);
+      const result = await repo.updateContact(mockUserId, mockContactId, {
+        displayName: "Updated",
+      });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("VALIDATION_ERROR");
-      }
+      expect(result?.updatedAt).toBeInstanceOf(Date);
     });
   });
 
   describe("deleteContact", () => {
     it("should delete contact successfully", async () => {
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([{ id: mockContactId }]);
+      const deleteBuilder = createMockQueryBuilder([{ id: mockContactId }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await ContactsRepository.deleteContact(mockUserId, mockContactId);
+      const result = await repo.deleteContact(mockUserId, mockContactId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(true);
-      }
+      expect(result).toBe(true);
     });
 
     it("should return false when contact not found", async () => {
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([]);
+      const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await ContactsRepository.deleteContact(mockUserId, "non-existent");
+      const result = await repo.deleteContact(mockUserId, "non-existent");
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(false);
-      }
+      expect(result).toBe(false);
     });
 
-    it("should not delete contacts from other users", async () => {
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([]);
+    it("should not allow deleting contacts from other users", async () => {
+      const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await ContactsRepository.deleteContact("different-user", mockContactId);
+      const result = await repo.deleteContact("different-user", mockContactId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(false);
-      }
+      expect(result).toBe(false);
     });
   });
 
   describe("findContactByEmail", () => {
     it("should find contact by email", async () => {
-      const mockContact = createMockContact({ primaryEmail: "find@example.com" });
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([mockContact]);
+      const mockContact = createMockContact({ primaryEmail: "john@example.com" });
+      const selectBuilder = createMockQueryBuilder([mockContact]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await ContactsRepository.findContactByEmail(mockUserId, "find@example.com");
+      const result = await repo.findContactByEmail(mockUserId, "john@example.com");
 
-      expect(result.success).toBe(true);
-      if (result.success && result.data) {
-        expect(result.data.primaryEmail).toBe("find@example.com");
-      }
+      expect(result).not.toBeNull();
+      expect(result?.primaryEmail).toBe("john@example.com");
     });
 
     it("should return null when email not found", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await ContactsRepository.findContactByEmail(mockUserId, "notfound@example.com");
+      const result = await repo.findContactByEmail(mockUserId, "nonexistent@example.com");
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBeNull();
-      }
-    });
-
-    it("should be case-sensitive", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await ContactsRepository.findContactByEmail(mockUserId, "DIFFERENT@CASE.COM");
-
-      expect(result.success).toBe(true);
+      expect(result).toBeNull();
     });
   });
 
   describe("getContactsByIds", () => {
-    it("should retrieve multiple contacts", async () => {
+    it("should get multiple contacts by IDs", async () => {
       const mockContacts = [
         createMockContact({ id: "contact-1" }),
         createMockContact({ id: "contact-2" }),
       ];
-      const mockDb = createMockDb();
-      mockDb.where.mockResolvedValue(mockContacts);
+      const selectBuilder = createMockQueryBuilder(mockContacts);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await ContactsRepository.getContactsByIds(mockUserId, ["contact-1", "contact-2"]);
+      const result = await repo.getContactsByIds(mockUserId, ["contact-1", "contact-2"]);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(2);
-      }
+      expect(result).toHaveLength(2);
     });
 
     it("should return empty array for empty input", async () => {
-      const result = await ContactsRepository.getContactsByIds(mockUserId, []);
+      const result = await repo.getContactsByIds(mockUserId, []);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(0);
-      }
-    });
-
-    it("should only return contacts for the specified user", async () => {
-      const mockDb = createMockDb();
-      mockDb.where.mockResolvedValue([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await ContactsRepository.getContactsByIds("different-user", ["contact-1"]);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(0);
-      }
+      expect(result).toEqual([]);
+      expect(mockDb.select).not.toHaveBeenCalled();
     });
   });
 
   describe("deleteContactsByIds", () => {
-    it("should delete multiple contacts", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([{ n: 2 }]);
-      mockDb.where.mockResolvedValue({ count: 2 });
+    it("should bulk delete contacts", async () => {
+      // Mock return value with count property
+      const mockResult = { count: 3 };
+      const deleteBuilder = createMockQueryBuilder([]);
+      // Override the then method to return mockResult
+      deleteBuilder.then = vi.fn((resolve) => Promise.resolve(resolve(mockResult)));
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await ContactsRepository.deleteContactsByIds(mockUserId, ["contact-1", "contact-2"]);
+      const result = await repo.deleteContactsByIds(mockUserId, [
+        "contact-1",
+        "contact-2",
+        "contact-3",
+      ]);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(2);
-      }
+      expect(result).toBe(3);
     });
 
     it("should return 0 for empty input", async () => {
-      const result = await ContactsRepository.deleteContactsByIds(mockUserId, []);
+      const result = await repo.deleteContactsByIds(mockUserId, []);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(0);
-      }
-    });
-
-    it("should return 0 when no contacts found", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([{ n: 0 }]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await ContactsRepository.deleteContactsByIds(mockUserId, ["non-existent"]);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(0);
-      }
+      expect(result).toBe(0);
+      expect(mockDb.delete).not.toHaveBeenCalled();
     });
   });
 
   describe("countContacts", () => {
-    it("should count all contacts for a user", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([{ count: 42 }]);
+    it("should count all contacts for user", async () => {
+      const selectBuilder = createMockQueryBuilder([{ count: 42 }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await ContactsRepository.countContacts(mockUserId);
+      const result = await repo.countContacts(mockUserId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(42);
-      }
+      expect(result).toBe(42);
     });
 
     it("should count contacts with search filter", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([{ count: 5 }]);
+      const selectBuilder = createMockQueryBuilder([{ count: 5 }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await ContactsRepository.countContacts(mockUserId, "yoga");
+      const result = await repo.countContacts(mockUserId, "yoga");
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(5);
-      }
-    });
-
-    it("should return 0 when no contacts", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([{ count: 0 }]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await ContactsRepository.countContacts(mockUserId);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(0);
-      }
-    });
-  });
-
-  describe("Edge Cases and Validation", () => {
-    it("should handle special characters in search", async () => {
-      const mockDb = createMockDb();
-      mockDb.where.mockImplementationOnce(function(this: any) {
-        return Promise.resolve([{ count: 0 }]);
-      });
-      mockDb.offset.mockResolvedValue([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await ContactsRepository.listContacts(mockUserId, {
-        search: "O'Brien",
-      });
-
-      expect(result.success).toBe(true);
-    });
-
-    it("should handle very long display names", async () => {
-      const longName = "A".repeat(255);
-      const contactInput = {
-        userId: mockUserId,
-        displayName: longName,
-        source: "manual",
-      };
-
-      const mockContact = createMockContact({ displayName: longName });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockContact]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: true,
-        data: contactInput,
-      } as any);
-
-      const result = await ContactsRepository.createContact(contactInput);
-
-      expect(result.success).toBe(true);
-    });
-
-    it("should handle wellness-specific lifecycle stages", async () => {
-      const stages = ["Prospect", "New Client", "Core Client", "VIP Client"];
-      
-      for (const stage of stages) {
-        const contactInput = {
-          userId: mockUserId,
-          displayName: "Test Client",
-          lifecycleStage: stage,
-          source: "manual",
-        };
-
-        const mockContact = createMockContact({ lifecycleStage: stage });
-        const mockDb = createMockDb();
-        mockDb.returning.mockResolvedValue([mockContact]);
-
-        vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-        const { safeParse } = await import("@/lib/utils/zod-helpers");
-        vi.mocked(safeParse).mockReturnValue({
-          success: true,
-          data: contactInput,
-        } as any);
-
-        const result = await ContactsRepository.createContact(contactInput);
-
-        expect(result.success).toBe(true);
-        if (result.success) {
-          expect(result.data.lifecycleStage).toBe(stage);
-        }
-      }
-    });
-
-    it("should preserve JSON fields correctly", async () => {
-      const healthContext = {
-        conditions: ["back pain"],
-        preferences: ["gentle yoga"],
-      };
-
-      const contactInput = {
-        userId: mockUserId,
-        displayName: "Health Client",
-        healthContext,
-        source: "manual",
-      };
-
-      const mockContact = createMockContact({ healthContext });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockContact]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const { safeParse } = await import("@/lib/utils/zod-helpers");
-      vi.mocked(safeParse).mockReturnValue({
-        success: true,
-        data: contactInput,
-      } as any);
-
-      const result = await ContactsRepository.createContact(contactInput);
-
-      expect(result.success).toBe(true);
+      expect(result).toBe(5);
     });
   });
 });

@@ -1,50 +1,52 @@
 import { describe, it, expect } from 'vitest';
 import {
-  makeOmniClient,
-  makeOmniClientWithNotes,
+  makeContactDTO,
   makeInteraction,
+  makeNoteDTO,
   makeBatch,
   makeContactWithRelations,
   testUtils
 } from '../index';
 
 describe('Testing Package Factories', () => {
-  describe('makeOmniClient', () => {
-    it('should generate a valid OmniClient', () => {
-      const client = makeOmniClient();
+  describe('makeContactDTO', () => {
+    it('should generate a valid contact', () => {
+      const contact = makeContactDTO();
 
-      expect(client).toHaveProperty('id');
-      expect(client).toHaveProperty('userId');
-      expect(client).toHaveProperty('displayName');
-      expect(client.id).toMatch(/^[a-f0-9-]{36}$/); // UUID pattern
-      expect(typeof client.displayName).toBe('string');
-      expect(client.displayName.length).toBeGreaterThan(0);
+      expect(contact).toHaveProperty('id');
+      expect(contact).toHaveProperty('userId');
+      expect(contact).toHaveProperty('displayName');
+      expect(contact.id).toMatch(/^[a-f0-9-]{36}$/); // UUID pattern
+      expect(typeof contact.displayName).toBe('string');
+      expect(contact.displayName.length).toBeGreaterThan(0);
     });
 
     it('should accept overrides', () => {
       const customName = 'Custom Test Name';
-      const client = makeOmniClient({ displayName: customName });
+      const contact = makeContactDTO({ displayName: customName });
 
-      expect(client.displayName).toBe(customName);
+      expect(contact.displayName).toBe(customName);
     });
   });
 
-  describe('makeOmniClientWithNotes', () => {
-    it('should generate client with notes metadata', () => {
-      const client = makeOmniClientWithNotes();
+  describe('makeNoteDTO', () => {
+    it('should generate a valid note', () => {
+      const note = makeNoteDTO();
 
-      expect(client).toHaveProperty('notesCount');
-      expect(client).toHaveProperty('lastNote');
-      expect(client).toHaveProperty('interactions');
-      expect(typeof client.notesCount).toBe('number');
-      expect(client.notesCount).toBeGreaterThanOrEqual(0);
+      expect(note).toHaveProperty('id');
+      expect(note).toHaveProperty('contactId');
+      expect(note).toHaveProperty('userId');
+      expect(note).toHaveProperty('content');
+      expect(note.id).toMatch(/^[a-f0-9-]{36}$/); // UUID pattern
+      expect(typeof note.content).toBe('string');
+      expect(note.content.length).toBeGreaterThan(0);
     });
 
-    it('should handle zero notes case', () => {
-      const client = makeOmniClientWithNotes({ notesCount: 0 });
+    it('should accept overrides', () => {
+      const customContactId = 'custom-contact-id';
+      const note = makeNoteDTO({ contactId: customContactId });
 
-      expect(client.notesCount).toBe(0);
-      expect(client.lastNote).toBeNull();
+      expect(note.contactId).toBe(customContactId);
     });
   });
 
@@ -66,18 +68,18 @@ describe('Testing Package Factories', () => {
   describe('makeBatch', () => {
     it('should generate specified number of items', () => {
       const count = 5;
-      const clients = makeBatch(() => makeOmniClient(), count);
+      const contacts = makeBatch(() => makeContactDTO(), count);
 
-      expect(clients).toHaveLength(count);
-      expect(clients[0]).toHaveProperty('id');
-      expect(clients[0]).toHaveProperty('displayName');
+      expect(contacts).toHaveLength(count);
+      expect(contacts[0]).toHaveProperty('id');
+      expect(contacts[0]).toHaveProperty('displayName');
     });
 
     it('should generate different items', () => {
-      const clients = makeBatch(() => makeOmniClient(), 3);
+      const contacts = makeBatch(() => makeContactDTO(), 3);
 
-      // Each client should have a different ID
-      const ids = clients.map(c => c.id);
+      // Each contact should have a different ID
+      const ids = contacts.map(c => c.id);
       const uniqueIds = new Set(ids);
       expect(uniqueIds.size).toBe(3);
     });

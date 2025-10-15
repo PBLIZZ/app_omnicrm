@@ -75,7 +75,7 @@ export default [
       "@next/next/no-html-link-for-pages": "off",
       "@next/next/no-img-element": "warn",
       // console policy
-      "no-console": isProd ? ["error", { allow: ["warn", "error"] }] : "off",
+      "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
 

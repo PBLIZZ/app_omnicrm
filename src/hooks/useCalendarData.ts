@@ -71,7 +71,7 @@ export interface UseCalendarDataResult {
  * - `refreshAll`: convenience function that triggers all three refetches
  */
 export function useCalendarData(): UseCalendarDataResult {
-  // Calendar events query
+  // Calendar events query - using raw events from database
   const {
     data: eventsData = [],
     isLoading: isEventsLoading,
@@ -80,18 +80,9 @@ export function useCalendarData(): UseCalendarDataResult {
   } = useQuery<CalendarEvent[]>({
     queryKey: queryKeys.calendar.events(),
     queryFn: async (): Promise<CalendarEvent[]> => {
-      const result = await apiClient.get<{
-        events: CalendarEvent[];
-        isConnected: boolean;
-        totalCount: number;
-      }>("/api/google/calendar/events");
-
-      if (!result.isConnected) {
-        return [];
-      }
-
-      const items = Array.isArray(result.events) ? result.events : [];
-      return items.map(mapCalendarEvent);
+      // TODO: Replace with proper calendar events API when available
+      // For now, return empty array until we implement calendar events fetch from raw_events
+      return [];
     },
     staleTime: 60_000,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
@@ -199,42 +190,6 @@ export function useCalendarData(): UseCalendarDataResult {
   };
 }
 
-/**
- * Normalize unknown calendar event payloads into a strongly typed CalendarEvent.
- *
- * Accepts an arbitrary input and returns a CalendarEvent with sensible defaults for missing fields.
- *
- * @param e - The raw event payload (unknown shape) returned by the API or external source
- * @returns A CalendarEvent with fields: `id`, `title`, `startTime`, `endTime`, `location`, `attendees`, and optionally `eventType` and `businessCategory`. Missing string fields are replaced by defaults (`id` receives a generated value, `title` becomes "Untitled", `startTime`/`endTime` default to the current time ISO, `location` defaults to an empty string). `attendees` is always an array; each attendee includes an `email` and optional `name`.
- */
-function mapCalendarEvent(e: unknown): CalendarEvent {
-  const r = typeof e === "object" && e !== null ? (e as Record<string, unknown>) : {};
-  const s = (k: string): string | undefined =>
-    typeof r[k] === "string" ? (r[k] as string) : undefined;
-
-  const attendees: { email: string; name?: string }[] = Array.isArray(r["attendees"])
-    ? (r["attendees"] as unknown[]).map((a) => {
-        const ar = typeof a === "object" && a !== null ? (a as Record<string, unknown>) : {};
-        const email = typeof ar["email"] === "string" ? (ar["email"] as string) : "";
-        const name = typeof ar["name"] === "string" ? (ar["name"] as string) : undefined;
-        return name !== undefined ? { email, name } : { email };
-      })
-    : [];
-
-  const eventType = s("eventType");
-  const businessCategory = s("businessCategory");
-
-  return {
-    id: s("id") ?? `event-${Math.random()}`,
-    title: s("title") ?? "Untitled",
-    startTime: s("startTime") ?? new Date().toISOString(),
-    endTime: s("endTime") ?? new Date().toISOString(),
-    location: s("location") ?? "",
-    attendees,
-    ...(eventType !== undefined ? { eventType } : {}),
-    ...(businessCategory !== undefined ? { businessCategory } : {}),
-  };
-}
 
 // Helper function to map clients data with proper typing
 function mapClientsData(json: unknown): Client[] {

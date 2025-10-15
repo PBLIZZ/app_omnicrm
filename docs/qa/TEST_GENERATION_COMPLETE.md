@@ -169,14 +169,14 @@ npm test -- --coverage packages/repo
 
 ## Test Statistics
 
-| Metric | Count |
-|--------|-------|
-| Test Files | 5 |
-| Test Suites | 36 |
-| Test Cases | 111 |
-| Total Lines | ~1,835 |
-| Methods Tested | 45+ |
-| Code Coverage Target | >90% |
+| Metric               | Count  |
+| -------------------- | ------ |
+| Test Files           | 5      |
+| Test Suites          | 36     |
+| Test Cases           | 111    |
+| Total Lines          | ~1,835 |
+| Methods Tested       | 45+    |
+| Code Coverage Target | >90%   |
 
 ## Benefits Delivered
 

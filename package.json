@@ -92,6 +92,7 @@
     "googleapis": "^160.0.0",
     "input-otp": "^1.4.2",
     "jose": "^6.1.0",
+    "lodash": "^4.17.21",
     "lucide-react": "^0.544.0",
     "moment": "^2.30.1",
     "next": "^15.5.3",
@@ -118,8 +119,7 @@
     "uuid": "^13.0.0",
     "validator": "^13.15.15",
     "vaul": "^1.1.2",
-    "zod": "^4.1.9",
-    "lodash": "^4.17.21"
+    "zod": "^4.1.9"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",
@@ -155,6 +155,7 @@
     "jsdom": "^27.0.0",
     "knip": "^5.64.1",
     "lint-staged": "^15.2.11",
+    "msw": "^2.11.5",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
     "supabase": "^2.45.5",

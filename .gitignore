@@ -50,7 +50,6 @@ next-env.d.ts
 # project specific
 drizzle/
 log.txt
-.kilocode/mcp.json
 .vscode/settings.json
 run/backups/
 src/server/db/backups/

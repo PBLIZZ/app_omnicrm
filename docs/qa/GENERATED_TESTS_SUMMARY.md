@@ -1,5 +1,7 @@
 # Generated Unit Tests Summary
 
+**Generated:** 2025-10-12
+
 This document summarizes the comprehensive unit tests generated for the repository layer changes in the feature branch.
 
 ## Overview
@@ -15,6 +17,7 @@ Generated **5 new test files** with **100+ test cases** covering all new and mod
 Tests the AI insights repository for managing AI-generated insights about contacts and other entities.
 
 **Test Suites:**
+
 - `listAiInsights` (9 tests)
   - Default pagination
   - Filter by subject type
@@ -69,6 +72,7 @@ Tests the AI insights repository for managing AI-generated insights about contac
 Tests repository for managing contact identities (emails, phones, etc.) with provider tracking.
 
 **Test Suites:**
+
 - `listContactIdentities` (7 tests)
   - Default pagination
   - Filter by contact ID
@@ -116,6 +120,7 @@ Tests repository for managing contact identities (emails, phones, etc.) with pro
 Tests document storage and retrieval with MIME type filtering and ownership tracking.
 
 **Test Suites:**
+
 - `listDocuments` (9 tests)
   - Default pagination
   - Filter by owner contact
@@ -159,6 +164,7 @@ Tests document storage and retrieval with MIME type filtering and ownership trac
 Tests vector embeddings management for documents and other content with chunk support.
 
 **Test Suites:**
+
 - `listEmbeddings` (9 tests)
   - Default pagination
   - Filter by owner type
@@ -213,6 +219,7 @@ Tests vector embeddings management for documents and other content with chunk su
 Tests repository for tracking ignored identifiers (spam emails, blocked numbers, etc.).
 
 **Test Suites:**
+
 - `listIgnoredIdentifiers` (6 tests)
   - Default pagination
   - Filter by kinds
@@ -275,6 +282,7 @@ const createMockDb = () => {
 ### 2. Test Structure
 
 Each test file follows a consistent structure:
+
 - Setup with `beforeEach` for clean mock state
 - Grouped tests by method using nested `describe` blocks
 - Clear, descriptive test names using "should" convention
@@ -361,6 +369,7 @@ npm test -- --coverage packages/repo
 ## Integration with CI/CD
 
 These tests are designed to run in CI/CD pipelines:
+
 - Fast execution (mocked database)
 - No external dependencies
 - Deterministic results
@@ -369,6 +378,7 @@ These tests are designed to run in CI/CD pipelines:
 ## Future Enhancements
 
 Consider adding:
+
 1. Integration tests with real database
 2. Performance benchmarks
 3. Mutation testing

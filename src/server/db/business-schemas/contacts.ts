@@ -13,8 +13,6 @@
  */
 
 import { z } from "zod";
-import { createSelectSchema } from "drizzle-zod";
-import { contacts } from "@/server/db/schema";
 import {
   ContactAddressSchema,
   ContactHealthContextSchema,
@@ -27,18 +25,29 @@ import { PaginationQuerySchema } from "@/lib/validation/common";
 export type { Contact, CreateContact, UpdateContact } from "@/server/db/schema";
 
 // Create Zod schemas from Drizzle table for API validation
-const ContactDataSchema = createSelectSchema(contacts);
-
-/**
- * Export base schema for single contact responses
- * Note: JSONB fields (address, healthContext, preferences, tags) are unknown from DB
- * Use structured schemas for input validation (CREATE/UPDATE)
- */
-export const ContactSchema = ContactDataSchema.extend({
+// Note: drizzle-zod doesn't properly infer nullable columns, so we manually override
+// Timestamps are returned as Date objects from Drizzle
+export const ContactSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  displayName: z.string(),
+  primaryEmail: z.string().nullable(),
+  primaryPhone: z.string().nullable(),
+  photoUrl: z.string().nullable(),
+  source: z.string().nullable(),
+  lifecycleStage: z.string().nullable(),
+  clientStatus: z.string().nullable(),
+  referralSource: z.string().nullable(),
+  confidenceScore: z.string().nullable(),
+  dateOfBirth: z.string().nullable(),
+  emergencyContactName: z.string().nullable(),
+  emergencyContactPhone: z.string().nullable(),
   address: z.unknown(),
   healthContext: z.unknown(),
   preferences: z.unknown(),
   tags: z.unknown(),
+  createdAt: z.coerce.date().nullable(),
+  updatedAt: z.coerce.date().nullable(),
 });
 
 // ============================================================================
@@ -123,12 +132,8 @@ export type GetContactsQuery = z.infer<typeof GetContactsQuerySchema>;
  * Contact with last note preview (service layer enrichment)
  * Note: JSONB fields are unknown from DB, use structured schemas for input validation
  */
-export const ContactWithLastNoteSchema = ContactDataSchema.extend({
+export const ContactWithLastNoteSchema = ContactSchema.extend({
   lastNote: z.string().nullable(),
-  address: z.unknown(),
-  healthContext: z.unknown(),
-  preferences: z.unknown(),
-  tags: z.unknown(),
 });
 
 /**
@@ -154,7 +159,7 @@ export const ContactCountResponseSchema = z.object({
 });
 
 export const ContactResponseSchema = z.object({
-  item: ContactDataSchema,
+  item: ContactSchema,
 });
 
 export const DeleteContactResponseSchema = z.object({

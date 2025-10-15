@@ -9,7 +9,8 @@ import {
   generateRiskAssessment,
   generatePersonaInsight,
 } from "@/server/ai/core/llm.service"; // Added /core
-import { generateContactInsights } from "@/server/ai/contacts/generate-contact-insights";
+// TODO: generateContactInsights was removed during refactoring
+// import { generateContactInsights } from "@/server/ai/contacts/generate-contact-insights";
 
 // Extended insight types from insight-writer
 type InsightKind =
@@ -105,7 +106,7 @@ export class InsightWriter {
           operation: "jobs.insight.generate",
           additionalData: {
             taskKind: task.kind,
-            userId: task.userId?.slice(0, 8) + "..." ?? "unknown",
+            userId: (task.userId?.slice(0, 8) ?? "unknown") + "...",
           },
         },
         error instanceof Error ? error : undefined,
@@ -249,14 +250,13 @@ export class InsightWriter {
 
       let llmResult: unknown;
       if (task.kind === "summary") {
-        // Validate email before processing
-        const email = request.context.contact.primaryEmail;
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          throw new Error("Invalid or missing email address for contact summary generation");
-        }
-
-        // Use generateContactInsights for contact summaries
-        llmResult = await generateContactInsights(task.userId, email, {});
+        // TODO: generateContactInsights was removed during refactoring
+        // For now, return a basic summary placeholder
+        await logger.warn("Contact insights generation not implemented", {
+          operation: "jobs.insight.generate_contact_summary",
+          additionalData: { taskKind: task.kind },
+        });
+        return null;
       } else {
         switch (task.kind) {
           case "next_step":

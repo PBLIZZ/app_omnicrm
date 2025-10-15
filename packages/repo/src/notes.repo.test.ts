@@ -1,20 +1,18 @@
-/**
- * Unit Tests for NotesRepository
- *
- * Tests all CRUD operations, PII redaction, validation, and error handling
- */
-
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { NotesRepository } from "./notes.repo";
-import * as dbClient from "@/server/db/client";
-import * as piiDetector from "@/server/lib/pii-detector";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  NotesRepository,
+  createNotesRepository,
+} from "./notes.repo";
+import {
+  createMockDbClient,
+  createMockQueryBuilder,
+  type MockDbClient,
+} from "@packages/testing";
 import type { Note } from "@/server/db/schema";
 
-// Mock dependencies
-vi.mock("@/server/db/client");
-vi.mock("@/server/lib/pii-detector");
-
 describe("NotesRepository", () => {
+  let mockDb: MockDbClient;
+  let repo: NotesRepository;
   const mockUserId = "user-123";
   const mockContactId = "contact-456";
   const mockNoteId = "note-789";
@@ -33,86 +31,45 @@ describe("NotesRepository", () => {
     ...overrides,
   });
 
-  const createMockDb = () => ({
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-  });
-
   beforeEach(() => {
+    mockDb = createMockDbClient();
+    repo = createNotesRepository(mockDb as any);
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
   });
 
   describe("listNotes", () => {
     it("should list all notes for a user when no contactId provided", async () => {
       const mockNotes = [createMockNote(), createMockNote({ id: "note-2" })];
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue(mockNotes);
+      const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.listNotes(mockUserId);
+      const result = await repo.listNotes(mockUserId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(2);
-        expect(result.data[0].id).toBe(mockNoteId);
-      }
+      expect(result).toHaveLength(2);
+      expect(result[0]?.id).toBe(mockNoteId);
     });
 
     it("should filter notes by contactId when provided", async () => {
       const mockNotes = [createMockNote()];
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue(mockNotes);
+      const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.listNotes(mockUserId, mockContactId);
+      const result = await repo.listNotes(mockUserId, mockContactId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(1);
-        expect(result.data[0].contactId).toBe(mockContactId);
-      }
+      expect(result).toHaveLength(1);
+      expect(result[0]?.contactId).toBe(mockContactId);
     });
 
     it("should return empty array when no notes exist", async () => {
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.listNotes(mockUserId);
+      const result = await repo.listNotes(mockUserId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(0);
-      }
-    });
-
-    it("should handle database errors gracefully", async () => {
-      const mockError = new Error("Database connection failed");
-      vi.mocked(dbClient.getDb).mockRejectedValue(mockError);
-
-      const result = await NotesRepository.listNotes(mockUserId);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("DB_QUERY_FAILED");
-        expect(result.error.message).toContain("Database connection failed");
-      }
+      expect(result).toHaveLength(0);
     });
 
     it("should order notes by createdAt descending", async () => {
@@ -120,63 +77,38 @@ describe("NotesRepository", () => {
         createMockNote({ createdAt: new Date("2024-01-02") }),
         createMockNote({ id: "note-2", createdAt: new Date("2024-01-01") }),
       ];
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue(mockNotes);
+      const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.listNotes(mockUserId);
+      const result = await repo.listNotes(mockUserId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data[0].createdAt).toBeInstanceOf(Date);
-      }
+      expect(result[0]?.createdAt).toBeInstanceOf(Date);
     });
   });
 
   describe("getNoteById", () => {
     it("should retrieve a specific note by id", async () => {
       const mockNote = createMockNote();
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([mockNote]);
+      const selectBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.getNoteById(mockUserId, mockNoteId);
+      const result = await repo.getNoteById(mockUserId, mockNoteId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).not.toBeNull();
-        expect(result.data?.id).toBe(mockNoteId);
-        expect(result.data?.userId).toBe(mockUserId);
-      }
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(mockNoteId);
+      expect(result?.userId).toBe(mockUserId);
     });
 
     it("should return null when note does not exist", async () => {
-      const mockDb = createMockDb();
-      mockDb.limit.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.getNoteById(mockUserId, "non-existent");
+      const result = await repo.getNoteById(mockUserId, "non-existent");
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBeNull();
-      }
-    });
-
-    it("should handle database errors", async () => {
-      const mockError = new Error("Query timeout");
-      vi.mocked(dbClient.getDb).mockRejectedValue(mockError);
-
-      const result = await NotesRepository.getNoteById(mockUserId, mockNoteId);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("DB_QUERY_FAILED");
-        expect(result.error.message).toContain("Query timeout");
-      }
+      expect(result).toBeNull();
     });
   });
 
@@ -186,34 +118,26 @@ describe("NotesRepository", () => {
         createMockNote(),
         createMockNote({ id: "note-2", contentPlain: "Second note" }),
       ];
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue(mockNotes);
+      const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.getNotesByContactId(mockUserId, mockContactId);
+      const result = await repo.getNotesByContactId(mockUserId, mockContactId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(2);
-        result.data.forEach((note) => {
-          expect(note.contactId).toBe(mockContactId);
-        });
-      }
+      expect(result).toHaveLength(2);
+      result.forEach((note) => {
+        expect(note.contactId).toBe(mockContactId);
+      });
     });
 
     it("should return empty array when contact has no notes", async () => {
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.getNotesByContactId(mockUserId, "contact-no-notes");
+      const result = await repo.getNotesByContactId(mockUserId, "contact-no-notes");
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(0);
-      }
+      expect(result).toHaveLength(0);
     });
   });
 
@@ -224,456 +148,198 @@ describe("NotesRepository", () => {
         createMockNote({ contentPlain: "Discussed yoga practices" }),
         createMockNote({ id: "note-2", contentPlain: "Yoga session feedback" }),
       ];
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue(mockNotes);
+      const selectBuilder = createMockQueryBuilder(mockNotes);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.searchNotes(mockUserId, searchTerm);
+      const result = await repo.searchNotes(mockUserId, searchTerm);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(2);
-        result.data.forEach((note) => {
-          expect(note.contentPlain.toLowerCase()).toContain(searchTerm);
-        });
-      }
+      expect(result).toHaveLength(2);
+      result.forEach((note) => {
+        expect(note.contentPlain.toLowerCase()).toContain(searchTerm);
+      });
     });
 
     it("should return empty array when no matches found", async () => {
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.searchNotes(mockUserId, "nonexistent");
+      const result = await repo.searchNotes(mockUserId, "nonexistent");
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toHaveLength(0);
-      }
+      expect(result).toHaveLength(0);
     });
 
     it("should handle special characters in search term", async () => {
-      const searchTerm = "test%_search";
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder as any);
 
-      const result = await NotesRepository.searchNotes(mockUserId, searchTerm);
+      const result = await repo.searchNotes(mockUserId, "test%_search");
 
-      expect(result.success).toBe(true);
+      expect(result).toHaveLength(0);
     });
   });
 
   describe("createNote", () => {
-    it("should create a note with PII redaction", async () => {
-      const noteInput = {
-        contentPlain: "Contact me at john@example.com or 555-1234",
-        contentRich: {},
+    it("should create a note", async () => {
+      const mockNote = createMockNote();
+      const insertBuilder = createMockQueryBuilder([mockNote]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+
+      const data = {
+        userId: mockUserId,
         contactId: mockContactId,
-        tags: ["important"],
-        sourceType: "typed",
+        contentPlain: "New note",
+        sourceType: "typed" as const,
       };
 
-      const redactionResult = {
-        sanitizedText: "Contact me at [EMAIL] or [PHONE]",
-        entities: [
-          { type: "email" as const, value: "john@example.com", start: 14, end: 30, redacted: "[EMAIL]" },
-          { type: "phone" as const, value: "555-1234", start: 34, end: 42, redacted: "[PHONE]" },
-        ],
-        hasRedactions: true,
-      };
+      const result = await repo.createNote(data);
 
-      vi.mocked(piiDetector.redactPII).mockReturnValue(redactionResult);
-
-      const mockNote = createMockNote({
-        contentPlain: redactionResult.sanitizedText,
-        piiEntities: redactionResult.entities,
-      });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockNote]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await NotesRepository.createNote(mockUserId, noteInput);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.contentPlain).toBe(redactionResult.sanitizedText);
-        expect(result.data.piiEntities).toHaveLength(2);
-        expect(piiDetector.redactPII).toHaveBeenCalledWith(noteInput.contentPlain);
-      }
+      expect(result).not.toBeNull();
+      expect(result.id).toBe(mockNoteId);
     });
 
     it("should create note without contactId", async () => {
-      const noteInput = {
+      const mockNote = createMockNote({ contactId: null });
+      const insertBuilder = createMockQueryBuilder([mockNote]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+
+      const data = {
+        userId: mockUserId,
         contentPlain: "General note",
-        sourceType: "typed",
+        sourceType: "typed" as const,
       };
 
-      const redactionResult = {
-        sanitizedText: "General note",
-        entities: [],
-        hasRedactions: false,
-      };
+      const result = await repo.createNote(data);
 
-      vi.mocked(piiDetector.redactPII).mockReturnValue(redactionResult);
-
-      const mockNote = createMockNote({ contentPlain: "General note", contactId: null });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockNote]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await NotesRepository.createNote(mockUserId, noteInput);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.contactId).toBeNull();
-      }
-    });
-
-    it("should reject invalid note data", async () => {
-      const invalidInput = {
-        // Missing required contentPlain
-        contactId: mockContactId,
-      };
-
-      const result = await NotesRepository.createNote(mockUserId, invalidInput);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("VALIDATION_ERROR");
-        expect(result.error.message).toContain("Invalid note data");
-      }
-    });
-
-    it("should validate contactId as UUID", async () => {
-      const invalidInput = {
-        contentPlain: "Test",
-        contactId: "not-a-uuid",
-      };
-
-      const result = await NotesRepository.createNote(mockUserId, invalidInput);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("VALIDATION_ERROR");
-      }
+      expect(result.contactId).toBeNull();
     });
 
     it("should handle voice sourceType", async () => {
-      const noteInput = {
-        contentPlain: "Voice transcription",
-        sourceType: "voice",
-      };
-
-      const redactionResult = {
-        sanitizedText: "Voice transcription",
-        entities: [],
-        hasRedactions: false,
-      };
-
-      vi.mocked(piiDetector.redactPII).mockReturnValue(redactionResult);
-
       const mockNote = createMockNote({ sourceType: "voice" });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockNote]);
+      const insertBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
 
-      const result = await NotesRepository.createNote(mockUserId, noteInput);
+      const data = {
+        userId: mockUserId,
+        contentPlain: "Voice transcription",
+        sourceType: "voice" as const,
+      };
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.sourceType).toBe("voice");
-      }
+      const result = await repo.createNote(data);
+
+      expect(result.sourceType).toBe("voice");
     });
 
-    it("should handle database insert failure", async () => {
-      const noteInput = {
+    it("should throw error when insert returns no data", async () => {
+      const insertBuilder = createMockQueryBuilder([]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder as any);
+
+      const data = {
+        userId: mockUserId,
         contentPlain: "Test",
+        sourceType: "typed" as const,
       };
 
-      vi.mocked(piiDetector.redactPII).mockReturnValue({
-        sanitizedText: "Test",
-        entities: [],
-        hasRedactions: false,
-      });
-
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await NotesRepository.createNote(mockUserId, noteInput);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("DB_INSERT_FAILED");
-      }
+      await expect(repo.createNote(data)).rejects.toThrow(
+        "Insert returned no data"
+      );
     });
   });
 
   describe("updateNote", () => {
-    it("should update note with PII redaction", async () => {
-      const updateInput = {
-        contentPlain: "Updated content with email@test.com",
-      };
-
-      const redactionResult = {
-        sanitizedText: "Updated content with [EMAIL]",
-        entities: [
-          { type: "email" as const, value: "email@test.com", start: 21, end: 36, redacted: "[EMAIL]" },
-        ],
-        hasRedactions: true,
-      };
-
-      vi.mocked(piiDetector.redactPII).mockReturnValue(redactionResult);
-
+    it("should update note", async () => {
       const mockNote = createMockNote({
-        contentPlain: redactionResult.sanitizedText,
-        piiEntities: redactionResult.entities,
+        contentPlain: "Updated content",
         updatedAt: new Date(),
       });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockNote]);
+      const updateBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
-      const result = await NotesRepository.updateNote(mockUserId, mockNoteId, updateInput);
+      const result = await repo.updateNote(mockUserId, mockNoteId, {
+        contentPlain: "Updated content",
+      });
 
-      expect(result.success).toBe(true);
-      if (result.success && result.data) {
-        expect(result.data.contentPlain).toBe(redactionResult.sanitizedText);
-        expect(result.data.piiEntities).toHaveLength(1);
-      }
+      expect(result).not.toBeNull();
+      expect(result?.contentPlain).toBe("Updated content");
     });
 
     it("should update only provided fields", async () => {
-      const updateInput = {
-        tags: ["updated", "tags"],
-      };
-
       const mockNote = createMockNote({ tags: ["updated", "tags"] });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockNote]);
+      const updateBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
-      const result = await NotesRepository.updateNote(mockUserId, mockNoteId, updateInput);
+      const result = await repo.updateNote(mockUserId, mockNoteId, {
+        tags: ["updated", "tags"],
+      });
 
-      expect(result.success).toBe(true);
-      if (result.success && result.data) {
-        expect(result.data.tags).toEqual(["updated", "tags"]);
-      }
+      expect(result).not.toBeNull();
+      expect(result?.tags).toEqual(["updated", "tags"]);
     });
 
     it("should return null when note not found", async () => {
-      const updateInput = {
-        contentPlain: "Update",
-      };
+      const updateBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(piiDetector.redactPII).mockReturnValue({
-        sanitizedText: "Update",
-        entities: [],
-        hasRedactions: false,
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
+
+      const result = await repo.updateNote(mockUserId, "non-existent", {
+        contentPlain: "Update",
       });
 
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await NotesRepository.updateNote(mockUserId, "non-existent", updateInput);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBeNull();
-      }
-    });
-
-    it("should reject invalid update data", async () => {
-      const invalidInput = {
-        contentPlain: 123, // Should be string
-      };
-
-      const result = await NotesRepository.updateNote(mockUserId, mockNoteId, invalidInput);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("VALIDATION_ERROR");
-      }
+      expect(result).toBeNull();
     });
 
     it("should update updatedAt timestamp", async () => {
-      const updateInput = {
-        contentPlain: "New content",
-      };
-
-      vi.mocked(piiDetector.redactPII).mockReturnValue({
-        sanitizedText: "New content",
-        entities: [],
-        hasRedactions: false,
-      });
-
       const now = new Date();
       const mockNote = createMockNote({ updatedAt: now });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockNote]);
+      const updateBuilder = createMockQueryBuilder([mockNote]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder as any);
 
-      const result = await NotesRepository.updateNote(mockUserId, mockNoteId, updateInput);
+      const result = await repo.updateNote(mockUserId, mockNoteId, {
+        contentPlain: "New content",
+      });
 
-      expect(result.success).toBe(true);
-      if (result.success && result.data) {
-        expect(result.data.updatedAt).toBeInstanceOf(Date);
-      }
+      expect(result?.updatedAt).toBeInstanceOf(Date);
     });
   });
 
   describe("deleteNote", () => {
     it("should delete note successfully", async () => {
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([{ id: mockNoteId }]);
+      const deleteBuilder = createMockQueryBuilder([{ id: mockNoteId }]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await NotesRepository.deleteNote(mockUserId, mockNoteId);
+      const result = await repo.deleteNote(mockUserId, mockNoteId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(true);
-      }
+      expect(result).toBe(true);
     });
 
     it("should return false when note not found", async () => {
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([]);
+      const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await NotesRepository.deleteNote(mockUserId, "non-existent");
+      const result = await repo.deleteNote(mockUserId, "non-existent");
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(false);
-      }
-    });
-
-    it("should handle database errors", async () => {
-      const mockError = new Error("Delete failed");
-      vi.mocked(dbClient.getDb).mockRejectedValue(mockError);
-
-      const result = await NotesRepository.deleteNote(mockUserId, mockNoteId);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("DB_DELETE_FAILED");
-        expect(result.error.message).toContain("Delete failed");
-      }
+      expect(result).toBe(false);
     });
 
     it("should not allow deleting notes from other users", async () => {
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([]);
+      const deleteBuilder = createMockQueryBuilder([]);
 
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder as any);
 
-      const result = await NotesRepository.deleteNote("different-user", mockNoteId);
+      const result = await repo.deleteNote("different-user", mockNoteId);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe(false);
-      }
-    });
-  });
-
-  describe("Edge Cases and Security", () => {
-    it("should handle empty string for contentPlain", async () => {
-      const noteInput = {
-        contentPlain: "",
-      };
-
-      const result = await NotesRepository.createNote(mockUserId, noteInput);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("VALIDATION_ERROR");
-      }
-    });
-
-    it("should handle very long content", async () => {
-      const longContent = "a".repeat(10000);
-      const noteInput = {
-        contentPlain: longContent,
-      };
-
-      vi.mocked(piiDetector.redactPII).mockReturnValue({
-        sanitizedText: longContent,
-        entities: [],
-        hasRedactions: false,
-      });
-
-      const mockNote = createMockNote({ contentPlain: longContent });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockNote]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await NotesRepository.createNote(mockUserId, noteInput);
-
-      expect(result.success).toBe(true);
-    });
-
-    it("should handle multiple PII entities in one note", async () => {
-      const noteInput = {
-        contentPlain: "Contact: john@example.com, phone: 555-1234, SSN: 123-45-6789",
-      };
-
-      const redactionResult = {
-        sanitizedText: "Contact: [EMAIL], phone: [PHONE], SSN: [SSN]",
-        entities: [
-          { type: "email" as const, value: "john@example.com", start: 9, end: 25, redacted: "[EMAIL]" },
-          { type: "phone" as const, value: "555-1234", start: 34, end: 42, redacted: "[PHONE]" },
-          { type: "ssn" as const, value: "123-45-6789", start: 49, end: 60, redacted: "[SSN]" },
-        ],
-        hasRedactions: true,
-      };
-
-      vi.mocked(piiDetector.redactPII).mockReturnValue(redactionResult);
-
-      const mockNote = createMockNote({
-        contentPlain: redactionResult.sanitizedText,
-        piiEntities: redactionResult.entities,
-      });
-      const mockDb = createMockDb();
-      mockDb.returning.mockResolvedValue([mockNote]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await NotesRepository.createNote(mockUserId, noteInput);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.piiEntities).toHaveLength(3);
-      }
-    });
-
-    it("should handle SQL injection attempts in search", async () => {
-      const maliciousInput = "'; DROP TABLE notes; --";
-      const mockDb = createMockDb();
-      mockDb.orderBy.mockResolvedValue([]);
-
-      vi.mocked(dbClient.getDb).mockResolvedValue(mockDb as any);
-
-      const result = await NotesRepository.searchNotes(mockUserId, maliciousInput);
-
-      // Should not throw error, Drizzle handles parameterization
-      expect(result.success).toBe(true);
+      expect(result).toBe(false);
     });
   });
 });

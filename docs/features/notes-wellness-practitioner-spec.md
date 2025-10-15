@@ -41,13 +41,37 @@ Health coaches and wellness practitioners rely on session notes as the **core ar
 
 #### 2.2 Fast Capture Controls
 
-- [ ] **Voice-to-text button** - Integrate Web Speech API or OpenAI Whisper
+- [ ] **Voice-to-text button** - Integrate browsers mediaRecorder API to record audio and send to OpenAI Whisper API via an HTTP POST request.
+
+  Example endpoint (as of 2025):
+
+  ```typescript
+  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+          "Content-Type": "multipart/form-data",
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: formData,
+  });
+  ```
+
+  Required fields:
+  - file (audio file)
+  - model (usually "whisper-1")
+  Optional: prompt (context), language, etc.
+
+  Receive & Store Transcription
+
+  The API returns the transcribed text.
+
+  Save this in your database (notes table, one row per note).
   - Streaming transcription with interim results
   - Store only final sanitized text
   - Error handling for browser compatibility
-- [ ] **Upload→OCR button** - Photo/PDF upload with text extraction
+
+- [ ] **Upload → AI Text Extraction button** - Photo/PDF upload with text extraction by llm, (not ocr tech) use a model that is strong at reading documents
   - Accept `.jpg`, `.png`, `.pdf` file types
-  - OCR pipeline: Tesseract.js or Cloud Vision API
   - Background job processing with retry logic
   - Store only extracted text, delete uploaded file
 - [ ] **Type button** (current editor) - Default option
@@ -58,20 +82,19 @@ Health coaches and wellness practitioners rely on session notes as the **core ar
   - Query `goals` table WHERE `contactId` AND `status != 'abandoned'`
   - Allow multiple goal associations via `note_goals` junction table
   - Display linked goals as chips on note
-- [ ] **Quick tags input** - Comma-separated tags for categorization
-  - Free-form text input (no predefined list yet)
+- [ ] **Quick tags input** - Inline dropdown to associate note with tags
   - Store in `notes.tags` array column
   - Auto-suggest from existing tags for contact
-- [ ] **Next step prompt** - Optional "What's the next agreed action?"
-  - Store in separate `next_steps` JSONB field or extract to tasks
+- [ ] **Next step prompt** - Read nextsteps from AI Insights table
+  - Stored in `next_steps` JSONB field in AI Insights table
   - Link to OmniMomentum task creation
 
 #### 2.4 Status Signals on Contact Card
 
-- [ ] Last session date (query most recent `calendarEvent` or `interaction`)
-- [ ] Next session scheduled (query future `calendarEvent`)
+- [ ] Last session date (query most recent `interaction` where calendarEvent matches contactId)
+- [ ] Next session scheduled (query future `interaction` where contactId matches)
 - [ ] "Documentation overdue" badge - If scheduled session has no note within 24h window
-  - Calculation: `calendarEvent.endTime < NOW() - INTERVAL '24 hours'` AND no matching note
+  - Calculation: `interaction.endTime < NOW() - INTERVAL '24 hours'` AND no matching note
 
 ### Phase 3: Progressive Disclosure & Retrieval (📋 Planned)
 

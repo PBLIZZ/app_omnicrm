@@ -11,7 +11,8 @@
 
 ### New Components (To Be Created)
 
-- `src/components/notes/RapidNoteModal.tsx` + `RapidNoteModal.test.tsx`
+- `src/components/notes/RapidNoteModal.tsx` - Full-screen modal for rapid note capture (implementation pending)
+- ✅ `src/components/notes/__tests__/RapidNoteModal.test.tsx` - Comprehensive unit tests for RapidNoteModal (17 tests covering full-screen layout, input bar, contact selector, character limit, save button)
 - ✅ `src/components/notes/VoiceRecorder.tsx` - Voice recording component with MediaRecorder API integration, waveform visualization, and 3-minute timer
 - ✅ `src/components/notes/__tests__/VoiceRecorder.test.tsx` - Unit tests for VoiceRecorder covering rendering, MediaRecorder API, timer, and waveform
 - `src/components/notes/LatestNotesCards.tsx` + `LatestNotesCards.test.tsx`
@@ -83,22 +84,22 @@
     - [x] 1.1.12 Write unit test: Finished recording returns audio blob in webm format
     - [x] 1.1.13 Implement: Export audio blob in webm format for transcription
   - [ ] 1.2 Build RapidNoteModal component with full-screen layout
-    - [ ] 1.2.1 Write unit test: Modal renders full-screen with dimmed background
+    - [x] 1.2.1 Write unit test: Modal renders full-screen with dimmed background
     - [ ] 1.2.2 Implement: Create full-screen modal using shadcn Dialog component
-    - [ ] 1.2.3 Write unit test: Modal blocks background interactions when open
+    - [x] 1.2.3 Write unit test: Modal blocks background interactions when open
     - [ ] 1.2.4 Implement: Add dimmed background overlay that blocks app interaction
-    - [ ] 1.2.5 Write unit test: Input bar renders with text area and mic icon
+    - [x] 1.2.5 Write unit test: Input bar renders with text area and mic icon
     - [ ] 1.2.6 Implement: Implement input bar with text area and mic icon
-    - [ ] 1.2.7 Write unit test: Contact selector dropdown populates with contacts
-    - [ ] 1.2.8 Write unit test: Last-viewed contact pre-selected in dropdown
+    - [x] 1.2.7 Write unit test: Contact selector dropdown populates with contacts
+    - [x] 1.2.8 Write unit test: Last-viewed contact pre-selected in dropdown
     - [ ] 1.2.9 Implement: Add contact selector dropdown (with last-viewed-contact default)
-    - [ ] 1.2.10 Write unit test: Inline editing area supports cursor positioning
+    - [x] 1.2.10 Write unit test: Inline editing area supports cursor positioning
     - [ ] 1.2.11 Implement: Create inline editing area with cursor positioning support
-    - [ ] 1.2.12 Write unit test: Character limit enforced at 1200 chars with visual indicator
+    - [x] 1.2.12 Write unit test: Character limit enforced at 1200 chars with visual indicator
     - [ ] 1.2.13 Implement: Implement 1200 character limit with visual indicator
-    - [ ] 1.2.14 Write unit test: Save button shows loading state during API call
+    - [x] 1.2.14 Write unit test: Save button shows loading state during API call
     - [ ] 1.2.15 Implement: Add "Save" button with loading state
-    - [ ] 1.2.16 Write unit test: Helper text displays correctly
+    - [x] 1.2.16 Write unit test: Helper text displays correctly
     - [ ] 1.2.17 Implement: Display helper text: "For advanced editing, visit Contact Details"
   - [ ] 1.3 Implement auto-save draft functionality
     - [ ] 1.3.1 Write unit test: Draft saves to localStorage every 5 seconds

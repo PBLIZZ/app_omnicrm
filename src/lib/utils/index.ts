@@ -18,12 +18,10 @@ export * from "./type-guards";
 // Safe Zod parsing and validation helpers - DEPRECATED
 // zod-helpers.ts uses deprecated Result pattern
 // Import directly if needed, but prefer Zod's built-in safeParse()
-// export * from "./zod-helpers";
 
+// Date/timestamp conversion helpers - DEPRECATED
 // Date/timestamp conversion helpers - DEPRECATED
 // date-helpers.ts uses deprecated Result pattern
 // Import directly if needed
-// export * from "./date-helpers";
-
 // API boundary types and interfaces
 export * from "./api-types";

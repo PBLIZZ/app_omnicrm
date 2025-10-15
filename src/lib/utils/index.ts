@@ -17,5 +17,9 @@ export * from "./zod-helpers";
 export * from "./date-helpers";
 // Legacy dateUtils.ts moved to deprecated-utils/ folder
 
+// Date/timestamp conversion helpers - DEPRECATED
+// Date/timestamp conversion helpers - DEPRECATED
+// date-helpers.ts uses deprecated Result pattern
+// Import directly if needed
 // API boundary types and interfaces
 export * from "./api-types";

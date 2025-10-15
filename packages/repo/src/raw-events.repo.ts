@@ -373,6 +373,11 @@ export class RawEventsRepository {
   }
 }
 
+/**
+ * Create a RawEventsRepository bound to the provided database client.
+ *
+ * @returns A RawEventsRepository instance tied to the given `DbClient`
+ */
 export function createRawEventsRepository(db: DbClient): RawEventsRepository {
   return new RawEventsRepository(db);
 }

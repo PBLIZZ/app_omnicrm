@@ -75,10 +75,13 @@ export interface MockDbClient {
 }
 
 /**
- * Creates a chainable mock query builder
+ * Creates a chainable mock query builder for tests.
  *
- * @param finalValue - The value to return when the chain completes (default: [])
- * @returns A mock query builder with chainable methods
+ * The returned builder's chain methods return the builder to allow fluent chaining.
+ * Its `returning` method resolves to `finalValue`, and the builder is awaitable via `then`.
+ *
+ * @param finalValue - The value to resolve when the chain completes (default: `[]`)
+ * @returns A configured `MockQueryBuilder` whose chain methods return the builder and whose final result resolves to `finalValue`
  */
 export function createMockQueryBuilder(finalValue: any[] = []): MockQueryBuilder {
   const mockBuilder = {} as MockQueryBuilder;
@@ -168,18 +171,11 @@ export function createMockDbClient(): MockDbClient {
 }
 
 /**
- * Configures a mock query builder to return specific data
+ * Configure a MockQueryBuilder to resolve with the provided rows when awaited or when `returning` is called.
  *
- * Helper function to quickly configure a mock to return data at the end
- * of a chain of operations.
- *
- * @example
- * ```typescript
- * const mockDb = createMockDbClient();
- * const data = [{ id: '1', name: 'Test' }];
- *
- * configureMockQuery(mockDb.select(), data);
- * ```
+ * @param mockBuilder - The chainable mock query builder to configure
+ * @param data - The array of rows the mock should resolve to
+ * @returns The same `mockBuilder` instance, for chaining or assertions
  */
 export function configureMockQuery<T>(
   mockBuilder: MockQueryBuilder<T>,

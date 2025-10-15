@@ -135,18 +135,11 @@ export function clearQueryClient(queryClient: QueryClient): void {
 }
 
 /**
- * Waits for all queries in a QueryClient to settle
+ * Waits for all queries in the provided QueryClient to settle.
  *
- * Useful for ensuring all async operations complete before assertions.
+ * Use this in tests to ensure any outstanding query activity completes before assertions.
  *
- * @param queryClient - The QueryClient to wait for
- * @returns A promise that resolves when all queries are settled
- *
- * @example
- * ```typescript
- * await waitForQueries(queryClient);
- * expect(result.current.data).toBeDefined();
- * ```
+ * @param queryClient - The QueryClient whose queries should be waited on
  */
 export async function waitForQueries(queryClient: QueryClient): Promise<void> {
   await queryClient.refetchQueries();

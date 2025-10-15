@@ -210,6 +210,7 @@ describe("GoogleIntegrationService", () => {
 
       expect(googleClient.getGoogleClients).toHaveBeenCalledWith(mockUserId);
       expect(result.gmail.connected).toBe(true);
+      expect(result.gmail.autoRefreshed).toBe(true);
     });
 
     it("should not refresh when autoRefresh is false", async () => {
@@ -282,6 +283,116 @@ describe("GoogleIntegrationService", () => {
 
       expect(result.gmail.connected).toBe(true);
       expect(result.calendar.connected).toBe(false);
+    });
+
+    it("should set autoRefreshed to true only for services that were refreshed", async () => {
+      mockRepo.getUserIntegrationsByProvider
+        .mockResolvedValueOnce([
+          {
+            service: "gmail",
+            accessToken: "expired-token",
+            expiryDate: pastDate,
+          },
+          {
+            service: "calendar",
+            accessToken: "valid-token",
+            expiryDate: futureDate,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            service: "gmail",
+            accessToken: "new-token",
+            expiryDate: futureDate,
+          },
+          {
+            service: "calendar",
+            accessToken: "valid-token",
+            expiryDate: futureDate,
+          },
+        ]);
+
+      vi.mocked(googleClient.getGoogleClients).mockResolvedValue({} as any);
+
+      const result = await getStatusService(mockUserId, { autoRefresh: true });
+
+      expect(result.gmail.autoRefreshed).toBe(true);
+      expect(result.calendar.autoRefreshed).toBe(false);
+    });
+
+    it("should set autoRefreshed to false when no refresh is needed", async () => {
+      mockRepo.getUserIntegrationsByProvider.mockResolvedValue([
+        {
+          service: "gmail",
+          accessToken: "valid-token",
+          expiryDate: futureDate,
+        },
+        {
+          service: "calendar",
+          accessToken: "valid-token",
+          expiryDate: futureDate,
+        },
+      ]);
+
+      const result = await getStatusService(mockUserId, { autoRefresh: true });
+
+      expect(googleClient.getGoogleClients).not.toHaveBeenCalled();
+      expect(result.gmail.autoRefreshed).toBe(false);
+      expect(result.calendar.autoRefreshed).toBe(false);
+    });
+
+    it("should set autoRefreshed to true for both services when both are expired", async () => {
+      mockRepo.getUserIntegrationsByProvider
+        .mockResolvedValueOnce([
+          {
+            service: "gmail",
+            accessToken: "expired-token",
+            expiryDate: pastDate,
+          },
+          {
+            service: "calendar",
+            accessToken: "expired-token",
+            expiryDate: pastDate,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            service: "gmail",
+            accessToken: "new-token",
+            expiryDate: futureDate,
+          },
+          {
+            service: "calendar",
+            accessToken: "new-token",
+            expiryDate: futureDate,
+          },
+        ]);
+
+      vi.mocked(googleClient.getGoogleClients).mockResolvedValue({} as any);
+
+      const result = await getStatusService(mockUserId, { autoRefresh: true });
+
+      expect(result.gmail.autoRefreshed).toBe(true);
+      expect(result.calendar.autoRefreshed).toBe(true);
+    });
+
+    it("should set autoRefreshed to false when refresh fails", async () => {
+      mockRepo.getUserIntegrationsByProvider.mockResolvedValue([
+        {
+          service: "gmail",
+          accessToken: "expired-token",
+          expiryDate: pastDate,
+        },
+      ]);
+
+      vi.mocked(googleClient.getGoogleClients).mockRejectedValue(
+        new Error("Refresh failed"),
+      );
+
+      const result = await getStatusService(mockUserId, { autoRefresh: true });
+
+      expect(result.gmail.autoRefreshed).toBe(false);
+      expect(result.calendar.autoRefreshed).toBe(false);
     });
   });
 });

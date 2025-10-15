@@ -12,7 +12,6 @@ import {
   AiInsightContentSchema,
   GmailSourceMetaSchema,
   CalendarSourceMetaSchema,
-  GenericSourceMetaSchema,
   SourceMetaSchema,
   RawEventPayloadSchema,
   redactSensitiveFields,
@@ -560,9 +559,10 @@ describe("jsonb validation schemas", () => {
       };
       const result = sanitizeJsonb(data);
       expect(result).toEqual({ safeKey: "value" });
-      expect("__proto__" in result).toBe(false);
-      expect("constructor" in result).toBe(false);
-      expect("prototype" in result).toBe(false);
+      // Dangerous keys should not exist in the result
+      expect(Object.prototype.hasOwnProperty.call(result, "__proto__")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(result, "constructor")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(result, "prototype")).toBe(false);
     });
 
     it("should recursively sanitize nested objects", () => {

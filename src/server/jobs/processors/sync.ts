@@ -29,14 +29,7 @@ interface SyncJobPayload {
   batchId?: string;
 }
 
-interface GmailMessagePayload {
-  id?: string;
-  labelIds?: string[];
-  internalDate?: string;
-  payload?: {
-    headers?: Array<{ name?: string; value?: string }>;
-  };
-}
+import { GmailMessagePayload, isGmailPayload } from "@/server/db/business-schemas";
 
 // Types:
 // - MinimalJob reflects what we actually read from the job object at runtime.
@@ -62,16 +55,7 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
 
-function isGmailMessagePayload(v: unknown): v is GmailMessagePayload {
-  if (!isRecord(v)) return false;
-  const id = v["id"];
-  const labelIds = v["labelIds"];
-  const internalDate = v["internalDate"];
-  const okId = id === undefined || typeof id === "string";
-  const okLabels = labelIds === undefined || isStringArray(labelIds);
-  const okInternal = internalDate === undefined || typeof internalDate === "string";
-  return okId && okLabels && okInternal;
-}
+// Use the imported validation function from business schemas
 
 const GMAIL_SYNC_OPERATION = "google_gmail_sync" as const;
 const CALENDAR_SYNC_OPERATION = "google_calendar_sync" as const;
@@ -288,7 +272,10 @@ export async function runGmailSync(
 
   for (let i = 0; i < processedIds.length; i += GMAIL_CHUNK_DEFAULT) {
     if (Date.now() > deadlineMs) {
-      await logger.warn("sync_timeout", { operation: GMAIL_SYNC_OPERATION, additionalData: { userId } });
+      await logger.warn("sync_timeout", {
+        operation: GMAIL_SYNC_OPERATION,
+        additionalData: { userId },
+      });
       break;
     }
 

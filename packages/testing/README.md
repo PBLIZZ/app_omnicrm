@@ -716,6 +716,273 @@ it('should generate realistic contact data', () => {
 });
 ```
 
+## New Testing Utilities (Phase 1 - 2025-10-12)
+
+### Mock DB Client Factory
+
+Create mock database clients that mimic Drizzle ORM's chainable query builder pattern for repository layer tests.
+
+```typescript
+import { createMockDbClient, createMockQueryBuilder } from '@packages/testing';
+import { ContactsRepository, createContactsRepository } from '@repo';
+
+describe('ContactsRepository', () => {
+  let mockDb: ReturnType<typeof createMockDbClient>;
+  let repo: ContactsRepository;
+
+  beforeEach(() => {
+    mockDb = createMockDbClient();
+    repo = createContactsRepository(mockDb);
+  });
+
+  it('should return null when not found', async () => {
+    // Mock empty result
+    mockDb.select.mockReturnValue(createMockQueryBuilder([]));
+    
+    const result = await repo.getContact('non-existent', 'userId');
+    expect(result).toBeNull();
+  });
+
+  it('should create contact successfully', async () => {
+    const contact = { id: '1', userId: 'user-123', displayName: 'Test' };
+    mockDb.insert.mockReturnValue(createMockQueryBuilder([contact]));
+    
+    const result = await repo.createContact(contact);
+    expect(result).toEqual(contact);
+  });
+});
+```
+
+**Key Features:**
+
+- Chainable method mocking (`select().from().where()...`)
+- Transaction support
+- Promise-based terminal methods
+- TypeScript type safety
+
+### Transaction Mock Example
+
+```typescript
+import { getDb } from '@/server/db/client';
+
+let mockDb = createMockDbClient();
+
+vi.mocked(getDb).mockResolvedValue(mockDb);
+
+describe('Repository with transaction', () => {
+  it('mocks transaction callback', async () => {
+    const mockDb = createMockDbClient();
+    const mockInsert = vi.fn().mockResolvedValue([{ id: 'test-id' }]);
+    mockDb.insert.mockReturnValue({ returning: mockInsert });
+
+    const result = await repo.createContactInTransaction(mockUserId, data);
+    expect(mockDb.transaction).toHaveBeenCalled();
+    const callback = (mockDb.transaction as any).mock.calls[0][0];
+    expect(callback).toBeTypeOf('function');
+    const txResult = await callback(mockDb); // Simulate tx execution
+    expect(txResult).toBe(result);
+    expect(result.id).toBe('test-id');
+  });
+});
+```
+
+### AppError Test Helpers
+
+Validate AppError instances in service and route tests.
+
+```typescript
+import { expectAppError, commonAppErrors, expectAppErrorRejection } from '@packages/testing';
+
+describe('ContactService', () => {
+  it('should throw NOT_FOUND error when contact not found', async () => {
+    try {
+      await getContactService('userId', 'non-existent-id');
+    } catch (error) {
+      expectAppError(error, {
+        code: 'NOT_FOUND',
+        statusCode: 404,
+        category: 'validation'
+      });
+    }
+  });
+
+  it('should wrap database errors with 500 status', async () => {
+    await expectAppErrorRejection(
+      getContactService('userId', 'failing-id'),
+      commonAppErrors.dbError('Database connection failed')
+    );
+  });
+});
+```
+
+**Available Common Errors:**
+
+- `commonAppErrors.notFound(resource)` - 404 NOT_FOUND
+- `commonAppErrors.dbError(message)` - 500 DB_ERROR
+- `commonAppErrors.validationError(message)` - 400 VALIDATION_ERROR
+- `commonAppErrors.unauthorized()` - 401 UNAUTHORIZED
+- `commonAppErrors.forbidden()` - 403 FORBIDDEN
+- `commonAppErrors.serviceUnavailable()` - 503 SERVICE_UNAVAILABLE
+
+### Query Client Helpers
+
+Create and manage React Query clients for hook testing.
+
+```typescript
+import { renderHook, waitFor } from '@testing-library/react';
+import { createTestQueryClient, createQueryClientWrapper } from '@packages/testing';
+import { useContacts } from '../use-contacts';
+import { fetchGet } from '@/lib/api/client';
+import type { QueryClient } from '@tanstack/react-query';
+
+let queryClient: QueryClient;
+
+vi.mock('@/lib/api/client', () => ({
+  fetchGet: vi.fn()
+}));
+
+describe('useContacts', () => {
+  let queryClient: QueryClient;
+  let wrapper: ReturnType<typeof createQueryClientWrapper>;
+
+  beforeEach(() => {
+    queryClient = createTestQueryClient();
+    wrapper = createQueryClientWrapper(queryClient);
+    vi.clearAllMocks();
+  });
+
+  it('should fetch contacts successfully', async () => {
+    const mockContacts = [{ id: '1', displayName: 'Test' }];
+    vi.mocked(fetchGet).mockResolvedValue({ items: mockContacts, total: 1 });
+
+    const { result } = renderHook(() => useContacts(), { wrapper });
+
+    expect(result.current.isLoading).toBe(true);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    
+    expect(result.current.data?.items).toEqual(mockContacts);
+    expect(fetchGet).toHaveBeenCalledWith('/api/contacts');
+  });
+
+  it('should handle errors', async () => {
+    vi.mocked(fetchGet).mockRejectedValue(new Error('API error'));
+
+    const { result } = renderHook(() => useContacts(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(Error);
+  });
+});
+```
+
+**Query Client Features:**
+
+- No retries (fail fast for tests)
+- Zero cache time (fresh state each test)
+- Silent logging (no test noise)
+- Proper cleanup utilities
+
+## Test Patterns by Layer (Updated 2025-10-12)
+
+### Repository Layer Tests
+
+**Pattern**: Use `createMockDbClient` with constructor injection
+
+```typescript
+import { createMockDbClient, createMockQueryBuilder } from '@packages/testing';
+import { ExampleRepository, createExampleRepository } from '../example.repo';
+
+describe('ExampleRepository', () => {
+  let mockDb: ReturnType<typeof createMockDbClient>;
+  let repo: ExampleRepository;
+
+  beforeEach(() => {
+    mockDb = createMockDbClient();
+    repo = createExampleRepository(mockDb);
+  });
+
+  // Tests here
+});
+```
+
+**Checklist:**
+
+- ✅ Use `createMockDbClient` factory
+- ✅ Use constructor injection (not static methods)
+- ✅ Returns `null` for not found
+- ✅ Throws generic `Error` for database failures
+- ✅ Test pagination, filtering, sorting
+
+### Service Layer Tests
+
+**Pattern**: Mock `getDb()` and repository factories
+
+```typescript
+import { expectAppError, commonAppErrors } from '@packages/testing';
+
+vi.mock('@/server/db/client', () => ({ getDb: vi.fn() }));
+vi.mock('@repo', () => ({ createExampleRepository: vi.fn() }));
+
+describe('ExampleService', () => {
+  let mockRepo: any;
+
+  beforeEach(() => {
+    mockRepo = { getExample: vi.fn() };
+    vi.mocked(getDb).mockResolvedValue(mockDb);
+    vi.mocked(createExampleRepository).mockReturnValue(mockRepo);
+  });
+
+  it('should wrap database errors in AppError', async () => {
+    mockRepo.getExample.mockRejectedValue(new Error('DB error'));
+    
+    try {
+      await getExampleService('userId', 'id');
+    } catch (error) {
+      expectAppError(error, commonAppErrors.dbError());
+    }
+  });
+});
+```
+
+**Checklist:**
+
+- ✅ Throws `AppError` (not generic `Error`)
+- ✅ Correct status codes (404, 500, 503)
+- ✅ Tests business logic
+- ✅ Tests error wrapping
+
+### Hook Layer Tests
+
+**Pattern**: Use `createQueryClientWrapper` and mock API client
+
+```typescript
+import { createTestQueryClient, createQueryClientWrapper } from '@packages/testing';
+
+vi.mock('@/lib/api/client', () => ({
+  fetchGet: vi.fn(),
+  fetchPost: vi.fn()
+}));
+
+describe('useExample', () => {
+  let queryClient: QueryClient;
+  let wrapper: ReturnType<typeof createQueryClientWrapper>;
+
+  beforeEach(() => {
+    queryClient = createTestQueryClient();
+    wrapper = createQueryClientWrapper(queryClient);
+  });
+
+  // Tests here
+});
+```
+
+**Checklist:**
+
+- ✅ Wrap in `QueryClientProvider`
+- ✅ Mock API client functions
+- ✅ Test loading, success, error states
+- ✅ Test cache invalidation
+
 ## Contributing
 
 When adding new DTOs or repository methods:
@@ -726,3 +993,4 @@ When adding new DTOs or repository methods:
 4. **Add Documentation**: Update this README with usage examples
 5. **Write Tests**: Verify factories generate valid data that passes DTO validation
 6. **Business Context**: Ensure generated data matches wellness business domain
+7. **Use New Utilities**: Leverage `createMockDbClient`, `expectAppError`, and `createTestQueryClient` where appropriate

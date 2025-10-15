@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api/client";
+import { post } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { Result, isErr } from "@/lib/utils/result";
+
 // Direct error handling and success notifications (no abstraction)
 const createErrorHandler = (context: string) => (error: unknown) => {
   const message = error instanceof Error ? error.message : "An unknown error occurred";
@@ -50,19 +50,13 @@ export function useGmailSync(): UseGmailSyncReturn {
   // Simplified incremental sync mutation - no preview, just sync
   const syncMutation = useMutation({
     mutationFn: async (): Promise<{ message: string; batchId?: string }> => {
-      const result = await apiClient.post<
-        Result<{ message?: string; batchId?: string }, { message: string; code: string }>
-      >("/api/sync/approve/gmail", {});
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      // Access data property only after checking success
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
+      const response = await post<{ message?: string; batchId?: string }>(
+        "/api/sync/approve/gmail",
+        {}
+      );
       return {
-        message: result.data.message ?? "Gmail sync started",
-        ...(result.data.batchId && { batchId: result.data.batchId }),
+        message: response.message ?? "Gmail sync started",
+        ...(response.batchId && { batchId: response.batchId }),
       };
     },
     onSuccess: () => {
@@ -80,18 +74,10 @@ export function useGmailSync(): UseGmailSyncReturn {
   // Generate embeddings mutation
   const embeddingsMutation = useMutation({
     mutationFn: async () => {
-      const result = await apiClient.post<
-        Result<{ message: string }, { message: string; code: string }>
-      >("/api/gmail/embed", {
+      const response = await post<{ message: string }>("/api/gmail/embed", {
         regenerate: false,
       });
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
-      return result.data;
+      return response;
     },
     onMutate: () => {
       setIsEmbedding(true);
@@ -108,16 +94,8 @@ export function useGmailSync(): UseGmailSyncReturn {
   // Process contacts mutation
   const processContactsMutation = useMutation({
     mutationFn: async () => {
-      const result = await apiClient.post<
-        Result<{ message?: string }, { message: string; code: string }>
-      >("/api/gmail/process-contacts", {});
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!result.success) {
-        throw new Error("Invalid result state");
-      }
-      return { message: result.data.message ?? "Contacts processed successfully" };
+      const response = await post<{ message?: string }>("/api/gmail/process-contacts", {});
+      return { message: response.message ?? "Contacts processed successfully" };
     },
     onMutate: () => {
       setIsProcessingContacts(true);
@@ -126,7 +104,7 @@ export function useGmailSync(): UseGmailSyncReturn {
       toast.success(data.message);
       // Invalidate contact-related queries
       void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.clients.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.calendar.clients() });
       // Also invalidate dashboard
       void queryClient.invalidateQueries({ queryKey: queryKeys.omniConnect.dashboard() });
     },

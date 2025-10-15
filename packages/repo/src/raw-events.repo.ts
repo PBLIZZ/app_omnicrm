@@ -146,31 +146,29 @@ export class RawEventsRepository {
     const orderByColumn = sortColumnMap[sortKey];
     const orderDirection = params.order === "asc" ? asc : desc;
 
-    const rows = (await this.db
+    const rows = await this.db
       .select()
       .from(rawEvents)
       .where(whereClause)
       .orderBy(orderDirection(orderByColumn))
       .limit(pageSize)
-      .offset(offset)) as RawEventRow[];
+      .offset(offset);
 
-    const totalRows = (await this.db
-      .select({ value: count() })
-      .from(rawEvents)
-      .where(whereClause)) as Array<{ value: number | bigint }>;
+    const totalResult = await this.db.select({ value: count() }).from(rawEvents).where(whereClause);
+    const total = Number(totalResult[0]?.value ?? 0);
 
     return {
       items: rows.map((row) => mapRowToListItem(row)),
-      total: Number(totalRows[0]?.value ?? 0),
+      total: total,
     };
   }
 
   async getRawEventById(userId: string, rawEventId: string): Promise<RawEvent | null> {
-    const rows = (await this.db
+    const rows = await this.db
       .select()
       .from(rawEvents)
       .where(and(eq(rawEvents.userId, userId), eq(rawEvents.id, rawEventId)))
-      .limit(1)) as RawEventRow[];
+      .limit(1);
 
     return rows[0] ?? null;
   }
@@ -351,8 +349,35 @@ export class RawEventsRepository {
 
     return rows.map((row) => mapRowToListItem(row));
   }
+
+  async getEmailCountByProvider(userId: string, provider: ProviderType): Promise<number> {
+    const result = await this.db
+      .select({ value: count() })
+      .from(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, provider)))
+      .limit(1);
+
+    const emailCount = Number(result[0]?.value ?? 0);
+    return emailCount;
+  }
+
+  async getLatestEventByProvider(userId: string, provider: ProviderType): Promise<RawEvent | null> {
+    const rows = (await this.db
+      .select()
+      .from(rawEvents)
+      .where(and(eq(rawEvents.userId, userId), eq(rawEvents.provider, provider)))
+      .orderBy(desc(rawEvents.createdAt))
+      .limit(1)) as RawEventRow[];
+
+    return rows[0] ?? null;
+  }
 }
 
+/**
+ * Create a RawEventsRepository bound to the provided database client.
+ *
+ * @returns A RawEventsRepository instance tied to the given `DbClient`
+ */
 export function createRawEventsRepository(db: DbClient): RawEventsRepository {
   return new RawEventsRepository(db);
 }

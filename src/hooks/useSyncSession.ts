@@ -32,6 +32,11 @@ interface SyncProgress {
 
 interface SyncSessionResult {
   sessionId: string;
+  success: boolean;
+  messagesProcessed: number;
+  normalizedInteractions?: number;
+  duration?: number;
+  errors?: unknown[];
   message: string;
   stats: {
     totalFound: number;

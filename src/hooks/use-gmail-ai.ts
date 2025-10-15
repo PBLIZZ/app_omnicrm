@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
-import { Result, isErr, isOk } from "@/lib/utils/result";
 
 interface SearchResult {
   subject: string;
@@ -28,6 +27,19 @@ interface Insights {
   }>;
 }
 
+/**
+ * Provides state and actions for performing Gmail searches and fetching AI-generated insights.
+ *
+ * @returns An object with the following properties:
+ * - `searchQuery` — current search text.
+ * - `setSearchQuery` — updater for `searchQuery`.
+ * - `searchResults` — array of matched Gmail results.
+ * - `isSearching` — `true` while a search request is pending, `false` otherwise.
+ * - `searchGmail` — triggers a search using the current `searchQuery`.
+ * - `insights` — loaded analytics/insights or `null` if none loaded.
+ * - `isLoadingInsights` — `true` while insights are being fetched, `false` otherwise.
+ * - `loadInsights` — async function to fetch and set `insights`.
+ */
 export function useGmailAI(): {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -46,19 +58,11 @@ export function useGmailAI(): {
   // Search Gmail mutation
   const searchMutation = useMutation({
     mutationFn: async (query: string): Promise<SearchResult[]> => {
-      const result = await apiClient.post<
-        Result<{ results: SearchResult[] }, { message: string; code: string }>
-      >("/api/gmail/search", {
+      const result = await apiClient.post<{ results: SearchResult[] }>("/api/gmail/search", {
         query,
         limit: 5,
       });
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!isOk(result)) {
-        throw new Error("Invalid result state");
-      }
-      return result.data.results ?? [];
+      return result.results ?? [];
     },
     onSuccess: (results) => {
       setSearchResults(results);
@@ -77,17 +81,8 @@ export function useGmailAI(): {
   const loadInsights = async (): Promise<void> => {
     setIsLoadingInsights(true);
     try {
-      const result =
-        await apiClient.get<Result<InsightsResponse, { message: string; code: string }>>(
-          "/api/gmail/insights",
-        );
-      if (isErr(result)) {
-        throw new Error(result.error.message);
-      }
-      if (!isOk(result)) {
-        throw new Error("Invalid result state");
-      }
-      setInsights(result.data.insights);
+      const result = await apiClient.get<InsightsResponse>("/api/gmail/insights");
+      setInsights(result.insights);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to load insights";
       toast.error(errorMessage);

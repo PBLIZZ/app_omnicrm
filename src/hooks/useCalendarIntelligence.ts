@@ -14,6 +14,33 @@ import { useMemo } from "react";
 import { CalendarBusinessIntelligence } from "@/app/(authorisedRoute)/omni-rhythm/_components/CalendarBusinessIntelligence";
 import type { CalendarEvent, Client, Appointment, WeeklyStats } from "@/server/db/business-schemas";
 
+export interface SessionMetrics {
+  sessionsNext7Days: number;
+  sessionsThisMonth: number;
+}
+
+export interface UseCalendarIntelligenceResult {
+  biService: CalendarBusinessIntelligence;
+  enhancedAppointments: Appointment[];
+  weeklyStats: WeeklyStats;
+  sessionMetrics: SessionMetrics;
+  updateClientData: (newClients: Client[]) => void;
+  calculateRevenue: () => number;
+  getBusiestDay: () => string;
+}
+
+/**
+ * Process calendar events and client records to produce business-intelligence outputs and conveniences for consumption in UI components.
+ *
+ * @returns An object containing:
+ *  - `biService`: the CalendarBusinessIntelligence instance
+ *  - `enhancedAppointments`: appointments augmented with `clientContext` and `businessInsights`
+ *  - `weeklyStats`: aggregated statistics for the current week (appointments, revenue, hours, busiest day, retention, etc.)
+ *  - `sessionMetrics`: counts of sessions in the next 7 days and sessions in the current month
+ *  - `updateClientData`: function to update the internal client dataset
+ *  - `calculateRevenue`: function that returns total estimated revenue across provided events
+ *  - `getBusiestDay`: function that returns the name of the busiest weekday for the current week
+ */
 export function useCalendarIntelligence(
   events: CalendarEvent[],
   clients: Client[],

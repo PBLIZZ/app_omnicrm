@@ -52,13 +52,57 @@ import {
 import { useDeleteContacts } from "@/hooks/use-contacts";
 import type { ContactSearchFilters, ContactWithLastNote } from "./types";
 import { toast } from "sonner";
-import { parseVisibilityState } from "@/lib/utils/type-guards/contacts";
+
+/**
+ * Parse a JSON string and return it as a VisibilityState when valid.
+ *
+ * @param json - JSON string (e.g., from localStorage) expected to represent a VisibilityState
+ * @returns The parsed VisibilityState when the input decodes to an object whose values are booleans, `null` otherwise
+ */
+function parseVisibilityState(json: string): VisibilityState | null {
+  try {
+    const parsed = JSON.parse(json);
+    if (isVisibilityState(parsed)) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifies that a value is a VisibilityState: an object whose keys are column IDs and whose values are booleans.
+ *
+ * @returns `true` if `obj` is a VisibilityState, `false` otherwise.
+ */
+function isVisibilityState(obj: unknown): obj is VisibilityState {
+  if (!obj || typeof obj !== "object") return false;
+  if (Array.isArray(obj)) return false;
+
+  // Check that all values in the record are booleans
+  for (const value of Object.values(obj)) {
+    if (typeof value !== "boolean") {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 interface ContactsTableProps {
   columns: ColumnDef<ContactWithLastNote>[];
   data: ContactWithLastNote[];
 }
 
+/**
+ * Render an interactive contacts table with filtering, sorting, pagination, column visibility, row selection,
+ * CSV export, and bulk delete functionality.
+ *
+ * @param columns - Column definitions used to build the table columns and cell renderers
+ * @param data - Array of contacts (including last note meta) to display in the table
+ * @returns The rendered JSX element containing the full contacts table UI
+ */
 export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Element {
   const bulkDeleteContacts = useDeleteContacts();
   const [sorting, setSorting] = useState<SortingState>([]);

@@ -58,7 +58,7 @@ describe("SyncProgressService", () => {
       expect(result.pendingJobs).toBe(5);
       expect(result.retryingJobs).toBe(1);
       expect(result.failedJobs).toBe(0);
-      expect(result.lastSyncAt).toBe("2024-01-01T10:05:00Z");
+      expect(result.lastSyncAt).toBe("2024-01-01T10:05:00.000Z");
     });
 
     it("should return status as queued when jobs are pending", async () => {
@@ -164,7 +164,7 @@ describe("SyncProgressService", () => {
 
       const result = await getSyncSummaryService(mockUserId);
 
-      expect(result.lastSyncAt).toBe("2024-01-01T10:00:00Z");
+      expect(result.lastSyncAt).toBe("2024-01-01T10:00:00.000Z");
     });
 
     it("should find first sync job in recent jobs list", async () => {
@@ -196,7 +196,7 @@ describe("SyncProgressService", () => {
 
       const result = await getSyncSummaryService(mockUserId);
 
-      expect(result.lastSyncAt).toBe("2024-01-01T11:30:00Z");
+      expect(result.lastSyncAt).toBe("2024-01-01T11:30:00.000Z");
     });
 
     it("should handle empty recent jobs list", async () => {

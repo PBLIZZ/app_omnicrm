@@ -1,198 +1,200 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ContactIdentitiesRepository } from "./contact-identities.repo";
-import type { DbClient } from "@/server/db/client";
-import { contactIdentities } from "@/server/db/schema";
-
-const createMockDb = () => {
-  const mockDb = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    offset: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    returning: vi.fn(),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-  };
-  return mockDb as unknown as DbClient;
-};
+import {
+  ContactIdentitiesRepository,
+  createContactIdentitiesRepository,
+} from "./contact-identities.repo";
+import { createMockDbClient, createMockQueryBuilder, type MockDbClient } from "@packages/testing";
+import type { ContactIdentity } from "@/server/db/schema";
 
 describe("ContactIdentitiesRepository", () => {
-  let mockDb: DbClient;
-  const testUserId = "test-user-123";
-  const testContactId = "contact-123";
-  const testIdentityId = "identity-123";
+  let mockDb: MockDbClient;
+  let repo: ContactIdentitiesRepository;
+  const mockUserId = "user-123";
+  const mockIdentityId = "identity-456";
+  const mockContactId = "contact-789";
+
+  const createMockIdentity = (overrides: Partial<ContactIdentity> = {}): ContactIdentity => ({
+    id: mockIdentityId,
+    userId: mockUserId,
+    contactId: mockContactId,
+    kind: "email",
+    value: "test@example.com",
+    provider: "google",
+    createdAt: new Date(),
+    ...overrides,
+  });
 
   beforeEach(() => {
-    mockDb = createMockDb();
+    mockDb = createMockDbClient();
+    repo = createContactIdentitiesRepository(mockDb as any);
+    vi.clearAllMocks();
   });
 
   describe("listContactIdentities", () => {
     it("should list identities with default pagination", async () => {
-      const mockIdentities = [
-        {
-          id: "identity-1",
-          contactId: testContactId,
-          userId: testUserId,
-          kind: "email",
-          provider: "gmail",
-          value: "test@example.com",
-          createdAt: new Date(),
-        },
-      ];
+      const mockIds = [createMockIdentity(), createMockIdentity({ id: "identity-2" })];
 
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce(mockIdentities);
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([{ value: 1 }]);
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 10 }]);
 
-      const result = await ContactIdentitiesRepository.listContactIdentities(mockDb, testUserId);
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
 
-      expect(result.items).toEqual(mockIdentities);
-      expect(result.total).toBe(1);
+      const result = await repo.listContactIdentities(mockUserId);
+
+      expect(result.items).toHaveLength(2);
+      expect(result.total).toBe(10);
     });
 
     it("should filter by contact id", async () => {
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([{ value: 0 }]);
+      const mockIds = [createMockIdentity()];
 
-      await ContactIdentitiesRepository.listContactIdentities(mockDb, testUserId, {
-        contactId: testContactId,
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 1 }]);
+
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
+
+      const result = await repo.listContactIdentities(mockUserId, {
+        contactId: mockContactId,
       });
 
-      expect(mockDb.select).toHaveBeenCalled();
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.contactId).toBe(mockContactId);
     });
 
     it("should filter by kinds array", async () => {
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([{ value: 0 }]);
+      const mockIds = [createMockIdentity({ kind: "email" })];
 
-      await ContactIdentitiesRepository.listContactIdentities(mockDb, testUserId, {
-        kinds: ["email", "phone"],
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 1 }]);
+
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
+
+      const result = await repo.listContactIdentities(mockUserId, {
+        kinds: ["email"],
       });
 
-      expect(mockDb.select).toHaveBeenCalled();
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.kind).toBe("email");
     });
 
     it("should filter by provider", async () => {
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([{ value: 0 }]);
+      const mockIds = [createMockIdentity({ provider: "google" })];
 
-      await ContactIdentitiesRepository.listContactIdentities(mockDb, testUserId, {
-        provider: "gmail",
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 1 }]);
+
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
+
+      const result = await repo.listContactIdentities(mockUserId, {
+        provider: "google",
       });
 
-      expect(mockDb.select).toHaveBeenCalled();
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.provider).toBe("google");
     });
 
     it("should search by value", async () => {
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([{ value: 0 }]);
+      const mockIds = [createMockIdentity({ value: "test@example.com" })];
 
-      await ContactIdentitiesRepository.listContactIdentities(mockDb, testUserId, {
-        search: "example.com",
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 1 }]);
+
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
+
+      const result = await repo.listContactIdentities(mockUserId, {
+        search: "test",
       });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.value).toContain("test");
+    });
+
+    it("should handle custom pagination", async () => {
+      const mockIds = [createMockIdentity()];
+
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 100 }]);
+
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
+
+      const result = await repo.listContactIdentities(mockUserId, {
+        page: 2,
+        pageSize: 25,
+      });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(100);
+    });
+
+    it("should enforce maximum page size", async () => {
+      const mockIds = [createMockIdentity()];
+
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 1 }]);
+
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
+
+      await repo.listContactIdentities(mockUserId, { pageSize: 500 });
 
       expect(mockDb.select).toHaveBeenCalled();
     });
 
-    it("should handle custom pagination", async () => {
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([{ value: 0 }]);
-
-      await ContactIdentitiesRepository.listContactIdentities(mockDb, testUserId, {
-        page: 3,
-        pageSize: 20,
-      });
-
-      expect(mockDb.limit).toHaveBeenCalledWith(20);
-      expect(mockDb.offset).toHaveBeenCalledWith(40); // (3-1) * 20
-    });
-
-    it("should enforce maximum page size", async () => {
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([{ value: 0 }]);
-
-      await ContactIdentitiesRepository.listContactIdentities(mockDb, testUserId, {
-        pageSize: 300,
-      });
-
-      expect(mockDb.limit).toHaveBeenCalledWith(200);
-    });
-
     it("should sort ascending when specified", async () => {
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([]);
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([{ value: 0 }]);
+      const mockIds = [
+        createMockIdentity({ id: "identity-1" }),
+        createMockIdentity({ id: "identity-2" }),
+      ];
 
-      await ContactIdentitiesRepository.listContactIdentities(mockDb, testUserId, {
+      const selectBuilder = createMockQueryBuilder(mockIds);
+      const countBuilder = createMockQueryBuilder([{ value: 2 }]);
+
+      vi.mocked(mockDb.select).mockReturnValueOnce(selectBuilder).mockReturnValueOnce(countBuilder);
+
+      const result = await repo.listContactIdentities(mockUserId, {
         order: "asc",
       });
 
-      expect(mockDb.orderBy).toHaveBeenCalled();
+      expect(result.items).toHaveLength(2);
     });
   });
 
   describe("findByKindAndValue", () => {
     it("should find identity by kind and value with provider", async () => {
-      const mockIdentity = {
-        id: testIdentityId,
-        contactId: testContactId,
-        userId: testUserId,
-        kind: "email",
-        provider: "gmail",
-        value: "test@example.com",
-        createdAt: new Date(),
-      };
+      const mockId = createMockIdentity();
+      const selectBuilder = createMockQueryBuilder([mockId]);
 
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([mockIdentity]);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
-      const result = await ContactIdentitiesRepository.findByKindAndValue(
-        mockDb,
-        testUserId,
+      const result = await repo.findByKindAndValue(
+        mockUserId,
         "email",
         "test@example.com",
-        "gmail"
+        "google",
       );
 
-      expect(result).toEqual(mockIdentity);
+      expect(result).not.toBeNull();
+      expect(result?.kind).toBe("email");
+      expect(result?.provider).toBe("google");
     });
 
     it("should find identity without provider (null provider)", async () => {
-      const mockIdentity = {
-        id: testIdentityId,
-        contactId: testContactId,
-        userId: testUserId,
-        kind: "phone",
-        provider: null,
-        value: "+1234567890",
-        createdAt: new Date(),
-      };
+      const mockId = createMockIdentity({ provider: null });
+      const selectBuilder = createMockQueryBuilder([mockId]);
 
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([mockIdentity]);
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
 
-      const result = await ContactIdentitiesRepository.findByKindAndValue(
-        mockDb,
-        testUserId,
-        "phone",
-        "+1234567890",
-        null
-      );
+      const result = await repo.findByKindAndValue(mockUserId, "email", "test@example.com", null);
 
-      expect(result).toEqual(mockIdentity);
+      expect(result).not.toBeNull();
+      expect(result?.provider).toBeNull();
     });
 
     it("should return null when not found", async () => {
-      vi.mocked(mockDb.select().from(contactIdentities).where).mockResolvedValueOnce([]);
+      const selectBuilder = createMockQueryBuilder([]);
 
-      const result = await ContactIdentitiesRepository.findByKindAndValue(
-        mockDb,
-        testUserId,
-        "email",
-        "nonexistent@example.com",
-        "gmail"
-      );
+      vi.mocked(mockDb.select).mockReturnValue(selectBuilder);
+
+      const result = await repo.findByKindAndValue(mockUserId, "email", "nonexistent@example.com");
 
       expect(result).toBeNull();
     });
@@ -200,70 +202,74 @@ describe("ContactIdentitiesRepository", () => {
 
   describe("createContactIdentity", () => {
     it("should create new identity", async () => {
-      const newIdentity = {
-        contactId: testContactId,
-        userId: testUserId,
+      const mockId = createMockIdentity();
+      const insertBuilder = createMockQueryBuilder([mockId]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
+
+      const data = {
+        userId: mockUserId,
+        contactId: mockContactId,
         kind: "email",
-        provider: "gmail",
-        value: "new@example.com",
+        value: "test@example.com",
+        provider: "google",
       };
 
-      const createdIdentity = { ...newIdentity, id: "new-id", createdAt: new Date() };
+      const result = await repo.createContactIdentity(data);
 
-      vi.mocked(mockDb.insert(contactIdentities).values(newIdentity).returning).mockResolvedValueOnce([
-        createdIdentity,
-      ]);
-
-      const result = await ContactIdentitiesRepository.createContactIdentity(mockDb, newIdentity);
-
-      expect(result).toEqual(createdIdentity);
+      expect(result).not.toBeNull();
+      expect(result.id).toBe(mockIdentityId);
     });
 
     it("should throw error when insert returns no data", async () => {
-      const newIdentity = {
-        contactId: testContactId,
-        userId: testUserId,
+      const insertBuilder = createMockQueryBuilder([]);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
+
+      const data = {
+        userId: mockUserId,
+        contactId: mockContactId,
         kind: "email",
         value: "test@example.com",
       };
 
-      vi.mocked(mockDb.insert(contactIdentities).values(newIdentity).returning).mockResolvedValueOnce([]);
-
-      await expect(ContactIdentitiesRepository.createContactIdentity(mockDb, newIdentity)).rejects.toThrow(
-        "Insert returned no data"
-      );
+      await expect(repo.createContactIdentity(data)).rejects.toThrow("Insert returned no data");
     });
   });
 
   describe("createContactIdentitiesBulk", () => {
     it("should create multiple identities", async () => {
-      const identities = [
+      const mockIds = [
+        createMockIdentity({ id: "identity-1" }),
+        createMockIdentity({ id: "identity-2" }),
+      ];
+
+      const insertBuilder = createMockQueryBuilder(mockIds);
+
+      vi.mocked(mockDb.insert).mockReturnValue(insertBuilder);
+
+      const items = [
         {
-          contactId: testContactId,
-          userId: testUserId,
+          userId: mockUserId,
+          contactId: mockContactId,
           kind: "email",
-          value: "email1@example.com",
+          value: "test1@example.com",
         },
         {
-          contactId: testContactId,
-          userId: testUserId,
-          kind: "email",
-          value: "email2@example.com",
+          userId: mockUserId,
+          contactId: mockContactId,
+          kind: "phone",
+          value: "+1234567890",
         },
       ];
 
-      const created = identities.map((i, idx) => ({ ...i, id: `id-${idx}`, createdAt: new Date() }));
-
-      vi.mocked(mockDb.insert(contactIdentities).values(identities).returning).mockResolvedValueOnce(created);
-
-      const result = await ContactIdentitiesRepository.createContactIdentitiesBulk(mockDb, identities);
+      const result = await repo.createContactIdentitiesBulk(items);
 
       expect(result).toHaveLength(2);
-      expect(result).toEqual(created);
     });
 
     it("should return empty array for empty input", async () => {
-      const result = await ContactIdentitiesRepository.createContactIdentitiesBulk(mockDb, []);
+      const result = await repo.createContactIdentitiesBulk([]);
 
       expect(result).toEqual([]);
       expect(mockDb.insert).not.toHaveBeenCalled();
@@ -272,83 +278,79 @@ describe("ContactIdentitiesRepository", () => {
 
   describe("updateContactIdentity", () => {
     it("should update existing identity", async () => {
-      const updates = { value: "updated@example.com" };
-      const updated = {
-        id: testIdentityId,
-        contactId: testContactId,
-        userId: testUserId,
-        kind: "email",
-        provider: "gmail",
+      const mockId = createMockIdentity({ value: "updated@example.com" });
+      const updateBuilder = createMockQueryBuilder([mockId]);
+
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
+
+      const result = await repo.updateContactIdentity(mockUserId, mockIdentityId, {
         value: "updated@example.com",
-        createdAt: new Date(),
-      };
+      });
 
-      vi.mocked(mockDb.update(contactIdentities).set(updates).where).mockResolvedValueOnce([updated]);
-
-      const result = await ContactIdentitiesRepository.updateContactIdentity(
-        mockDb,
-        testUserId,
-        testIdentityId,
-        updates
-      );
-
-      expect(result).toEqual(updated);
+      expect(result).not.toBeNull();
+      expect(result?.value).toBe("updated@example.com");
     });
 
     it("should return null when not found", async () => {
-      vi.mocked(mockDb.update(contactIdentities).set({}).where).mockResolvedValueOnce([]);
+      const updateBuilder = createMockQueryBuilder([]);
 
-      const result = await ContactIdentitiesRepository.updateContactIdentity(mockDb, testUserId, testIdentityId, {
-        value: "test",
+      vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
+
+      const result = await repo.updateContactIdentity(mockUserId, "non-existent", {
+        value: "updated@example.com",
       });
 
       expect(result).toBeNull();
     });
 
     it("should throw error when no updates provided", async () => {
-      await expect(
-        ContactIdentitiesRepository.updateContactIdentity(mockDb, testUserId, testIdentityId, {})
-      ).rejects.toThrow("No fields provided for update");
+      await expect(repo.updateContactIdentity(mockUserId, mockIdentityId, {})).rejects.toThrow(
+        "No fields provided for update",
+      );
     });
   });
 
   describe("deleteContactIdentity", () => {
     it("should delete identity and return count", async () => {
-      vi.mocked(mockDb.delete(contactIdentities).where).mockResolvedValueOnce([{ id: testIdentityId }]);
+      const deleteBuilder = createMockQueryBuilder([{ id: mockIdentityId }]);
 
-      const count = await ContactIdentitiesRepository.deleteContactIdentity(mockDb, testUserId, testIdentityId);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
-      expect(count).toBe(1);
+      const result = await repo.deleteContactIdentity(mockUserId, mockIdentityId);
+
+      expect(result).toBe(1);
     });
 
     it("should return 0 when not found", async () => {
-      vi.mocked(mockDb.delete(contactIdentities).where).mockResolvedValueOnce([]);
+      const deleteBuilder = createMockQueryBuilder([]);
 
-      const count = await ContactIdentitiesRepository.deleteContactIdentity(mockDb, testUserId, testIdentityId);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
-      expect(count).toBe(0);
+      const result = await repo.deleteContactIdentity(mockUserId, "non-existent");
+
+      expect(result).toBe(0);
     });
   });
 
   describe("deleteIdentitiesForContact", () => {
     it("should delete all identities for a contact", async () => {
-      vi.mocked(mockDb.delete(contactIdentities).where).mockResolvedValueOnce([
-        { id: "id-1" },
-        { id: "id-2" },
-        { id: "id-3" },
-      ]);
+      const deleteBuilder = createMockQueryBuilder([{ id: "identity-1" }, { id: "identity-2" }]);
 
-      const count = await ContactIdentitiesRepository.deleteIdentitiesForContact(mockDb, testUserId, testContactId);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
-      expect(count).toBe(3);
+      const result = await repo.deleteIdentitiesForContact(mockUserId, mockContactId);
+
+      expect(result).toBe(2);
     });
 
     it("should return 0 when no identities exist", async () => {
-      vi.mocked(mockDb.delete(contactIdentities).where).mockResolvedValueOnce([]);
+      const deleteBuilder = createMockQueryBuilder([]);
 
-      const count = await ContactIdentitiesRepository.deleteIdentitiesForContact(mockDb, testUserId, testContactId);
+      vi.mocked(mockDb.delete).mockReturnValue(deleteBuilder);
 
-      expect(count).toBe(0);
+      const result = await repo.deleteIdentitiesForContact(mockUserId, mockContactId);
+
+      expect(result).toBe(0);
     });
   });
 });

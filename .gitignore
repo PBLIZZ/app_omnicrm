@@ -1,5 +1,14 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Authentication & session files
+cookies.txt
+*.cookies
+session.json
+*.session
+auth-tokens.*
+tokens.txt
+*.token
+
 # dependencies
 /node_modules
 **/node_modules
@@ -13,6 +22,7 @@
 
 # testing
 /coverage
+test-results/
 
 # next.js
 /.next/
@@ -49,7 +59,6 @@ next-env.d.ts
 # project specific
 drizzle/
 log.txt
-.kilocode/mcp.json
 .vscode/settings.json
 run/backups/
 src/server/db/backups/

@@ -575,7 +575,7 @@ goals.targetDate: date("target_date")      // Matches database
 tasks.dueDate: date("due_date")            // Matches database
 ```
 
-**No migration required**. The Drizzle `date()` type correctly maps to PostgreSQL `DATE` columns, which are represented as ISO date strings (`string | null`) in TypeScript.
+**No migration required**. The Drizzle `date()` type correctly maps to PostgreSQL `DATE` columns, which are represented as ISO date strings (`string | null`) in TypeScript. See Appendix B ("October 11, 2025 - Current Status") for the validation timeline and confirmation details.
 
 ---
 
@@ -817,14 +817,14 @@ const task = await repo.createTask(userId, {
 - ✅ Repository layer using constructor injection
 - ✅ Service layer following functional patterns
 - ✅ Business schemas for validation
-- ⚠️ Database schema mismatch discovered (DATE vs TIMESTAMPTZ)
+- ⚠️ Database schema mismatch discovered (DATE vs TIMESTAMPTZ) — investigated and resolved on October 11, 2025 (see below)
 
 ### October 11, 2025 - Current Status
 
 - ✅ TypeScript compilation errors resolved
 - ✅ Zero ESLint violations achieved
-- ⚠️ Database migration still required before production deployment
-- ⏳ AI integration awaiting migration completion
+- ✅ Database DATE alignment verified — Drizzle `date()` matches PostgreSQL `DATE`; no migration required (cross-reference "Database Schema Verified")
+- ⏳ AI integration awaiting production roll-out
 
 ---
 

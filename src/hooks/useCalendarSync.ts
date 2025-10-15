@@ -15,7 +15,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { Result, isErr, isOk } from "@/lib/utils/result";
 // Direct error handling and success notifications (no abstraction)
 const createErrorHandler = (context: string) => (error: unknown) => {
   const message = error instanceof Error ? error.message : "An unknown error occurred";
@@ -42,6 +41,33 @@ const showSyncSuccessToast = (service: string, details?: { count?: number; durat
   toast.success(title, { description });
 };
 
+export interface CalendarSyncStats {
+  syncedEvents: number;
+  batchId?: string;
+}
+
+export interface UseCalendarSyncResult {
+  isSyncing: boolean;
+  syncStatus: string;
+  error: string | null;
+  lastSyncStats: CalendarSyncStats | null;
+  syncCalendar: () => Promise<void>;
+  clearError: () => void;
+}
+
+/**
+ * Provides calendar synchronization state and actions for performing a direct Google Calendar sync.
+ *
+ * Exposes current sync progress, any error and the last-run statistics, and actions to start a sync or clear errors.
+ *
+ * @returns An object containing:
+ *  - `isSyncing`: whether a sync is in progress,
+ *  - `syncStatus`: a short status message describing the current progress,
+ *  - `error`: the current error message or `null`,
+ *  - `lastSyncStats`: statistics from the last successful sync or `null`,
+ *  - `syncCalendar`: action to initiate a sync,
+ *  - `clearError`: action to clear the current error and reset status.
+ */
 export function useCalendarSync(): UseCalendarSyncResult {
   const queryClient = useQueryClient();
   const [syncStatus, setSyncStatus] = useState<string>("");
@@ -62,24 +88,10 @@ export function useCalendarSync(): UseCalendarSyncResult {
         setSyncStatus("Connecting to Google Calendar...");
 
         // Direct sync call (following the proven Gmail pattern)
-        const result = await apiClient.post<
-          Result<
-            {
-              message?: string;
-              stats?: CalendarSyncStats;
-            },
-            { message: string; code: string }
-          >
-        >("/api/google/calendar/sync", {});
-
-        if (isErr(result)) {
-          throw new Error(result.error.message);
-        }
-        if (!isOk(result)) {
-          throw new Error("Invalid result state");
-        }
-
-        const syncResponse = result.data;
+        const syncResponse = await apiClient.post<{
+          message?: string;
+          stats?: CalendarSyncStats;
+        }>("/api/google/calendar/sync", {});
 
         setSyncStatus("Processing calendar events...");
 

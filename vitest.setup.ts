@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { vi, beforeAll, afterEach, afterAll } from "vitest";
 import React from "react";
+import { setupMswServer, resetMswServer, closeMswServer } from "./test/msw/server";
 
 // Load test environment variables
 if (process.env.NODE_ENV === "test") {
@@ -29,7 +30,7 @@ globalThis.React = React;
 
 // Mock implementations for external services
 vi.mock("@supabase/supabase-js", () => ({
-  createContact: vi.fn(() => ({
+  createClient: vi.fn(() => ({
     auth: {
       getUser: vi.fn(() => Promise.resolve({ data: { user: { id: "test-user" } } })),
       signIn: vi.fn(),
@@ -58,50 +59,28 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-// Mock fetch globally with smart response handling
-global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
-  // Default successful response structure (direct JSON)
-  const defaultResponse = {};
+// ==============================================================================
+// MSW (Mock Service Worker) Setup
+// ==============================================================================
+// MSW intercepts HTTP requests at the network level, providing realistic mocking
+// without brittle module mocks. This is the recommended approach for testing hooks
+// that use React Query or make HTTP requests.
 
-  // Handle specific API endpoints
-  if (typeof url === "string") {
-    if (url.includes("/api/contacts-new")) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ id: "new-contact" }),
-        text: () => Promise.resolve(JSON.stringify({ id: "new-contact" })),
-      });
-    }
-    if (url.includes("/api/contacts/enrich")) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ enriched: true }),
-        text: () => Promise.resolve(JSON.stringify({ enriched: true })),
-      });
-    }
-    if (url.includes("/api/contacts/suggestions")) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ created: 1 }),
-        text: () => Promise.resolve(JSON.stringify({ created: 1 })),
-      });
-    }
-  }
-
-  // Default response for all other URLs
-  return Promise.resolve({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve(defaultResponse),
-    text: () => Promise.resolve(JSON.stringify(defaultResponse)),
-    headers: new Headers({
-      "content-type": "application/json",
-    }),
-  } as Response);
+beforeAll(() => {
+  setupMswServer();
 });
+
+afterEach(() => {
+  resetMswServer();
+});
+
+afterAll(() => {
+  closeMswServer();
+});
+
+// Note: The old global fetch mock has been replaced by MSW.
+// If specific tests need custom fetch behavior, they can override MSW handlers
+// using server.use() from "./test/msw/server".
 
 // Mock database dependencies
 vi.mock("postgres", () => ({
@@ -204,12 +183,9 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
-// Mock the API client
-vi.mock("@/lib/api", () => ({
-  post: vi.fn(),
-  get: vi.fn(),
-  del: vi.fn(),
-}));
+// Note: API client (@/lib/api) is NOT mocked globally.
+// HTTP requests are intercepted by MSW (Mock Service Worker) for realistic testing.
+// If specific tests need to mock the API client directly, they can do so locally.
 
 // Mock toast
 vi.mock("sonner", () => ({
@@ -221,9 +197,26 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// Set up fake timers for deterministic testing
-vi.useFakeTimers();
-vi.setSystemTime(new Date("2024-01-01T10:00:00Z"));
+// Set window.location for tests (needed for MSW and fetch)
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "location", {
+    writable: true,
+    value: {
+      origin: "http://localhost:3000",
+      href: "http://localhost:3000",
+      protocol: "http:",
+      host: "localhost:3000",
+      hostname: "localhost",
+      port: "3000",
+      pathname: "/",
+      search: "",
+      hash: "",
+    },
+  });
+}
+
+// Note: Fake timers are disabled because they can interfere with MSW and React Query
+// If you need fake timers for specific tests, enable them per-test using vi.useFakeTimers()
 
 // Mock date-fns
 vi.mock("date-fns", () => ({
@@ -235,13 +228,8 @@ vi.mock("date-fns", () => ({
   }),
 }));
 
-// Mock React Query
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: vi.fn(),
-  useMutation: vi.fn(),
-  QueryClient: vi.fn(),
-  QueryClientProvider: vi.fn(({ children }) => children),
-}));
+// React Query should NOT be globally mocked - let individual tests handle it
+// This allows tests to use real QueryClient with proper hook behavior
 
 // Additional environment defaults for backward compatibility
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "test";
@@ -256,3 +244,6 @@ process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || "test-publishable-key";
 process.env.APP_ENCRYPTION_KEY =
   process.env.APP_ENCRYPTION_KEY || "a_secure_but_test_only_encryption_key_32b";
+
+// Set API base URL for tests (needed for relative URL resolution in fetch)
+process.env.NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";

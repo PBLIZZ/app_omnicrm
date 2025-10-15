@@ -26,7 +26,10 @@ export class ContactsRepository {
   constructor(private readonly db: DbClient) {}
 
   async createContact(userId: string, data: CreateContact): Promise<Contact> {
-    const [contact] = await this.db.insert(contacts).values(data).returning();
+    const [contact] = await this.db
+      .insert(contacts)
+      .values({ ...data, userId })
+      .returning();
     if (!contact) throw new Error("Insert returned no data");
     return contact;
   }
@@ -45,7 +48,7 @@ export async function createContactService(
   const repo = createContactsRepository(db);
 
   try {
-    return await repo.createContact(userId, { ...input, userId });
+    return await repo.createContact(userId, input);
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : "Failed to create contact",

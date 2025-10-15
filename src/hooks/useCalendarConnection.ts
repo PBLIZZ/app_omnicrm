@@ -15,7 +15,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
-import { Result, isErr } from "@/lib/utils/result";
 // Direct error handling (no abstraction)
 const createErrorHandler = (context: string) => (error: unknown) => {
   const message = error instanceof Error ? error.message : "An unknown error occurred";
@@ -34,6 +33,36 @@ export interface CalendarConnectionStatus {
   hasRefreshToken?: boolean;
 }
 
+export interface UseCalendarConnectionResult {
+  isConnecting: boolean;
+  isRefreshing: boolean;
+  error: string | null;
+  connect: () => void;
+  refreshTokens: () => Promise<void>;
+  clearError: () => void;
+}
+
+interface CalendarRefreshResponse {
+  success: boolean;
+  message?: string;
+}
+
+/**
+ * Manage Google Calendar OAuth connection, token refresh, and related connection state.
+ *
+ * Provides state flags for ongoing operations, an error surface, and actions to start the OAuth flow,
+ * refresh tokens, and clear errors. Calling `connect` initiates the OAuth redirect; calling
+ * `refreshTokens` attempts to refresh Calendar tokens and, on success, invalidates calendar-related
+ * queries. On failure, the hook updates the `error` state and invokes the configured error handler.
+ *
+ * @returns An object containing:
+ *  - `isConnecting`: whether the OAuth initiation is in progress
+ *  - `isRefreshing`: whether a token refresh is in progress
+ *  - `error`: current error message or `null`
+ *  - `connect()`: starts the Google Calendar OAuth flow (redirect)
+ *  - `refreshTokens()`: refreshes Calendar tokens and refreshes related queries on success
+ *  - `clearError()`: clears the current error
+ */
 export function useCalendarConnection(): UseCalendarConnectionResult {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -53,25 +82,16 @@ export function useCalendarConnection(): UseCalendarConnectionResult {
   // Token refresh mutation
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      const result = await apiClient.post<
-        Result<
-          {
-            success: boolean;
-            message?: string;
-          },
-          { message: string; code: string }
-        >
-      >("/api/google/calendar/refresh", {});
+      const result = await apiClient.post<CalendarRefreshResponse>(
+        "/api/google/calendar/refresh",
+        {},
+      );
 
-      if (isErr(result)) {
-        throw new Error(result.error.message);
+      if (!result.success) {
+        throw new Error(result.message ?? "Failed to refresh tokens");
       }
 
-      if (!result.data.success) {
-        throw new Error(result.data.message ?? "Failed to refresh tokens");
-      }
-
-      return result.data;
+      return result;
     },
     onMutate: () => {
       toast.info("Refreshing Google Calendar tokens...");

@@ -18,10 +18,8 @@ describe("DocumentsRepository", () => {
     title: "Test Document",
     text: "Document content",
     mime: "application/pdf",
-    path: "/documents/test.pdf",
-    byteSize: 1024,
+    meta: { path: "/documents/test.pdf", byteSize: 1024 },
     createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
   });
 
@@ -213,8 +211,7 @@ describe("DocumentsRepository", () => {
         title: "New Document",
         text: "Content",
         mime: "application/pdf",
-        path: "/docs/new.pdf",
-        byteSize: 2048,
+        meta: { path: "/docs/new.pdf", byteSize: 2048 },
       };
 
       const result = await repo.createDocument(data);
@@ -233,8 +230,7 @@ describe("DocumentsRepository", () => {
         title: "New Document",
         text: "Content",
         mime: "application/pdf",
-        path: "/docs/new.pdf",
-        byteSize: 2048,
+        meta: { path: "/docs/new.pdf", byteSize: 2048 },
       };
 
       await expect(repo.createDocument(data)).rejects.toThrow("Insert returned no data");

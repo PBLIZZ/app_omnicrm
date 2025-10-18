@@ -52,7 +52,10 @@ export async function getServerUserId(cookieStore?: ReadonlyRequestCookies): Pro
   const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
     cookies: {
       getAll() {
-        return resolvedCookieStore!.getAll();
+        if (!resolvedCookieStore) {
+          throw new Error("Cookie store not initialized");
+        }
+        return resolvedCookieStore.getAll();
       },
       setAll(cookiesToSet) {
         try {

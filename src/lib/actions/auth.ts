@@ -4,7 +4,7 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser-client";
 export async function signOut(): Promise<{ error: Error | null }> {
   try {
     const { error } = await getSupabaseBrowser().auth.signOut();
-    return { error: (error as unknown as Error) ?? null };
+    return { error: error ?? null };
   } catch (e) {
     return { error: e instanceof Error ? e : new Error(String(e)) };
   }

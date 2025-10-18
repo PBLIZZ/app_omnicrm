@@ -7,6 +7,8 @@
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { AppError } from "@/lib/errors/app-error";
+import { createSanitizedErrorResponse } from "@/server/lib/error-sanitizer";
+import { logError } from "@/server/lib/structured-logger";
 
 // ============================================================================
 // AUTH FLOW HANDLERS
@@ -36,6 +38,16 @@ export function handleAuthFlow<TQuery = Record<string, string>>(
         errorUrl.searchParams.set("error", "invalid_request");
         return Response.redirect(errorUrl.toString(), 302);
       }
+
+      // Log auth flow error
+      logError(
+        "Auth flow error",
+        {
+          operation: "auth_flow",
+          endpoint: req.url,
+        },
+        error,
+      );
 
       // For auth errors, redirect to login
       const loginUrl = new URL("/login", req.url);
@@ -99,13 +111,32 @@ export function handleFileUpload<TOut>(
 
       // Handle file processing errors
       if (error instanceof Error && error.message.includes("file")) {
-        return new Response(
-          JSON.stringify({ error: "File processing failed", details: error.message }),
-          { headers: { "content-type": "application/json" }, status: 400 },
-        );
+        return new Response(JSON.stringify({ error: "File processing failed" }), {
+          headers: { "content-type": "application/json" },
+          status: 400,
+        });
       }
 
-      throw error;
+      // Log error with structured logging
+      logError(
+        "File upload error",
+        {
+          operation: "file_upload",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "file_upload",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }
@@ -142,7 +173,26 @@ export function handlePublicFileUpload<TOut>(
         status: 200,
       });
     } catch (error) {
-      throw error;
+      // Log error with structured logging
+      logError(
+        "Public file upload error",
+        {
+          operation: "public_file_upload",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "public_file_upload",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }
@@ -164,9 +214,7 @@ export function handlePublic<TIn, TOut>(
   return async (req: Request) => {
     try {
       const body = await req.json();
-      console.log("[handlePublic] Received body:", JSON.stringify(body, null, 2));
       const parsed = input.parse(body);
-      console.log("[handlePublic] Validation passed");
       const result = await fn(parsed, req);
       const validated = output.parse(result);
 
@@ -183,7 +231,6 @@ export function handlePublic<TIn, TOut>(
         return new Response(
           JSON.stringify({
             error: "Malformed JSON",
-            details: error.message,
           }),
           {
             headers: { "content-type": "application/json" },
@@ -245,17 +292,26 @@ export function handlePublic<TIn, TOut>(
         );
       }
 
-      // Generic error fallback
-      console.error("[handlePublic] Unhandled error:", error);
-      return new Response(
-        JSON.stringify({
-          error: error instanceof Error ? error.message : "Internal server error",
-        }),
+      // Log error with structured logging
+      logError(
+        "Public API handler error",
         {
-          headers: { "content-type": "application/json" },
-          status: 500,
+          operation: "public_api_handler",
+          endpoint: "unknown",
         },
+        error,
       );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "public_api_handler",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }
@@ -358,7 +414,6 @@ export function handleWebhook<TIn, TOut>(
         return new Response(
           JSON.stringify({
             error: "Malformed JSON",
-            details: error.message,
           }),
           {
             headers: { "content-type": "application/json" },
@@ -380,9 +435,23 @@ export function handleWebhook<TIn, TOut>(
         );
       }
 
-      // For webhooks, we don't want to leak internal errors
-      console.error("Webhook processing error:", error);
-      return new Response(JSON.stringify({ error: "Webhook processing failed" }), {
+      // Log webhook error with structured logging
+      logError(
+        "Webhook processing error",
+        {
+          operation: "webhook_processing",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "webhook_processing",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
         headers: { "content-type": "application/json" },
         status: 500,
       });
@@ -558,13 +627,27 @@ export function handleCron<TIn, TOut>(
         );
       }
 
-      // For cron jobs, we want to log errors but not leak internal details
-      console.error("Cron job processing error:", error);
+      // Log cron job error with structured logging
+      logError(
+        "Cron job processing error",
+        {
+          operation: "cron_job_processing",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "cron_job_processing",
+        endpoint: "unknown",
+      });
+
       return new Response(
         JSON.stringify({
-          error: "Cron job processing failed",
+          error: sanitizedError.message,
           success: false,
-          message: error instanceof Error ? error.message : "Unknown error",
+          code: sanitizedError.code,
         }),
         {
           headers: { "content-type": "application/json" },

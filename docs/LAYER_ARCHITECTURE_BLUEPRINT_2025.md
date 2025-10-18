@@ -22,6 +22,15 @@ HTTP Request
 └────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────┐
+│ OAUTH ROUTE HANDLERS (src/app/api/google/*/route.ts)   │
+│ Direct function handlers for OAuth flows               │
+│ - Handle redirects properly                            │
+│ - Use OAuth service functions                          │
+│ - Structured logging for errors                        │
+│ - Return appropriate redirect responses                │
+└────────────────────────────────────────────────────────┘
+     ↓
+┌────────────────────────────────────────────────────────┐
 │ AUTH HANDLERS (src/lib/api.ts)                         │
 │ handleAuth(schema, responseSchema, businessLogic)      │
 │ - Extracts userId from auth                            │

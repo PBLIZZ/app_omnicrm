@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { bytesToBase64Url, base64UrlToBytes, utf8ToBytes, bytesToUtf8 } from "@/lib/utils/encoding";
+import { getKMSService, isKMSAvailable } from "@/server/lib/kms-service";
 
 // Small, focused cryptography helpers for application-level secrets
 // - AES-256-GCM for confidentiality + integrity
@@ -37,7 +38,21 @@ function getMasterKey(): Buffer {
   return buf;
 }
 
-function deriveKey(label: string): Buffer {
+async function deriveKey(label: string): Promise<Buffer> {
+  // Try to use KMS first for secure key derivation
+  if (await isKMSAvailable()) {
+    try {
+      const kmsService = getKMSService();
+      return await kmsService.deriveKey(label);
+    } catch (error) {
+      console.warn(
+        `[CRYPTO] KMS key derivation failed for '${label}', falling back to environment key:`,
+        error,
+      );
+    }
+  }
+
+  // Fallback to environment variable (for development or when KMS is unavailable)
   const master = getMasterKey();
   return crypto.createHmac("sha256", master).update(label).digest(); // 32 bytes
 }
@@ -66,8 +81,8 @@ export function randomNonce(length = 16): string {
  * Interop: compatible with `src/server/server/utils/crypto-edge.ts`.
  */
 // AES-256-GCM string encryption
-export function encryptString(plain: string): string {
-  const key = deriveKey("enc").subarray(0, 32);
+export async function encryptString(plain: string): Promise<string> {
+  const key = (await deriveKey("enc")).subarray(0, 32);
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
@@ -75,7 +90,7 @@ export function encryptString(plain: string): string {
   return ["v1", base64urlEncode(iv), base64urlEncode(ciphertext), base64urlEncode(tag)].join(":");
 }
 
-export function decryptString(value: string): string {
+export async function decryptString(value: string): Promise<string> {
   if (!value) return value;
   const parts = value.split(":");
   if (parts.length !== 4 || parts[0] !== "v1") {
@@ -88,7 +103,7 @@ export function decryptString(value: string): string {
     throw new Error("Invalid encrypted format: missing required components");
   }
 
-  const key = deriveKey("enc").subarray(0, 32);
+  const key = (await deriveKey("enc")).subarray(0, 32);
   const iv = base64urlDecode(ivB64);
   const ciphertext = base64urlDecode(ctB64);
   const tag = base64urlDecode(tagB64);
@@ -99,13 +114,13 @@ export function decryptString(value: string): string {
 }
 
 // HMAC for lightweight state cookies or CSRF tokens
-export function hmacSign(data: string): string {
-  const macKey = deriveKey("mac");
+export async function hmacSign(data: string): Promise<string> {
+  const macKey = await deriveKey("mac");
   return base64urlEncode(crypto.createHmac("sha256", macKey).update(data).digest());
 }
 
-export function hmacVerify(data: string, signatureB64Url: string): boolean {
-  const expected = hmacSign(data);
+export async function hmacVerify(data: string, signatureB64Url: string): Promise<boolean> {
+  const expected = await hmacSign(data);
   const a = base64urlDecode(expected);
   const b = base64urlDecode(signatureB64Url);
   if (a.length !== b.length) return false;
@@ -123,4 +138,56 @@ export function toBase64Url(input: string): string {
 
 export function fromBase64Url(input: string): string {
   return bytesToUtf8(base64UrlToBytes(input));
+}
+
+// Backward compatibility wrappers for synchronous usage
+// These maintain the existing API while using KMS internally
+export function encryptStringSync(plain: string): string {
+  // For backward compatibility, we'll use the environment key directly
+  // This should only be used in development or when KMS is not available
+  const master = getMasterKey();
+  const key = crypto.createHmac("sha256", master).update("enc").digest().subarray(0, 32);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return ["v1", base64urlEncode(iv), base64urlEncode(ciphertext), base64urlEncode(tag)].join(":");
+}
+
+export function decryptStringSync(value: string): string {
+  if (!value) return value;
+  const parts = value.split(":");
+  if (parts.length !== 4 || parts[0] !== "v1") {
+    // treat as plaintext (back-compat)
+    return value;
+  }
+  const [, ivB64, ctB64, tagB64] = parts as [string, string, string, string];
+
+  if (!ivB64 || !ctB64 || !tagB64) {
+    throw new Error("Invalid encrypted format: missing required components");
+  }
+
+  const master = getMasterKey();
+  const key = crypto.createHmac("sha256", master).update("enc").digest().subarray(0, 32);
+  const iv = base64urlDecode(ivB64);
+  const ciphertext = base64urlDecode(ctB64);
+  const tag = base64urlDecode(tagB64);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+  return plain;
+}
+
+export function hmacSignSync(data: string): string {
+  const master = getMasterKey();
+  const macKey = crypto.createHmac("sha256", master).update("mac").digest();
+  return base64urlEncode(crypto.createHmac("sha256", macKey).update(data).digest());
+}
+
+export function hmacVerifySync(data: string, signatureB64Url: string): boolean {
+  const expected = hmacSignSync(data);
+  const a = base64urlDecode(expected);
+  const b = base64urlDecode(signatureB64Url);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }

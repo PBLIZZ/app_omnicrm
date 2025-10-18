@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Mic, Loader2 } from "lucide-react";
-import { VoiceRecorder } from "./VoiceRecorder";
+import { VoiceRecorder } from "../../app/(authorisedRoute)/contacts/[contactId]/notes/[noteId]/_components/VoiceRecorder";
 import { cn } from "@/lib/utils";
 
 export interface Contact {
@@ -81,7 +81,7 @@ export function RapidNoteModal({
 }: RapidNoteModalProps): JSX.Element {
   const [content, setContent] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string | undefined>(
-    lastViewedContactId
+    lastViewedContactId,
   );
   const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -109,23 +109,20 @@ export function RapidNoteModal({
   };
 
   // Handle voice recording complete
-  const handleRecordingComplete = useCallback(
-    async (audioBlob: Blob) => {
-      setIsRecording(false);
+  const handleRecordingComplete = useCallback(async (audioBlob: Blob) => {
+    setIsRecording(false);
 
-      // TODO: Implement transcription via API
-      // For now, we'll just show a placeholder
-      // In production, this would call the transcription service
-      const transcribedText = "[Transcription pending - integrate with /api/notes/transcribe]";
+    // TODO: Implement transcription via API
+    // For now, we'll just show a placeholder
+    // In production, this would call the transcription service
+    const transcribedText = "[Transcription pending - integrate with /api/notes/transcribe]";
 
-      setContent((prev) => {
-        const combined = prev + (prev ? "\n\n" : "") + transcribedText;
-        return combined.slice(0, MAX_CHARACTERS);
-      });
-      setSourceType("voice");
-    },
-    []
-  );
+    setContent((prev) => {
+      const combined = prev + (prev ? "\n\n" : "") + transcribedText;
+      return combined.slice(0, MAX_CHARACTERS);
+    });
+    setSourceType("voice");
+  }, []);
 
   // Handle save
   const handleSave = async (): Promise<void> => {
@@ -225,7 +222,7 @@ export function RapidNoteModal({
                     "text-sm tabular-nums",
                     isAtLimit && "text-destructive font-semibold",
                     isApproachingLimit && !isAtLimit && "text-amber-600 font-medium",
-                    !isApproachingLimit && "text-muted-foreground"
+                    !isApproachingLimit && "text-muted-foreground",
                   )}
                 >
                   {characterCount} / {MAX_CHARACTERS}

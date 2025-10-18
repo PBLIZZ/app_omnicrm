@@ -11,6 +11,7 @@ The codebase follows a strict layered architecture pattern. See `docs/REFACTORIN
 - **Repository Layer**: Constructor injection with `DbClient`, throws generic `Error` on failures
 - **Service Layer**: Functional patterns, acquires `DbClient` via `getDb()`, wraps errors as `AppError` with status codes
 - **Route Layer**: Uses standardized handlers from `@/lib/api` (`handleAuth`, `handleGetWithQueryAuth`)
+- **OAuth Route Layer**: Direct function handlers for OAuth flows with proper redirect handling
 - **Business Schemas**: Pure Zod validation schemas in `src/server/db/business-schemas/`
 - **Database Types**: Single source of truth in `src/server/db/schema.ts` using `$inferSelect` and `$inferInsert`
 

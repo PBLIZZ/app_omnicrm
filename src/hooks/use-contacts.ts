@@ -9,9 +9,10 @@
  * For testing, use the core hooks from `use-contacts-core.ts` instead.
  */
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import {
   useContactsCore,
   useContactSuggestionsCore,
@@ -21,9 +22,9 @@ import {
   useDeleteContactCore,
   useDeleteContactsCore,
   type Contact,
-  type ContactWithLastNote,
   type ContactSuggestion,
 } from "./use-contacts-core";
+import type { ContactWithLastNote } from "@/server/db/business-schemas/contacts";
 
 // Re-export types for components
 export type { Contact, ContactWithLastNote, ContactSuggestion };
@@ -73,15 +74,15 @@ export function useCreateContact() {
     ) => {
       mutation.mutate(input, {
         ...options,
-        onSuccess: (data, variables, context) => {
+        onSuccess: (data, variables, context, meta) => {
           toast.success("Contact created successfully");
-          options?.onSuccess?.(data, variables, context);
+          options?.onSuccess?.(data, variables, context, meta);
         },
-        onError: (error, variables, context) => {
+        onError: (error, variables, context, meta) => {
           toast.error("Failed to create contact", {
             description: error instanceof Error ? error.message : "Unknown error",
           });
-          options?.onError?.(error, variables, context);
+          options?.onError?.(error, variables, context, meta);
         },
       });
     },
@@ -118,15 +119,15 @@ export function useUpdateContact() {
     ) => {
       mutation.mutate(input, {
         ...options,
-        onSuccess: (data, variables, context) => {
+        onSuccess: (data, variables, context, meta) => {
           toast.success("Contact updated successfully");
-          options?.onSuccess?.(data, variables, context);
+          options?.onSuccess?.(data, variables, context, meta);
         },
-        onError: (error, variables, context) => {
+        onError: (error, variables, context, meta) => {
           toast.error("Failed to update contact", {
             description: error instanceof Error ? error.message : "Unknown error",
           });
-          options?.onError?.(error, variables, context);
+          options?.onError?.(error, variables, context, meta);
         },
       });
     },
@@ -160,15 +161,15 @@ export function useDeleteContact() {
     mutate: (contactId: string, options?: Parameters<typeof mutation.mutate>[1]) => {
       mutation.mutate(contactId, {
         ...options,
-        onSuccess: (data, variables, context) => {
+        onSuccess: (data, variables, context, meta) => {
           toast.success("Contact deleted successfully");
-          options?.onSuccess?.(data, variables, context);
+          options?.onSuccess?.(data, variables, context, meta);
         },
-        onError: (error, variables, context) => {
+        onError: (error, variables, context, meta) => {
           toast.error("Failed to delete contact", {
             description: error instanceof Error ? error.message : "Unknown error",
           });
-          options?.onError?.(error, variables, context);
+          options?.onError?.(error, variables, context, meta);
         },
       });
     },
@@ -202,17 +203,17 @@ export function useDeleteContacts() {
     mutate: (ids: string[], options?: Parameters<typeof mutation.mutate>[1]) => {
       mutation.mutate(ids, {
         ...options,
-        onSuccess: (deletedCount, variables, context) => {
+        onSuccess: (deletedCount, variables, context, meta) => {
           toast.success("Contacts deleted", {
             description: `${deletedCount} contact${deletedCount === 1 ? "" : "s"} deleted successfully.`,
           });
-          options?.onSuccess?.(deletedCount, variables, context);
+          options?.onSuccess?.(deletedCount, variables, context, meta);
         },
-        onError: (error, variables, context) => {
+        onError: (error, variables, context, meta) => {
           toast.error("Failed to delete contacts", {
             description: error instanceof Error ? error.message : "Unknown error",
           });
-          options?.onError?.(error, variables, context);
+          options?.onError?.(error, variables, context, meta);
         },
       });
     },
@@ -248,7 +249,7 @@ export function useCreateContactsFromSuggestions() {
         { suggestionIds },
       );
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { message: string; created: Contact[] }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
       toast.success(data.message);
     },

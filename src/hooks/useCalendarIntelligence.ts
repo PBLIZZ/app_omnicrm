@@ -149,8 +149,8 @@ export function useCalendarIntelligence(
     const uniqueClients = new Set(
       weekEvents
         .map((event) => findMatchingClient(event, clients))
-        .filter(Boolean)
-        .map((client) => client!.id),
+        .filter((client): client is NonNullable<typeof client> => client !== null && client !== undefined)
+        .map((client) => client.id),
     ).size;
 
     const newClientsThisWeek = clients.filter((client) => {

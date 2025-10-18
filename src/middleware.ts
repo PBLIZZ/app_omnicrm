@@ -1,28 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import "@/server/lib/env"; // fail-fast env validation at edge import
 import { hmacSign, hmacVerify, randomNonce } from "@/server/utils/crypto-edge";
+import { redisRateLimiter, getRateLimitConfig } from "@/server/lib/rate-limiter-redis";
+import { initSentry } from "@/lib/sentry";
+
+// Initialize Sentry for edge runtime
+initSentry();
 
 // Configurable limits (env or sane defaults)
 const MAX_JSON_BYTES = Number(process.env["API_MAX_JSON_BYTES"] ?? 1_000_000); // 1MB
-const RATE_LIMIT_RPM = Number(process.env["API_RATE_LIMIT_PER_MIN"] ?? 60);
-
-// very small in-memory token bucket per process; good enough for dev/preview
-const buckets = new Map<string, { count: number; resetAt: number }>();
-
-function allowRequest(key: string): boolean {
-  const now = Date.now();
-  const minute = 60_000;
-  const bucket = buckets.get(key);
-  if (!bucket || now >= bucket.resetAt) {
-    buckets.set(key, { count: 1, resetAt: now + minute });
-    return true;
-  }
-  if (bucket.count < RATE_LIMIT_RPM) {
-    bucket.count++;
-    return true;
-  }
-  return false;
-}
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   // Generate a per-request nonce and forward it to the app via request headers
@@ -227,19 +213,62 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     if (req.method === "OPTIONS") return res;
   }
 
-  // Rate limit by IP + user if available (via Supabase cookie presence is opaque; key by IP+cookie length)
+  // Enhanced Redis-based rate limiting with different limits per endpoint type
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     (req as NextRequest & { ip?: string }).ip ??
     req.headers.get("x-real-ip") ??
     "unknown";
-  const sessionLen = (req.cookies.get("sb:token")?.value ?? "").length;
-  const key = `${ip}:${sessionLen}`;
-  if (!allowRequest(key)) {
-    return new NextResponse(JSON.stringify({ error: "rate_limited" }), {
-      status: 429,
-      headers: { "content-type": "application/json" },
-    });
+
+  // Extract user ID from Supabase session if available
+  const supabaseToken = req.cookies.get("sb:token")?.value;
+  let userId: string | undefined;
+  if (supabaseToken) {
+    try {
+      // Basic JWT parsing to extract user ID (without verification for rate limiting)
+      const tokenParts = supabaseToken.split(".");
+      if (tokenParts.length >= 2 && tokenParts[1]) {
+        const payload = JSON.parse(atob(tokenParts[1]));
+        userId = payload.sub;
+      }
+    } catch {
+      // Ignore JWT parsing errors, continue without user ID
+    }
+  }
+
+  const rateLimitReq = {
+    ip,
+    ...(userId && { userId }),
+    path: url.pathname,
+  };
+
+  try {
+    const config = getRateLimitConfig(url.pathname);
+    const rateLimitResult = await redisRateLimiter.checkRateLimit(config, rateLimitReq);
+
+    if (!rateLimitResult.allowed) {
+      return new NextResponse(
+        JSON.stringify({
+          error: "rate_limited",
+          retryAfter: rateLimitResult.retryAfter,
+          resetTime: rateLimitResult.resetTime,
+        }),
+        {
+          status: 429,
+          headers: {
+            "content-type": "application/json",
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": config.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+          },
+        },
+      );
+    }
+  } catch (error) {
+    // On Redis failure, log error but allow request to prevent service disruption
+    console.error("Rate limiting error:", error);
+    // Continue without rate limiting rather than blocking legitimate users
   }
 
   // Body size cap for JSON

@@ -62,7 +62,7 @@ export async function getExampleService(
 ## API Route Pattern
 
 ```typescript
-typescript; // File: src/app/api/examples/route.ts
+// File: src/app/api/examples/route.ts
 import { handleAuth } from "@/lib/api";
 import { getExampleService } from "@/server/services/example.service";
 import { ExampleSchema } from "@/server/db/business-schemas";
@@ -78,6 +78,74 @@ export const GET = handleAuth(
     return example;
   },
 );
+```
+
+## OAuth Route Pattern
+
+```typescript
+// File: src/app/api/google/gmail/connect/route.ts
+import { initializeOAuthService } from "@/server/services/oauth.service";
+import { AppError } from "@/lib/errors/app-error";
+
+export async function GET(): Promise<Response> {
+  try {
+    const result = await initializeOAuthService("gmail");
+    
+    if (!result.success) {
+      throw new AppError(result.error, "OAUTH_ERROR", "validation", false, 400);
+    }
+    
+    return Response.redirect(result.authUrl);
+  } catch (error) {
+    // Log error with structured logging
+    const { logError } = await import("@/server/lib/structured-logger");
+    logError(
+      "Gmail OAuth initialization error",
+      {
+        operation: "gmail_oauth_init",
+        endpoint: "/api/google/gmail/connect",
+      },
+      error,
+    );
+
+    return Response.redirect(
+      `${process.env["NEXT_PUBLIC_APP_URL"]}/omni-connect?error=oauth_init_failed`,
+    );
+  }
+}
+```
+
+## OAuth Callback Pattern
+
+```typescript
+// File: src/app/api/google/gmail/callback/route.ts
+import { handleOAuthCallbackService } from "@/server/services/oauth.service";
+
+export async function GET(request: Request): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const query = Object.fromEntries(url.searchParams);
+    
+    const result = await handleOAuthCallbackService("gmail", query);
+    
+    return Response.redirect(result.redirectUrl);
+  } catch (error) {
+    // Log error with structured logging
+    const { logError } = await import("@/server/lib/structured-logger");
+    logError(
+      "Gmail OAuth callback error",
+      {
+        operation: "gmail_oauth_callback",
+        endpoint: "/api/google/gmail/callback",
+      },
+      error,
+    );
+
+    return Response.redirect(
+      `${process.env["NEXT_PUBLIC_APP_URL"]}/omni-connect?error=oauth_failed`,
+    );
+  }
+}
 ```
 
 ### Key Principles

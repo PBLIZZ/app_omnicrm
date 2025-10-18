@@ -156,8 +156,8 @@ export type {
   ProcessInboxItemDTO,
 } from "./productivity";
 
-// Search Functionality - DEPRECATED - Moved to deprecated-search-files/
-// Will be reimplemented as Spotlight-style global search
+// Search Functionality
+export * from "./search";
 
 // Zones Management
 export * from "./productivity";
@@ -232,6 +232,21 @@ export {
   type HealthResponse,
   type DbPingResponse,
 } from "./health";
+
+// OAuth Management
+export { OAuthCallbackQuerySchema, type OAuthCallbackQuery } from "@/server/lib/oauth-validation";
+export {
+  OAuthRedirectResponseSchema,
+  OAuthConnectionStatusSchema,
+  OAuthStateSchema,
+  OAuthScopesSchema,
+  OAuthErrorResponseSchema,
+  type OAuthRedirectResponse,
+  type OAuthConnectionStatus,
+  type OAuthState,
+  type OAuthScopes,
+  type OAuthErrorResponse,
+} from "./oauth";
 
 // Raw Events JSONB Payload Schemas
 export {

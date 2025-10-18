@@ -10,6 +10,8 @@ import {
   QueryClientProvider as TanStackQueryClientProvider,
 } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/providers/auth-provider"; // Import our new AuthProvider
+import { GlobalSearchProvider } from "@/contexts/GlobalSearchContext";
+import { GlobalSearchModal } from "@/components/GlobalSearchModal";
 
 export default function RootProviders({ children }: { children: React.ReactNode }): JSX.Element {
   // Move the QueryClient state hook directly into this component
@@ -38,7 +40,10 @@ export default function RootProviders({ children }: { children: React.ReactNode 
     >
       <TooltipProvider>
         <TanStackQueryClientProvider client={queryClient}>
-          {isOnboardingRoute ? children : <AuthProvider>{children}</AuthProvider>}
+          <GlobalSearchProvider>
+            {isOnboardingRoute ? children : <AuthProvider>{children}</AuthProvider>}
+            <GlobalSearchModal />
+          </GlobalSearchProvider>
         </TanStackQueryClientProvider>
         <Toaster
           position="top-center"

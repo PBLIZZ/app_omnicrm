@@ -27,7 +27,7 @@ supabase/    # SQL files (source of truth for DB changes)
 
 - **Refactoring Patterns**: `docs/REFACTORING_PATTERNS_OCT_2025.md` - Current architecture standards
 - **Layer Architecture Blueprint**: `docs/LAYER_ARCHITECTURE_BLUEPRINT_2025.md` - Complete blueprint
-- **API Routes**: `src/app/api/README.md` - API handler patterns
+- **API Routes**: `src/app/api/README.md` - API handler patterns (includes OAuth patterns)
 - **AI Assistant Guidance**: `CLAUDE.md` - For AI coding assistants
 - **Repository Guidelines**: `AGENTS.md` - Quick reference for agents
 

@@ -29,7 +29,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
 import { useContacts, useContactSuggestions } from "@/hooks/use-contacts";
-import type { ContactWithLastNote, ContactQuickAddData } from "./types";
+import type { ContactQuickAddData } from "./types";
+import type { ContactWithLastNote } from "@/server/db/business-schemas/contacts";
 import { CreateContactBodySchema } from "@/server/db/business-schemas/contacts";
 import { z } from "zod";
 
@@ -79,8 +80,8 @@ export function ContactsPage(): JSX.Element {
 
   // API returns ContactWithLastNote (has lastNote preview, not full notes array)
   const contacts: ContactWithLastNote[] = useMemo(
-    (): ContactWithLastNote[] => contactsData?.items ?? [],
-    [contactsData?.items],
+    (): ContactWithLastNote[] => (contactsData as { items?: ContactWithLastNote[] })?.items ?? [],
+    [contactsData],
   );
 
   const filteredContacts = useMemo((): ContactWithLastNote[] => {
@@ -514,11 +515,7 @@ export function ContactsPage(): JSX.Element {
                         {suggestion.eventTitles && suggestion.eventTitles.length > 0 && (
                           <div className="text-xs text-muted-foreground">
                             <span>Recent events: </span>
-                            <span>
-                              {suggestion.eventTitles
-                                .slice(0, 2)
-                                .join(", ")}
-                            </span>
+                            <span>{suggestion.eventTitles.slice(0, 2).join(", ")}</span>
                             {suggestion.eventTitles.length > 2 && (
                               <span> +{suggestion.eventTitles.length - 2} more</span>
                             )}

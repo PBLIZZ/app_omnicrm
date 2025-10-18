@@ -59,6 +59,40 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
+// Mock Next.js headers (cookies)
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(() => ({
+    get: vi.fn((name: string) => {
+      // Mock cookie values for testing
+      const mockCookies: Record<string, { value: string }> = {
+        "sb-access-token": { value: "mock-access-token" },
+        "sb-refresh-token": { value: "mock-refresh-token" },
+      };
+      return mockCookies[name] || null;
+    }),
+    set: vi.fn(),
+    delete: vi.fn(),
+    has: vi.fn((name: string) => {
+      const mockCookies: Record<string, boolean> = {
+        "sb-access-token": true,
+        "sb-refresh-token": true,
+      };
+      return mockCookies[name] || false;
+    }),
+    getAll: vi.fn(() => []),
+  })),
+  headers: vi.fn(() => ({
+    get: vi.fn(),
+    set: vi.fn(),
+    delete: vi.fn(),
+    has: vi.fn(),
+    forEach: vi.fn(),
+    entries: vi.fn(),
+    keys: vi.fn(),
+    values: vi.fn(),
+  })),
+}));
+
 // ==============================================================================
 // MSW (Mock Service Worker) Setup
 // ==============================================================================
@@ -86,8 +120,9 @@ afterAll(() => {
 vi.mock("postgres", () => ({
   default: vi.fn().mockImplementation(() => {
     const mockSql = vi.fn().mockResolvedValue([{ "?column?": 1 }]);
-    mockSql.end = vi.fn().mockResolvedValue(undefined);
-    return mockSql;
+    return Object.assign(mockSql, {
+      end: vi.fn().mockResolvedValue(undefined),
+    });
   }),
 }));
 
@@ -126,16 +161,16 @@ vi.mock("drizzle-orm/postgres-js", () => ({
 
     return {
       select: createChainableMock([]),
-      insert: createChainableMock([{ id: "test-id" }]),
-      update: createChainableMock([{ id: "test-id" }]),
-      delete: createChainableMock([{ id: "test-id" }]),
+      insert: createChainableMock([{ id: "test-id" }] as any),
+      update: createChainableMock([{ id: "test-id" }] as any),
+      delete: createChainableMock([{ id: "test-id" }] as any),
       execute: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
       transaction: vi.fn((cb) => {
         const txMocks = {
           select: createChainableMock([]),
-          insert: createChainableMock([{ id: "test-id" }]),
-          update: createChainableMock([{ id: "test-id" }]),
-          delete: createChainableMock([{ id: "test-id" }]),
+          insert: createChainableMock([{ id: "test-id" }] as any),
+          update: createChainableMock([{ id: "test-id" }] as any),
+          delete: createChainableMock([{ id: "test-id" }] as any),
         };
         return Promise.resolve(cb(txMocks));
       }),
@@ -162,10 +197,14 @@ global.ResizeObserver = vi.fn(() => ({
 }));
 
 // Mock IntersectionObserver
-global.IntersectionObserver = vi.fn(() => ({
+global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
+  root: null,
+  rootMargin: "0px",
+  thresholds: [0],
+  takeRecords: vi.fn(() => []),
 }));
 
 // Mock Web APIs

@@ -50,7 +50,8 @@ import {
   Download,
 } from "lucide-react";
 import { useDeleteContacts } from "@/hooks/use-contacts";
-import type { ContactSearchFilters, ContactWithLastNote } from "./types";
+import type { ContactSearchFilters } from "./types";
+import type { ContactWithLastNote } from "@/server/db/business-schemas/contacts";
 import { toast } from "sonner";
 
 /**

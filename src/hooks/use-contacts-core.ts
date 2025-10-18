@@ -8,7 +8,6 @@
 
 import { useQuery, useMutation, type QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queries/keys";
-import { toast } from "sonner";
 import type {
   Contact,
   ContactListResponse,
@@ -33,7 +32,7 @@ export interface ApiClient {
 // TYPES
 // ============================================================================
 
-export type { Contact, ContactWithLastNote };
+export type { Contact };
 
 export interface ContactSuggestion {
   id: string;
@@ -87,12 +86,6 @@ export function useContactsCore(
       };
     },
     // Simplified: let test QueryClient or consumer control these
-    onError: (err: unknown) => {
-      toast.error("Failed to load contacts. Please try again.");
-      if (err instanceof Error) {
-        console.error("Contacts fetch error:", err);
-      }
-    },
   });
 }
 
@@ -100,18 +93,13 @@ export function useContactsCore(
  * GET /api/contacts/suggestions - Calendar-based contact suggestions
  */
 export function useContactSuggestionsCore(api: ApiClient, enabled: boolean = true) {
-  return useQuery({
+  return useQuery<ContactSuggestion[]>({
     queryKey: ["/api/contacts/suggestions"],
     queryFn: async (): Promise<ContactSuggestion[]> => {
       const data = await api.get<ContactSuggestionsResponse>("/api/contacts/suggestions");
       return data.suggestions;
     },
     enabled,
-    onError: (error: unknown) => {
-      toast.error("Failed to load contact suggestions", {
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-      });
-    },
   });
 }
 
@@ -125,11 +113,6 @@ export function useContactCore(api: ApiClient, id: string) {
       return await api.get<Contact>(`/api/contacts/${id}`);
     },
     enabled: !!id,
-    onError: (error: unknown) => {
-      toast.error("Failed to load contact", {
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-      });
-    },
   });
 }
 

@@ -15,10 +15,9 @@ describe("AiInsightsRepository", () => {
     subjectType: "contact",
     subjectId: "contact-123",
     kind: "wellness_goal",
-    content: "Interested in stress management",
-    confidence: 0.85,
+    content: { summary: "Interested in stress management" },
+    model: null,
     fingerprint: "fp123",
-    metadata: {},
     createdAt: new Date(),
     ...overrides,
   });
@@ -251,7 +250,6 @@ describe("AiInsightsRepository", () => {
         subjectId: "contact-123",
         kind: "wellness_goal",
         content: "Interested in meditation",
-        confidence: 0.9,
         fingerprint: "fp456",
       };
 
@@ -272,7 +270,6 @@ describe("AiInsightsRepository", () => {
         subjectId: "contact-123",
         kind: "wellness_goal",
         content: "Test",
-        confidence: 0.8,
         fingerprint: "fp789",
       };
 
@@ -282,17 +279,17 @@ describe("AiInsightsRepository", () => {
 
   describe("updateAiInsight", () => {
     it("should update existing insight", async () => {
-      const mockInsight = createMockInsight({ confidence: 0.95 } as any);
+      const mockInsight = createMockInsight({ model: "gpt-4o" } as any);
       const updateBuilder = createMockQueryBuilder([mockInsight]);
 
       vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateAiInsight(mockUserId, mockInsightId, {
-        confidence: 0.95,
+        model: "gpt-4o",
       } as any);
 
       expect(result).not.toBeNull();
-      expect(result?.confidence).toBe(0.95);
+      expect(result?.model).toBe("gpt-4o");
     });
 
     it("should return null when insight not found", async () => {
@@ -301,7 +298,7 @@ describe("AiInsightsRepository", () => {
       vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
       const result = await repo.updateAiInsight(mockUserId, "non-existent", {
-        confidence: 0.9,
+        model: "gpt-4o",
       });
 
       expect(result).toBeNull();

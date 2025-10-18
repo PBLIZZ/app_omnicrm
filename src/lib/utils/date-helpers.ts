@@ -5,7 +5,6 @@
  * timestamptz strings for consistent date handling across the application.
  */
 
-import { start } from "repl";
 import { z } from "zod";
 
 /**
@@ -267,26 +266,35 @@ export function formatTimestampSafe(
  * @throws Error if `start` or `end` cannot be parsed into a valid Date
  */
 
-export function validateDateRange(start: unknown, end: unknown): {
-  const startResult = parseDate(start);
-  const endResult = parseDate(end);
+export function validateDateRange(
+  start: unknown,
+  end: unknown,
+): {
+  success: boolean;
+  error?: string;
+  data?: { start: Date; end: Date };
+} {
+  try {
+    const startDate = parseDate(start);
+    const endDate = parseDate(end);
 
-  if (!startResult.success) {
-    return { success: false, error: `Invalid start date: ${startResult.error}` };
+    if (startDate >= endDate) {
+      return { success: false, error: "Start date must be before end date" };
+    }
+
+    return {
+      success: true,
+      data: {
+        start: startDate,
+        end: endDate,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Invalid date range",
+    };
   }
-
-  if (!endResult.success) {
-    return { success: false, error: `Invalid end date: ${endResult.error}` };
-  }
-
-  if (startResult.data >= endResult.data) {
-    return { success: false, error: "Start date must be before end date" };
-  }
-
-  return { success: true, data: {
-    start: startResult.data,
-    end: endResult.data,
-  } };
 }
 
 /**

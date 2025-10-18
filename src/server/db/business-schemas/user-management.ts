@@ -110,7 +110,21 @@ export const UserDeletionResponseSchema = z.object({
   userId: z.string().optional(),
 });
 
+/**
+ * User Deletion Preview Schema
+ */
+export const UserDeletionPreviewSchema = z.object({
+  contacts: z.number(),
+  interactions: z.number(),
+  notes: z.number(),
+  documents: z.number(),
+  jobs: z.number(),
+  tasks: z.number(),
+  projects: z.number(),
+  goals: z.number(),
+  inboxItems: z.number(),
+});
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
-

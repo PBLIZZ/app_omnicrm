@@ -16,20 +16,12 @@ import {
   logBatchPhotoAccessService,
 } from "@/server/services/storage.service";
 import { getDb } from "@/server/db/client";
-import { sql } from "drizzle-orm";
-import type { ContactWithLastNote as ContactWithLastNoteType } from "@/server/db/business-schemas/contacts";
+import type { ContactWithLastNote } from "@/server/db/business-schemas/contacts";
 import { getContactSuggestions } from "../ai/contacts/suggest-contacts";
 
 // ============================================================================
 // SERVICE LAYER TYPES (Data enrichment)
 // ============================================================================
-
-/**
- * Contact enriched with last note preview
- * Used by list endpoint to show note snippets
- * Re-exported from business schemas for consistency
- */
-export type ContactWithLastNote = ContactWithLastNoteType;
 
 /**
  * Contact with full notes array
@@ -141,110 +133,13 @@ export async function createContactsFromSuggestionsService(
 // HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * Extracts and validates note query rows from Drizzle query result
- * @param notesData - Result from db.execute() containing contact notes data
- * @returns Array of validated rows with contact_id and last_note_preview
- */
-function extractNotesQueryRows(
-  notesData: unknown,
-): Array<{ contact_id: string; last_note_preview: string | null }> {
-  // Defensive validation of query result
-  if (!notesData || typeof notesData !== "object") {
-    return [];
-  }
-
-  // Extract rows array from Drizzle result
-  // Drizzle returns either an array directly or an object with a rows property
-  let rows: unknown[];
-  if (Array.isArray(notesData)) {
-    rows = notesData;
-  } else if ("rows" in notesData && Array.isArray(notesData.rows)) {
-    rows = notesData.rows;
-  } else {
-    return [];
-  }
-
-  // Validate and transform each row
-  return rows
-    .filter((row): row is Record<string, unknown> => {
-      if (row === null || typeof row !== "object") {
-        return false;
-      }
-      const record = row as Record<string, unknown>;
-      return typeof record.contact_id === "string";
-    })
-    .map((row) => ({
-      contact_id: row.contact_id as string,
-      last_note_preview:
-        typeof row.last_note_preview === "string" ? row.last_note_preview : null,
-    }));
-}
-
-/**
- * Fetches the most recent note preview (first 500 characters) for each specified contact.
- *
- * @param userId - ID of the user who owns the contacts
- * @param contactIds - Array of contact IDs to retrieve previews for
- * @returns A Map where each key is a contact ID and the value is the note preview string (first 500 characters) or `null` if the contact has no notes
- */
-async function getLastNotePreviewForContacts(
-  userId: string,
-  contactIds: string[],
-): Promise<Map<string, string | null>> {
-  if (contactIds.length === 0) {
-    return new Map();
-  }
-
-  const db = await getDb();
-  const uuidArray = sql`ARRAY[${sql.join(
-    contactIds.map((id) => sql`${id}`),
-    sql`, `,
-  )}]::uuid[]`;
-
-  let notesData;
-  try {
-    notesData = await db.execute(sql`
-      SELECT DISTINCT ON (contact_id)
-        contact_id,
-        LEFT(content_plain, 500) as last_note_preview
-      FROM notes
-      WHERE user_id = ${userId} 
-      AND contact_id = ANY(${uuidArray})
-      ORDER BY contact_id, created_at DESC
-    `);
-  } catch (error) {
-    console.error("Database error in getLastNotePreview:", {
-      error: error instanceof Error ? error.message : String(error),
-      userId,
-      contactIds: contactIds.length,
-    });
-    return new Map();
-  }
-
-  const result = new Map<string, string | null>();
-
-  // Initialize all contacts with null
-  for (const contactId of contactIds) {
-    result.set(contactId, null);
-  }
-
-  // Validate and process database rows
-  const validatedRows = extractNotesQueryRows(notesData);
-  for (const row of validatedRows) {
-    const preview = typeof row.last_note_preview === "string" ? row.last_note_preview : null;
-    result.set(row.contact_id, preview);
-  }
-
-  return result;
-}
-
 // ============================================================================
 // CONTACT CRUD OPERATIONS
 // ============================================================================
 
 /**
  * List contacts with pagination and enrichment
+ * Optimized to use single JOIN query instead of N+1 queries
  */
 export async function listContactsService(
   userId: string,
@@ -264,8 +159,8 @@ export async function listContactsService(
   const repo = createContactsRepository(db);
 
   try {
-    // 1. Get contacts from repo
-    const { items: contacts, total } = await repo.listContacts(userId, {
+    // 1. Get contacts with last note preview in single query (optimized)
+    const { items: contactsWithNotes, total } = await repo.listContactsWithLastNote(userId, {
       page: params.page,
       pageSize: params.pageSize,
       ...(params.search !== undefined && { search: params.search }),
@@ -273,12 +168,8 @@ export async function listContactsService(
       ...(params.order !== undefined && { order: params.order }),
     });
 
-    // 2. Enrich with last notes
-    const contactIds = contacts.map((c) => c.id);
-    const lastNotePreviews = await getLastNotePreviewForContacts(userId, contactIds);
-
-    // 3. Batch generate signed URLs for photos
-    const photoPaths = contacts.filter((c) => c.photoUrl).map((c) => c.photoUrl as string);
+    // 2. Batch generate signed URLs for photos
+    const photoPaths = contactsWithNotes.filter((c) => c.photoUrl).map((c) => c.photoUrl as string);
 
     let photoUrls: Record<string, string | null> = {};
     if (photoPaths.length > 0) {
@@ -286,21 +177,20 @@ export async function listContactsService(
       photoUrls = batchResult.urls;
 
       // Log photo access for HIPAA/GDPR compliance (best-effort)
-      const contactPhotos = contacts
+      const contactPhotos = contactsWithNotes
         .filter((c) => c.photoUrl)
         .map((c) => ({ contactId: c.id, photoPath: c.photoUrl as string }));
 
       await logBatchPhotoAccessService(userId, contactPhotos);
     }
 
-    // 4. Transform with enrichments
-    const itemsWithEnrichments: ContactWithLastNote[] = contacts.map((contact) => ({
+    // 3. Transform with enrichments
+    const itemsWithEnrichments: ContactWithLastNote[] = contactsWithNotes.map((contact) => ({
       ...contact,
-      lastNote: lastNotePreviews.get(contact.id) ?? null,
       photoUrl: contact.photoUrl ? (photoUrls[contact.photoUrl] ?? contact.photoUrl) : null,
     }));
 
-    // 5. Calculate pagination
+    // 4. Calculate pagination
     const totalPages = Math.ceil(total / params.pageSize);
 
     return {

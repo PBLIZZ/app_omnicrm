@@ -6,6 +6,8 @@
  */
 
 import { z } from "zod";
+import { createSanitizedErrorResponse } from "@/server/lib/error-sanitizer";
+import { logError } from "@/server/lib/structured-logger";
 
 export {
   apiClient,
@@ -69,8 +71,26 @@ export function handle<TIn, TOut>(
         );
       }
 
-      // Re-throw unexpected errors to be handled by global error boundary
-      throw error;
+      // Log error with structured logging
+      logError(
+        "API handler error",
+        {
+          operation: "api_handler",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "api_handler",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }
@@ -170,8 +190,26 @@ export function handleAuth<TIn, TOut>(
         });
       }
 
-      // Re-throw unexpected errors to be handled by global error boundary
-      throw error;
+      // Log error with structured logging
+      logError(
+        "Authenticated API handler error",
+        {
+          operation: "authenticated_api_handler",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "authenticated_api_handler",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }
@@ -192,8 +230,26 @@ export function handleGet<TOut>(output: z.ZodType<TOut>, fn: () => Promise<TOut>
         status: 200,
       });
     } catch (error) {
-      // Re-throw to be handled by global error boundary
-      throw error;
+      // Log error with structured logging
+      logError(
+        "GET API handler error",
+        {
+          operation: "get_api_handler",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "get_api_handler",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }
@@ -232,7 +288,26 @@ export function handleGetWithQuery<TQuery, TOut>(
         );
       }
 
-      throw error;
+      // Log error with structured logging
+      logError(
+        "GET with query API handler error",
+        {
+          operation: "get_query_api_handler",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "get_query_api_handler",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }
@@ -285,7 +360,26 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
         });
       }
 
-      throw error;
+      // Log error with structured logging
+      logError(
+        "Authenticated GET with query API handler error",
+        {
+          operation: "authenticated_get_query_api_handler",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "authenticated_get_query_api_handler",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }
@@ -358,7 +452,26 @@ export function handleAuthWithParams<TIn, TOut, TParams extends Record<string, s
         });
       }
 
-      throw error;
+      // Log error with structured logging
+      logError(
+        "Authenticated API handler with params error",
+        {
+          operation: "authenticated_api_handler_with_params",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "authenticated_api_handler_with_params",
+        endpoint: "unknown",
+      });
+
+      return new Response(JSON.stringify(sanitizedError), {
+        headers: { "content-type": "application/json" },
+        status: 500,
+      });
     }
   };
 }

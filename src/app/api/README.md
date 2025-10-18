@@ -51,18 +51,72 @@ export const GET = handleGet(HealthCheckSchema, async () => {
 });
 ```
 
-## 🔐 Edge Case Patterns
+## 🔐 OAuth Flow Patterns
 
-### OAuth Flow Handlers
+### OAuth Connect Handlers
 
 ```typescript
-import { handleAuthFlow } from "@/lib/api-edge-cases";
-import { OAuthCallbackSchema } from "@/server/db/business-schemas";
+import { initializeOAuthService } from "@/server/services/oauth.service";
+import { AppError } from "@/lib/errors/app-error";
 
-export const GET = handleAuthFlow(OAuthCallbackSchema, async (query, request) => {
-  const result = await oauthService.handleCallback(query.code, query.state);
-  return Response.redirect(result.returnUrl, 302);
-});
+export async function GET(): Promise<Response> {
+  try {
+    const result = await initializeOAuthService("gmail");
+    
+    if (!result.success) {
+      throw new AppError(result.error, "OAUTH_ERROR", "validation", false, 400);
+    }
+    
+    return Response.redirect(result.authUrl);
+  } catch (error) {
+    // Log error with structured logging
+    const { logError } = await import("@/server/lib/structured-logger");
+    logError(
+      "Gmail OAuth initialization error",
+      {
+        operation: "gmail_oauth_init",
+        endpoint: "/api/google/gmail/connect",
+      },
+      error,
+    );
+
+    return Response.redirect(
+      `${process.env["NEXT_PUBLIC_APP_URL"]}/omni-connect?error=oauth_init_failed`,
+    );
+  }
+}
+```
+
+### OAuth Callback Handlers
+
+```typescript
+import { handleOAuthCallbackService } from "@/server/services/oauth.service";
+
+export async function GET(request: Request): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const query = Object.fromEntries(url.searchParams);
+    
+    const result = await handleOAuthCallbackService("gmail", query);
+    
+    return Response.redirect(result.redirectUrl);
+  } catch (error) {
+    // Log error with structured logging
+    const { logError } = await import("@/server/lib/structured-logger");
+    logError(
+      "Gmail OAuth callback error",
+      {
+        operation: "gmail_oauth_callback",
+        endpoint: "/api/google/gmail/callback",
+      },
+      error,
+    );
+
+    return Response.redirect(
+      `${process.env["NEXT_PUBLIC_APP_URL"]}/omni-connect?error=oauth_failed`,
+    );
+  }
+}
 ```
 
 ### File Upload Handlers

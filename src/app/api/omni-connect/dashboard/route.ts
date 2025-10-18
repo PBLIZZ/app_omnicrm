@@ -8,11 +8,9 @@
  * - Sync status and statistics
  */
 
-import { handleAuth } from "@/lib/api";
 import { getDashboardStateService } from "@/server/services/omni-connect-dashboard.service";
 import { ConnectDashboardStateSchema } from "@/server/db/business-schemas";
-import { z } from "zod";
-
+import { getAuthUserId } from "@/lib/auth-simple";
 /**
  * Handle GET requests for the Omni Connect dashboard for the authenticated user and return the consolidated dashboard state.
  *
@@ -20,24 +18,32 @@ import { z } from "zod";
  */
 export async function GET(): Promise<Response> {
   try {
-  const userId = await getAuthUserId();
-    
+    const userId = await getAuthUserId();
+
     const dashboardState = await getDashboardStateService(userId);
-    
+
     // Validate the response against the schema
     const validated = ConnectDashboardStateSchema.parse(dashboardState);
-    
+
     return Response.json(validated);
   } catch (error) {
-    console.error("[OmniConnect Dashboard] Error:", error);
-    
-    // Return a structured error response
+    // Log error with structured logging
+    const { logError } = await import("@/server/lib/structured-logger");
+    logError(
+      "OmniConnect Dashboard error",
+      {
+        operation: "omni_connect_dashboard",
+        endpoint: "/api/omni-connect/dashboard",
+      },
+      error,
+    );
+
+    // Return a sanitized error response
     return Response.json(
       {
         error: "Failed to fetch dashboard data",
-        message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

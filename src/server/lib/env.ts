@@ -24,10 +24,27 @@ const baseSchema = z.object({
   API_RATE_LIMIT_PER_MIN: z.string().optional(),
   API_MAX_JSON_BYTES: z.string().optional(),
   APP_ORIGINS: z.string().optional(),
+  // Redis configuration for rate limiting
+  UPSTASH_REDIS_REST_URL: z.string().url("Invalid UPSTASH_REDIS_REST_URL").optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1, "UPSTASH_REDIS_REST_TOKEN is required").optional(),
+  // AWS KMS configuration for secure credential management
+  AWS_REGION: z.string().default("us-east-1"),
+  AWS_KMS_KEY_ID: z
+    .string()
+    .min(1, "AWS_KMS_KEY_ID is required for secure credential management")
+    .optional(),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_SESSION_TOKEN: z.string().optional(),
+  // Sentry configuration for error tracking
+  NEXT_PUBLIC_SENTRY_DSN: z.string().url("Invalid NEXT_PUBLIC_SENTRY_DSN").optional(),
+  SENTRY_ORG: z.string().optional(),
+  SENTRY_PROJECT: z.string().optional(),
 });
 
 export type Env = z.infer<typeof baseSchema> & {
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string;
+  NEXT_PUBLIC_APP_URL: string;
   SUPABASE_SECRET_KEY: string | undefined;
 };
 

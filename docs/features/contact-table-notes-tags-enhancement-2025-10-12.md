@@ -751,7 +751,7 @@ Create `src/lib/constants/wellness-tags.ts` with predefined tag categories for w
 | Phase 3 | 4-5 hours | Voice recorder component, transcription service, voice note API |
 | Phase 4 | 3-4 hours | AI tag suggestions service and API |
 
-**Total Estimated Time: 13-17 hours**
+- **Total Estimated Time: 13-17 hours**
 
 ## Architecture Compliance Checklist
 

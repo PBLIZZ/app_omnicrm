@@ -35,6 +35,17 @@
   - Use `@/lib/api` handlers
 - **Example**: `src/app/api/contacts/route.ts`
 
+### OAuth Route Layer
+
+- **Purpose**: OAuth flow handling with redirects
+- **Pattern**: Direct function handlers for OAuth flows
+- **Rules**:
+  - Handle redirects properly
+  - Use OAuth service functions
+  - Structured logging for errors
+  - Return appropriate redirect responses
+- **Example**: `src/app/api/google/gmail/connect/route.ts`
+
 ### Schema Layer
 
 - **Purpose**: Type-safe validation

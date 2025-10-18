@@ -15,10 +15,10 @@ describe("EmbeddingsRepository", () => {
     ownerType: "document",
     ownerId: "doc-123",
     contentHash: "hash123",
-    contentText: "Sample text",
     embedding: null,
-    model: "text-embedding-ada-002",
+    embeddingV: null,
     chunkIndex: 0,
+    meta: { contentText: "Sample text", model: "text-embedding-ada-002" },
     createdAt: new Date(),
     ...overrides,
   });
@@ -270,8 +270,10 @@ describe("EmbeddingsRepository", () => {
         ownerType: "document",
         ownerId: "doc-123",
         contentHash: "hash123",
-        contentText: "Sample text",
-        model: "text-embedding-ada-002",
+        embedding: null,
+        embeddingV: null,
+        chunkIndex: 0,
+        meta: { contentText: "Sample text", model: "text-embedding-ada-002" },
       };
 
       const result = await repo.createEmbedding(data);
@@ -290,8 +292,10 @@ describe("EmbeddingsRepository", () => {
         ownerType: "document",
         ownerId: "doc-123",
         contentHash: "hash123",
-        contentText: "Sample text",
-        model: "text-embedding-ada-002",
+        embedding: null,
+        embeddingV: null,
+        chunkIndex: 0,
+        meta: { contentText: "Sample text", model: "text-embedding-ada-002" },
       };
 
       await expect(repo.createEmbedding(data)).rejects.toThrow("Insert returned no data");
@@ -312,16 +316,20 @@ describe("EmbeddingsRepository", () => {
           ownerType: "document",
           ownerId: "doc-123",
           contentHash: "hash1",
-          contentText: "Text 1",
-          model: "text-embedding-ada-002",
+          embedding: null,
+          embeddingV: null,
+          chunkIndex: 0,
+          meta: { contentText: "Text 1", model: "text-embedding-ada-002" },
         },
         {
           userId: mockUserId,
           ownerType: "document",
           ownerId: "doc-123",
           contentHash: "hash2",
-          contentText: "Text 2",
-          model: "text-embedding-ada-002",
+          embedding: null,
+          embeddingV: null,
+          chunkIndex: 1,
+          meta: { contentText: "Text 2", model: "text-embedding-ada-002" },
         },
       ];
 

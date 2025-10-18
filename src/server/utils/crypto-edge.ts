@@ -56,13 +56,13 @@ async function getHmacKey(): Promise<CryptoKey> {
   cachedKeyPromise = (async (): Promise<CryptoKey> => {
     let keyBytes = getMasterKeyBytes();
     if (keyBytes.length < 32) {
-      const digest = await crypto.subtle.digest("SHA-256", keyBytes as unknown as ArrayBuffer);
+      const digest = await crypto.subtle.digest("SHA-256", keyBytes.buffer);
       keyBytes = new Uint8Array(digest);
     }
     // Pass a TypedArray (Uint8Array) and cast to BufferSource to satisfy TS libs
     return crypto.subtle.importKey(
       "raw",
-      keyBytes as unknown as BufferSource,
+      keyBytes,
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign", "verify"],
@@ -74,7 +74,7 @@ async function getHmacKey(): Promise<CryptoKey> {
 // Deterministic key derivation: HMAC(master, label) -> 32 bytes
 async function deriveKeyBytes(label: string): Promise<Uint8Array> {
   const key = await getHmacKey();
-  const mac = await crypto.subtle.sign("HMAC", key, toBytesUtf8(label) as unknown as ArrayBuffer);
+  const mac = await crypto.subtle.sign("HMAC", key, toBytesUtf8(label).buffer);
   return new Uint8Array(mac); // 32 bytes for SHA-256
 }
 
@@ -86,7 +86,7 @@ export function randomNonce(length = 16): string {
 
 export async function hmacSign(data: string): Promise<string> {
   const key = await getHmacKey();
-  const sig = await crypto.subtle.sign("HMAC", key, toBytesUtf8(data) as unknown as ArrayBuffer);
+  const sig = await crypto.subtle.sign("HMAC", key, toBytesUtf8(data).buffer);
   return base64urlEncodeBytes(new Uint8Array(sig));
 }
 
@@ -123,7 +123,7 @@ export async function encryptString(plain: string): Promise<string> {
   const keyBytes = (await deriveKeyBytes("enc")).slice(0, 32);
   const aesKey = await crypto.subtle.importKey(
     "raw",
-    keyBytes as unknown as BufferSource,
+    keyBytes,
     { name: "AES-GCM" },
     false,
     ["encrypt"],
@@ -133,7 +133,7 @@ export async function encryptString(plain: string): Promise<string> {
   const enc = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv, tagLength: 128 },
     aesKey,
-    toBytesUtf8(plain) as unknown as ArrayBuffer,
+    toBytesUtf8(plain).buffer,
   );
   const encBytes = new Uint8Array(enc);
   const tag = encBytes.slice(encBytes.length - 16);
@@ -144,7 +144,7 @@ export async function encryptString(plain: string): Promise<string> {
 }
 
 export async function decryptString(value: string): Promise<string> {
-  if (!value) return value as unknown as string;
+  if (!value) return value;
   const parts = value.split(":");
   if (parts.length !== 4 || parts[0] !== "v1") {
     // treat as plaintext (back-compat)
@@ -159,7 +159,7 @@ export async function decryptString(value: string): Promise<string> {
   const keyBytes = (await deriveKeyBytes("enc")).slice(0, 32);
   const aesKey = await crypto.subtle.importKey(
     "raw",
-    keyBytes as unknown as BufferSource,
+    keyBytes,
     { name: "AES-GCM" },
     false,
     ["decrypt"],

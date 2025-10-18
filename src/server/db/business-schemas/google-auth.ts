@@ -20,26 +20,16 @@ import { z } from "zod";
 export const OAuthStartQuerySchema = z.object({});
 
 /**
- * Shared OAuth Callback Query Schema with XOR Constraint
- *
- * Use this for ALL Google OAuth callback endpoints (Gmail, Calendar, Drive).
- * Enforces that exactly one of 'code' or 'error' must be present.
+ * Google OAuth Callback Query Schema
+ * Re-export from canonical oauth-validation.ts for consistency
  */
-export const GoogleOAuthCallbackQuerySchema = z
-  .object({
-    code: z.string().optional(),
-    state: z.string().optional(),
-    error: z.string().optional(),
-    error_description: z.string().optional(),
-  })
-  .refine((data) => Boolean(data.code) !== Boolean(data.error), {
-    message: "Exactly one of 'code' or 'error' must be present in OAuth callback",
-  })
-  .refine((data) => data.state !== undefined, {
-    message: "State parameter is required for OAuth callback validation",
-  });
+export {
+  OAuthCallbackQuerySchema as GoogleOAuthCallbackQuerySchema,
+  type OAuthCallbackQuery as GoogleOAuthCallbackQuery,
+} from "@/server/lib/oauth-validation";
 
-export type GoogleOAuthCallbackQuery = z.infer<typeof GoogleOAuthCallbackQuerySchema>;
+// Import for local use
+import { OAuthCallbackQuerySchema, type OAuthCallbackQuery } from "@/server/lib/oauth-validation";
 
 // ============================================================================
 // SERVICE-SPECIFIC ALIASES (for backwards compatibility)
@@ -49,15 +39,15 @@ export type GoogleOAuthCallbackQuery = z.infer<typeof GoogleOAuthCallbackQuerySc
  * Gmail OAuth Callback Query Schema
  * @deprecated Use GoogleOAuthCallbackQuerySchema instead
  */
-export const GmailOAuthCallbackQuerySchema = GoogleOAuthCallbackQuerySchema;
-export type GmailOAuthCallbackQuery = GoogleOAuthCallbackQuery;
+export const GmailOAuthCallbackQuerySchema = OAuthCallbackQuerySchema;
+export type GmailOAuthCallbackQuery = OAuthCallbackQuery;
 
 /**
  * Calendar OAuth Callback Query Schema
  * @deprecated Use GoogleOAuthCallbackQuerySchema instead
  */
-export const CalendarOAuthCallbackQuerySchema = GoogleOAuthCallbackQuerySchema;
-export type CalendarOAuthCallbackQuery = GoogleOAuthCallbackQuery;
+export const CalendarOAuthCallbackQuerySchema = OAuthCallbackQuerySchema;
+export type CalendarOAuthCallbackQuery = OAuthCallbackQuery;
 
 /**
  * Gmail Status Query Schema - Empty for status check endpoints
@@ -68,4 +58,3 @@ export const GmailStatusQuerySchema = z.object({});
  * Calendar Status Query Schema - Empty for status check endpoints
  */
 export const CalendarStatusQuerySchema = z.object({});
-

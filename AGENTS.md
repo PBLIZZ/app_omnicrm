@@ -9,6 +9,7 @@
 - **Repository Layer** (`packages/repo/src/`): Constructor injection with `DbClient`, throws generic `Error`, returns `null` for "not found"
 - **Service Layer** (`src/server/services/`): Functional patterns, acquires `DbClient` via `getDb()`, wraps errors as `AppError` with status codes
 - **Route Layer** (`src/app/api/`): Uses `handleAuth`, `handleGetWithQueryAuth` from `@/lib/api`
+- **OAuth Route Layer** (`src/app/api/google/`): Direct function handlers for OAuth flows with proper redirect handling
 - **Business Schemas** (`src/server/db/business-schemas/`): Pure Zod validation, no transforms
 - **Database Types** (`src/server/db/schema.ts`): Single source of truth using Drizzle `$inferSelect` and `$inferInsert`
 

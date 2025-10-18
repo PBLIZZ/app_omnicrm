@@ -1,14 +1,8 @@
 import { handleAuthFlow } from "@/lib/api-edge-cases";
 import { handleOAuthCallbackService } from "@/server/services/supabase-auth.service";
-import { z } from "zod";
+import { OAuthCallbackQuerySchema } from "@/server/lib/oauth-validation";
 
 export const dynamic = "force-dynamic";
-
-const OAuthCallbackQuerySchema = z.object({
-  code: z.string().optional(),
-  state: z.string().optional(),
-  error: z.string().optional(),
-});
 
 export const GET = handleAuthFlow(
   OAuthCallbackQuerySchema,

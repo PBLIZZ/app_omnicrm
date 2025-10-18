@@ -38,6 +38,34 @@ import {
 import { makeRouteContext } from "@/__tests__/helpers/routeContext";
 import { testUtils } from "@packages/testing";
 
+// Helper function to create valid mock contact data
+function createMockContact(overrides: Partial<any> = {}) {
+  return {
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    userId: "123e4567-e89b-12d3-a456-426614174001",
+    displayName: "John Doe",
+    primaryEmail: "john@example.com",
+    primaryPhone: "+1234567890",
+    photoUrl: "https://example.com/photo.jpg",
+    source: "manual",
+    lifecycleStage: "New Client",
+    tags: ["test"],
+    confidenceScore: "0.8",
+    dateOfBirth: "1990-01-01",
+    emergencyContactName: "Jane Doe",
+    emergencyContactPhone: "+1234567891",
+    clientStatus: "active",
+    referralSource: "website",
+    address: {},
+    healthContext: {},
+    preferences: {},
+    createdAt: new Date("2024-01-01T00:00:00Z"),
+    updatedAt: new Date("2024-01-01T00:00:00Z"),
+    lastNote: null,
+    ...overrides,
+  };
+}
+
 // Mock authentication
 vi.mock("@/server/auth/user", () => ({
   getServerUserId: vi.fn().mockResolvedValue("test-user-id"),
@@ -47,7 +75,43 @@ vi.mock("@/server/auth/user", () => ({
 vi.mock("@/server/services/contacts.service", () => ({
   listContactsService: vi.fn(),
   createContactService: vi.fn(),
-  getContactWithNotesService: vi.fn(),
+  getContactWithNotesService: vi.fn().mockImplementation(() => {
+    console.log("getContactWithNotesService mock called");
+    return Promise.resolve({
+      id: "contact-123",
+      userId: "test-user-id",
+      displayName: "Test Contact",
+      primaryEmail: "test@example.com",
+      primaryPhone: "+1234567890",
+      photoUrl: "https://example.com/photo.jpg",
+      source: "manual",
+      lifecycleStage: "New Client",
+      tags: ["test"],
+      confidenceScore: "0.8",
+      dateOfBirth: "1990-01-01",
+      emergencyContactName: "Jane Doe",
+      emergencyContactPhone: "+1234567891",
+      clientStatus: "active",
+      referralSource: "website",
+      address: {},
+      healthContext: {},
+      preferences: {},
+      createdAt: new Date("2024-01-01T00:00:00Z"),
+      updatedAt: new Date("2024-01-01T00:00:00Z"),
+      notes: [
+        {
+          id: "123e4567-e89b-12d3-a456-426614174003",
+          userId: "test-user-id",
+          contactId: "contact-123",
+          contentRich: null,
+          contentPlain: "Test note",
+          tags: [],
+          createdAt: new Date("2024-01-01T00:00:00Z"),
+          updatedAt: new Date("2024-01-01T00:00:00Z"),
+        },
+      ],
+    });
+  }),
   updateContactService: vi.fn(),
   deleteContactService: vi.fn(),
   countContactsService: vi.fn(),
@@ -65,26 +129,30 @@ describe("Contacts API Routes - Unit Tests", () => {
     it("should return list of contacts with pagination", async () => {
       const { listContactsService } = await import("@/server/services/contacts.service");
       vi.mocked(listContactsService).mockResolvedValueOnce({
-        items: [
-          {
-            id: "contact-1",
-            displayName: "John Doe",
-            primaryEmail: "john@example.com",
-          },
-        ],
-        total: 1,
-        nextCursor: null,
+        items: [createMockContact()],
+        pagination: {
+          page: 1,
+          pageSize: 10,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
       });
 
       const request = new Request("http://localhost:3000/api/contacts?page=1&pageSize=10");
-      const context = makeRouteContext();
 
-      const response = await getContacts(request, context);
+      const response = await getContacts(request);
       const data = await response.json();
+
+      if (response.status !== 200) {
+        console.log("Response status:", response.status);
+        console.log("Response data:", JSON.stringify(data, null, 2));
+      }
 
       expect(response.status).toBe(200);
       expect(data).toHaveProperty("items");
-      expect(data).toHaveProperty("total");
+      expect(data).toHaveProperty("pagination");
       expect(Array.isArray(data.items)).toBe(true);
       expect(data.items).toHaveLength(1);
       expect(data.items[0].displayName).toBe("John Doe");
@@ -95,9 +163,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
 
       const request = new Request("http://localhost:3000/api/contacts");
-      const context = makeRouteContext();
 
-      const response = await getContacts(request, context);
+      const response = await getContacts(request);
       expect(response.status).toBe(401);
     });
 
@@ -105,9 +172,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       const { listContactsService } = await import("@/server/services/contacts.service");
 
       const request = new Request("http://localhost:3000/api/contacts?search=john");
-      const context = makeRouteContext();
 
-      await getContacts(request, context);
+      await getContacts(request);
 
       expect(listContactsService).toHaveBeenCalledWith(
         testUtils.defaultUserId,
@@ -119,32 +185,37 @@ describe("Contacts API Routes - Unit Tests", () => {
       const { listContactsService } = await import("@/server/services/contacts.service");
       vi.mocked(listContactsService).mockResolvedValueOnce({
         items: [],
-        total: 0,
-        nextCursor: null,
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
       });
 
       const request = new Request("http://localhost:3000/api/contacts");
-      const context = makeRouteContext();
 
-      const response = await getContacts(request, context);
+      const response = await getContacts(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data.items).toEqual([]);
-      expect(data.total).toBe(0);
+      expect(data.pagination.total).toBe(0);
     });
   });
 
   describe("POST /api/contacts", () => {
     it("should create new contact", async () => {
       const { createContactService } = await import("@/server/services/contacts.service");
-      vi.mocked(createContactService).mockResolvedValueOnce({
-        id: "new-contact-id",
-        userId: testUtils.defaultUserId,
-        displayName: "Jane Smith",
-        primaryEmail: "jane@example.com",
-        source: "manual",
-      });
+      vi.mocked(createContactService).mockResolvedValueOnce(
+        createMockContact({
+          id: "123e4567-e89b-12d3-a456-426614174002",
+          displayName: "Jane Smith",
+          primaryEmail: "jane@example.com",
+        }),
+      );
 
       const contactData = {
         displayName: "Jane Smith",
@@ -156,10 +227,14 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(contactData),
       });
-      const context = makeRouteContext();
 
-      const response = await createContact(request, context);
+      const response = await createContact(request);
       const data = await response.json();
+
+      if (response.status !== 200) {
+        console.log("Response status:", response.status);
+        console.log("Response data:", JSON.stringify(data, null, 2));
+      }
 
       expect(response.status).toBe(200);
       expect(data).toHaveProperty("id");
@@ -178,9 +253,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
-      const context = makeRouteContext();
 
-      const response = await createContact(request, context);
+      const response = await createContact(request);
       expect(response.status).toBe(400);
     });
 
@@ -195,9 +269,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
-      const context = makeRouteContext();
 
-      const response = await createContact(request, context);
+      const response = await createContact(request);
       expect(response.status).toBe(400);
     });
 
@@ -207,9 +280,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: "invalid json {",
       });
-      const context = makeRouteContext();
 
-      const response = await createContact(request, context);
+      const response = await createContact(request);
       expect(response.status).toBe(400);
     });
 
@@ -222,9 +294,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ displayName: "Test" }),
       });
-      const context = makeRouteContext();
 
-      const response = await createContact(request, context);
+      const response = await createContact(request);
       expect(response.status).toBe(401);
     });
   });
@@ -233,14 +304,23 @@ describe("Contacts API Routes - Unit Tests", () => {
     it("should return contact by id with notes", async () => {
       const { getContactWithNotesService } = await import("@/server/services/contacts.service");
       vi.mocked(getContactWithNotesService).mockResolvedValueOnce({
-        id: "contact-123",
-        userId: testUtils.defaultUserId,
-        displayName: "Test Contact",
-        primaryEmail: "test@example.com",
+        ...createMockContact({
+          id: "contact-123",
+          displayName: "Test Contact",
+          primaryEmail: "test@example.com",
+        }),
         notes: [
           {
-            id: "note-1",
+            id: "123e4567-e89b-12d3-a456-426614174003",
+            userId: testUtils.defaultUserId,
+            contactId: "contact-123",
+            contentRich: null,
             contentPlain: "Test note",
+            piiEntities: [],
+            tags: [],
+            sourceType: "typed",
+            createdAt: new Date("2024-01-01T00:00:00Z"),
+            updatedAt: new Date("2024-01-01T00:00:00Z"),
           },
         ],
       });
@@ -251,6 +331,11 @@ describe("Contacts API Routes - Unit Tests", () => {
       const response = await getContactById(request, context);
       const data = await response.json();
 
+      if (response.status !== 200) {
+        console.log("Response status:", response.status);
+        console.log("Response data:", JSON.stringify(data, null, 2));
+      }
+
       expect(response.status).toBe(200);
       expect(data.id).toBe("contact-123");
       expect(data).toHaveProperty("notes");
@@ -259,7 +344,7 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should return 404 for non-existent contact", async () => {
       const { getContactWithNotesService } = await import("@/server/services/contacts.service");
-      vi.mocked(getContactWithNotesService).mockResolvedValueOnce(null);
+      vi.mocked(getContactWithNotesService).mockRejectedValueOnce(new Error("Contact not found"));
 
       const request = new Request("http://localhost:3000/api/contacts/non-existent");
       const context = makeRouteContext({ contactId: "non-existent" });
@@ -283,12 +368,13 @@ describe("Contacts API Routes - Unit Tests", () => {
   describe("PUT /api/contacts/[contactId]", () => {
     it("should update contact", async () => {
       const { updateContactService } = await import("@/server/services/contacts.service");
-      vi.mocked(updateContactService).mockResolvedValueOnce({
-        id: "contact-123",
-        userId: testUtils.defaultUserId,
-        displayName: "Updated Name",
-        primaryEmail: "updated@example.com",
-      });
+      vi.mocked(updateContactService).mockResolvedValueOnce(
+        createMockContact({
+          id: "contact-123",
+          displayName: "Updated Name",
+          primaryEmail: "updated@example.com",
+        }),
+      );
 
       const updateData = {
         displayName: "Updated Name",
@@ -312,7 +398,7 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should return 404 for non-existent contact", async () => {
       const { updateContactService } = await import("@/server/services/contacts.service");
-      vi.mocked(updateContactService).mockResolvedValueOnce(null);
+      vi.mocked(updateContactService).mockRejectedValueOnce(new Error("Contact not found"));
 
       const request = new Request("http://localhost:3000/api/contacts/non-existent", {
         method: "PUT",
@@ -411,9 +497,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       vi.mocked(countContactsService).mockResolvedValueOnce(42);
 
       const request = new Request("http://localhost:3000/api/contacts/count");
-      const context = makeRouteContext();
 
-      const response = await getContactCount(request, context);
+      const response = await getContactCount(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -426,9 +511,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       vi.mocked(countContactsService).mockResolvedValueOnce(5);
 
       const request = new Request("http://localhost:3000/api/contacts/count?search=john");
-      const context = makeRouteContext();
 
-      await getContactCount(request, context);
+      await getContactCount(request);
 
       expect(countContactsService).toHaveBeenCalledWith(testUtils.defaultUserId, "john");
     });
@@ -438,9 +522,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       vi.mocked(countContactsService).mockResolvedValueOnce(0);
 
       const request = new Request("http://localhost:3000/api/contacts/count");
-      const context = makeRouteContext();
 
-      const response = await getContactCount(request, context);
+      const response = await getContactCount(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -452,9 +535,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
 
       const request = new Request("http://localhost:3000/api/contacts/count");
-      const context = makeRouteContext();
 
-      const response = await getContactCount(request, context);
+      const response = await getContactCount(request);
       expect(response.status).toBe(401);
     });
   });
@@ -464,7 +546,7 @@ describe("Contacts API Routes - Unit Tests", () => {
       const { deleteContactsBulk } = await import("@/server/services/contacts.service");
       vi.mocked(deleteContactsBulk).mockResolvedValueOnce({
         deleted: 3,
-        failed: [],
+        errors: [],
       });
 
       const bulkData = {
@@ -476,15 +558,14 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(bulkData),
       });
-      const context = makeRouteContext();
 
-      const response = await bulkDeleteContacts(request, context);
+      const response = await bulkDeleteContacts(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data).toHaveProperty("deleted");
       expect(data.deleted).toBe(3);
-      expect(data.failed).toEqual([]);
+      expect(data.errors).toEqual([]);
     });
 
     it("should validate contactIds array", async () => {
@@ -497,9 +578,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
-      const context = makeRouteContext();
 
-      const response = await bulkDeleteContacts(request, context);
+      const response = await bulkDeleteContacts(request);
       expect(response.status).toBe(400);
     });
 
@@ -513,9 +593,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
-      const context = makeRouteContext();
 
-      const response = await bulkDeleteContacts(request, context);
+      const response = await bulkDeleteContacts(request);
       expect(response.status).toBe(400);
     });
 
@@ -523,7 +602,7 @@ describe("Contacts API Routes - Unit Tests", () => {
       const { deleteContactsBulk } = await import("@/server/services/contacts.service");
       vi.mocked(deleteContactsBulk).mockResolvedValueOnce({
         deleted: 2,
-        failed: [{ id: "contact-3", error: "Not found" }],
+        errors: [{ id: "contact-3", error: "Not found" }],
       });
 
       const bulkData = {
@@ -535,14 +614,13 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(bulkData),
       });
-      const context = makeRouteContext();
 
-      const response = await bulkDeleteContacts(request, context);
+      const response = await bulkDeleteContacts(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data.deleted).toBe(2);
-      expect(data.failed).toHaveLength(1);
+      expect(data.errors).toHaveLength(1);
     });
 
     it("should require authentication", async () => {
@@ -554,9 +632,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ contactIds: ["test"] }),
       });
-      const context = makeRouteContext();
 
-      const response = await bulkDeleteContacts(request, context);
+      const response = await bulkDeleteContacts(request);
       expect(response.status).toBe(401);
     });
   });
@@ -573,9 +650,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       ]);
 
       const request = new Request("http://localhost:3000/api/contacts/suggestions");
-      const context = makeRouteContext();
 
-      const response = await getContactSuggestions(request, context);
+      const response = await getContactSuggestions(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -589,9 +665,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       vi.mocked(getContactSuggestionsService).mockResolvedValueOnce([]);
 
       const request = new Request("http://localhost:3000/api/contacts/suggestions");
-      const context = makeRouteContext();
 
-      const response = await getContactSuggestions(request, context);
+      const response = await getContactSuggestions(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -606,8 +681,8 @@ describe("Contacts API Routes - Unit Tests", () => {
       );
       vi.mocked(createContactsFromSuggestionsService).mockResolvedValueOnce({
         contacts: [
-          { id: "contact-1", displayName: "New Contact 1" },
-          { id: "contact-2", displayName: "New Contact 2" },
+          createMockContact({ id: "contact-1", displayName: "New Contact 1" }),
+          createMockContact({ id: "contact-2", displayName: "New Contact 2" }),
         ],
         createdCount: 2,
       });
@@ -621,9 +696,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(suggestionData),
       });
-      const context = makeRouteContext();
 
-      const response = await createFromSuggestions(request, context);
+      const response = await createFromSuggestions(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -643,9 +717,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
-      const context = makeRouteContext();
 
-      const response = await createFromSuggestions(request, context);
+      const response = await createFromSuggestions(request);
       expect(response.status).toBe(400);
     });
 
@@ -660,9 +733,8 @@ describe("Contacts API Routes - Unit Tests", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(invalidData),
       });
-      const context = makeRouteContext();
 
-      const response = await createFromSuggestions(request, context);
+      const response = await createFromSuggestions(request);
       expect(response.status).toBe(400);
     });
   });

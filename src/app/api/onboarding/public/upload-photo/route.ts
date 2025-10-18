@@ -23,8 +23,17 @@ export async function POST(request: Request): Promise<Response> {
 
     return Response.json(validated);
   } catch (error) {
-    console.error("Photo upload error:", error);
-    const message = error instanceof Error ? error.message : "Upload failed";
-    return Response.json({ error: message }, { status: 500 });
+    // Log error with structured logging
+    const { logError } = await import("@/server/lib/structured-logger");
+    logError(
+      "Photo upload error",
+      {
+        operation: "photo_upload",
+        endpoint: "/api/onboarding/public/upload-photo",
+      },
+      error,
+    );
+
+    return Response.json({ error: "Upload failed" }, { status: 500 });
   }
 }

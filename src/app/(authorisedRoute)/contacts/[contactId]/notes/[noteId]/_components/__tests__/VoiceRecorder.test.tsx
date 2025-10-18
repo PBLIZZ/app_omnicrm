@@ -12,7 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { VoiceRecorder } from "../VoiceRecorder";
+import { VoiceRecorder } from "../../../app/(authorisedRoute)/contacts/[contactId]/notes/[noteId]/_components/VoiceRecorder";
 
 /**
  * Mock MediaRecorder API

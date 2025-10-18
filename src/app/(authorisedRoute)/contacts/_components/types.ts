@@ -15,7 +15,6 @@ import type {
   ContactListResponse,
   CreateContactBody,
   ContactAIInsightsResponse,
-  ContactWithLastNote,
 } from "@/server/db/business-schemas/contacts";
 import type { ContactWithNotes } from "@/server/db/schema";
 
@@ -32,7 +31,6 @@ export type {
   CreateContactBody,
   UpdateContactBody,
   ContactAIInsightsResponse,
-  ContactWithLastNote,
   ContactWithNotes,
 };
 

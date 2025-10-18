@@ -66,9 +66,7 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
       //   tags: ["wellness"],
       //   confidenceScore: "0.85",
       // };
-
       // const result = toContact(testRow);
-
       // // These will fail if adapter doesn't preserve fields
       // expect(result).toHaveProperty("lifecycleStage");
       // expect(result).toHaveProperty("tags");
@@ -98,7 +96,7 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
           dateOfBirth: client.dateOfBirth,
           emergencyContactName: client.emergencyContactName,
           emergencyContactPhone: client.emergencyContactPhone,
-          clientStatus: client.contactStatus,
+          clientStatus: client.clientStatus,
           referralSource: client.referralSource,
           address: client.address,
           healthContext: client.healthContext,

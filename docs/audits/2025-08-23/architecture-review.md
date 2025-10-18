@@ -22,7 +22,7 @@ The job processing system demonstrates sophisticated architectural patterns with
 
 The job processing system implements a **multi-layered distributed architecture** with the following key components:
 
-```
+```bash
 ┌─────────────────────────────────────────────────────────────┐
 │                    API Layer                                │
 │  /api/jobs/runner (HTTP) → ParallelJobProcessor            │
@@ -107,6 +107,7 @@ The job processing system implements a **multi-layered distributed architecture*
    - **Mitigation**: Implement circuit breakers, consider event sourcing
 
 2. **Type Safety Gaps**
+
    ```typescript
    // Problematic: Runtime type checking for job payloads
    export function isJobRow(job: unknown): job is MinimalJob;
@@ -180,6 +181,7 @@ const GMAIL_CHUNK_DEFAULT = 50; // May exceed rate limits
    ```
 
 2. **Add Circuit Breaker Pattern**
+
    ```typescript
    const circuitBreaker = new CircuitBreaker(googleAPICall, {
      timeout: 10000,
@@ -230,6 +232,7 @@ const GMAIL_CHUNK_DEFAULT = 50; // May exceed rate limits
    - **Risk**: Accumulation of permanently failed jobs
 
 2. **Limited Error Context**
+
    ```typescript
    lastError: text("last_error"), // Only stores error message
    ```
@@ -264,6 +267,7 @@ const GMAIL_CHUNK_DEFAULT = 50; // May exceed rate limits
    ```
 
 2. **Enhanced Error Context**
+
    ```typescript
    interface JobError {
      message: string;
@@ -282,7 +286,7 @@ const GMAIL_CHUNK_DEFAULT = 50; // May exceed rate limits
 
 **Overall Score**: ⭐⭐⭐ (Moderate)
 
-#### Strengths
+#### Code Organization Strengths
 
 1. **Clear Separation of Concerns**
    - Distinct modules for dependency management, scaling, scheduling
@@ -304,12 +308,13 @@ const GMAIL_CHUNK_DEFAULT = 50; // May exceed rate limits
 
 #### Maintainability Concerns
 
-#### CRITICAL Issues
+#### Code Organization Critical Issues
 
 1. **High Cyclomatic Complexity**
    - `ParallelJobProcessor.processJobs()`: 100+ lines with multiple nested conditions
    - `HorizontalScalingManager.analyzeScalingNeeds()`: Complex decision tree
 2. **Tight Coupling**
+
    ```typescript
    // Example: ParallelJobProcessor directly imports multiple managers
    import { JobDependencyManager } from "./dependency-manager";
@@ -317,7 +322,7 @@ const GMAIL_CHUNK_DEFAULT = 50; // May exceed rate limits
    import { WorkerPool, JobScheduler, JobMetricsCollector } from "./scheduling";
    ```
 
-#### HIGH Issues
+#### Code Organization High Issues
 
 1. **Inconsistent Error Handling**
    - Mix of try/catch blocks and Promise.allSettled()
@@ -344,6 +349,7 @@ const GMAIL_CHUNK_DEFAULT = 50; // May exceed rate limits
    ```
 
 2. **Implement Service Locator Pattern**
+
    ```typescript
    class JobProcessingServices {
      constructor(
@@ -493,7 +499,7 @@ log.info(
 
 **Assessment**: ⭐⭐⭐ (Moderate)
 
-#### Strengths
+#### Security Architecture Strengths
 
 1. **User Isolation**
    - All job processing scoped to authenticated users

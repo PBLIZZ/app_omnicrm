@@ -25,7 +25,7 @@ The OmniCRM system has undergone substantial architectural evolution since the A
 
 The system has evolved from a complex multi-layered distributed architecture to a **clean layered monolith** with clear service boundaries and microservice-ready patterns.
 
-```
+```bash
 ┌─────────────────────────────────────────────────────────────┐
 │                    Client Layer (React)                    │
 │  • Next.js 15 App Router                                  │
@@ -517,6 +517,7 @@ const RATE_LIMIT_RPM = Number(process.env["API_RATE_LIMIT_PER_MIN"] ?? 60);
    ```
 
 2. **API Performance Monitoring**
+
    ```typescript
    // Add response time monitoring
    const startTime = Date.now();
@@ -560,7 +561,7 @@ The codebase demonstrates excellent organizational patterns:
 
 **Directory Structure**:
 
-```
+```bash
 src/
 ├── app/                    # Next.js routing (clear separation)
 ├── components/             # Reusable UI components

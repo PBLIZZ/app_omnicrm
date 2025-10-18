@@ -33,6 +33,27 @@ interface InteractionWithMeta {
   subject: string | null;
 }
 
+function isInteractionWithMeta(data: unknown): data is InteractionWithMeta {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "id" in data &&
+    typeof (data as Record<string, unknown>).id === "string" &&
+    "source" in data &&
+    typeof (data as Record<string, unknown>).source === "string" &&
+    "source_id" in data &&
+    typeof (data as Record<string, unknown>).source_id === "string" &&
+    "source_meta" in data &&
+    typeof (data as Record<string, unknown>).source_meta === "object" &&
+    "body_text" in data &&
+    ((data as Record<string, unknown>).body_text === null ||
+      typeof (data as Record<string, unknown>).body_text === "string") &&
+    "subject" in data &&
+    ((data as Record<string, unknown>).subject === null ||
+      typeof (data as Record<string, unknown>).subject === "string")
+  );
+}
+
 /**
  * Contact extraction processor - extracts and links contacts from interactions.
  * Migrated from contact-resolver.ts to follow the new job processing pattern.
@@ -179,7 +200,10 @@ async function processInteraction(
       return { success: false, error: "Invalid interaction data" };
     }
 
-    const interaction = interactionData as unknown as InteractionWithMeta;
+    if (!isInteractionWithMeta(interactionData)) {
+      return { success: false, error: "Invalid interaction data structure" };
+    }
+    const interaction = interactionData;
 
     // Extract candidate identities from interaction
     const candidateIdentities = extractCandidateIdentities(interaction);
@@ -443,12 +467,26 @@ async function getUnlinkedInteractions(
     LIMIT ${limit}
   `);
 
-  const typedResult = result as unknown as Array<{ id: string; source: string; source_id: string }>;
-  return typedResult.map((item) => ({
-    id: item.id,
-    source: item.source,
-    sourceId: item.source_id,
-  }));
+  if (!Array.isArray(result)) {
+    throw new Error("Expected array result from database query");
+  }
+
+  return result.map((item) => {
+    if (
+      typeof item !== "object" ||
+      item === null ||
+      !("id" in item) ||
+      !("source" in item) ||
+      !("source_id" in item)
+    ) {
+      throw new Error("Invalid database result structure");
+    }
+    return {
+      id: String(item.id),
+      source: String(item.source),
+      sourceId: String(item.source_id),
+    };
+  });
 }
 
 /**

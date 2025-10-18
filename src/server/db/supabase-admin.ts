@@ -18,11 +18,11 @@ interface PostgresError extends Error {
 function isPostgresError(error: unknown): error is PostgresError {
   if (!(error instanceof Error)) return false;
 
-  const errorObj = error as unknown as Record<string, string>;
+  // Check if error has PostgreSQL-specific properties
   return (
-    typeof errorObj["code"] === "string" ||
-    typeof errorObj["details"] === "string" ||
-    typeof errorObj["hint"] === "string"
+    ("code" in error && typeof error.code === "string") ||
+    ("details" in error && typeof error.details === "string") ||
+    ("hint" in error && typeof error.hint === "string")
   );
 }
 import type {

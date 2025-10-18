@@ -110,7 +110,11 @@ export async function deleteUserDataService(
 
   // Start transaction for atomic deletion
   const deletionResults = await db.transaction(async (tx) => {
-    const txExecutor = tx as unknown as DbClient;
+    // Type guard to ensure tx is compatible with DbClient
+    if (!tx || typeof tx !== "object") {
+      throw new Error("Invalid transaction object");
+    }
+    const txExecutor = tx as DbClient;
     const results: Record<string, number> = {};
 
     // Delete in reverse dependency order to avoid foreign key constraints

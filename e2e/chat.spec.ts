@@ -12,7 +12,10 @@ test("chat endpoint requires CSRF and auth", async ({ request }) => {
     .map((h) => h.value);
   const csrfCookie = setCookies.find((v) => v.startsWith("csrf="));
   expect(csrfCookie).toBeTruthy();
-  const csrf = csrfCookie!.split(";")[0].split("=")[1];
+  if (!csrfCookie) {
+    throw new Error("CSRF cookie not found in response");
+  }
+  const csrf = csrfCookie.split(";")[0].split("=")[1];
 
   // With CSRF but no auth -> 401
   const unauth = await request.post("/api/chat", {

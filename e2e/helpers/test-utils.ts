@@ -69,7 +69,10 @@ export async function getCsrfToken(request: APIRequestContext): Promise<string> 
     .map((h) => h.value);
   const csrfCookie = setCookies.find((v) => v.startsWith("csrf="));
   expect(csrfCookie).toBeTruthy();
-  return csrfCookie!.split(";")[0].split("=")[1];
+  if (!csrfCookie) {
+    throw new Error("CSRF cookie not found in response");
+  }
+  return csrfCookie.split(";")[0].split("=")[1];
 }
 
 /**
@@ -114,7 +117,7 @@ export async function getConnectionStatus(request: APIRequestContext): Promise<S
 export async function waitForConnectionStatus(
   page: Page,
   expected: { isConnected: boolean },
-  timeout = 30000
+  timeout = 30000,
 ): Promise<void> {
   await page.waitForFunction(
     (expectedConnected) => {
@@ -125,7 +128,7 @@ export async function waitForConnectionStatus(
       return isConnected === expectedConnected;
     },
     expected.isConnected,
-    { timeout }
+    { timeout },
   );
 }
 
@@ -152,7 +155,7 @@ export async function completePreferencesSetup(
     timeRange?: "7d" | "30d" | "90d" | "365d";
     calendars?: string[];
     includeFolders?: string[];
-  } = {}
+  } = {},
 ): Promise<void> {
   // Wait for preferences modal to appear
   const modal = page.locator('[data-testid="preferences-modal"]');
@@ -190,7 +193,7 @@ export async function completePreferencesSetup(
  */
 export async function waitForSyncCompletion(
   page: Page,
-  timeout = 120000
+  timeout = 120000,
 ): Promise<SyncProgressUpdate> {
   const progressModal = page.locator('[data-testid="sync-progress-modal"]');
   await expect(progressModal).toBeVisible();
@@ -200,10 +203,12 @@ export async function waitForSyncCompletion(
   // Monitor progress updates
   await page.waitForFunction(
     () => {
-      const progressText = document.querySelector('[data-testid="sync-progress-text"]')?.textContent;
+      const progressText = document.querySelector(
+        '[data-testid="sync-progress-text"]',
+      )?.textContent;
       return progressText?.includes("completed") || progressText?.includes("error");
     },
-    { timeout }
+    { timeout },
   );
 
   // Get final status
@@ -224,7 +229,7 @@ export async function waitForSyncCompletion(
  */
 export async function verifyEmailImport(
   request: APIRequestContext,
-  expectedCount: number
+  expectedCount: number,
 ): Promise<void> {
   const response = await request.get("/api/omni-connect/dashboard");
   expect(response.status()).toBe(200);
@@ -235,7 +240,7 @@ export async function verifyEmailImport(
 
 export async function verifyCalendarImport(
   request: APIRequestContext,
-  expectedCount: number
+  expectedCount: number,
 ): Promise<void> {
   const response = await request.get("/api/google/calendar/events");
   expect(response.status()).toBe(200);
@@ -244,10 +249,7 @@ export async function verifyCalendarImport(
   expect(data.events).toHaveLength(expectedCount);
 }
 
-export async function verifyDataPersistence(
-  page: Page,
-  request: APIRequestContext
-): Promise<void> {
+export async function verifyDataPersistence(page: Page, request: APIRequestContext): Promise<void> {
   // Refresh page
   await page.reload();
   await page.waitForLoadState("networkidle");
@@ -304,7 +306,7 @@ export async function measureSyncTime(page: Page): Promise<number> {
  */
 export async function validateRawEventsCount(
   request: APIRequestContext,
-  expectedCount: number
+  expectedCount: number,
 ): Promise<void> {
   const csrf = await getCsrfToken(request);
 
@@ -320,7 +322,7 @@ export async function validateRawEventsCount(
 export async function validateProcessedDataCount(
   request: APIRequestContext,
   service: "gmail" | "calendar",
-  expectedCount: number
+  expectedCount: number,
 ): Promise<void> {
   const csrf = await getCsrfToken(request);
 
@@ -337,10 +339,7 @@ export async function validateProcessedDataCount(
 /**
  * Error Recovery Testing
  */
-export async function testErrorRecovery(
-  page: Page,
-  request: APIRequestContext
-): Promise<void> {
+export async function testErrorRecovery(page: Page, request: APIRequestContext): Promise<void> {
   // Navigate to error recovery page/modal
   const errorButton = page.locator('[data-testid="view-errors-button"]');
   await errorButton.click();

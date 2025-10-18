@@ -136,8 +136,11 @@ describe("Testing Package Demo", () => {
       const result = await fakes.contacts.createContact(userId, values);
 
       expect(result).not.toBeNull();
-      expect(result!.displayName).toBe("Custom Created Contact");
-      expect(result!.source).toBe("manual");
+      if (!result) {
+        throw new Error("Expected result to not be null");
+      }
+      expect(result.displayName).toBe("Custom Created Contact");
+      expect(result.source).toBe("manual");
       expect(fakes.contacts.createContact).toHaveBeenCalledWith(userId, values);
     });
   });

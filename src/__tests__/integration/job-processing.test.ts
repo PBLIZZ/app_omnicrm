@@ -788,21 +788,32 @@ describe("Background Job Processing Integration Tests", () => {
           .limit(1);
 
         // Create structured data from raw events
-        if (rawEvent[0]!.provider === "gmail") {
-          const interaction = await db
-            .insert(interactions)
-            .values({
-              userId: testUserId,
-              type: "email",
-              subject: (rawEvent[0]!.payload as any).subject,
-              bodyText: (rawEvent[0]!.payload as any).body,
-              occurredAt: rawEvent[0]!.occurredAt,
-              source: "gmail",
-              sourceId: (rawEvent[0]!.payload as any).messageId,
-            })
-            .returning();
+        if (rawEvent[0]?.provider === "gmail") {
+          const payload = rawEvent[0].payload;
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "subject" in payload &&
+            "body" in payload &&
+            "messageId" in payload
+          ) {
+            const interaction = await db
+              .insert(interactions)
+              .values({
+                userId: testUserId,
+                type: "email",
+                subject: String(payload.subject),
+                bodyText: String(payload.body),
+                occurredAt: rawEvent[0].occurredAt,
+                source: "gmail",
+                sourceId: String(payload.messageId),
+              })
+              .returning();
 
-          trackForCleanup("interactions", interaction[0]!.id);
+            if (interaction[0]) {
+              trackForCleanup("interactions", interaction[0].id);
+            }
+          }
         }
 
         await db

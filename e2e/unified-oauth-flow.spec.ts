@@ -1,6 +1,6 @@
 /**
  * Tests for the new unified OAuth flow and real-time contact sync
- * 
+ *
  * This test suite focuses on the new implementation that should replace
  * the broken existing flows. Tests the complete path from OAuth to
  * real-time contact creation via SSE.
@@ -17,17 +17,20 @@ async function getCsrf(request: APIRequestContext): Promise<string> {
     .map((h) => h.value);
   const csrfCookie = setCookies.find((v) => v.startsWith("csrf="));
   expect(csrfCookie).toBeTruthy();
-  return csrfCookie!.split(";")[0].split("=")[1];
+  if (!csrfCookie) {
+    throw new Error("CSRF cookie not found in response");
+  }
+  return csrfCookie.split(";")[0].split("=")[1];
 }
 
 test.describe("Unified OAuth Flow Tests", () => {
   test("OAuth initiation flow /api/google/connect", async ({ request, context }) => {
     test.skip(!process.env["DATABASE_URL"], "No DATABASE_URL; skipping OAuth tests");
-    
+
     // Test unauthenticated request (should get 401)
     const unauthResponse = await request.get("/api/google/connect");
     expect(unauthResponse.status()).toBe(401);
-    
+
     // For authenticated test, we'd need proper auth setup
     // This documents the expected behavior
     console.log(`
@@ -42,21 +45,21 @@ test.describe("Unified OAuth Flow Tests", () => {
 
   test("OAuth callback validation /api/google/connect/callback", async ({ request }) => {
     test.skip(!process.env["DATABASE_URL"], "No DATABASE_URL; skipping OAuth callback tests");
-    
+
     // Test various invalid callback scenarios
     const testCases = [
       { query: "", expectedStatus: 400, description: "No parameters" },
       { query: "?code=test", expectedStatus: 400, description: "Missing state" },
       { query: "?state=test", expectedStatus: 400, description: "Missing code" },
-      { query: "?code=test&state=invalid", expectedStatus: 400, description: "Invalid state" }
+      { query: "?code=test&state=invalid", expectedStatus: 400, description: "Invalid state" },
     ];
-    
+
     for (const testCase of testCases) {
       const response = await request.get(`/api/google/connect/callback${testCase.query}`);
       expect(response.status()).toBe(testCase.expectedStatus);
       console.log(`✓ ${testCase.description}: ${response.status()}`);
     }
-    
+
     console.log(`
     OAuth Callback Security Validation:
     - All invalid requests properly rejected with 400
@@ -67,7 +70,7 @@ test.describe("Unified OAuth Flow Tests", () => {
 
   test("Service token storage as 'unified' type", async ({ request }) => {
     test.skip(!process.env["DATABASE_URL"], "No DATABASE_URL; skipping database tests");
-    
+
     console.log(`
     Service Token Storage Test:
     - New OAuth flow stores tokens with service='unified'
@@ -90,16 +93,16 @@ test.describe("Unified OAuth Flow Tests", () => {
 test.describe("SSE Contact Stream Tests", () => {
   test("SSE endpoint configuration /api/contacts/stream", async ({ request }) => {
     test.skip(!process.env["DATABASE_URL"], "No DATABASE_URL; skipping SSE tests");
-    
+
     const response = await request.get("/api/contacts/stream");
-    
+
     if (response.status() === 401) {
       console.log("✓ SSE endpoint properly protected with authentication");
     } else if (response.status() === 200) {
       const contentType = response.headers()["content-type"];
       expect(contentType).toContain("text/event-stream");
       console.log("✓ SSE endpoint returns proper event-stream content type");
-      
+
       // Test SSE headers
       expect(response.headers()["cache-control"]).toBe("no-cache");
       expect(response.headers()["connection"]).toBe("keep-alive");
@@ -110,20 +113,22 @@ test.describe("SSE Contact Stream Tests", () => {
   test("Frontend SSE integration readiness", async ({ page }) => {
     // Test if frontend is ready for SSE integration
     await page.goto("/dashboard/connect");
-    
+
     const hasEventSource = await page.evaluate(() => {
-      return typeof window.EventSource !== 'undefined';
+      return typeof window.EventSource !== "undefined";
     });
-    
+
     expect(hasEventSource).toBe(true);
     console.log("✓ Browser EventSource API available");
-    
+
     // Check if any existing code uses SSE
     const hasSSECode = await page.evaluate(() => {
-      return document.documentElement.innerHTML.includes('EventSource') ||
-             document.documentElement.innerHTML.includes('text/event-stream');
+      return (
+        document.documentElement.innerHTML.includes("EventSource") ||
+        document.documentElement.innerHTML.includes("text/event-stream")
+      );
     });
-    
+
     console.log(`Frontend SSE Integration Status:
       - EventSource API available: ${hasEventSource}
       - Existing SSE code found: ${hasSSECode}
@@ -135,7 +140,7 @@ test.describe("SSE Contact Stream Tests", () => {
 test.describe("Real-time Contact Creation Flow", () => {
   test("Complete flow simulation", async ({ page, request }) => {
     test.skip(!process.env["DATABASE_URL"], "No DATABASE_URL; skipping flow simulation");
-    
+
     console.log(`
     COMPLETE REAL-TIME CONTACT CREATION FLOW:
     
@@ -212,25 +217,25 @@ test.describe("Real-time Contact Creation Flow", () => {
 test.describe("Error Handling and Recovery", () => {
   test("google_not_connected error scenarios", async ({ request }) => {
     test.skip(!process.env["DATABASE_URL"], "No DATABASE_URL; skipping error tests");
-    
+
     const csrf = await getCsrf(request);
-    
+
     // Test APIs that might throw google_not_connected
     const apiEndpoints = [
       "/api/sync/preview/gmail",
-      "/api/sync/approve/gmail", 
+      "/api/sync/approve/gmail",
       "/api/sync/preview/calendar",
-      "/api/sync/approve/calendar"
+      "/api/sync/approve/calendar",
     ];
-    
+
     for (const endpoint of apiEndpoints) {
       const response = await request.post(endpoint, {
         headers: { "x-csrf-token": csrf },
-        data: {}
+        data: {},
       });
-      
+
       console.log(`${endpoint}: ${response.status()}`);
-      
+
       if (response.status() !== 200) {
         const errorText = await response.text();
         if (errorText.includes("google_not_connected")) {
@@ -243,10 +248,12 @@ test.describe("Error Handling and Recovery", () => {
   test("Frontend error handling patterns", async ({ page }) => {
     // Check how frontend handles connection errors
     await page.goto("/dashboard/connect");
-    
+
     // Look for error handling patterns in the page
-    const errorHandlingElements = await page.locator('.text-red-500, .text-destructive, [role="alert"]').count();
-    
+    const errorHandlingElements = await page
+      .locator('.text-red-500, .text-destructive, [role="alert"]')
+      .count();
+
     console.log(`Frontend Error Handling Analysis:
       - Error display elements found: ${errorHandlingElements}
       - Need consistent error handling for:

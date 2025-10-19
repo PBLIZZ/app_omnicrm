@@ -1,111 +1,103 @@
-import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
+import { handleAuth, handleGetWithQueryAuth } from "@/lib/api";
 import {
   getInboxStatsService,
-  extractFilterParams,
   listInboxItemsService,
   quickCaptureService,
-  voiceCaptureService,
-  bulkProcessInboxService,
 } from "@/server/services/inbox.service";
-import {
-  GetInboxQuerySchema,
-  InboxListResponseSchema,
-  InboxStatsResponseSchema,
-  InboxPostRequestSchema,
-  InboxItemResponseSchema,
-  InboxProcessResultResponseSchema,
-} from "@/server/db/business-schemas";
+import { intelligentQuickCaptureService } from "@/server/services/enhanced-inbox.service";
 import { z } from "zod";
 
-/**
- * Inbox API - Quick capture and list inbox items
- *
- * This API handles the "dump everything" inbox where wellness practitioners
- * can quickly capture thoughts/tasks for AI processing later.
- */
+// Schema for query parameters
+const InboxQuerySchema = z.object({
+  status: z.array(z.string()).optional(),
+  stats: z.string().optional(),
+});
+
+// Response schemas
+const InboxListResponseSchema = z.object({
+  items: z.array(z.any()),
+  total: z.number(),
+});
+
+const InboxStatsResponseSchema = z.object({
+  total: z.number(),
+  unprocessed: z.number(),
+  processed: z.number(),
+  archived: z.number(),
+  recentActivity: z.number(),
+});
+
+// Schema for creating inbox items
+const CreateInboxItemSchema = z.object({
+  content: z.string().min(1, "Content is required"),
+  source: z.string().optional(),
+  priority: z.enum(["low", "medium", "high"]).optional().default("medium"),
+  tags: z.array(z.string()).optional().default([]),
+  enableIntelligentProcessing: z.boolean().optional().default(false),
+});
+
+// Schema for single inbox item response
+const InboxItemResponseSchema = z.object({
+  item: z.any(),
+});
 
 /**
- * Transform URL query strings to typed parameters
- * Business logic: Convert string dates and booleans to proper types
+ * GET /api/omni-momentum/inbox - Get inbox items with optional filtering
  */
-function transformQueryParams(query: z.infer<typeof GetInboxQuerySchema>): {
-  status?: ("unprocessed" | "processed" | "archived")[] | undefined;
-  search?: string | undefined;
-  createdAfter?: Date | undefined;
-  createdBefore?: Date | undefined;
-  hasAiSuggestions?: boolean | undefined;
-  stats?: boolean | undefined;
-} {
-  return {
-    ...query,
-    createdAfter: query.createdAfter ? new Date(query.createdAfter) : undefined,
-    createdBefore: query.createdBefore ? new Date(query.createdBefore) : undefined,
-    hasAiSuggestions:
-      query.hasAiSuggestions === "true"
-        ? true
-        : query.hasAiSuggestions === "false"
-          ? false
-          : undefined,
-    stats: query.stats === "true" ? true : query.stats === "false" ? false : undefined,
-  };
-}
-
 export const GET = handleGetWithQueryAuth(
-  GetInboxQuerySchema,
-  InboxListResponseSchema.or(InboxStatsResponseSchema),
-  async (
-    query,
-    userId,
-  ): Promise<
-    z.infer<typeof InboxListResponseSchema> | z.infer<typeof InboxStatsResponseSchema>
-  > => {
-    const wantsStats = query.stats === "true"; // Check string directly
-
-    if (wantsStats) {
-      const stats = await getInboxStatsService(userId);
-      return { stats };
+  InboxQuerySchema,
+  z.union([InboxListResponseSchema, InboxStatsResponseSchema]),
+  async (query, userId) => {
+    if (query.stats === "true") {
+      // Return inbox statistics
+      return await getInboxStatsService(userId);
     }
 
-    const transformedQuery = transformQueryParams(query);
-    const filterParams = extractFilterParams(transformedQuery);
-    const items = await listInboxItemsService(userId, filterParams);
-    return {
-      items,
-      total: items.length,
-    };
+    // Get inbox items with filters
+    const filters: { status?: ("unprocessed" | "processed" | "archived")[] } = {};
+    if (query.status && query.status.length > 0) {
+      const isValidStatus = (s: string): s is "unprocessed" | "processed" | "archived" =>
+        ["unprocessed", "processed", "archived"].includes(s);
+
+      const validStatuses = query.status.filter(isValidStatus);
+      if (validStatuses.length > 0) {
+        filters.status = validStatuses;
+      }
+    }
+
+    return await listInboxItemsService(userId, filters);
   },
 );
 
+/**
+ * POST /api/omni-momentum/inbox - Create new inbox item
+ */
 export const POST = handleAuth(
-  InboxPostRequestSchema,
-  InboxItemResponseSchema.or(InboxProcessResultResponseSchema),
-  async (
-    requestData,
-    userId,
-  ): Promise<
-    z.infer<typeof InboxItemResponseSchema> | z.infer<typeof InboxProcessResultResponseSchema>
-  > => {
-    const { type, data } = requestData;
+  CreateInboxItemSchema,
+  InboxItemResponseSchema,
+  async (data, userId) => {
+    if (data.enableIntelligentProcessing) {
+      // Use intelligent processing queue
+      const result = await intelligentQuickCaptureService(userId, {
+        rawText: data.content,
+        enableIntelligentProcessing: true,
+        source: data.source || "manual",
+        priority: "medium",
+      });
 
-    switch (type) {
-      case "quick_capture": {
-        const item = await quickCaptureService(userId, data);
-        return { item };
-      }
+      return {
+        item: result.inboxItem,
+        queued: result.queued,
+        message: result.message,
+        queueStats: result.queueStats,
+      };
+    } else {
+      // Use standard processing
+      const item = await quickCaptureService(userId, {
+        rawText: data.content,
+      });
 
-      case "voice_capture": {
-        const item = await voiceCaptureService(userId, data);
-        return { item };
-      }
-
-      case "bulk_process": {
-        const result = await bulkProcessInboxService(userId, data);
-        return { result };
-      }
-
-      default: {
-        throw new Error("Invalid request type");
-      }
+      return { item };
     }
   },
 );

@@ -1,73 +1,81 @@
-import { and, desc, eq, ilike, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, count, sql } from "drizzle-orm";
 
-import { inboxItems } from "@/server/db/schema";
-import type { CreateInboxItem, InboxItem } from "@/server/db/schema";
+import { inboxItems, type CreateInboxItem, type InboxItem } from "@/server/db/schema";
 import type { DbClient } from "@/server/db/client";
 
-type InboxItemDTO = InboxItem;
-type CreateInboxItemDTO = CreateInboxItem;
-type UpdateInboxItemDTO = Partial<CreateInboxItem>;
 type InboxItemStatus = "unprocessed" | "processed" | "archived";
 
-export interface InboxFilters {
+export interface InboxListParams {
   status?: InboxItemStatus[];
   search?: string;
   createdAfter?: Date;
   createdBefore?: Date;
+  page?: number;
+  pageSize?: number;
+  sort?: "createdAt" | "updatedAt";
+  order?: "asc" | "desc";
 }
 
 export class InboxRepository {
   constructor(private readonly db: DbClient) {}
 
-  async listInboxItems(userId: string, filters: InboxFilters = {}): Promise<InboxItemDTO[]> {
+  async listInboxItems(
+    userId: string,
+    params: InboxListParams = {},
+  ): Promise<{ items: InboxItem[]; total: number }> {
+    const page = Math.max(params.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), 200);
+    const offset = (page - 1) * pageSize;
+    const sortKey = params.sort ?? "createdAt";
+    const sortDir = params.order === "asc" ? "asc" : "desc";
+
     const conditions = [eq(inboxItems.userId, userId)];
 
-    if (filters.status?.length) {
-      conditions.push(inArray(inboxItems.status, filters.status));
+    if (params.status?.length) {
+      conditions.push(inArray(inboxItems.status, params.status));
     }
 
-    if (filters.search) {
-      conditions.push(ilike(inboxItems.rawText, `%${filters.search}%`));
+    if (params.search) {
+      conditions.push(ilike(inboxItems.rawText, `%${params.search}%`));
     }
 
-    if (filters.createdAfter) {
-      conditions.push(sql`${inboxItems.createdAt} >= ${filters.createdAfter}`);
+    if (params.createdAfter) {
+      conditions.push(gte(inboxItems.createdAt, params.createdAfter));
     }
 
-    if (filters.createdBefore) {
-      conditions.push(sql`${inboxItems.createdAt} <= ${filters.createdBefore}`);
+    if (params.createdBefore) {
+      conditions.push(lte(inboxItems.createdAt, params.createdBefore));
     }
+
+    // Count total
+    const countResult = await this.db
+      .select({ count: count() })
+      .from(inboxItems)
+      .where(and(...conditions));
+
+    const totalRow = countResult[0];
+    const total = totalRow?.count ?? 0;
+
+    // Fetch items
+    const sortColumnMap = {
+      createdAt: inboxItems.createdAt,
+      updatedAt: inboxItems.updatedAt,
+    } as const;
 
     const rows = await this.db
-      .select({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      })
+      .select()
       .from(inboxItems)
       .where(and(...conditions))
-      .orderBy(desc(inboxItems.createdAt));
+      .orderBy(sortDir === "desc" ? desc(sortColumnMap[sortKey]) : sortColumnMap[sortKey])
+      .limit(pageSize)
+      .offset(offset);
 
-    return rows.map((row) => row);
+    return { items: rows, total };
   }
 
-  async getInboxItemById(userId: string, itemId: string): Promise<InboxItemDTO | null> {
+  async getInboxItem(userId: string, itemId: string): Promise<InboxItem | null> {
     const [row] = await this.db
-      .select({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      })
+      .select()
       .from(inboxItems)
       .where(and(eq(inboxItems.userId, userId), eq(inboxItems.id, itemId)))
       .limit(1);
@@ -75,7 +83,7 @@ export class InboxRepository {
     return row ?? null;
   }
 
-  async createInboxItem(data: CreateInboxItemDTO & { userId: string }): Promise<InboxItemDTO> {
+  async createInboxItem(data: CreateInboxItem & { userId: string }): Promise<InboxItem> {
     const [newItem] = await this.db
       .insert(inboxItems)
       .values({
@@ -85,16 +93,7 @@ export class InboxRepository {
         createdTaskId: null,
         processedAt: null,
       })
-      .returning({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      });
+      .returning();
 
     if (!newItem) {
       throw new Error("Failed to create inbox item - no data returned");
@@ -106,8 +105,8 @@ export class InboxRepository {
   async updateInboxItem(
     userId: string,
     itemId: string,
-    data: UpdateInboxItemDTO,
-  ): Promise<InboxItemDTO | null> {
+    data: Partial<CreateInboxItem>,
+  ): Promise<InboxItem | null> {
     const updateValues: Record<string, unknown> = {
       updatedAt: new Date(),
     };
@@ -129,16 +128,7 @@ export class InboxRepository {
       .update(inboxItems)
       .set(updateValues)
       .where(and(eq(inboxItems.userId, userId), eq(inboxItems.id, itemId)))
-      .returning({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      });
+      .returning();
 
     return updatedItem ?? null;
   }
@@ -156,7 +146,7 @@ export class InboxRepository {
     userId: string,
     itemIds: string[],
     status: InboxItemStatus,
-  ): Promise<InboxItemDTO[]> {
+  ): Promise<InboxItem[]> {
     if (itemIds.length === 0) {
       return [];
     }
@@ -169,18 +159,9 @@ export class InboxRepository {
         ...(status === "processed" ? { processedAt: new Date() } : {}),
       })
       .where(and(eq(inboxItems.userId, userId), inArray(inboxItems.id, itemIds)))
-      .returning({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      });
+      .returning();
 
-    return updatedItems.map((item) => item);
+    return updatedItems;
   }
 
   async bulkDeleteInboxItems(userId: string, itemIds: string[]): Promise<number> {
@@ -234,31 +215,22 @@ export class InboxRepository {
     return stats;
   }
 
-  async getUnprocessedItems(userId: string, limit = 10): Promise<InboxItemDTO[]> {
+  async getUnprocessedItems(userId: string, limit = 10): Promise<InboxItem[]> {
     const rows = await this.db
-      .select({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      })
+      .select()
       .from(inboxItems)
       .where(and(eq(inboxItems.userId, userId), eq(inboxItems.status, "unprocessed")))
       .orderBy(desc(inboxItems.createdAt))
       .limit(limit);
 
-    return rows.map((row) => row);
+    return rows;
   }
 
   async markAsProcessed(
     userId: string,
     itemId: string,
     createdTaskId?: string,
-  ): Promise<InboxItemDTO | null> {
+  ): Promise<InboxItem | null> {
     const [updatedItem] = await this.db
       .update(inboxItems)
       .set({
@@ -268,16 +240,7 @@ export class InboxRepository {
         ...(createdTaskId ? { createdTaskId } : {}),
       })
       .where(and(eq(inboxItems.userId, userId), eq(inboxItems.id, itemId)))
-      .returning({
-        id: inboxItems.id,
-        userId: inboxItems.userId,
-        rawText: inboxItems.rawText,
-        status: inboxItems.status,
-        createdTaskId: inboxItems.createdTaskId,
-        processedAt: inboxItems.processedAt,
-        createdAt: inboxItems.createdAt,
-        updatedAt: inboxItems.updatedAt,
-      });
+      .returning();
 
     return updatedItem ?? null;
   }

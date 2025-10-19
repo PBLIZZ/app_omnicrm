@@ -197,6 +197,7 @@ export const inboxItems = pgTable("inbox_items", {
   status: inboxItemStatusEnum("status").default("unprocessed").notNull(),
   processedAt: timestamp("processed_at", { withTimezone: true }),
   createdTaskId: uuid("created_task_id"),
+  details: jsonb("details"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
@@ -254,6 +255,34 @@ export const zones = pgTable("zones", {
   name: text("name").notNull(),
   color: text("color"),
   iconName: text("icon_name"),
+});
+
+// ============================================================================
+// HABITS - Wellness Habit Tracking
+// ============================================================================
+
+export const habits = pgTable("habits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  targetFrequency: text("target_frequency").notNull().default("daily"),
+  color: text("color").default("#10B981"),
+  iconName: text("icon_name").default("check-circle"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const habitCompletions = pgTable("habit_completions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  habitId: uuid("habit_id")
+    .notNull()
+    .references(() => habits.id, { onDelete: "cascade" }),
+  completedDate: date("completed_date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 // ============================================================================
@@ -550,6 +579,17 @@ export const toolInvocationsRelations = relations(toolInvocations, ({ one }) => 
   }),
 }));
 
+export const habitsRelations = relations(habits, ({ many }) => ({
+  completions: many(habitCompletions),
+}));
+
+export const habitCompletionsRelations = relations(habitCompletions, ({ one }) => ({
+  habit: one(habits, {
+    fields: [habitCompletions.habitId],
+    references: [habits.id],
+  }),
+}));
+
 // ============================================================================
 // TYPE EXPORTS - Inferred from Drizzle Schema
 // ============================================================================
@@ -634,7 +674,16 @@ export type ToolInvocation = typeof toolInvocations.$inferSelect;
 export type CreateToolInvocation = typeof toolInvocations.$inferInsert;
 export type UpdateToolInvocation = Partial<CreateToolInvocation>;
 
+export type Habit = typeof habits.$inferSelect;
+export type CreateHabit = typeof habits.$inferInsert;
+export type UpdateHabit = Partial<CreateHabit>;
+
+export type HabitCompletion = typeof habitCompletions.$inferSelect;
+export type CreateHabitCompletion = typeof habitCompletions.$inferInsert;
+export type UpdateHabitCompletion = Partial<CreateHabitCompletion>;
+
 // Extended types for common patterns
 export type ContactWithNotes = Contact & { notes: Note[] };
 export type ThreadWithMessages = Thread & { messages: Message[] };
 export type MessageWithTools = Message & { toolInvocations: ToolInvocation[] };
+export type HabitWithCompletions = Habit & { completions: HabitCompletion[] };

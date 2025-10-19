@@ -91,7 +91,7 @@ export type { SearchResultDTO, TraditionalSearchParams, SemanticSearchParams } f
 
 // OmniMomentum Repository classes
 export { InboxRepository, createInboxRepository } from "./inbox.repo";
-export type { InboxFilters } from "./inbox.repo";
+export type { InboxListParams } from "./inbox.repo";
 export { ZonesRepository, createZonesRepository } from "./zones.repo";
 
 // Re-export database schema types for convenience

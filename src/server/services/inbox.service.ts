@@ -6,7 +6,7 @@
  * life-business zones and convert them into actionable tasks.
  */
 import { createInboxRepository, createZonesRepository } from "@repo";
-import type { InboxFilters as RepoInboxFilters, InboxItem as RepoInboxItem } from "@repo";
+import type { InboxListParams as RepoInboxListParams, InboxItem as RepoInboxItem } from "@repo";
 import { logger } from "@/lib/observability";
 import { AppError } from "@/lib/errors/app-error";
 import type {
@@ -22,7 +22,7 @@ import { categorizeInboxItem } from "@/server/ai/connect/categorize-inbox-item";
 import type { InboxProcessingContext } from "@/server/db/business-schemas";
 import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
 
-export interface InboxFilters extends RepoInboxFilters {
+export interface InboxFilters extends RepoInboxListParams {
   hasAiSuggestions?: boolean;
 }
 
@@ -43,6 +43,7 @@ function mapToInboxItem(rawItem: RepoInboxItem): InboxItem {
     status: rawItem.status ?? "unprocessed",
     createdTaskId: rawItem.createdTaskId,
     processedAt: rawItem.processedAt,
+    details: null,
     createdAt: rawItem.createdAt ?? new Date(),
     updatedAt: rawItem.updatedAt ?? new Date(),
   };
@@ -127,15 +128,18 @@ export async function voiceCaptureService(
 export async function listInboxItemsService(
   userId: string,
   filters?: InboxFilters,
-): Promise<InboxItem[]> {
+): Promise<{ items: InboxItem[]; total: number }> {
   const db = await getDb();
   const inboxRepo = createInboxRepository(db);
 
   try {
     const { hasAiSuggestions: _ignored, ...repoFilters } = filters ?? {};
-    const rawItems = await inboxRepo.listInboxItems(userId, repoFilters as RepoInboxFilters);
+    const result = await inboxRepo.listInboxItems(userId, repoFilters as RepoInboxListParams);
 
-    return rawItems.map((item) => transformInboxItem(item));
+    return {
+      items: result.items.map((item) => transformInboxItem(item)),
+      total: result.total,
+    };
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : "Error listing inbox items",
@@ -207,7 +211,7 @@ export async function getInboxStatsService(userId: string): Promise<{
 
     return {
       ...stats,
-      recentActivity: recentItems.length,
+      recentActivity: recentItems.items.length,
     };
   } catch (error) {
     throw new AppError(
@@ -249,7 +253,7 @@ export async function getInboxItemService(
   const inboxRepo = createInboxRepository(db);
 
   try {
-    const rawItem = await inboxRepo.getInboxItemById(userId, itemId);
+    const rawItem = await inboxRepo.getInboxItem(userId, itemId);
     return rawItem ? transformInboxItem(rawItem) : null;
   } catch (error) {
     throw new AppError(
@@ -288,7 +292,7 @@ export async function updateInboxItemService(
 
     if (rest.status !== undefined && rest.status !== null) {
       updateData.status = rest.status;
-      
+
       // Business logic: Set processedAt when status changes to "processed"
       if (rest.status === "processed") {
         updateData.processedAt = new Date();
@@ -326,7 +330,7 @@ export async function processInboxItemService(
     // Check OpenRouter configuration first
     assertOpenRouterConfigured();
 
-    const rawItem = await inboxRepo.getInboxItemById(userId, data.itemId);
+    const rawItem = await inboxRepo.getInboxItem(userId, data.itemId);
     if (!rawItem) {
       throw new AppError("Inbox item not found", "NOT_FOUND", "database", false, 404);
     }
@@ -443,7 +447,7 @@ export async function bulkProcessInboxService(
     const results: InboxProcessingResultDTO[] = [];
 
     for (const itemId of data.itemIds) {
-      const rawItem = await inboxRepo.getInboxItemById(userId, itemId);
+      const rawItem = await inboxRepo.getInboxItem(userId, itemId);
       if (!rawItem || rawItem.status === "archived") {
         continue;
       }

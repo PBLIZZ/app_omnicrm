@@ -37,7 +37,13 @@ const baseSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_SESSION_TOKEN: z.string().optional(),
   // Sentry configuration for error tracking
-  NEXT_PUBLIC_SENTRY_DSN: z.string().url("Invalid NEXT_PUBLIC_SENTRY_DSN").optional(),
+  NEXT_PUBLIC_SENTRY_DSN: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || val.startsWith("https://"),
+      "NEXT_PUBLIC_SENTRY_DSN must be a valid Sentry DSN URL or empty",
+    ),
   SENTRY_ORG: z.string().optional(),
   SENTRY_PROJECT: z.string().optional(),
 });

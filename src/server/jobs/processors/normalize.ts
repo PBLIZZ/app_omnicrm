@@ -1,7 +1,7 @@
 import type { JobRecord } from "@/server/jobs/types";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
-import { rawEvents, calendarEvents } from "@/server/db/schema";
+import { rawEvents } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
 import { drizzleAdminGuard } from "@/server/db/admin";
 import type { RawEvent } from "@/server/db/schema";
@@ -24,6 +24,31 @@ function isBatchJobPayload(payload: unknown): payload is BatchJobPayload {
 
 // Use the imported validation function
 
+// Helper function to get or create system contact for unlinked interactions
+async function getOrCreateSystemContact(userId: string): Promise<string> {
+  const db = await getDb();
+
+  // Try to find existing system contact
+  const existingContact = await db.execute(sql`
+    SELECT id FROM contacts 
+    WHERE user_id = ${userId} AND display_name = 'System (Unlinked)'
+    LIMIT 1
+  `);
+
+  if (existingContact.length > 0 && existingContact[0]) {
+    return existingContact[0]["id"] as string;
+  }
+
+  // Create system contact
+  const systemContactId = crypto.randomUUID();
+  await db.execute(sql`
+    INSERT INTO contacts (id, user_id, display_name, created_at, updated_at)
+    VALUES (${systemContactId}, ${userId}, 'System (Unlinked)', NOW(), NOW())
+  `);
+
+  return systemContactId;
+}
+
 // No verbose logging here to keep normalization fast and predictable
 /**
  * Processor constraints:
@@ -40,6 +65,9 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
+
+  // Get or create system contact for unlinked interactions
+  const systemContactId = await getOrCreateSystemContact(job.userId);
 
   await logger.info("normalize_google_email_start", {
     operation: "normalize_data",
@@ -135,20 +163,19 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
         // Upsert the interaction with rich metadata
         await drizzleAdminGuard.upsert("interactions", {
           userId: job.userId,
-          contactId: null,
+          contactId: systemContactId,
           type: "email",
-          subject: subject ?? undefined,
-          bodyText: bodyText ?? undefined,
-          bodyRaw: null,
+          subject: subject ?? null,
+          bodyText: bodyText ?? null,
           occurredAt:
             event.occurredAt instanceof Date
               ? event.occurredAt
               : new Date(String(event.occurredAt)),
           source: "gmail",
-          sourceId: messageId ?? undefined,
+          sourceId: messageId ?? "",
           sourceMeta: enrichedSourceMeta as Record<string, unknown> | null | undefined,
-          batchId: event.batchId ?? undefined,
-        });
+          batchId: event.batchId ?? null,
+        } as any);
 
         itemsInserted++;
         itemsFetched++;
@@ -209,7 +236,7 @@ function extractThreadId(message: GmailPayload): string | null {
 }
 
 function extractFromEmail(message: GmailPayload): string | null {
-  const headers = message.payload?.headers ?? message.headers ?? [];
+  const headers = message.payload?.headers ?? [];
   const fromHeader = headers.find((h) => h.name && h.name.toLowerCase() === "from");
   if (!fromHeader?.value) return null;
 
@@ -219,7 +246,7 @@ function extractFromEmail(message: GmailPayload): string | null {
 }
 
 function extractToEmails(message: GmailPayload): string[] {
-  const headers = message.payload?.headers ?? message.headers ?? [];
+  const headers = message.payload?.headers ?? [];
   const toHeader = headers.find((h) => h.name && h.name.toLowerCase() === "to");
   if (!toHeader?.value) return [];
 
@@ -235,7 +262,7 @@ function extractToEmails(message: GmailPayload): string[] {
 }
 
 function extractSubject(message: GmailPayload): string | null {
-  const headers = message.payload?.headers ?? message.headers ?? [];
+  const headers = message.payload?.headers ?? [];
   const subjectHeader = headers.find((h) => h.name && h.name.toLowerCase() === "subject");
   return subjectHeader?.value ?? null;
 }
@@ -341,8 +368,11 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
   let itemsFetched = 0;
   let itemsInserted = 0;
   let itemsSkipped = 0;
+
+  // Get or create system contact for unlinked interactions
+  const systemContactId = await getOrCreateSystemContact(job.userId);
   // Build query conditions, filtering out undefined
-  const conditions = [eq(rawEvents.userId, job.userId), eq(rawEvents.provider, "google_calendar")];
+  const conditions = [eq(rawEvents.userId, job.userId), eq(rawEvents.provider, "calendar")];
 
   if (batchId) {
     conditions.push(eq(rawEvents.batchId, batchId));
@@ -396,20 +426,24 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         organizer: payload["organizer"] ?? null,
         timeZone: (() => {
           if (
-            payload.start &&
-            typeof payload.start === "object" &&
-            payload.start !== null &&
-            "timeZone" in payload.start
+            payload["start"] &&
+            typeof payload["start"] === "object" &&
+            payload["start"] !== null &&
+            "timeZone" in payload["start"]
           ) {
-            return (payload.start as any).timeZone ?? null;
+            return (payload["start"] as any).timeZone ?? null;
           }
           return null;
         })(),
         eventStatus: payload["status"] ?? "confirmed",
         recurring: Array.isArray(payload["recurrence"]) && payload["recurrence"].length > 0,
         startTime: (() => {
-          if (payload.start && typeof payload.start === "object" && payload.start !== null) {
-            const start = payload.start;
+          if (
+            payload["start"] &&
+            typeof payload["start"] === "object" &&
+            payload["start"] !== null
+          ) {
+            const start = payload["start"];
             if ("dateTime" in start) {
               return (start as any).dateTime ?? null;
             }
@@ -420,8 +454,8 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
           return null;
         })(),
         endTime: (() => {
-          if (payload.end && typeof payload.end === "object" && payload.end !== null) {
-            const end = payload.end;
+          if (payload["end"] && typeof payload["end"] === "object" && payload["end"] !== null) {
+            const end = payload["end"];
             if ("dateTime" in end) {
               return (end as any).dateTime ?? null;
             }
@@ -433,10 +467,10 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         })(),
         isAllDay: (() => {
           if (
-            payload.start &&
-            typeof payload.start === "object" &&
-            payload.start !== null &&
-            "date" in payload.start
+            payload["start"] &&
+            typeof payload["start"] === "object" &&
+            payload["start"] !== null &&
+            "date" in payload["start"]
           ) {
             return true;
           }
@@ -447,11 +481,10 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
       // Create interaction record
       await drizzleAdminGuard.upsert("interactions", {
         userId: job.userId,
-        contactId: null,
+        contactId: systemContactId,
         type: "calendar_event",
         subject: (payload["summary"] as string) || (payload["title"] as string) || "Untitled Event",
         bodyText: (payload["description"] as string) || null,
-        bodyRaw: null,
         occurredAt: new Date(
           ((payload["start"] as Record<string, unknown>)?.["dateTime"] as string) ||
             ((payload["start"] as Record<string, unknown>)?.["date"] as string) ||
@@ -461,61 +494,10 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         sourceId: payload["id"] as string,
         sourceMeta: enrichedSourceMeta,
         batchId: row.batchId,
-      });
+      } as any);
 
-      // Also create calendar_events record using regular Drizzle ORM
-      const db = await getDb();
-      await db
-        .insert(calendarEvents)
-        .values({
-          userId: job.userId,
-          googleEventId: payload["id"] as string,
-          title: (payload["summary"] as string) || (payload["title"] as string) || "Untitled Event",
-          description: (payload["description"] as string) || null,
-          startTime: new Date(
-            ((payload["start"] as Record<string, unknown>)?.["dateTime"] as string) ||
-              ((payload["start"] as Record<string, unknown>)?.["date"] as string) ||
-              row.occurredAt,
-          ),
-          endTime: new Date(
-            ((payload["end"] as Record<string, unknown>)?.["dateTime"] as string) ||
-              ((payload["end"] as Record<string, unknown>)?.["date"] as string) ||
-              row.occurredAt,
-          ),
-          attendees: payload["attendees"] ?? null,
-          location: (payload["location"] as string) || null,
-          status: (payload["status"] as string) || null,
-          timeZone: ((payload["start"] as Record<string, unknown>)?.["timeZone"] as string) || null,
-          isAllDay: !(payload["start"] as Record<string, unknown>)?.["dateTime"], // All-day if no dateTime, just date
-          visibility: (payload["visibility"] as string) || null,
-          eventType: null, // Can be populated later by AI
-          businessCategory: null, // Can be populated later by AI
-          keywords: null, // Can be populated later by AI
-          googleUpdated: payload["updated"] ? new Date(payload["updated"] as string) : null,
-          lastSynced: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [calendarEvents.userId, calendarEvents.googleEventId],
-          set: {
-            title:
-              (payload["summary"] as string) || (payload["title"] as string) || "Untitled Event",
-            description: (payload["description"] as string) || null,
-            startTime: new Date(
-              ((payload["start"] as Record<string, unknown>)?.["dateTime"] as string) ||
-                ((payload["start"] as Record<string, unknown>)?.["date"] as string) ||
-                row.occurredAt,
-            ),
-            endTime: new Date(
-              ((payload["end"] as Record<string, unknown>)?.["dateTime"] as string) ||
-                ((payload["end"] as Record<string, unknown>)?.["date"] as string) ||
-                row.occurredAt,
-            ),
-            attendees: payload["attendees"] ?? null,
-            location: (payload["location"] as string) || null,
-            status: (payload["status"] as string) || null,
-            lastSynced: new Date(),
-          },
-        });
+      // Calendar event data is now stored in the interactions table via sourceMeta
+      // All calendar event details (attendees, location, times, etc.) are in enrichedSourceMeta
       itemsInserted++;
       itemsFetched++;
     } catch (error) {

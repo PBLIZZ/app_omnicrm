@@ -467,6 +467,156 @@ export const ZoneDetailsResponseSchema = z.object({
 });
 
 // ============================================================================
+// HABITS SCHEMAS
+// ============================================================================
+
+/**
+ * Habit Schema (Pure Validation)
+ * Note: UI enrichment moved to service layer mapper
+ * Per architecture blueprint: No transforms in business schemas
+ */
+
+const habitFrequencyValues = ["daily", "weekly", "monthly"] as const;
+
+export const HabitSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  targetFrequency: z.enum(habitFrequencyValues),
+  color: z.string().nullable(),
+  iconName: z.string().nullable(),
+  isActive: z.boolean().nullable(),
+  createdAt: z.date().nullable(),
+  updatedAt: z.date().nullable(),
+});
+
+export type HabitSchemaOutput = z.infer<typeof HabitSchema>;
+
+export const CreateHabitSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  targetFrequency: z.enum(habitFrequencyValues).optional(),
+  color: z.string().optional(),
+  iconName: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const UpdateHabitSchema = CreateHabitSchema.partial();
+
+export type CreateHabitInput = z.infer<typeof CreateHabitSchema>;
+export type UpdateHabitInput = z.infer<typeof UpdateHabitSchema>;
+
+/**
+ * Habit Completion Schema (Pure Validation)
+ */
+export const HabitCompletionSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  habitId: z.string().uuid(),
+  completedDate: z.string(), // date column returns string
+  notes: z.string().nullable(),
+  createdAt: z.date().nullable(),
+});
+
+export type HabitCompletionSchemaOutput = z.infer<typeof HabitCompletionSchema>;
+
+export const CreateHabitCompletionSchema = z.object({
+  habitId: z.string().uuid(),
+  completedDate: z.string(), // date string in YYYY-MM-DD format
+  notes: z.string().optional(),
+});
+
+export const UpdateHabitCompletionSchema = CreateHabitCompletionSchema.partial();
+
+export type CreateHabitCompletionInput = z.infer<typeof CreateHabitCompletionSchema>;
+export type UpdateHabitCompletionInput = z.infer<typeof UpdateHabitCompletionSchema>;
+
+/**
+ * Habit filters for search/filtering
+ */
+export const HabitFiltersSchema = z.object({
+  search: z.string().optional(),
+  isActive: z.boolean().optional(),
+  targetFrequency: z.array(z.enum(habitFrequencyValues)).optional(),
+  completedAfter: z.coerce.date().optional(),
+  completedBefore: z.coerce.date().optional(),
+});
+
+export type HabitFilters = z.infer<typeof HabitFiltersSchema>;
+
+/**
+ * Habit Stats Schema (for service layer response)
+ */
+export const HabitStatsSchema = z.object({
+  totalHabits: z.number().int().min(0),
+  activeHabits: z.number().int().min(0),
+  completedToday: z.number().int().min(0),
+  streakDays: z.number().int().min(0),
+  completionRate: z.number().min(0).max(1),
+  lastActivity: z.coerce.date().nullable(),
+});
+
+export type HabitStats = z.infer<typeof HabitStatsSchema>;
+
+// ============================================================================
+// HABITS QUERY SCHEMAS
+// ============================================================================
+
+/**
+ * Habits Query Schema
+ */
+export const HabitsQuerySchema = z.object({
+  withStats: z.string().optional(), // Handler converts "true" string to boolean
+  withCompletions: z.string().optional(), // Handler converts "true" string to boolean
+  dateRange: z.string().optional(), // Handler converts to date range
+});
+
+/**
+ * Habit Completions Query Schema
+ */
+export const HabitCompletionsQuerySchema = z.object({
+  habitId: z.string().uuid().optional(),
+  startDate: z.string().optional(), // date string
+  endDate: z.string().optional(), // date string
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+// ============================================================================
+// HABITS RESPONSE SCHEMAS
+// ============================================================================
+
+/**
+ * Habits List Response Schema
+ */
+export const HabitsListResponseSchema = z.object({
+  items: z.array(z.unknown()), // Will be Habit[] - service layer handles UI enrichment
+  total: z.number().int().min(0),
+});
+
+export type HabitsListResponse = z.infer<typeof HabitsListResponseSchema>;
+
+/**
+ * Habits with Stats Response Schema
+ */
+export const HabitsWithStatsResponseSchema = z.object({
+  items: z.array(z.unknown()), // Will be { habit: Habit, stats: HabitStats }[] - service layer handles UI enrichment
+  total: z.number().int().min(0),
+});
+
+export type HabitsWithStatsResponse = z.infer<typeof HabitsWithStatsResponseSchema>;
+
+/**
+ * Habit Completions Response Schema
+ */
+export const HabitCompletionsResponseSchema = z.object({
+  items: z.array(z.unknown()), // Will be HabitCompletion[] - service layer handles UI enrichment
+  total: z.number().int().min(0),
+});
+
+export type HabitCompletionsResponse = z.infer<typeof HabitCompletionsResponseSchema>;
+
+// ============================================================================
 // ZONES RE-EXPORTS
 // ============================================================================
 
@@ -484,4 +634,10 @@ export type {
   Zone,
   CreateZone,
   UpdateZone,
+  Habit,
+  CreateHabit,
+  UpdateHabit,
+  HabitCompletion,
+  CreateHabitCompletion,
+  UpdateHabitCompletion,
 } from "@/server/db/schema";

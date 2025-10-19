@@ -33,6 +33,8 @@
     "lint:architecture": "tsx scripts/lint-architecture.ts",
     "test:types": "tsx scripts/verify-types.ts",
     "verify:db-imports": "tsx scripts/verify-db-imports.ts",
+    "seed:omnimomentum": "dotenv -e .env.local -- tsx scripts/seed-omnimomentum.ts",
+    "seed:omnimomentum:simple": "dotenv -e .env.local -- tsx scripts/seed-omnimomentum-simple.ts",
     "ci:typecheck": "pnpm build:types && pnpm typecheck",
     "ci:architecture": "pnpm lint:architecture && pnpm verify:db-imports",
     "ci:full": "NODE_OPTIONS='--max-old-space-size=8192' pnpm ci:typecheck && NODE_OPTIONS='--max-old-space-size=8192' pnpm lint:strict && pnpm test && pnpm ci:architecture"

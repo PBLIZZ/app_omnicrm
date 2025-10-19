@@ -1,9 +1,9 @@
 /**
  * Contact Suggestions from Calendar Events
- * 
+ *
  * Refactored to use calendar_events table instead of parsing raw_events.
  * This is more efficient and leverages already-normalized data.
- * 
+ *
  * Data flow:
  * 1. Query calendar_events table (last 6 months)
  * 2. Extract attendees from JSONB field
@@ -13,7 +13,7 @@
  */
 
 import { getDb } from "@/server/db/client";
-import { contacts, calendarEvents } from "@/server/db/schema";
+import { contacts, interactions } from "@/server/db/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -46,13 +46,21 @@ export async function getContactSuggestions(
   const recentEvents = await getRecentCalendarEvents(userId);
 
   // Build map of email -> {displayName, events[]}
-  const attendeeMap = new Map<string, { displayName: string; events: Array<{ title: string; date: Date }> }>();
+  const attendeeMap = new Map<
+    string,
+    { displayName: string; events: Array<{ title: string; date: Date }> }
+  >();
 
   for (const event of recentEvents) {
-    if (!event.attendees) continue;
+    // Extract attendees from sourceMeta (calendar event data is stored there)
+    const sourceMeta = event.attendees;
+    const attendees =
+      sourceMeta && typeof sourceMeta === "object" && "attendees" in sourceMeta
+        ? (sourceMeta["attendees"] as CalendarAttendee[] | undefined)
+        : undefined;
 
-    const attendees = event.attendees as CalendarAttendee[];
-    
+    if (!attendees || !Array.isArray(attendees)) continue;
+
     for (const attendee of attendees) {
       if (
         !attendee.email ||
@@ -62,12 +70,12 @@ export async function getContactSuggestions(
         continue;
       }
 
-      const displayName = attendee.displayName ?? attendee.email.split('@')[0] ?? 'Unknown';
-      
+      const displayName = attendee.displayName ?? attendee.email.split("@")[0] ?? "Unknown";
+
       if (!attendeeMap.has(attendee.email)) {
         attendeeMap.set(attendee.email, { displayName, events: [] });
       }
-      
+
       attendeeMap.get(attendee.email)!.events.push({
         title: event.title,
         date: event.startTime,
@@ -83,10 +91,10 @@ export async function getContactSuggestions(
       email,
       eventCount: data.events.length,
       lastEventDate: data.events[0]?.date.toISOString() ?? new Date().toISOString(),
-      eventTitles: data.events.map(e => e.title),
+      eventTitles: data.events.map((e) => e.title),
       confidence: calculateConfidence(data.events.length),
       source: "calendar_attendee" as const,
-    })
+    }),
   );
 
   // Sort by event count (most interactions first)
@@ -105,29 +113,39 @@ async function getExistingEmails(userId: string): Promise<string[]> {
   return existing.map((c) => c.email).filter(Boolean) as string[];
 }
 
-async function getRecentCalendarEvents(userId: string): Promise<Array<{
-  id: string;
-  title: string;
-  startTime: Date;
-  attendees: unknown;
-}>> {
+async function getRecentCalendarEvents(userId: string): Promise<
+  Array<{
+    id: string;
+    title: string;
+    startTime: Date;
+    attendees: unknown; // This is actually sourceMeta containing calendar event data
+  }>
+> {
   const db = await getDb();
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  
-  return await db
+
+  const events = await db
     .select({
-      id: calendarEvents.id,
-      title: calendarEvents.title,
-      startTime: calendarEvents.startTime,
-      attendees: calendarEvents.attendees,
+      id: interactions.id,
+      title: interactions.subject,
+      startTime: interactions.occurredAt,
+      attendees: interactions.sourceMeta, // sourceMeta contains calendar event data including attendees
     })
-    .from(calendarEvents)
-    .where(and(
-      eq(calendarEvents.userId, userId),
-      gte(calendarEvents.startTime, sixMonthsAgo)
-    ))
-    .orderBy(desc(calendarEvents.startTime));
+    .from(interactions)
+    .where(
+      and(
+        eq(interactions.userId, userId),
+        eq(interactions.type, "calendar"),
+        gte(interactions.occurredAt, sixMonthsAgo),
+      ),
+    )
+    .orderBy(desc(interactions.occurredAt));
+
+  return events.map((event) => ({
+    ...event,
+    title: event.title ?? "Untitled Event",
+  }));
 }
 
 function calculateConfidence(eventCount: number): "high" | "medium" | "low" {
@@ -175,4 +193,3 @@ function generateSuggestionId(email: string): string {
   const hash = crypto.createHash("sha256").update(normalizedEmail).digest("hex").substring(0, 8);
   return `sug-${hash}`;
 }
-

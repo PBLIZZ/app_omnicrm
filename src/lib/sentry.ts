@@ -12,6 +12,23 @@ export function initSentry() {
   if (typeof window === "undefined") {
     // Server-side initialization
     if (process.env["NEXT_PUBLIC_SENTRY_DSN"]) {
+      const integrations = [Sentry.consoleIntegration(), Sentry.rewriteFramesIntegration()];
+
+      // Only add server-specific integrations if not in edge runtime
+      if (process.env["NEXT_RUNTIME"] !== "edge") {
+        try {
+          integrations.push(
+            Sentry.httpIntegration({
+              breadcrumbs: true,
+            }),
+            Sentry.prismaIntegration(),
+          );
+        } catch (error) {
+          // Silently fail if integrations are not available
+          console.warn("Some Sentry integrations not available:", error);
+        }
+      }
+
       Sentry.init({
         dsn: process.env["NEXT_PUBLIC_SENTRY_DSN"],
         environment: process.env.NODE_ENV,
@@ -44,14 +61,7 @@ export function initSentry() {
 
           return event;
         },
-        integrations: [
-          Sentry.httpIntegration({
-            breadcrumbs: true,
-          }),
-          Sentry.prismaIntegration(),
-          Sentry.consoleIntegration(),
-          Sentry.rewriteFramesIntegration(),
-        ],
+        integrations,
       });
     }
   } else {
@@ -236,6 +246,32 @@ export function finishSpan(
 ) {
   span.setStatus({ code: status || "ok" });
   span.end();
+}
+
+/**
+ * Capture request errors with proper instrumentation
+ */
+export function captureRequestError(
+  err: unknown,
+  request: {
+    path: string;
+    method: string;
+    headers: Record<string, string | string[] | undefined>;
+  },
+) {
+  Sentry.withScope((scope) => {
+    // Set request context
+    scope.setTag("request.path", request.path);
+    scope.setTag("request.method", request.method);
+    scope.setContext("request", {
+      path: request.path,
+      method: request.method,
+      headers: request.headers,
+    });
+
+    // Capture the error
+    Sentry.captureException(err);
+  });
 }
 
 // Export Sentry instance for direct use if needed

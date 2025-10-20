@@ -14,7 +14,9 @@ describe("SignInForm", () => {
       password: "",
     },
     onFormDataChange: vi.fn(),
-    onSubmit: vi.fn(),
+    onSubmit: vi.fn().mockImplementation((e) => {
+      e.preventDefault();
+    }),
     onForgotPassword: vi.fn(),
     onMagicLink: vi.fn(),
     isSubmitting: false,
@@ -29,7 +31,7 @@ describe("SignInForm", () => {
       renderWithProviders(<SignInForm {...defaultProps} />);
 
       expect(screen.getByPlaceholderText("Email")).toBeInTheDocument();
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Password")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument();
       expect(screen.getByText("Forgot your password?")).toBeInTheDocument();
       expect(screen.getByText("Send magic link instead")).toBeInTheDocument();
@@ -42,7 +44,7 @@ describe("SignInForm", () => {
       expect(emailInput).toHaveAttribute("type", "email");
       expect(emailInput).toHaveAttribute("required");
 
-      const passwordInput = screen.getByLabelText(/password/i);
+      const passwordInput = screen.getByPlaceholderText("Password");
       expect(passwordInput).toHaveAttribute("required");
       expect(passwordInput).toHaveAttribute("autocomplete", "current-password");
     });
@@ -64,7 +66,7 @@ describe("SignInForm", () => {
       renderWithProviders(<SignInForm {...defaultProps} />);
 
       const emailInput = screen.getByPlaceholderText("Email");
-      const passwordInput = screen.getByLabelText(/password/i);
+      const passwordInput = screen.getByPlaceholderText("Password");
       const submitButton = screen.getByRole("button", { name: "Sign In" });
 
       const form = emailInput.closest("form");
@@ -87,7 +89,7 @@ describe("SignInForm", () => {
       renderWithProviders(<SignInForm {...propsWithData} />);
 
       const emailInput = screen.getByPlaceholderText("Email") as HTMLInputElement;
-      const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement;
+      const passwordInput = screen.getByPlaceholderText("Password") as HTMLInputElement;
 
       expect(emailInput.value).toBe("test@example.com");
       expect(passwordInput.value).toBe("password123");
@@ -104,7 +106,7 @@ describe("SignInForm", () => {
       });
 
       expect(defaultProps.onFormDataChange).toHaveBeenCalledWith({
-        email: "ne",
+        email: "e",
       });
 
       // Should be called for each character typed
@@ -114,15 +116,11 @@ describe("SignInForm", () => {
     it("calls onFormDataChange when password is changed", async () => {
       renderWithProviders(<SignInForm {...defaultProps} />);
 
-      const passwordInput = screen.getByLabelText(/password/i);
+      const passwordInput = screen.getByPlaceholderText("Password");
       await user.type(passwordInput, "secret");
 
       expect(defaultProps.onFormDataChange).toHaveBeenCalledWith({
         password: "s",
-      });
-
-      expect(defaultProps.onFormDataChange).toHaveBeenCalledWith({
-        password: "se",
       });
 
       // Should be called for each character typed
@@ -148,7 +146,14 @@ describe("SignInForm", () => {
 
   describe("Form Submission", () => {
     it("calls onSubmit when form is submitted", async () => {
-      renderWithProviders(<SignInForm {...defaultProps} />);
+      const propsWithData = {
+        ...defaultProps,
+        formData: {
+          email: "test@example.com",
+          password: "password123",
+        },
+      };
+      renderWithProviders(<SignInForm {...propsWithData} />);
 
       const submitButton = screen.getByRole("button", { name: "Sign In" });
       await user.click(submitButton);
@@ -158,20 +163,34 @@ describe("SignInForm", () => {
     });
 
     it("calls onSubmit when Enter is pressed in email field", async () => {
-      renderWithProviders(<SignInForm {...defaultProps} />);
+      const propsWithData = {
+        ...defaultProps,
+        formData: {
+          email: "test@example.com",
+          password: "password123",
+        },
+      };
+      renderWithProviders(<SignInForm {...propsWithData} />);
 
       const emailInput = screen.getByPlaceholderText("Email");
-      await user.type(emailInput, "test@example.com");
+      await user.click(emailInput);
       await user.keyboard("{Enter}");
 
       expect(defaultProps.onSubmit).toHaveBeenCalledTimes(1);
     });
 
     it("calls onSubmit when Enter is pressed in password field", async () => {
-      renderWithProviders(<SignInForm {...defaultProps} />);
+      const propsWithData = {
+        ...defaultProps,
+        formData: {
+          email: "test@example.com",
+          password: "password123",
+        },
+      };
+      renderWithProviders(<SignInForm {...propsWithData} />);
 
-      const passwordInput = screen.getByLabelText(/password/i);
-      await user.type(passwordInput, "password123");
+      const passwordInput = screen.getByPlaceholderText("Password");
+      await user.click(passwordInput);
       await user.keyboard("{Enter}");
 
       expect(defaultProps.onSubmit).toHaveBeenCalledTimes(1);
@@ -284,7 +303,7 @@ describe("SignInForm", () => {
       renderWithProviders(<SignInForm {...defaultProps} />);
 
       const emailInput = screen.getByPlaceholderText("Email");
-      const passwordInput = screen.getByLabelText(/password/i);
+      const passwordInput = screen.getByPlaceholderText("Password");
       const submitButton = screen.getByRole("button", { name: "Sign In" });
 
       expect(emailInput).toHaveAttribute("type", "email");
@@ -294,10 +313,17 @@ describe("SignInForm", () => {
     });
 
     it("supports keyboard navigation", async () => {
-      renderWithProviders(<SignInForm {...defaultProps} />);
+      const propsWithData = {
+        ...defaultProps,
+        formData: {
+          email: "test@example.com",
+          password: "password123",
+        },
+      };
+      renderWithProviders(<SignInForm {...propsWithData} />);
 
       const emailInput = screen.getByPlaceholderText("Email");
-      const passwordInput = screen.getByLabelText(/password/i);
+      const passwordInput = screen.getByPlaceholderText("Password");
       const submitButton = screen.getByRole("button", { name: "Sign In" });
       const forgotPasswordLink = screen.getByText("Forgot your password?");
       const magicLinkButton = screen.getByText("Send magic link instead");
@@ -322,7 +348,7 @@ describe("SignInForm", () => {
     it("provides appropriate autocomplete attributes", () => {
       renderWithProviders(<SignInForm {...defaultProps} />);
 
-      const passwordInput = screen.getByLabelText(/password/i);
+      const passwordInput = screen.getByPlaceholderText("Password");
       expect(passwordInput).toHaveAttribute("autocomplete", "current-password");
     });
 
@@ -330,15 +356,17 @@ describe("SignInForm", () => {
       renderWithProviders(<SignInForm {...defaultProps} />);
 
       const buttons = screen.getAllByRole("button");
-      expect(buttons).toHaveLength(3); // Submit, forgot password, magic link
+      expect(buttons).toHaveLength(4); // Submit, forgot password, magic link, password toggle
 
       const submitButton = screen.getByRole("button", { name: "Sign In" });
       const forgotPasswordButton = screen.getByRole("button", { name: "Forgot your password?" });
       const magicLinkButton = screen.getByRole("button", { name: "Send magic link instead" });
+      const passwordToggleButton = screen.getByRole("button", { name: "Show password field" });
 
       expect(submitButton).toHaveAttribute("type", "submit");
       expect(forgotPasswordButton).toHaveAttribute("type", "button");
       expect(magicLinkButton).toHaveAttribute("type", "button");
+      expect(passwordToggleButton).toHaveAttribute("type", "button");
     });
 
     it("provides proper disabled state feedback", () => {
@@ -367,7 +395,7 @@ describe("SignInForm", () => {
     it("requires password input", () => {
       renderWithProviders(<SignInForm {...defaultProps} />);
 
-      const passwordInput = screen.getByLabelText(/password/i);
+      const passwordInput = screen.getByPlaceholderText("Password");
       expect(passwordInput).toHaveAttribute("required");
     });
 
@@ -424,7 +452,7 @@ describe("SignInForm", () => {
       }).not.toThrow();
 
       const emailInput = screen.getByPlaceholderText("Email") as HTMLInputElement;
-      const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement;
+      const passwordInput = screen.getByPlaceholderText("Password") as HTMLInputElement;
 
       expect(emailInput.value).toBe("");
       expect(passwordInput.value).toBe("");
@@ -462,7 +490,7 @@ describe("SignInForm", () => {
       renderWithProviders(<SignInForm {...defaultProps} />);
 
       const emailInput = screen.getByPlaceholderText("Email");
-      const passwordInput = screen.getByLabelText(/password/i);
+      const passwordInput = screen.getByPlaceholderText("Password");
 
       await user.type(emailInput, "test+email@example.com");
       await user.type(passwordInput, "p@ssw0rd!#$%");

@@ -6,6 +6,19 @@ import { eq, sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
 import type { InferSelectModel } from "drizzle-orm";
 
+// Type for raw SQL query results
+interface QueryResultRow {
+  data_type: string;
+  data: unknown;
+}
+
+interface BatchQueryResultRow {
+  contact_id: string;
+  contact: unknown;
+  interactions: unknown;
+  notes: unknown;
+}
+
 interface FetchOptions {
   includeEvents?: boolean;
   includeInteractions?: boolean;
@@ -34,13 +47,13 @@ export interface BatchContactWithContext {
   notes: InferSelectModel<typeof notes>[];
 }
 
-export async function getContactData( // Renamed for generality
+export async function getContactData(
   userId: string,
   contactId: string,
-  options: FetchOptions = {},
+  _options: FetchOptions = {},
 ): Promise<ContactWithContext> {
   // Merge provided options with defaults
-  const mergedOptions = { ...DEFAULT_FETCH_OPTIONS, ...options };
+  const mergedOptions = { ...DEFAULT_FETCH_OPTIONS, ..._options };
   const db = await getDb();
 
   const contact = await db.query.contacts.findFirst({
@@ -117,18 +130,21 @@ export async function getContactData( // Renamed for generality
   `);
 
   // Parse the results
-  const interactions =
-    contactDataResult.find((row: any) => row.data_type === "interactions")?.["data"] || [];
-  const notes = contactDataResult.find((row: any) => row.data_type === "notes")?.["data"] || [];
+  const rows = contactDataResult as unknown as QueryResultRow[];
+  const interactionsRow = rows.find((row) => row.data_type === "interactions");
+  const notesRow = rows.find((row) => row.data_type === "notes");
 
-  logger.info("Contact data loaded with optimized query", {
+  const interactionsData = (interactionsRow?.data || []) as InferSelectModel<typeof interactions>[];
+  const notesData = (notesRow?.data || []) as InferSelectModel<typeof notes>[];
+
+  void logger.info("Contact data loaded with optimized query", {
     operation: "load_contact_context_optimized",
   });
 
   return {
     contact,
-    interactions: (interactions as any[]) || [],
-    notes: (notes as any[]) || [],
+    interactions: interactionsData,
+    notes: notesData,
   };
 }
 
@@ -139,7 +155,7 @@ export async function getContactData( // Renamed for generality
 export async function getBatchContactData(
   userId: string,
   contactIds: string[],
-  options: FetchOptions = {},
+  _options: FetchOptions = {},
 ): Promise<BatchContactWithContext[]> {
   if (contactIds.length === 0) {
     return [];
@@ -298,14 +314,15 @@ export async function getBatchContactData(
       ) as notes
   `);
 
-  logger.info("Batch contact data loaded with optimized query", {
+  void logger.info("Batch contact data loaded with optimized query", {
     operation: "load_batch_contact_context_optimized",
   });
 
-  return batchResult.map((row: any) => ({
+  const rows = batchResult as unknown as BatchQueryResultRow[];
+  return rows.map((row) => ({
     contactId: row.contact_id,
-    contact: row.contact,
-    interactions: row.interactions || [],
-    notes: row.notes || [],
+    contact: row.contact as InferSelectModel<typeof contacts> | null,
+    interactions: (row.interactions || []) as InferSelectModel<typeof interactions>[],
+    notes: (row.notes || []) as InferSelectModel<typeof notes>[],
   }));
 }

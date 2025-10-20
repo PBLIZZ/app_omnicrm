@@ -20,7 +20,7 @@ export function SignInForm({
   isSubmitting,
 }: SignInFormProps): JSX.Element {
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4" data-testid="signin-form" role="form">
       <Input
         type="email"
         placeholder="Email"

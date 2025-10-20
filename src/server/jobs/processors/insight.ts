@@ -1,6 +1,6 @@
 import type { JobRecord } from "@/server/jobs/types";
 import { getDb } from "@/server/db/client";
-import { contacts, interactions } from "@/server/db/schema";
+import { contacts, interactions, type CreateAiInsight } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { logger } from "@/lib/observability";
@@ -26,41 +26,27 @@ type InsightKind =
 type InsightSubjectType = "contact" | "segment" | "inbox";
 
 // Generated insight structure from insight-writer
+interface GeneratedInsight {
+  title: string;
+  summary: string;
+  confidence: number;
+  tags: string[];
+  priority: "low" | "medium" | "high" | "urgent";
+  props?: Record<string, unknown>;
+  actions?: Array<{
+    type: string;
+    label: string;
+    metadata?: Record<string, unknown>;
+  }>;
+}
 
 // Insight generation task structure
-
-// Context types for different insight kinds
-interface SummaryContext {
-  contactId: string;
-  recentInteractions: string[];
-  lastContactDate?: string;
-}
-
-interface NextStepContext {
-  contactId: string;
-  currentStage: string;
-  recentActivities: string[];
-}
-
-interface RiskContext {
-  contactId: string;
-  warningSignals: string[];
-  lastInteractionDate?: string;
-}
-
-interface PersonaContext {
-  contactId: string;
-  demographics: Record<string, unknown>;
-  preferences: string[];
-}
-
-type InsightContext = SummaryContext | NextStepContext | RiskContext | PersonaContext;
-
-interface InsightRequest {
-  subjectType: string;
-  subjectId: string;
-  kind: "summary" | "next_step" | "risk" | "persona";
-  context: InsightContext;
+interface InsightGenerationTask {
+  userId: string;
+  subjectType: InsightSubjectType;
+  subjectId: string | null;
+  kind: InsightKind;
+  context?: Record<string, unknown>;
 }
 
 /**
@@ -78,10 +64,10 @@ export class InsightWriter {
       if (!insight) return null;
 
       // 2. Create AI insight record
-      const aiInsight: NewAiInsight = {
+      const aiInsight: CreateAiInsight = {
         userId: task.userId,
         subjectType: task.subjectType,
-        subjectId: task.subjectId,
+        subjectId: task.subjectId ?? undefined,
         kind: task.kind,
         content: {
           title: insight.title,
@@ -147,7 +133,7 @@ export class InsightWriter {
       subjectType: "contact",
       subjectId: contactId,
       kind: "next_best_action",
-      context,
+      context: context ?? {},
     };
 
     return await this.generateInsight(task);
@@ -228,16 +214,12 @@ export class InsightWriter {
         .orderBy(desc(interactions.occurredAt))
         .limit(50);
 
-      const request: InsightRequest = {
+      const request = {
         subjectType: "contact",
         subjectId: task.subjectId,
         kind: task.kind as "summary" | "next_step" | "risk" | "persona",
         context: {
-          contact: {
-            displayName: contact.displayName,
-            ...(contact.primaryEmail ? { primaryEmail: contact.primaryEmail } : {}),
-            ...(contact.primaryPhone ? { primaryPhone: contact.primaryPhone } : {}),
-          },
+          contactId: contact.id,
           interactions: contactInteractions.map((i) => ({
             type: i.type,
             ...(i.subject ? { subject: i.subject } : {}),
@@ -286,7 +268,7 @@ export class InsightWriter {
           summary: String(result["summary"] ?? result["content"] ?? "Generated insight"),
           confidence: Number(result["confidence"] ?? 0.7),
           tags: Array.isArray(result["tags"]) ? (result["tags"] as string[]) : [task.kind],
-          priority: (result["priority"] as "low" | "medium" | "high" | "critical") ?? "medium",
+          priority: (result["priority"] as "low" | "medium" | "high" | "urgent") ?? "medium",
           props: (result["props"] as Record<string, unknown>) ?? result,
           actions,
         };
@@ -405,7 +387,7 @@ export class InsightWriter {
       title: suggestion,
       summary: `Contact has ${recentInteractions.length} recent interactions. Last activity: ${lastInteractionDays} days ago.`,
       confidence: 0.7,
-      tags: ["follow-up", "engagement", contact.stage ?? "unknown"],
+      tags: ["follow-up", "engagement"],
       priority,
       props: {
         contactName: contact.displayName,
@@ -417,7 +399,7 @@ export class InsightWriter {
         {
           type: "create_task",
           label: "Create follow-up task",
-          payload: {
+          metadata: {
             title: `Follow up with ${contact.displayName}`,
             priority,
             contactId: contact.id,
@@ -452,7 +434,7 @@ export class InsightWriter {
       .select({
         id: contacts.id,
         displayName: contacts.displayName,
-        stage: contacts.stage,
+        stage: contacts.lifecycleStage,
         createdAt: contacts.createdAt,
       })
       .from(contacts)
@@ -461,7 +443,7 @@ export class InsightWriter {
     const totalInteractions = weeklyInteractions.length;
     const uniqueContacts = new Set(weeklyInteractions.map((i) => i.contactId).filter(Boolean)).size;
     const newContacts = allContacts.filter(
-      (c) => new Date(c.createdAt).getTime() > weekAgo.getTime(),
+      (c) => c.createdAt && new Date(c.createdAt).getTime() > weekAgo.getTime(),
     ).length;
 
     // Find active contacts (interactions in last 7 days)
@@ -550,14 +532,14 @@ export class InsightWriter {
     score += hasContact ? 10 : 0; // 10 points for contact info
 
     const scoreCategory = score >= 70 ? "high" : score >= 40 ? "medium" : "low";
-    const priority: "low" | "medium" | "high" | "critical" =
-      score >= 80 ? "critical" : score >= 60 ? "high" : "medium";
+    const priority: "low" | "medium" | "high" | "urgent" =
+      score >= 80 ? "urgent" : score >= 60 ? "high" : "medium";
 
     return {
       title: `Lead score: ${score}/100`,
       summary: `${scoreCategory.charAt(0).toUpperCase() + scoreCategory.slice(1)}-scoring prospect with ${totalInteractions} total interactions, ${recentInteractions} recent.`,
       confidence: 0.8,
-      tags: ["lead", "scoring", scoreCategory],
+      tags: ["follow-up", "engagement", scoreCategory],
       priority,
       props: {
         score0To100: score,
@@ -581,7 +563,7 @@ export class InsightWriter {
               {
                 type: "create_task",
                 label: "High priority follow-up",
-                payload: {
+                metadata: {
                   title: `Follow up with high-scoring lead: ${contact.displayName}`,
                   priority: "high",
                   contactId: contact.id,
@@ -609,7 +591,7 @@ export class InsightWriter {
     return modelMappings[kind] ?? "gpt-5";
   }
 
-  private async storeInsight(insight: NewAiInsight): Promise<string> {
+  private async storeInsight(insight: CreateAiInsight): Promise<string> {
     const db = await getDb();
 
     const result = await db.execute(sql`
@@ -697,10 +679,10 @@ export async function runInsight(job: JobRecord<"insight">): Promise<void> {
     // Create task for InsightWriter
     const task: InsightGenerationTask = {
       userId: job.userId,
-      subjectType,
+      subjectType: subjectType as InsightSubjectType,
       subjectId: subjectId ?? null,
-      kind,
-      context: payload.context,
+      kind: kind as InsightKind,
+      context: payload.context ?? {},
     };
 
     // Generate insight using InsightWriter

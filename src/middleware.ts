@@ -79,7 +79,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     }
     // If deployed on Vercel edge/functions that call back to *.vercel.app, retain allowlist
     baseConnect.push("https://*.vercel.app");
-    directives.push(`connect-src ${[...new Set(baseConnect)].join(" ")}`);
+    directives.push(`connect-src ${Array.from(new Set(baseConnect)).join(" ")}`);
 
     return directives.join("; ") + ";";
   }
@@ -95,17 +95,24 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   const hasCsrfCookies =
     Boolean(req.cookies.get("csrf")?.value) && Boolean(req.cookies.get("csrf_sig")?.value);
+  const hasCsrfNonce = Boolean(req.cookies.get("csrf")?.value);
 
   if (isSafeMethod && !hasCsrfCookies) {
-    const nonce = randomNonce(18);
+    // If we have a nonce but no signature, reuse the existing nonce
+    const nonce = hasCsrfNonce ? req.cookies.get("csrf")!.value : randomNonce(18);
     const sig = await hmacSign(nonce);
-    res.cookies.set("csrf", nonce, {
-      httpOnly: false,
-      sameSite: "strict",
-      secure: isProd,
-      path: "/",
-      maxAge: 60 * 60,
-    });
+
+    // Only set the nonce cookie if it's not already present
+    if (!hasCsrfNonce) {
+      res.cookies.set("csrf", nonce, {
+        httpOnly: false,
+        sameSite: "strict",
+        secure: isProd,
+        path: "/",
+        maxAge: 60 * 60,
+      });
+    }
+    // Always set the signature cookie (it might be missing)
     res.cookies.set("csrf_sig", sig, {
       httpOnly: true,
       sameSite: "strict",

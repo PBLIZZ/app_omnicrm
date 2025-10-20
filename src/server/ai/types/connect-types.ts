@@ -69,7 +69,7 @@ export interface EmailIntelligence {
       hasAppointmentLanguage?: boolean;
       hasPaymentLanguage?: boolean;
       isFromClient?: boolean;
-      urgencyLevel?: "low" | "medium" | "high" | "urgent";
+      urgencyLevel?: "low" | "medium" | "high" | "urgent" | undefined;
     };
   };
   wisdom: {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { handleAuth } from "@/lib/api";
+import { handleAuth, handleGetWithQueryAuth } from "@/lib/api";
 import {
   getContactWithNotesService,
   updateContactService,
@@ -44,7 +44,7 @@ const ContactWithNotesSchema = ContactSchema.extend({
 export async function GET(request: Request, context: RouteParams): Promise<Response> {
   const params = await context.params;
 
-  return handleAuth(
+  return handleGetWithQueryAuth(
     z.object({}),
     ContactWithNotesSchema,
     async (_voidInput, userId): Promise<z.infer<typeof ContactWithNotesSchema>> => {
@@ -82,7 +82,7 @@ export async function PUT(request: Request, context: RouteParams): Promise<Respo
 export async function DELETE(request: Request, context: RouteParams): Promise<Response> {
   const params = await context.params;
 
-  return handleAuth(
+  return handleGetWithQueryAuth(
     z.object({}),
     DeleteContactResponseSchema,
     async (_voidInput, userId): Promise<z.infer<typeof DeleteContactResponseSchema>> => {

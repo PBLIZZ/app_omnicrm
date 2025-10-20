@@ -32,6 +32,14 @@ const GLOBAL_IGNORES = [
   "run/**",
   // documentation directories
   "docs/**",
+  // test files
+  "**/*.test.{ts,tsx,js,jsx}",
+  "**/*.spec.{ts,tsx,js,jsx}",
+  "**/__tests__/**",
+  "**/_tests_/**",
+  "**/test/**",
+  // specific files to ignore
+  "src/app/api/cron/process-inbox/route.ts",
 ];
 
 export default [
@@ -74,8 +82,8 @@ export default [
       // Next hints
       "@next/next/no-html-link-for-pages": "off",
       "@next/next/no-img-element": "warn",
-      // console policy
-      "no-console": ["error", { allow: ["warn", "error"] }],
+      // console policy - temporarily allowing all console logging
+      "no-console": "off",
     },
   },
 

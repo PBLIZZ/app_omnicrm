@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Brain, CheckCircle, AlertTriangle, Zap } from "lucide-react";
 import { useIntelligentInbox } from "@/hooks/use-intelligent-inbox";
-import { IntelligentProcessingApproval } from "@/components/inbox/IntelligentProcessingApproval";
+import { IntelligentProcessingApproval } from "@/app/(authorisedRoute)/omni-momentum/_components/IntelligentProcessingApproval";
 
 export function IntelligentInboxWidget(): JSX.Element {
   const [rawText, setRawText] = useState("");

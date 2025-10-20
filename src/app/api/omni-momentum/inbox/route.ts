@@ -47,7 +47,7 @@ const InboxItemResponseSchema = z.object({
 export const GET = handleGetWithQueryAuth(
   InboxQuerySchema,
   z.union([InboxListResponseSchema, InboxStatsResponseSchema]),
-  async (query, userId) => {
+  async (query, userId): Promise<unknown> => {
     if (query.stats === "true") {
       // Return inbox statistics
       return await getInboxStatsService(userId);
@@ -75,7 +75,7 @@ export const GET = handleGetWithQueryAuth(
 export const POST = handleAuth(
   CreateInboxItemSchema,
   InboxItemResponseSchema,
-  async (data, userId) => {
+  async (data, userId): Promise<unknown> => {
     if (data.enableIntelligentProcessing) {
       // Use intelligent processing queue
       const result = await intelligentQuickCaptureService(userId, {
@@ -86,7 +86,7 @@ export const POST = handleAuth(
       });
 
       return {
-        item: result.inboxItem,
+        item: result.inboxItem as unknown,
         queued: result.queued,
         message: result.message,
         queueStats: result.queueStats,

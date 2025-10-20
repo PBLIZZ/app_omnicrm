@@ -16,20 +16,21 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Mic, Loader2 } from "lucide-react";
-import { VoiceRecorder } from "../../app/(authorisedRoute)/contacts/[contactId]/notes/[noteId]/_components/VoiceRecorder";
+import { VoiceRecorder } from "./VoiceRecorder";
+import { ContactSearchCombobox } from "./ContactSearchCombobox";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export interface Contact {
   id: string;
@@ -59,11 +60,6 @@ export interface RapidNoteModalProps {
   }) => Promise<{ success: boolean }>;
 
   /**
-   * List of contacts to choose from
-   */
-  contacts: Contact[];
-
-  /**
    * Optional: Pre-select the last viewed contact
    */
   lastViewedContactId?: string;
@@ -76,7 +72,6 @@ export function RapidNoteModal({
   isOpen,
   onClose,
   onSave,
-  contacts,
   lastViewedContactId,
 }: RapidNoteModalProps): JSX.Element {
   const [content, setContent] = useState("");
@@ -94,6 +89,31 @@ export function RapidNoteModal({
     }
   }, [isOpen, lastViewedContactId]);
 
+  // Auto-save draft functionality
+  useEffect(() => {
+    if (!isOpen || !selectedContactId) return;
+
+    // Load existing draft when modal opens
+    const draftKey = `rapid-note-draft-${selectedContactId}`;
+    const savedDraft = localStorage.getItem(draftKey);
+
+    if (savedDraft && !content) {
+      setContent(savedDraft);
+    }
+  }, [isOpen, selectedContactId, content]);
+
+  // Auto-save draft every 5 seconds while typing
+  useEffect(() => {
+    if (!isOpen || !selectedContactId || !content) return;
+
+    const draftKey = `rapid-note-draft-${selectedContactId}`;
+    const timer = setInterval(() => {
+      localStorage.setItem(draftKey, content);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, selectedContactId, content]);
+
   // Character count with limit enforcement
   const characterCount = content.length;
   const isApproachingLimit = characterCount > WARNING_THRESHOLD;
@@ -109,7 +129,7 @@ export function RapidNoteModal({
   };
 
   // Handle voice recording complete
-  const handleRecordingComplete = useCallback(async (audioBlob: Blob) => {
+  const handleRecordingComplete = useCallback(async (_audioBlob: Blob) => {
     setIsRecording(false);
 
     // TODO: Implement transcription via API
@@ -126,7 +146,15 @@ export function RapidNoteModal({
 
   // Handle save
   const handleSave = async (): Promise<void> => {
-    if (!selectedContactId || !content.trim()) {
+    // Validate contact selection
+    if (!selectedContactId) {
+      toast.error("Please select a contact");
+      return;
+    }
+
+    // Validate content
+    if (!content.trim()) {
+      toast.error("Please enter note content");
       return;
     }
 
@@ -139,14 +167,19 @@ export function RapidNoteModal({
         sourceType,
       });
 
-      // Reset form and close
+      // Clear draft and reset form
+      if (selectedContactId) {
+        const draftKey = `rapid-note-draft-${selectedContactId}`;
+        localStorage.removeItem(draftKey);
+      }
+
       setContent("");
       setSelectedContactId(lastViewedContactId);
       setSourceType("typed");
       onClose();
     } catch (error) {
       console.error("Failed to save note:", error);
-      // Error handling would show toast notification
+      // API client already shows error toast
     } finally {
       setIsSaving(false);
     }
@@ -172,6 +205,9 @@ export function RapidNoteModal({
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle className="text-2xl font-semibold">Rapid Note Capture</DialogTitle>
+          <DialogDescription>
+            Quickly capture notes for your contacts. Select a contact and add your note content.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Main Content Area */}
@@ -179,23 +215,12 @@ export function RapidNoteModal({
           {/* Contact Selector */}
           <div className="space-y-2">
             <Label htmlFor="contact-selector">Select Contact</Label>
-            <Select value={selectedContactId} onValueChange={setSelectedContactId}>
-              <SelectTrigger id="contact-selector" aria-label="Select contact">
-                <SelectValue placeholder="Select a contact..." />
-              </SelectTrigger>
-              <SelectContent>
-                {contacts.map((contact) => (
-                  <SelectItem key={contact.id} value={contact.id}>
-                    {contact.displayName}
-                    {contact.primaryEmail && (
-                      <span className="text-muted-foreground text-sm ml-2">
-                        ({contact.primaryEmail})
-                      </span>
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ContactSearchCombobox
+              value={selectedContactId}
+              onValueChange={setSelectedContactId}
+              placeholder="Search contacts..."
+              className="w-full"
+            />
           </div>
 
           {/* Voice Recorder (when active) */}

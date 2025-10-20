@@ -19,7 +19,7 @@ export function ThemeToggle({ mounted, theme, setTheme }: ThemeToggleProps): JSX
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="hidden sm:flex">
+        <Button variant="ghost" size="sm" className="hidden sm:flex" data-testid="theme-toggle">
           {!mounted ? (
             <Monitor className="h-5 w-5" />
           ) : theme === "dark" ? (

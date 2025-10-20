@@ -153,41 +153,6 @@ const mockSuggestions = {
  * Individual tests can override these using server.use() for specific scenarios.
  */
 export const handlers = [
-  // GET /api/contacts - List contacts
-  http.get("/api/contacts", ({ request }) => {
-    const url = new URL(request.url);
-    const search = url.searchParams.get("search");
-    const page = parseInt(url.searchParams.get("page") || "1", 10);
-    const pageSize = parseInt(url.searchParams.get("pageSize") || "25", 10);
-
-    // Filter by search if provided
-    let items = mockContacts.items;
-    if (search) {
-      items = items.filter(
-        (contact) =>
-          contact.displayName.toLowerCase().includes(search.toLowerCase()) ||
-          contact.primaryEmail?.toLowerCase().includes(search.toLowerCase()),
-      );
-    }
-
-    const total = items.length;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const hasNext = page < totalPages;
-    const hasPrev = page > 1;
-
-    return HttpResponse.json({
-      items,
-      pagination: {
-        total,
-        page,
-        pageSize,
-        totalPages,
-        hasNext,
-        hasPrev,
-      },
-    });
-  }),
-
   // GET /api/contacts/suggestions - Get contact suggestions
   http.get("/api/contacts/suggestions", () => {
     return HttpResponse.json(mockSuggestions);
@@ -265,14 +230,20 @@ export const handlers = [
 
     if (withStats) {
       return HttpResponse.json({
-        items: mockZonesWithStats,
-        total: mockZonesWithStats.length,
+        success: true,
+        data: {
+          items: mockZonesWithStats,
+          total: mockZonesWithStats.length,
+        },
       });
     }
 
     return HttpResponse.json({
-      items: mockZones,
-      total: mockZones.length,
+      success: true,
+      data: {
+        items: mockZones,
+        total: mockZones.length,
+      },
     });
   }),
 
@@ -657,6 +628,9 @@ export const handlers = [
 
   // POST /api/google/gmail/sync-blocking - Start blocking Gmail sync
   http.post("/api/google/gmail/sync-blocking", async () => {
+    // Add a small delay to allow tests to catch the pending state
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     const mockResult = {
       sessionId: "session-" + crypto.randomUUID(),
       success: true,
@@ -710,8 +684,29 @@ export const handlers = [
   // Google Calendar API Handlers
   // ===========================================================================
 
+  // GET /api/google/calendar/connect - OAuth connection endpoint
+  http.get("/api/google/calendar/connect", () => {
+    // This would normally redirect to Google OAuth, but in tests we just return success
+    return HttpResponse.json(
+      { success: true, message: "Redirecting to Google OAuth" },
+      { status: 200 },
+    );
+  }),
+
+  // POST /api/google/calendar/connect - OAuth connection endpoint
+  http.post("/api/google/calendar/connect", () => {
+    // This would normally handle OAuth callback, but in tests we just return success
+    return HttpResponse.json(
+      { success: true, message: "Calendar connected successfully" },
+      { status: 200 },
+    );
+  }),
+
   // POST /api/google/calendar/sync-blocking - Start blocking Calendar sync
   http.post("/api/google/calendar/sync-blocking", async () => {
+    // Add a small delay to allow tests to catch the pending state
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     const mockResult = {
       sessionId: "session-" + crypto.randomUUID(),
       success: true,
@@ -778,7 +773,7 @@ export const handlers = [
           startTime: new Date(Date.now() + 172800000).toISOString(),
           endTime: new Date(Date.now() + 172800000 + 1800000).toISOString(),
           location: "Office",
-          attendees: [{ email: "team@example.com" }],
+          attendees: [{ email: "team@example.com", name: "Team Member" }],
         },
         {
           id: "event-3",
@@ -794,6 +789,98 @@ export const handlers = [
     };
 
     return HttpResponse.json(mockEvents);
+  }),
+
+  // GET /api/google/status - Get Google connection status
+  http.get("/api/google/status", () => {
+    const mockStatus = {
+      services: {
+        calendar: {
+          connected: true,
+          integration: {
+            hasRefreshToken: true,
+          },
+          autoRefreshed: false,
+          lastSync: new Date(Date.now() - 3600000).toISOString(),
+        },
+      },
+      upcomingEventsCount: 3,
+    };
+
+    return HttpResponse.json(mockStatus);
+  }),
+
+  // GET /api/google/calendar/clients - Get calendar clients
+  http.get("/api/google/calendar/clients", () => {
+    const mockClients = [
+      {
+        id: "client-1",
+        name: "John Doe",
+        email: "john@example.com",
+        totalSessions: 5,
+        lastSessionDate: new Date(Date.now() - 86400000).toISOString(),
+        totalSpent: 500,
+        status: "active",
+        satisfaction: 4,
+        preferences: {
+          preferredTimes: ["morning"],
+          preferredServices: ["massage"],
+          goals: ["relaxation"],
+        },
+      },
+      {
+        id: "client-2",
+        name: "Jane Smith",
+        email: "jane@example.com",
+        totalSessions: 3,
+        lastSessionDate: new Date(Date.now() - 172800000).toISOString(),
+        totalSpent: 300,
+        status: "active",
+        satisfaction: 5,
+        preferences: {
+          preferredTimes: ["afternoon"],
+          preferredServices: ["therapy"],
+          goals: ["stress relief"],
+        },
+      },
+    ];
+
+    return HttpResponse.json(mockClients);
+  }),
+
+  // GET /api/contacts - Get contacts for calendar data
+  http.get("/api/contacts", ({ request }) => {
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search");
+    const page = parseInt(url.searchParams.get("page") || "1", 10);
+    const pageSize = parseInt(url.searchParams.get("pageSize") || "25", 10);
+
+    // Filter by search if provided
+    let items = mockContacts.items;
+    if (search) {
+      items = items.filter(
+        (contact) =>
+          contact.displayName.toLowerCase().includes(search.toLowerCase()) ||
+          contact.primaryEmail?.toLowerCase().includes(search.toLowerCase()),
+      );
+    }
+
+    const total = items.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+
+    return HttpResponse.json({
+      items,
+      pagination: {
+        total,
+        page,
+        pageSize,
+        totalPages,
+        hasNext,
+        hasPrev,
+      },
+    });
   }),
 
   // ===========================================================================

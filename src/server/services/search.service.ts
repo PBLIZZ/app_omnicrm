@@ -5,7 +5,12 @@
  * traditional keyword search and semantic search via embeddings.
  */
 
-import { createSearchRepository } from "../../../packages/repo/src/search.repo";
+import {
+  createSearchRepository,
+  type SearchRepository,
+  type SearchResultDTO,
+  type SemanticSearchParams,
+} from "../../../packages/repo/src/search.repo";
 import { getDb } from "@/server/db/client";
 import { getOrGenerateEmbedding } from "@/server/lib/embeddings";
 import { AppError } from "@/lib/errors/app-error";
@@ -145,7 +150,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 async function searchTraditional(
-  searchRepo: any,
+  searchRepo: SearchRepository,
   userId: string,
   query: string,
   limit: number,
@@ -162,7 +167,7 @@ async function searchTraditional(
 }
 
 async function searchSemantic(
-  searchRepo: any,
+  searchRepo: SearchRepository,
   userId: string,
   query: string,
   limit: number,
@@ -170,12 +175,18 @@ async function searchSemantic(
 ): Promise<SearchResult[]> {
   try {
     const embedding = await getOrGenerateEmbedding(query);
-    const results = await searchRepo.searchSemantic({
+    const searchParams: SemanticSearchParams = {
       userId,
       embedding,
       limit,
-      types,
-    });
+      similarityThreshold: 0.7,
+    };
+
+    if (types && types.length > 0) {
+      searchParams.types = types;
+    }
+
+    const results = await searchRepo.searchSemantic(searchParams);
 
     return results.map(mapSearchResultDTOToSearchResult);
   } catch (error) {
@@ -190,7 +201,7 @@ async function searchSemantic(
 }
 
 async function searchHybrid(
-  searchRepo: any,
+  searchRepo: SearchRepository,
   userId: string,
   query: string,
   limit: number,
@@ -248,7 +259,7 @@ async function searchHybrid(
     .slice(0, effectiveLimit);
 }
 
-function mapSearchResultDTOToSearchResult(dto: any): SearchResult {
+function mapSearchResultDTOToSearchResult(dto: SearchResultDTO): SearchResult {
   const result: SearchResult = {
     id: dto.id,
     type: dto.type,

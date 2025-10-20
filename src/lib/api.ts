@@ -339,6 +339,23 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
         status: 200,
       });
     } catch (error) {
+      // Lazy import ApiError for error handling
+      const { ApiError } = await import("./api/errors");
+
+      // Handle ApiError with proper status codes
+      if (error instanceof ApiError) {
+        return new Response(
+          JSON.stringify({
+            error: error.message,
+            details: error.details,
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: error.status,
+          },
+        );
+      }
+
       if (error instanceof z.ZodError) {
         return new Response(
           JSON.stringify({

@@ -12,9 +12,32 @@ interface IntelligentProcessingStats {
   isAvailable: boolean;
 }
 
+interface InboxItem {
+  id: string;
+  rawText: string;
+  createdAt: string;
+  status: string;
+}
+
+interface ProcessingResult {
+  extractedTasks: unknown[];
+  suggestedProjects: unknown[];
+  taskHierarchies: unknown[];
+  overallConfidence: number;
+  processingNotes: string;
+  requiresApproval: boolean;
+}
+
 interface ApprovalItem {
-  inboxItem: any;
-  processingResult: any;
+  inboxItem: InboxItem;
+  processingResult: ProcessingResult;
+}
+
+interface ApprovalPayload {
+  inboxItemId: string;
+  approvedTasks: unknown[];
+  approvedProjects: unknown[];
+  approvedHierarchies: unknown[];
 }
 
 export function useIntelligentInbox() {
@@ -114,7 +137,7 @@ export function useIntelligentInbox() {
 
   // Process approval
   const processApproval = useCallback(
-    async (approvalData: any) => {
+    async (approvalData: ApprovalPayload) => {
       setIsLoading(true);
       try {
         const response = await fetch("/api/omni-momentum/inbox/approval", {
@@ -129,7 +152,7 @@ export function useIntelligentInbox() {
           throw new Error("Failed to process approval");
         }
 
-        const result = await response.json();
+        const result = (await response.json()) as { processingSummary: string };
         toast.success(result.processingSummary);
 
         // Reload pending items and stats

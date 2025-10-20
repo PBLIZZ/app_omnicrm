@@ -35,7 +35,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 10 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       const result = await repo.listAiInsights(mockUserId);
 
@@ -49,7 +51,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       const result = await repo.listAiInsights(mockUserId, {
         subjectType: "contact",
@@ -65,7 +69,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       const result = await repo.listAiInsights(mockUserId, {
         subjectId: "contact-123",
@@ -81,7 +87,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       const result = await repo.listAiInsights(mockUserId, {
         kinds: ["wellness_goal"],
@@ -97,7 +105,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       const result = await repo.listAiInsights(mockUserId, {
         search: "Yoga",
@@ -113,7 +123,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 100 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       const result = await repo.listAiInsights(mockUserId, {
         page: 2,
@@ -130,7 +142,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       await repo.listAiInsights(mockUserId, { pageSize: 500 });
 
@@ -143,7 +157,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 1 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       await repo.listAiInsights(mockUserId, { pageSize: 0 });
 
@@ -159,7 +175,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder(mockInsights);
       const countBuilder = createMockQueryBuilder([{ value: 2 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       const result = await repo.listAiInsights(mockUserId, { order: "asc" });
 
@@ -170,7 +188,9 @@ describe("AiInsightsRepository", () => {
       const selectBuilder = createMockQueryBuilder([]);
       const countBuilder = createMockQueryBuilder([{ value: 0 }]);
 
-      vi.mocked(mockDb.select).mockReturnValue(selectBuilder).mockReturnValueOnce(countBuilder);
+      vi.mocked(mockDb.select)
+        .mockReturnValueOnce(selectBuilder) // First call for data
+        .mockReturnValueOnce(countBuilder); // Second call for count
 
       const result = await repo.listAiInsights(mockUserId);
 

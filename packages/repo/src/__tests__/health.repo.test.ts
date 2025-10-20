@@ -15,7 +15,7 @@ describe("HealthRepository", () => {
 
   describe("pingDatabase", () => {
     it("should execute a simple select query", async () => {
-      vi.mocked(mockDb.execute).mockResolvedValue(undefined);
+      vi.mocked(mockDb.execute).mockResolvedValue([] as any);
 
       await repo.pingDatabase();
 
@@ -52,7 +52,7 @@ describe("HealthRepository", () => {
     });
 
     it("should inject database client correctly", async () => {
-      vi.mocked(mockDb.execute).mockResolvedValue(undefined);
+      vi.mocked(mockDb.execute).mockResolvedValue([] as any);
 
       const newRepo = createHealthRepository(mockDb);
       await newRepo.pingDatabase();

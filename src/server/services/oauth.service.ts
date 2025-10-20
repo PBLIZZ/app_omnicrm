@@ -137,7 +137,11 @@ export async function handleOAuthCallbackService(
       };
     }
 
-    const { code, state, error, error_description } = queryValidation.data!;
+    if (!queryValidation.data) {
+      throw new AppError("OAuth validation failed", "OAUTH_VALIDATION_ERROR", "validation", false);
+    }
+
+    const { code, state, error, error_description } = queryValidation.data;
 
     // 2. Handle OAuth error responses
     if (error) {

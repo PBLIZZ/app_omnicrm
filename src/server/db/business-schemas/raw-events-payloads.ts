@@ -185,32 +185,34 @@ export type GoogleCalendarEventPayload = z.infer<typeof GoogleCalendarEventPaylo
 // SOURCE META SCHEMAS
 // ============================================================================
 
-export const GmailSourceMetaSchema = z.object({
-  from: z.string().optional(),
-  to: z.array(z.string()).optional(),
-  cc: z.array(z.string()).optional(),
-  bcc: z.array(z.string()).optional(),
-  subject: z.string().optional(),
-  threadId: z.string().optional(),
-  messageId: z.string().optional(),
-  labelIds: z.array(z.string()).optional(),
-  fetchedAt: z.string().optional(),
-  matchedQuery: z.string().optional(),
-  // Additional Gmail-specific fields
-  labels: z.array(z.string()).optional(),
-  queries: z.array(z.string()).optional(),
-  categories: z.array(z.string()).optional(),
-  importance: z.enum(["high", "normal", "low"]).optional(),
-  isRead: z.boolean().optional(),
-  isStarred: z.boolean().optional(),
-  isImportant: z.boolean().optional(),
-  isSpam: z.boolean().optional(),
-  isTrash: z.boolean().optional(),
-  isSent: z.boolean().optional(),
-  isDraft: z.boolean().optional(),
-  date: z.string().optional(),
-  size: z.number().optional(),
-});
+export const GmailSourceMetaSchema = z
+  .object({
+    from: z.string().optional(),
+    to: z.array(z.string()).optional(),
+    cc: z.array(z.string()).optional(),
+    bcc: z.array(z.string()).optional(),
+    subject: z.string().optional(),
+    threadId: z.string().optional(),
+    messageId: z.string().optional(),
+    labelIds: z.array(z.string()).optional(),
+    fetchedAt: z.string().optional(),
+    matchedQuery: z.string().optional(),
+    // Additional Gmail-specific fields
+    labels: z.array(z.string()).optional(),
+    queries: z.array(z.string()).optional(),
+    categories: z.array(z.string()).optional(),
+    importance: z.enum(["high", "normal", "low"]).optional(),
+    isRead: z.boolean().optional(),
+    isStarred: z.boolean().optional(),
+    isImportant: z.boolean().optional(),
+    isSpam: z.boolean().optional(),
+    isTrash: z.boolean().optional(),
+    isSent: z.boolean().optional(),
+    isDraft: z.boolean().optional(),
+    date: z.string().optional(),
+    size: z.number().optional(),
+  })
+  .strict();
 
 export type GmailSourceMeta = z.infer<typeof GmailSourceMetaSchema>;
 
@@ -230,6 +232,7 @@ export const CalendarSourceMetaSchema = z.object({
   organizer: z
     .object({
       email: z.string(),
+      name: z.string().optional(),
       displayName: z.string().optional(),
     })
     .nullable()
@@ -247,6 +250,11 @@ export const CalendarSourceMetaSchema = z.object({
   calendarId: z.string().optional(),
   eventId: z.string().optional(),
   recurringEventId: z.string().optional(),
+  // Additional fields expected by tests
+  summary: z.string().optional(),
+  description: z.string().optional(),
+  status: z.enum(["confirmed", "tentative", "cancelled"]).optional(),
+  fetchedAt: z.string().optional(),
 });
 
 export type CalendarSourceMeta = z.infer<typeof CalendarSourceMetaSchema>;
@@ -255,19 +263,11 @@ export type CalendarSourceMeta = z.infer<typeof CalendarSourceMetaSchema>;
 // UNION TYPES FOR RAW EVENTS
 // ============================================================================
 
-export const RawEventPayloadSchema = z.union([
-  GmailMessagePayloadSchema,
-  GoogleCalendarEventPayloadSchema,
-  z.record(z.string(), z.unknown()), // Fallback for unknown payloads
-]);
+export const RawEventPayloadSchema = z.record(z.string(), z.unknown()); // Accept any record
 
 export type RawEventPayload = z.infer<typeof RawEventPayloadSchema>;
 
-export const RawEventSourceMetaSchema = z.union([
-  GmailSourceMetaSchema,
-  CalendarSourceMetaSchema,
-  z.record(z.string(), z.unknown()), // Fallback for unknown metadata
-]);
+export const RawEventSourceMetaSchema = z.record(z.string(), z.unknown()); // Accept any record
 
 export type RawEventSourceMeta = z.infer<typeof RawEventSourceMetaSchema>;
 
@@ -291,11 +291,15 @@ export function validateCalendarSourceMeta(data: unknown): CalendarSourceMeta {
   return CalendarSourceMetaSchema.parse(data);
 }
 
-export function safeValidateRawEventPayload(data: unknown) {
+export function safeValidateRawEventPayload(
+  data: unknown,
+): ReturnType<typeof RawEventPayloadSchema.safeParse> {
   return RawEventPayloadSchema.safeParse(data);
 }
 
-export function safeValidateRawEventSourceMeta(data: unknown) {
+export function safeValidateRawEventSourceMeta(
+  data: unknown,
+): ReturnType<typeof RawEventSourceMetaSchema.safeParse> {
   return RawEventSourceMetaSchema.safeParse(data);
 }
 

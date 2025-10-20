@@ -24,7 +24,7 @@ class QueryCache {
 
   constructor() {
     // Initialize stats from Redis on startup
-    this.initializeStats();
+    void this.initializeStats();
   }
 
   /**

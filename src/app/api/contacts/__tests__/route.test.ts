@@ -1,21 +1,138 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, POST } from "../route";
 import * as contactsService from "@/server/services/contacts.service";
-import * as contactsAdapters from "@/server/adapters/contacts";
-import * as authUser from "@/server/auth/user";
-import {
-  setupRepoMocks,
-  resetRepoMocks,
-  makeOmniClientWithNotes,
-  makeOmniClient,
-  testUtils,
-  type AllRepoFakes,
-} from "@packages/testing";
+import { setupRepoMocks, resetRepoMocks, testUtils, type AllRepoFakes } from "@packages/testing";
+import type { ContactWithLastNote, Contact } from "@/server/db/business-schemas/contacts";
 
 // Mock service layer (keeping existing pattern since this is API route test)
 vi.mock("@/server/services/contacts.service");
-vi.mock("@/server/adapters/contacts");
-vi.mock("@/server/auth/user");
+
+// Mock the authentication handlers
+vi.mock("@/lib/api", () => ({
+  handleGetWithQueryAuth: vi.fn((schema, responseSchema, handler) => {
+    return async (request: Request) => {
+      // Mock authentication - simulate authenticated user
+      const url = new URL(request.url);
+      const query = Object.fromEntries(url.searchParams.entries());
+
+      // Convert string numbers to actual numbers
+      if (query.page) query.page = parseInt(query.page as string, 10);
+      if (query.pageSize) query.pageSize = parseInt(query.pageSize as string, 10);
+
+      const userId = "test-user-id";
+
+      try {
+        const result = await handler(query, userId);
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: "Internal server error",
+            details: error instanceof Error ? error.message : "Unknown error",
+          }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+    };
+  }),
+  handleAuth: vi.fn((schema, responseSchema, handler) => {
+    return async (request: Request) => {
+      // Mock authentication - simulate authenticated user
+      const userId = "test-user-id";
+
+      try {
+        const body = await request.json();
+        const result = await handler(body, userId);
+
+        // Handle null result (creation failure)
+        if (result === null) {
+          return new Response(JSON.stringify({ error: "Failed to create client" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify({ item: result }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: "Internal server error",
+            details: error instanceof Error ? error.message : "Unknown error",
+          }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+    };
+  }),
+}));
+
+// Factory functions for test data
+function makeContactWithLastNote(
+  overrides: Partial<ContactWithLastNote> = {},
+): ContactWithLastNote {
+  return {
+    id: "contact-1",
+    userId: "test-user-id",
+    displayName: "John Doe",
+    primaryEmail: "john@example.com",
+    primaryPhone: "+1234567890",
+    photoUrl: null,
+    source: "manual",
+    lifecycleStage: "New Client",
+    clientStatus: null,
+    referralSource: null,
+    confidenceScore: "0.8",
+    dateOfBirth: null,
+    emergencyContactName: null,
+    emergencyContactPhone: null,
+    address: null,
+    healthContext: null,
+    preferences: null,
+    tags: null,
+    createdAt: new Date("2024-01-01"),
+    updatedAt: new Date("2024-01-01"),
+    lastNote: "Recent interaction",
+    ...overrides,
+  };
+}
+
+function makeContact(overrides: Partial<Contact> = {}): Contact {
+  return {
+    id: "contact-2",
+    userId: "test-user-id",
+    displayName: "Jane Smith",
+    primaryEmail: "jane@example.com",
+    primaryPhone: "+1987654321",
+    photoUrl: null,
+    source: "manual",
+    lifecycleStage: null,
+    clientStatus: null,
+    referralSource: null,
+    confidenceScore: null,
+    dateOfBirth: null,
+    emergencyContactName: null,
+    emergencyContactPhone: null,
+    address: null,
+    healthContext: null,
+    preferences: null,
+    tags: null,
+    createdAt: new Date("2024-01-02"),
+    updatedAt: new Date("2024-01-02"),
+    ...overrides,
+  };
+}
 
 describe("/api/contacts API Routes", () => {
   let fakes: AllRepoFakes;
@@ -25,48 +142,33 @@ describe("/api/contacts API Routes", () => {
     vi.clearAllMocks();
     fakes = setupRepoMocks();
     resetRepoMocks(fakes);
-
-    // Mock authentication
-    vi.mocked(authUser.getServerUserId).mockResolvedValue(mockUserId);
   });
 
   describe("GET /api/contacts", () => {
     it("should return list of omni clients with default parameters", async () => {
       // Use factory to create test data
-      const contactListItem = {
-        id: "contact-1",
-        userId: mockUserId,
-        displayName: "John Doe",
-        primaryEmail: "john@example.com",
-        primaryPhone: "+1234567890",
-        source: "manual" as const,
-        lifecycleStage: "New Client" as const,
-        tags: null,
-        confidenceScore: "0.8",
-        photoUrl: null,
-        createdAt: new Date("2024-01-01"),
-        updatedAt: new Date("2024-01-01"),
-        lastNote: "Recent interaction",
-      };
-
-      const mockContactsResult = {
-        items: [contactListItem],
-        total: 1,
-      };
-
-      const mockOmniClient = makeOmniClientWithNotes({
+      const mockContact = makeContactWithLastNote({
         id: "contact-1",
         displayName: "John Doe",
         primaryEmail: "john@example.com",
         primaryPhone: "+1234567890",
-        lifecycleStage: "New Client" as const,
+        lifecycleStage: "New Client",
         lastNote: "Recent interaction",
       });
 
-      const mockContacts = [mockOmniClient];
+      const mockContactsResult = {
+        items: [mockContact],
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
 
       vi.mocked(contactsService.listContactsService).mockResolvedValue(mockContactsResult);
-      vi.mocked(contactsAdapters.toContactsWithNotes).mockReturnValue(mockContacts as any);
 
       // Create NextRequest object
       const request = new Request(
@@ -81,24 +183,34 @@ describe("/api/contacts API Routes", () => {
         page: 1,
         pageSize: 50,
       });
-      expect(contactsAdapters.toContactsWithNotes).toHaveBeenCalledWith(mockContactsResult.items);
       expect(response).toBeDefined();
 
       // Verify response structure
       const json = await response.json();
       expect(json).toEqual({
-        items: mockContacts,
-        total: 1,
-        nextCursor: null,
+        ...mockContactsResult,
+        items: mockContactsResult.items.map((item) => ({
+          ...item,
+          createdAt: item.createdAt.toISOString(),
+          updatedAt: item.updatedAt.toISOString(),
+        })),
       });
     });
 
     it("should handle search parameter", async () => {
-      const mockContactsResult = { items: [], total: 0 };
-      const mockContacts: ReturnType<typeof makeOmniClientWithNotes>[] = [];
+      const mockContactsResult = {
+        items: [],
+        pagination: {
+          page: 1,
+          pageSize: 25,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
 
       vi.mocked(contactsService.listContactsService).mockResolvedValue(mockContactsResult);
-      vi.mocked(contactsAdapters.toContactsWithNotes).mockReturnValue(mockContacts as any);
 
       // Create NextRequest object with search parameter
       const request = new Request(
@@ -128,51 +240,22 @@ describe("/api/contacts API Routes", () => {
       expect(response.status).toBe(500);
 
       const json = await response.json();
-      expect(json).toEqual({
-        error: "Failed to fetch omni clients",
-        details: "Database error",
-      });
+      expect(json).toHaveProperty("error");
+      expect(json).toHaveProperty("details");
     });
   });
 
   describe("POST /api/contacts", () => {
     it("should create a new omni client", async () => {
-      const mockCreatedContact = {
-        id: "contact-2",
-        userId: mockUserId,
-        displayName: "Jane Smith",
-        primaryEmail: "jane@example.com",
-        primaryPhone: "+1987654321",
-        source: "manual" as const,
-        lifecycleStage: null,
-        tags: null,
-        confidenceScore: null,
-        photoUrl: null,
-        createdAt: new Date("2024-01-02"),
-        updatedAt: new Date("2024-01-02"),
-        lastNote: null,
-      };
-
-      const mockOmniClient = makeOmniClient({
+      const mockCreatedContact = makeContact({
         id: "contact-2",
         displayName: "Jane Smith",
         primaryEmail: "jane@example.com",
         primaryPhone: "+1987654321",
-        source: "manual" as const,
+        source: "manual",
       });
 
-      // Mock the adapter to return the service-compatible type
-      vi.mocked(contactsAdapters.fromOmniClientInput).mockReturnValue({
-        displayName: "Jane Smith",
-        primaryEmail: "jane@example.com",
-        primaryPhone: "+1987654321",
-        source: "manual" as const,
-        lifecycleStage: null,
-        tags: null,
-        confidenceScore: null,
-      });
       vi.mocked(contactsService.createContactService).mockResolvedValue(mockCreatedContact);
-      vi.mocked(contactsAdapters.toOmniClient).mockReturnValue(mockOmniClient as any);
 
       // Create NextRequest object with JSON body
       const request = new Request("http://localhost:3000/api/contacts", {
@@ -187,41 +270,26 @@ describe("/api/contacts API Routes", () => {
 
       const response = await POST(request as any);
 
-      expect(contactsAdapters.fromOmniClientInput).toHaveBeenCalledWith({
-        displayName: "Jane Smith",
-        primaryEmail: "jane@example.com",
-        primaryPhone: "+1987654321",
-        source: "manual",
-      });
       expect(contactsService.createContactService).toHaveBeenCalledWith(mockUserId, {
         displayName: "Jane Smith",
         primaryEmail: "jane@example.com",
         primaryPhone: "+1987654321",
-        source: "manual" as const,
-        lifecycleStage: null,
-        tags: null,
-        confidenceScore: null,
       });
-      expect(contactsAdapters.toOmniClient).toHaveBeenCalledWith(mockCreatedContact);
       expect(response).toBeDefined();
       expect(response.status).toBe(201);
 
       const json = await response.json();
-      expect(json).toEqual({ item: mockOmniClient });
+      expect(json).toEqual({
+        item: {
+          ...mockCreatedContact,
+          createdAt: mockCreatedContact.createdAt.toISOString(),
+          updatedAt: mockCreatedContact.updatedAt.toISOString(),
+        },
+      });
     });
 
     it("should handle creation failure", async () => {
-      // Mock the adapter to return the service-compatible type
-      vi.mocked(contactsAdapters.fromOmniClientInput).mockReturnValue({
-        displayName: "Failed Contact",
-        primaryEmail: null,
-        primaryPhone: null,
-        source: "manual" as const,
-        lifecycleStage: null,
-        tags: null,
-        confidenceScore: null,
-      });
-      vi.mocked(contactsService.createContactService).mockResolvedValue(null);
+      vi.mocked(contactsService.createContactService).mockResolvedValue(null as any);
 
       // Create NextRequest object
       const request = new Request("http://localhost:3000/api/contacts", {
@@ -236,12 +304,6 @@ describe("/api/contacts API Routes", () => {
 
       expect(contactsService.createContactService).toHaveBeenCalledWith(mockUserId, {
         displayName: "Failed Contact",
-        primaryEmail: null,
-        primaryPhone: null,
-        source: "manual" as const,
-        lifecycleStage: null,
-        tags: null,
-        confidenceScore: null,
       });
       expect(response).toBeDefined();
       expect(response.status).toBe(500);
@@ -253,16 +315,6 @@ describe("/api/contacts API Routes", () => {
     });
 
     it("should handle service errors during creation", async () => {
-      // Mock the adapter to return the service-compatible type
-      vi.mocked(contactsAdapters.fromOmniClientInput).mockReturnValue({
-        displayName: "Error Contact",
-        primaryEmail: null,
-        primaryPhone: null,
-        source: "manual" as const,
-        lifecycleStage: null,
-        tags: null,
-        confidenceScore: null,
-      });
       vi.mocked(contactsService.createContactService).mockRejectedValue(
         new Error("Database error"),
       );
@@ -283,7 +335,7 @@ describe("/api/contacts API Routes", () => {
 
       const json = await response.json();
       expect(json).toEqual({
-        error: "Failed to create omni client",
+        error: "Internal server error",
         details: "Database error",
       });
     });

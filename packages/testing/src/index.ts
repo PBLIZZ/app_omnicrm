@@ -188,3 +188,9 @@ export const testUtils = {
 
 // Re-export vi for convenience
 export { vi } from "vitest";
+
+// =============================================================================
+// MOCK UTILITIES
+// =============================================================================
+
+export { setupRepoMocks, resetRepoMocks, type MockFakes } from "./mock-utils";

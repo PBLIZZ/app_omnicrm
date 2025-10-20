@@ -63,8 +63,8 @@ export async function getDashboardStateService(userId: string): Promise<ConnectD
           calendar: googleStatus.calendar.connected,
         },
         lastSync: {
-          gmail: connection.lastSync ?? undefined,
-          calendar: undefined,
+          gmail: connection.lastSync ?? null,
+          calendar: null,
         },
         lastBatchId: jobsData?.currentBatch ?? null,
         grantedScopes: {
@@ -120,8 +120,8 @@ async function getConnectionStatus(
         emailCount: 0,
         contactCount: 0,
         grantedScopes: {
-          gmail: null,
-          calendar: null,
+          gmail: undefined,
+          calendar: undefined,
         },
       };
     }

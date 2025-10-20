@@ -15,7 +15,6 @@ import React from "react";
  * - No retries (fail fast)
  * - Short stale times
  * - No caching between tests
- * - Silent error logging
  */
 const DEFAULT_TEST_CONFIG: QueryClientConfig = {
   defaultOptions: {
@@ -23,24 +22,15 @@ const DEFAULT_TEST_CONFIG: QueryClientConfig = {
       retry: false,
       gcTime: 0,
       staleTime: 0,
-      refetchOnMount: false,
+      refetchOnMount: true,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
+      networkMode: "always",
     },
     mutations: {
       retry: false,
       gcTime: 0,
-    },
-  },
-  logger: {
-    log: () => {
-      // Silent
-    },
-    warn: () => {
-      // Silent
-    },
-    error: () => {
-      // Silent
+      networkMode: "always",
     },
   },
 };

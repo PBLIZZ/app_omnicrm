@@ -219,17 +219,16 @@ export function startTransaction(name: string, op: string) {
 /**
  * Set span context
  */
-export function setSpanContext(span: any, context: Record<string, unknown>) {
-  span.setAttributes(context);
+export function setSpanContext(span: Sentry.Span, context: Record<string, unknown>) {
+  span.setAttributes(context as Record<string, string | number | boolean | undefined>);
 }
 
 /**
  * Finish span
  */
 export function finishSpan(
-  span: any,
+  span: Sentry.Span,
   status?:
-    | "ok"
     | "cancelled"
     | "unknown_error"
     | "internal_error"
@@ -244,7 +243,9 @@ export function finishSpan(
     | "unavailable"
     | "data_loss",
 ) {
-  span.setStatus({ code: status || "ok" });
+  if (status) {
+    (span.setStatus as any)({ code: status });
+  }
   span.end();
 }
 

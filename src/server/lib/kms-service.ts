@@ -277,6 +277,15 @@ class KMSService {
   }> {
     try {
       const available = await this.isAvailable();
+      if (!available) {
+        return {
+          available: false,
+          keyId: this.config.keyId,
+          region: this.config.region,
+          currentVersion: this.currentKeyVersion,
+          error: "KMS service is not available",
+        };
+      }
       return {
         available,
         keyId: this.config.keyId,

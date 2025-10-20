@@ -130,11 +130,11 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
     // Decrypt and backfill if previously stored in plaintext
     const decryptedAccess = isEncrypted(r.accessToken)
-      ? decryptString(r.accessToken)
+      ? await decryptString(r.accessToken)
       : r.accessToken;
     const decryptedRefresh = r.refreshToken
       ? isEncrypted(r.refreshToken)
-        ? decryptString(r.refreshToken)
+        ? await decryptString(r.refreshToken)
         : r.refreshToken
       : null;
 
@@ -142,8 +142,14 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
     if (!isEncrypted(r.accessToken) || (r.refreshToken && !isEncrypted(r.refreshToken))) {
       try {
         await userIntegrationsRepo.updateRawTokens(userId, "google", r.service, {
-          accessToken: isEncrypted(r.accessToken) ? r.accessToken : encryptString(decryptedAccess),
-          refreshToken: isEncrypted(r.refreshToken) ? r.refreshToken : (r.refreshToken ? encryptString(r.refreshToken) : null),
+          accessToken: isEncrypted(r.accessToken)
+            ? r.accessToken
+            : await encryptString(decryptedAccess),
+          refreshToken: isEncrypted(r.refreshToken)
+            ? r.refreshToken
+            : r.refreshToken
+              ? await encryptString(r.refreshToken)
+              : null,
         });
       } catch (error) {
         // Fail fast - encryption backfill failures should not be ignored
@@ -165,11 +171,14 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
 
     auth.on("tokens", async (tokens) => {
       if (!(tokens.access_token || tokens.refresh_token)) return;
+      const updatedAccessToken =
+        tokens.access_token != null ? await encryptString(tokens.access_token) : r.accessToken;
+      const updatedRefreshToken =
+        tokens.refresh_token != null ? await encryptString(tokens.refresh_token) : r.refreshToken;
+
       await userIntegrationsRepo.updateRawTokens(userId, "google", r.service, {
-        accessToken:
-          tokens.access_token != null ? encryptString(tokens.access_token) : r.accessToken,
-        refreshToken:
-          tokens.refresh_token != null ? encryptString(tokens.refresh_token) : r.refreshToken,
+        accessToken: updatedAccessToken,
+        refreshToken: updatedRefreshToken,
         expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : r.expiryDate,
       });
     });

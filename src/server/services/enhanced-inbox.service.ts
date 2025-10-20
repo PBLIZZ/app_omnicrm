@@ -6,12 +6,11 @@
  * and detect task hierarchies with HITL approval workflow.
  */
 
-import { createInboxRepository, createZonesRepository } from "@repo";
+import { createInboxRepository } from "@repo";
 import { logger } from "@/lib/observability";
 import { AppError } from "@/lib/errors/app-error";
 import { getDb } from "@/server/db/client";
 import { queueInboxItemForProcessing, getQueueStats } from "./inbox-queue.service";
-import type { InboxProcessingContext } from "@/server/db/business-schemas";
 import { assertOpenRouterConfigured } from "@/server/ai/providers/openrouter";
 import { z } from "zod";
 

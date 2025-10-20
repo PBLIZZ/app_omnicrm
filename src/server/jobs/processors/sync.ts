@@ -24,12 +24,13 @@ import type { calendar_v3 } from "googleapis";
  * - Hard wall-clock cap: 3 minutes per job to prevent runaway executions
  */
 
+import { isGmailPayload } from "@/server/db/business-schemas";
+
 // Define proper types for job payloads
 interface SyncJobPayload {
   batchId?: string;
 }
 
-import { GmailMessagePayload, isGmailPayload } from "@/server/db/business-schemas";
 
 // Types:
 // - MinimalJob reflects what we actually read from the job object at runtime.
@@ -47,13 +48,6 @@ export function isJobRow(job: unknown): job is MinimalJob {
 }
 
 // Safe checks for external API payloads
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
-
-function isStringArray(v: unknown): v is string[] {
-  return Array.isArray(v) && v.every((x) => typeof x === "string");
-}
 
 // Use the imported validation function from business schemas
 
@@ -292,11 +286,17 @@ export async function runGmailSync(
 
         const msg = response.data;
 
-        if (!msg || !isGmailMessagePayload(msg)) {
+        if (!msg || typeof msg !== 'object' || msg === null) {
           if (!msg) {
             itemsSkipped += 1;
             errorsCount += 1;
           }
+          continue;
+        }
+
+        if (!isGmailPayload(msg)) {
+          itemsSkipped += 1;
+          errorsCount += 1;
           continue;
         }
 
@@ -324,7 +324,7 @@ export async function runGmailSync(
               matchedQuery: q,
             },
             sourceId: msg.id ?? null,
-          });
+          } as never);
 
           itemsInserted += 1;
           itemsFetched += 1;
@@ -594,58 +594,31 @@ export async function runCalendarSync(
       const occurredAt = new Date(startStr);
       toInsert.push({ ev: e, occurredAt });
     }
-    const results = await Promise.allSettled(
-      toInsert.map(({ ev: e, occurredAt }) =>
-        drizzleAdminGuard.upsert("raw_events", {
-          userId,
-          provider: "google_calendar",
-          payload: e,
-          occurredAt,
-          contactId: null,
-          batchId: batchId ?? null,
-          sourceMeta: { fetchedAt: new Date().toISOString() },
-          sourceId: e.id ?? null,
-        }),
-      ),
-    );
-    for (const [index, r] of results.entries()) {
-      const eventForDebug = toInsert[index]?.ev;
-      if (r.status !== "fulfilled") {
-        const error = String((r as PromiseRejectedResult).reason);
-        // Check if it's a duplicate constraint error (expected)
-        if (error.includes("23505") || error.includes("duplicate")) {
-          // Duplicate is expected, just count as processed but not new
-          itemsFetched += 1;
-          await logger.info("Skipped event: already exists in database (duplicate)", {
-            operation: CALENDAR_SYNC_OPERATION,
-            additionalData: {
-              ...debugContext,
-              op: "calendar.sync.duplicate_skipped",
-              eventId: eventForDebug?.id,
-              eventTitle: eventForDebug?.summary,
-              sourceId: eventForDebug?.id,
-            },
-          });
-        } else {
-          // Actual error
-          await logger.warn("Failed to insert event due to error", {
-            operation: CALENDAR_SYNC_OPERATION,
-            additionalData: {
-              ...debugContext,
-              op: "calendar.sync.insert_failed",
-              eventId: eventForDebug?.id,
-              eventTitle: eventForDebug?.summary,
-              error,
-              reason: (r as PromiseRejectedResult).reason,
-            },
-          });
-          itemsSkipped += 1;
-          errorsCount += 1;
-        }
-      } else {
-        itemsFetched += 1;
-        itemsInserted += 1;
-      }
+    const insertData = toInsert.map(({ ev: e, occurredAt }) => ({
+      userId,
+      provider: "google_calendar",
+      payload: e,
+      occurredAt,
+      contactId: null,
+      batchId: batchId ?? null,
+      sourceMeta: { fetchedAt: new Date().toISOString() },
+      sourceId: e.id ?? null,
+    }));
+
+    // Use direct insert with onConflictDoNothing for better type handling
+    try {
+      const db = await getDb();
+      await db
+        .insert(rawEvents)
+        .values(insertData as never)
+        .onConflictDoNothing();
+
+      itemsFetched += insertData.length;
+      itemsInserted += insertData.length;
+    } catch (error) {
+      // Handle errors gracefully
+      console.warn("Failed to insert calendar events:", error);
+      itemsSkipped += insertData.length;
     }
     // pacing between batches
     await new Promise((r) => setTimeout(r, SYNC_SLEEP_MS));

@@ -93,7 +93,10 @@ async function processInboxItemIntelligently(
         // Resolve project ID if it was created
         let resolvedProjectId = suggestedTask.projectId;
         if (suggestedTask.projectId && projectIdMap.has(suggestedTask.projectId)) {
-          resolvedProjectId = projectIdMap.get(suggestedTask.projectId)!;
+          const mappedProjectId = projectIdMap.get(suggestedTask.projectId);
+          if (mappedProjectId) {
+            resolvedProjectId = mappedProjectId;
+          }
         }
 
         const taskDueDate: string | null = suggestedTask.dueDate

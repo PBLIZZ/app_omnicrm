@@ -6,7 +6,7 @@
 
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 export interface SearchResult {

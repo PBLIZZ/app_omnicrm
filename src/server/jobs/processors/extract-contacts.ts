@@ -1,7 +1,6 @@
 import { logger } from "@/lib/observability";
 import { getDb } from "@/server/db/client";
 import { sql } from "drizzle-orm";
-import { contactTimeline } from "@/server/db/schema";
 import type { JobRecord, ContactExtractionPayload } from "@/server/jobs/types";
 import type { GmailSourceMeta, CalendarSourceMeta } from "@/server/db/business-schemas";
 
@@ -38,19 +37,19 @@ function isInteractionWithMeta(data: unknown): data is InteractionWithMeta {
     typeof data === "object" &&
     data !== null &&
     "id" in data &&
-    typeof (data as Record<string, unknown>).id === "string" &&
+    typeof (data as Record<string, unknown>)["id"] === "string" &&
     "source" in data &&
-    typeof (data as Record<string, unknown>).source === "string" &&
+    typeof (data as Record<string, unknown>)["source"] === "string" &&
     "source_id" in data &&
-    typeof (data as Record<string, unknown>).source_id === "string" &&
+    typeof (data as Record<string, unknown>)["source_id"] === "string" &&
     "source_meta" in data &&
-    typeof (data as Record<string, unknown>).source_meta === "object" &&
+    typeof (data as Record<string, unknown>)["source_meta"] === "object" &&
     "body_text" in data &&
-    ((data as Record<string, unknown>).body_text === null ||
-      typeof (data as Record<string, unknown>).body_text === "string") &&
+    ((data as Record<string, unknown>)["body_text"] === null ||
+      typeof (data as Record<string, unknown>)["body_text"] === "string") &&
     "subject" in data &&
-    ((data as Record<string, unknown>).subject === null ||
-      typeof (data as Record<string, unknown>).subject === "string")
+    ((data as Record<string, unknown>)["subject"] === null ||
+      typeof (data as Record<string, unknown>)["subject"] === "string")
   );
 }
 
@@ -203,7 +202,7 @@ async function processInteraction(
     if (!isInteractionWithMeta(interactionData)) {
       return { success: false, error: "Invalid interaction data structure" };
     }
-    const interaction = interactionData;
+    const interaction = interactionData as InteractionWithMeta;
 
     // Extract candidate identities from interaction
     const candidateIdentities = extractCandidateIdentities(interaction);
@@ -482,9 +481,9 @@ async function getUnlinkedInteractions(
       throw new Error("Invalid database result structure");
     }
     return {
-      id: String(item.id),
-      source: String(item.source),
-      sourceId: String(item.source_id),
+      id: String((item as Record<string, unknown>)["id"]),
+      source: String((item as Record<string, unknown>)["source"]),
+      sourceId: String((item as Record<string, unknown>)["source_id"]),
     };
   });
 }
@@ -493,12 +492,10 @@ async function getUnlinkedInteractions(
  * Create a timeline entry for a calendar event
  */
 async function createCalendarTimelineEntry(
-  userId: string,
-  contactId: string,
+  _userId: string,
+  _contactId: string,
   interaction: InteractionWithMeta,
 ): Promise<void> {
-  const db = await getDb();
-
   // Extract event details from source_meta (populated by normalize processor)
   const sourceMeta = interaction.source_meta as CalendarSourceMeta;
   const calendarId = sourceMeta.calendarId ?? null;
@@ -540,25 +537,9 @@ async function createCalendarTimelineEntry(
     attendees: sourceMeta.attendees ?? [],
   };
 
-  // Create timeline entry with proper conflict handling
-  try {
-    await db.insert(contactTimeline).values({
-      userId: userId,
-      contactId: contactId,
-      eventType: eventType,
-      title: interaction.subject ?? "Calendar Event",
-      description:
-        interaction.body_text ??
-        `${eventType.replace(/_/g, " ").charAt(0).toUpperCase() + eventType.replace(/_/g, " ").slice(1)}`,
-      eventData: eventData,
-      occurredAt: startTime ? new Date(startTime) : new Date(),
-    });
-  } catch (error: unknown) {
-    // If it's a unique constraint violation, that's fine - the timeline entry already exists
-    if ((error as { code?: string }).code !== "23505") {
-      throw error; // Re-throw if it's not a unique constraint violation
-    }
-  }
+  void eventType;
+  void eventData;
+  // Note: Timeline functionality removed - contactTimeline table does not exist
 }
 
 /**

@@ -59,10 +59,9 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
       const events: CalendarEvent[] = [];
       const clients: Client[] = [];
 
-      const { result, rerender } = renderHook(
-        ({ e, c }) => useCalendarIntelligence(e, c),
-        { initialProps: { e: events, c: clients } }
-      );
+      const { result, rerender } = renderHook(({ e, c }) => useCalendarIntelligence(e, c), {
+        initialProps: { e: events, c: clients },
+      });
 
       const firstInstance = result.current.biService;
 
@@ -130,9 +129,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         email: "sarah@example.com",
       });
 
-      const events = [
-        createMockEvent({ title: "Session with Sarah Johnson" }),
-      ];
+      const events = [createMockEvent({ title: "Session with Sarah Johnson" })];
 
       const { result } = renderHook(() => useCalendarIntelligence(events, [client]));
 
@@ -142,9 +139,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
     });
 
     it("handles events without matching clients", () => {
-      const events = [
-        createMockEvent({ title: "Team Meeting", attendees: [] }),
-      ];
+      const events = [createMockEvent({ title: "Team Meeting", attendees: [] })];
       const clients: Client[] = [];
 
       const { result } = renderHook(() => useCalendarIntelligence(events, clients));
@@ -186,9 +181,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         }),
       ];
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence(events, [highValueClient])
-      );
+      const { result } = renderHook(() => useCalendarIntelligence(events, [highValueClient]));
 
       const appointment = result.current.enhancedAppointments[0];
       expect(appointment.businessInsights.isHighValue).toBe(true);
@@ -206,18 +199,14 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         }),
       ];
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence(events, [repeatClient])
-      );
+      const { result } = renderHook(() => useCalendarIntelligence(events, [repeatClient]));
 
       const appointment = result.current.enhancedAppointments[0];
       expect(appointment.businessInsights.isRepeatClient).toBe(true);
     });
 
     it("flags preparation required for specific event types", () => {
-      const events = [
-        createMockEvent({ title: "Massage Therapy Session" }),
-      ];
+      const events = [createMockEvent({ title: "Massage Therapy Session" })];
 
       const { result } = renderHook(() => useCalendarIntelligence(events, []));
 
@@ -252,9 +241,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         }),
       ];
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence(events, [newClient])
-      );
+      const { result } = renderHook(() => useCalendarIntelligence(events, [newClient]));
 
       const actions = result.current.enhancedAppointments[0].businessInsights.suggestedActions;
       const hasWelcomeAction = actions.some((a) => a.includes("welcome"));
@@ -273,9 +260,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         }),
       ];
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence(events, [unsatisfiedClient])
-      );
+      const { result } = renderHook(() => useCalendarIntelligence(events, [unsatisfiedClient]));
 
       const actions = result.current.enhancedAppointments[0].businessInsights.suggestedActions;
       const hasReviewAction = actions.some((a) => a.includes("feedback"));
@@ -283,14 +268,14 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
     });
 
     it("suggests preparation for therapy sessions", () => {
-      const events = [
-        createMockEvent({ title: "Therapy Session" }),
-      ];
+      const events = [createMockEvent({ title: "Therapy Session" })];
 
       const { result } = renderHook(() => useCalendarIntelligence(events, []));
 
       const actions = result.current.enhancedAppointments[0].businessInsights.suggestedActions;
-      const hasPreparationAction = actions.some((a) => a.includes("prepare") || a.includes("treatment plan"));
+      const hasPreparationAction = actions.some(
+        (a) => a.includes("prepare") || a.includes("treatment plan"),
+      );
       expect(hasPreparationAction).toBe(true);
     });
 
@@ -324,24 +309,30 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
     });
 
     it("calculates total hours for week", () => {
+      // Create events for the current week using a fixed approach
       const now = new Date();
       const weekStart = new Date(now);
       weekStart.setDate(now.getDate() - now.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+
+      // Create events that are clearly within the current week
+      const event1Time = new Date(weekStart.getTime() + 24 * 60 * 60 * 1000); // 1 day after week start
+      const event2Time = new Date(weekStart.getTime() + 2 * 24 * 60 * 60 * 1000); // 2 days after week start
 
       const events = [
         createMockEvent({
-          startTime: weekStart.toISOString(),
-          endTime: new Date(weekStart.getTime() + 3600000).toISOString(), // 1 hour
+          startTime: event1Time.toISOString(),
+          endTime: new Date(event1Time.getTime() + 3600000).toISOString(), // 1 hour duration
         }),
         createMockEvent({
-          startTime: new Date(weekStart.getTime() + 86400000).toISOString(),
-          endTime: new Date(weekStart.getTime() + 86400000 + 7200000).toISOString(), // 2 hours
+          startTime: event2Time.toISOString(),
+          endTime: new Date(event2Time.getTime() + 3600000).toISOString(), // 1 hour duration
         }),
       ];
 
       const { result } = renderHook(() => useCalendarIntelligence(events, []));
 
-      expect(result.current.weeklyStats.totalHours).toBeCloseTo(3, 0);
+      expect(result.current.weeklyStats.totalHours).toBeCloseTo(2, 0);
     });
 
     it("identifies busiest day of week", () => {
@@ -352,8 +343,12 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
       // Create 3 events on Monday
       const mondayEvents = [
         createMockEvent({ startTime: new Date(weekStart.getTime() + 86400000).toISOString() }),
-        createMockEvent({ startTime: new Date(weekStart.getTime() + 86400000 + 3600000).toISOString() }),
-        createMockEvent({ startTime: new Date(weekStart.getTime() + 86400000 + 7200000).toISOString() }),
+        createMockEvent({
+          startTime: new Date(weekStart.getTime() + 86400000 + 3600000).toISOString(),
+        }),
+        createMockEvent({
+          startTime: new Date(weekStart.getTime() + 86400000 + 7200000).toISOString(),
+        }),
       ];
 
       const { result } = renderHook(() => useCalendarIntelligence(mondayEvents, []));
@@ -374,8 +369,8 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
 
       const events = [
         createMockEvent({
-          startTime: weekStart.toISOString(),
-          endTime: new Date(weekStart.getTime() + 3600000).toISOString(),
+          startTime: new Date(weekStart.getTime() + 1000).toISOString(), // 1 second after week start
+          endTime: new Date(weekStart.getTime() + 3600000 + 1000).toISOString(), // 1 hour + 1 second after week start
           attendees: [{ email: "client@example.com" }],
         }),
       ];
@@ -404,7 +399,9 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
 
       const monthEvents = [
         createMockEvent({ startTime: new Date(startOfMonth.getTime() + 86400000).toISOString() }),
-        createMockEvent({ startTime: new Date(startOfMonth.getTime() + 86400000 * 10).toISOString() }),
+        createMockEvent({
+          startTime: new Date(startOfMonth.getTime() + 86400000 * 10).toISOString(),
+        }),
       ];
 
       const { result } = renderHook(() => useCalendarIntelligence(monthEvents, []));
@@ -452,9 +449,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         }),
       ];
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence(events, [highPayingClient])
-      );
+      const { result } = renderHook(() => useCalendarIntelligence(events, [highPayingClient]));
 
       const revenue = result.current.calculateRevenue();
       expect(revenue).toBeGreaterThan(0);
@@ -520,7 +515,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
       };
 
       const { result } = renderHook(() =>
-        useCalendarIntelligence([malformedEvent as CalendarEvent], [])
+        useCalendarIntelligence([malformedEvent as CalendarEvent], []),
       );
 
       // Should not crash
@@ -534,9 +529,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         attendees: [],
       });
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence([eventWithOptionals], [])
-      );
+      const { result } = renderHook(() => useCalendarIntelligence([eventWithOptionals], []));
 
       expect(result.current.enhancedAppointments).toHaveLength(1);
       expect(result.current.enhancedAppointments[0].title).toBe("Session");
@@ -554,9 +547,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         }),
       ];
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence(events, [clientWithoutPrefs])
-      );
+      const { result } = renderHook(() => useCalendarIntelligence(events, [clientWithoutPrefs]));
 
       // Should not crash
       expect(result.current.enhancedAppointments).toBeDefined();
@@ -564,12 +555,10 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
 
     it("handles very large datasets", () => {
       const largeEventSet = Array.from({ length: 1000 }, (_, i) =>
-        createMockEvent({ id: `event-${i}`, title: `Event ${i}` })
+        createMockEvent({ id: `event-${i}`, title: `Event ${i}` }),
       );
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence(largeEventSet, [])
-      );
+      const { result } = renderHook(() => useCalendarIntelligence(largeEventSet, []));
 
       expect(result.current.enhancedAppointments).toHaveLength(1000);
     });
@@ -586,9 +575,7 @@ describe("useCalendarIntelligence (Unit Tests)", () => {
         }),
       ];
 
-      const { result } = renderHook(() =>
-        useCalendarIntelligence(events, duplicateClients)
-      );
+      const { result } = renderHook(() => useCalendarIntelligence(events, duplicateClients));
 
       // Should handle gracefully (first match wins)
       expect(result.current.enhancedAppointments[0].clientContext).toBeDefined();

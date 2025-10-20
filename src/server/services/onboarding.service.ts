@@ -189,7 +189,12 @@ export async function processPhotoUploadService(data: { token: string; file: Fil
   // 2. Validate file
   const fileValidation = validatePhotoFile(data.file);
   if (!fileValidation.valid) {
-    throw new AppError(fileValidation.error!, "INVALID_FILE", "validation", false);
+    throw new AppError(
+      fileValidation.error || "Invalid file format",
+      "INVALID_FILE",
+      "validation",
+      false,
+    );
   }
 
   if (data.file.size > MAX_FILE_SIZE) {

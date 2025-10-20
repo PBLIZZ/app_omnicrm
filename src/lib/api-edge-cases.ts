@@ -328,12 +328,86 @@ export function handlePublicGet<TOut>(
       const result = await fn(req);
       const validated = output.parse(result);
 
-      return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
-        status: 200,
-      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: validated,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        },
+      );
     } catch (error) {
-      throw error;
+      // Handle AppError
+      if (error instanceof AppError) {
+        const statusMap: Record<string, number> = {
+          validation: 400,
+          authentication: 401,
+          authorization: 403,
+          not_found: 404,
+          conflict: 409,
+          rate_limit: 429,
+          database: 500,
+          network: 502,
+          system: 500,
+        };
+
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: error.message,
+            code: error.code,
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: statusMap[error.category] || 500,
+          },
+        );
+      }
+
+      // Handle ZodError
+      if (error instanceof z.ZodError) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "Validation failed",
+            details: error.issues,
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: 400,
+          },
+        );
+      }
+
+      // Log error with structured logging
+      logError(
+        "Public GET handler error",
+        {
+          operation: "public_get_handler",
+          endpoint: "unknown",
+        },
+        error,
+      );
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, {
+        operation: "public_get_handler",
+        endpoint: "unknown",
+      });
+
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: sanitizedError.message,
+          code: sanitizedError.code,
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 500,
+        },
+      );
     }
   };
 }

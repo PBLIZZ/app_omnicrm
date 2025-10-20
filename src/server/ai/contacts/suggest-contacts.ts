@@ -76,10 +76,13 @@ export async function getContactSuggestions(
         attendeeMap.set(attendee.email, { displayName, events: [] });
       }
 
-      attendeeMap.get(attendee.email)!.events.push({
-        title: event.title,
-        date: event.startTime,
-      });
+      const attendeeData = attendeeMap.get(attendee.email);
+      if (attendeeData) {
+        attendeeData.events.push({
+          title: event.title,
+          date: event.startTime,
+        });
+      }
     }
   }
 

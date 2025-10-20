@@ -14,13 +14,6 @@ interface EmailSummary {
   occurredAt: Date;
 }
 
-interface EmailSummary {
-  subject: string;
-  sender: string;
-  date: string;
-  summary: string;
-}
-
 interface Insight {
   type: string;
   title: string;
@@ -72,7 +65,7 @@ export async function generateWeeklyDigest(
     )
     .orderBy(desc(interactions.occurredAt));
 
-  const insights = await db
+  const recentInsights = await db
     .select()
     .from(aiInsights)
     .where(
@@ -84,7 +77,22 @@ export async function generateWeeklyDigest(
       ),
     );
 
-  const emailSummary: EmailSummary[] = emailInteractions
+  const insights: Insight[] = recentInsights.map((insight) => {
+    const content = insight.content as { title?: string; confidence?: number } | null;
+    return {
+      type: insight.kind,
+      title: content?.title || 'No title',
+      confidence: content?.confidence || 0.5,
+      content: JSON.stringify(insight.content),
+    };
+  });
+
+  const emailSummary: Array<{
+    subject: string;
+    bodyText: string;
+    source: string;
+    occurredAt: Date;
+  }> = emailInteractions
     .map((interaction) => ({
       subject: interaction.subject ?? "No subject",
       bodyText: interaction.bodyText?.substring(0, 200) ?? "",
@@ -118,6 +126,7 @@ export async function generateWeeklyDigest(
 
   return {
     ...response.data,
-    timeframe: { startDate, endDate },
+    periodStart: startDate.toISOString(),
+    periodEnd: endDate.toISOString(),
   };
 }

@@ -27,7 +27,7 @@ export interface ErrorContext {
 /**
  * Sanitizes error messages to prevent information leakage
  */
-export function sanitizeErrorMessage(error: unknown, context?: ErrorContext): string {
+export function sanitizeErrorMessage(error: unknown, _context?: ErrorContext): string {
   if (error instanceof AppError) {
     // AppError messages are already safe for user consumption
     return error.message;
@@ -159,11 +159,22 @@ export function extractSafeErrorDetails(error: unknown): Record<string, unknown>
   }
 
   if (error instanceof Error) {
-    return {
+    const details: Record<string, unknown> = {
       name: error.name,
       message: error.message,
       stack: error.stack,
     };
+
+    // Preserve custom properties that might be useful for debugging
+    // but only include safe, non-sensitive properties
+    const safeCustomProps = ["status", "code", "category", "retryable"];
+    for (const prop of safeCustomProps) {
+      if (prop in error && typeof error[prop as keyof Error] !== "function") {
+        details[prop] = error[prop as keyof Error];
+      }
+    }
+
+    return details;
   }
 
   return {

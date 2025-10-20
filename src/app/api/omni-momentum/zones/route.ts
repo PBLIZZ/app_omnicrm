@@ -18,7 +18,7 @@ const ZonesResponseSchema = z.object({
 export const GET = handleGetWithQueryAuth(
   ZonesQuerySchema,
   ZonesResponseSchema,
-  async (query, userId) => {
+  async (query, _userId): Promise<{ zones: unknown[] }> => {
     const { withStats } = query;
 
     if (withStats === "true") {

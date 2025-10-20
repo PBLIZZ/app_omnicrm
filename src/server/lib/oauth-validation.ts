@@ -188,7 +188,7 @@ export function validateOAuthServiceType(service: string): service is OAuthServi
  * Creates a cryptographically secure state token
  */
 export function generateOAuthState(): string {
-  const crypto = require("crypto");
+  const crypto = require("crypto") as typeof import("crypto");
   return crypto.randomBytes(32).toString("hex");
 }
 

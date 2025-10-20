@@ -5,109 +5,252 @@ import {
   listInteractionsService,
   updateInteractionService,
   deleteInteractionService,
-  findInteractionBySourceService,
-  createInteractionsBulkService,
-  countInteractionsService,
-  getInteractionTypeBreakdownService,
-  getLatestInteractionForContactService,
 } from "../interactions.service";
 import { createInteractionsRepository } from "@repo";
-import * as dbClient from "@/server/db/client";
+import { getDb } from "@/server/db/client";
+import { AppError } from "@/lib/errors/app-error";
 
+// Mock dependencies
 vi.mock("@repo");
 vi.mock("@/server/db/client");
 
 describe("InteractionsService", () => {
-  const userId = "user-1";
-  const interactionId = "i-1";
+  let mockDb: any;
   let mockRepo: any;
+  const mockUserId = "user-123";
+  const mockContactId = "contact-456";
+  const mockInteractionId = "interaction-789";
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    mockDb = {};
     mockRepo = {
       createInteraction: vi.fn(),
       getInteractionById: vi.fn(),
       listInteractions: vi.fn(),
       updateInteraction: vi.fn(),
       deleteInteraction: vi.fn(),
-      findBySource: vi.fn(),
-      createInteractionsBulk: vi.fn(),
-      countInteractions: vi.fn(),
-      getTypeBreakdown: vi.fn(),
-      latestInteractionForContact: vi.fn(),
+      getInteractionsByContactId: vi.fn(),
     };
-    vi.mocked(dbClient.getDb).mockResolvedValue({} as any);
+
+    vi.mocked(getDb).mockResolvedValue(mockDb);
     vi.mocked(createInteractionsRepository).mockReturnValue(mockRepo);
   });
 
-  it("createInteractionService delegates and returns created", async () => {
-    const created = { id: interactionId } as any;
-    mockRepo.createInteraction.mockResolvedValue(created);
-    const result = await createInteractionService(userId, {
-      contactId: null,
-      type: "email",
-      occurredAt: new Date(),
-      createdAt: new Date(),
-    } as any);
-    expect(result).toBe(created);
+  describe("createInteractionService", () => {
+    it("should create a new interaction", async () => {
+      const interactionData = {
+        contactId: mockContactId,
+        type: "email",
+        subject: "Test email",
+        content: "Test email content",
+        direction: "outbound",
+        timestamp: new Date(),
+      };
+
+      const mockCreatedInteraction = {
+        id: mockInteractionId,
+        userId: mockUserId,
+        ...interactionData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockRepo.createInteraction.mockResolvedValue(mockCreatedInteraction);
+
+      const result = await createInteractionService(mockUserId, interactionData);
+
+      expect(result).toEqual(mockCreatedInteraction);
+      expect(createInteractionsRepository).toHaveBeenCalledWith(mockDb);
+      expect(mockRepo.createInteraction).toHaveBeenCalledWith({
+        ...interactionData,
+        userId: mockUserId,
+      });
+    });
+
+    it("should handle database errors", async () => {
+      const interactionData = {
+        contactId: mockContactId,
+        type: "email",
+        subject: "Test email",
+        content: "Test email content",
+        direction: "outbound",
+        timestamp: new Date(),
+      };
+
+      mockRepo.createInteraction.mockRejectedValue(new Error("Database error"));
+
+      await expect(createInteractionService(mockUserId, interactionData)).rejects.toThrow(AppError);
+    });
   });
 
-  it("getInteractionByIdService delegates", async () => {
-    mockRepo.getInteractionById.mockResolvedValue({ id: interactionId } as any);
-    const result = await getInteractionByIdService(userId, interactionId);
-    expect(result?.id).toBe(interactionId);
+  describe("getInteractionByIdService", () => {
+    it("should return interaction when found", async () => {
+      const mockInteraction = {
+        id: mockInteractionId,
+        userId: mockUserId,
+        contactId: mockContactId,
+        type: "email",
+        subject: "Test email",
+        content: "Test email content",
+        direction: "outbound",
+        timestamp: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockRepo.getInteractionById.mockResolvedValue(mockInteraction);
+
+      const result = await getInteractionByIdService(mockUserId, mockInteractionId);
+
+      expect(result).toEqual(mockInteraction);
+      expect(mockRepo.getInteractionById).toHaveBeenCalledWith(mockUserId, mockInteractionId);
+    });
+
+    it("should return null when interaction not found", async () => {
+      mockRepo.getInteractionById.mockResolvedValue(null);
+
+      const result = await getInteractionByIdService(mockUserId, "non-existent");
+
+      expect(result).toBeNull();
+    });
+
+    it("should handle database errors", async () => {
+      mockRepo.getInteractionById.mockRejectedValue(new Error("Database error"));
+
+      await expect(getInteractionByIdService(mockUserId, mockInteractionId)).rejects.toThrow(
+        AppError,
+      );
+    });
   });
 
-  it("listInteractionsService forwards params", async () => {
-    mockRepo.listInteractions.mockResolvedValue({ items: [], total: 0 });
-    const res = await listInteractionsService(userId, { page: 2, pageSize: 10 });
-    expect(mockRepo.listInteractions).toHaveBeenCalledWith(userId, { page: 2, pageSize: 10 });
-    expect(res).toEqual({ items: [], total: 0 });
+  describe("listInteractionsService", () => {
+    it("should return list of interactions with default parameters", async () => {
+      const mockInteractions = [
+        {
+          id: mockInteractionId,
+          userId: mockUserId,
+          contactId: mockContactId,
+          type: "email",
+          subject: "Test email",
+          content: "Test email content",
+          direction: "outbound",
+          timestamp: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+
+      mockRepo.listInteractions.mockResolvedValue(mockInteractions);
+
+      const result = await listInteractionsService(mockUserId);
+
+      expect(result).toEqual(mockInteractions);
+      expect(mockRepo.listInteractions).toHaveBeenCalledWith(mockUserId, {});
+    });
+
+    it("should filter interactions by contactId", async () => {
+      const mockInteractions = [];
+      mockRepo.listInteractions.mockResolvedValue(mockInteractions);
+
+      const result = await listInteractionsService(mockUserId, { contactId: mockContactId });
+
+      expect(result).toEqual(mockInteractions);
+      expect(mockRepo.listInteractions).toHaveBeenCalledWith(mockUserId, {
+        contactId: mockContactId,
+      });
+    });
+
+    it("should filter interactions by type", async () => {
+      const mockInteractions = [];
+      mockRepo.listInteractions.mockResolvedValue(mockInteractions);
+
+      const result = await listInteractionsService(mockUserId, { type: "email" });
+
+      expect(result).toEqual(mockInteractions);
+      expect(mockRepo.listInteractions).toHaveBeenCalledWith(mockUserId, { type: "email" });
+    });
+
+    it("should handle database errors", async () => {
+      mockRepo.listInteractions.mockRejectedValue(new Error("Database error"));
+
+      await expect(listInteractionsService(mockUserId)).rejects.toThrow(AppError);
+    });
   });
 
-  it("updateInteractionService delegates", async () => {
-    mockRepo.updateInteraction.mockResolvedValue({ id: interactionId } as any);
-    const res = await updateInteractionService(userId, interactionId, { subject: "Hi" } as any);
-    expect(res?.id).toBe(interactionId);
+  describe("updateInteractionService", () => {
+    it("should update an existing interaction", async () => {
+      const updateData = {
+        subject: "Updated subject",
+        content: "Updated content",
+      };
+
+      const mockUpdatedInteraction = {
+        id: mockInteractionId,
+        userId: mockUserId,
+        contactId: mockContactId,
+        type: "email",
+        subject: "Updated subject",
+        content: "Updated content",
+        direction: "outbound",
+        timestamp: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockRepo.updateInteraction.mockResolvedValue(mockUpdatedInteraction);
+
+      const result = await updateInteractionService(mockUserId, mockInteractionId, updateData);
+
+      expect(result).toEqual(mockUpdatedInteraction);
+      expect(mockRepo.updateInteraction).toHaveBeenCalledWith(
+        mockUserId,
+        mockInteractionId,
+        updateData,
+      );
+    });
+
+    it("should return null when interaction not found for update", async () => {
+      const updateData = { subject: "Updated subject" };
+      mockRepo.updateInteraction.mockResolvedValue(null);
+
+      const result = await updateInteractionService(mockUserId, "non-existent", updateData);
+
+      expect(result).toBeNull();
+    });
+
+    it("should handle database errors", async () => {
+      const updateData = { subject: "Updated subject" };
+      mockRepo.updateInteraction.mockRejectedValue(new Error("Database error"));
+
+      await expect(
+        updateInteractionService(mockUserId, mockInteractionId, updateData),
+      ).rejects.toThrow(AppError);
+    });
   });
 
-  it("deleteInteractionService delegates", async () => {
-    mockRepo.deleteInteraction.mockResolvedValue(undefined);
-    await deleteInteractionService(userId, interactionId);
-    expect(mockRepo.deleteInteraction).toHaveBeenCalledWith(userId, interactionId);
-  });
+  describe("deleteInteractionService", () => {
+    it("should delete an existing interaction", async () => {
+      mockRepo.deleteInteraction.mockResolvedValue();
 
-  it("findInteractionBySourceService delegates", async () => {
-    mockRepo.findBySource.mockResolvedValue({ id: interactionId } as any);
-    const res = await findInteractionBySourceService(userId, "gmail", "msg-1");
-    expect(res?.id).toBe(interactionId);
-  });
+      await deleteInteractionService(mockUserId, mockInteractionId);
 
-  it("createInteractionsBulkService delegates", async () => {
-    mockRepo.createInteractionsBulk.mockResolvedValue([{ id: interactionId }] as any);
-    const res = await createInteractionsBulkService(userId, [
-      { type: "email", occurredAt: new Date(), createdAt: new Date() } as any,
-    ]);
-    expect(Array.isArray(res)).toBe(true);
-    expect(res[0].id).toBe(interactionId);
-  });
+      expect(mockRepo.deleteInteraction).toHaveBeenCalledWith(mockUserId, mockInteractionId);
+    });
 
-  it("countInteractionsService delegates", async () => {
-    mockRepo.countInteractions.mockResolvedValue(5);
-    const count = await countInteractionsService(userId, { contactId: "c-1" });
-    expect(count).toBe(5);
-  });
+    it("should not throw when deleting interaction", async () => {
+      mockRepo.deleteInteraction.mockResolvedValue();
 
-  it("getInteractionTypeBreakdownService delegates", async () => {
-    const breakdown = [{ type: "email", total: 3 }];
-    mockRepo.getTypeBreakdown.mockResolvedValue(breakdown);
-    const res = await getInteractionTypeBreakdownService(userId);
-    expect(res).toBe(breakdown);
-  });
+      await expect(deleteInteractionService(mockUserId, "non-existent")).resolves.not.toThrow();
+    });
 
-  it("getLatestInteractionForContactService delegates", async () => {
-    mockRepo.latestInteractionForContact.mockResolvedValue({ id: interactionId } as any);
-    const res = await getLatestInteractionForContactService(userId, "contact-1");
-    expect(res?.id).toBe(interactionId);
+    it("should handle database errors", async () => {
+      mockRepo.deleteInteraction.mockRejectedValue(new Error("Database error"));
+
+      await expect(deleteInteractionService(mockUserId, mockInteractionId)).rejects.toThrow(
+        AppError,
+      );
+    });
   });
 });

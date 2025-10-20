@@ -8,7 +8,7 @@ export async function batchSuggestContacts(userId: string): Promise<{
   wiki: { businessWiki: string[]; marketingWiki: string[] };
 }> {
   if (!isBackground()) {
-    logger.warn("Batch job attempted in non-background mode");
+    void logger.warn("Batch job attempted in non-background mode");
     return { suggestions: [], wiki: { businessWiki: [], marketingWiki: [] } };
   }
 
@@ -17,13 +17,13 @@ export async function batchSuggestContacts(userId: string): Promise<{
 
   try {
     suggestions = await getContactSuggestions(userId);
-    logger.info("Contact suggestions generated successfully", {
+    void logger.info("Contact suggestions generated successfully", {
       userId,
       operation: "batch_suggest_contacts",
       additionalData: { suggestionCount: suggestions.length },
     });
   } catch (error) {
-    logger.error("Failed to generate contact suggestions", {
+    void logger.error("Failed to generate contact suggestions", {
       userId,
       operation: "batch_suggest_contacts",
       additionalData: { error: error instanceof Error ? error.message : String(error) },
@@ -36,12 +36,12 @@ export async function batchSuggestContacts(userId: string): Promise<{
   // Issue: #456 - Wiki service implementation needed
   // Expected ETA: Q2 2025
   // For now, return empty arrays to maintain API contract
-  logger.info("Wiki population stubbed - returning empty arrays", {
+  void logger.info("Wiki population stubbed - returning empty arrays", {
     userId,
     operation: "batch_suggest_contacts",
   });
 
-  logger.info("Batch complete", { userId, operation: "batch_suggest_contacts" });
+  void logger.info("Batch complete", { userId, operation: "batch_suggest_contacts" });
 
   return {
     suggestions,

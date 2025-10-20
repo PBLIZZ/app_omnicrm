@@ -187,7 +187,7 @@ export {
   GmailMessagePayloadSchema,
   GoogleCalendarEventPayloadSchema,
   RawEventPayloadSchema,
-  RawEventSourceMetaSchema,
+  RawEventSourceMetaSchema as SourceMetaSchema,
 } from "@/server/db/business-schemas/raw-events-payloads";
 
 // ============================================================================

@@ -18,13 +18,21 @@ interface QueuedItem {
   priority: "low" | "medium" | "high";
 }
 
+interface InboxItemDetails {
+  queuedForProcessing?: boolean;
+  queuedAt?: string | null;
+  priority?: "low" | "medium" | "high";
+  processedAt?: string;
+  status?: string;
+}
+
 /**
  * Queue an inbox item for intelligent processing
  */
 export async function queueInboxItemForProcessing(
   userId: string,
   inboxItemId: string,
-  rawText: string,
+  _rawText: string,
   priority: "low" | "medium" | "high" = "medium",
 ): Promise<void> {
   const db = await getDb();
@@ -71,16 +79,18 @@ export async function getQueuedItemsForProcessing(): Promise<QueuedItem[]> {
       if (
         item.details &&
         typeof item.details === "object" &&
-        "queuedForProcessing" in item.details &&
-        (item.details as any).queuedForProcessing === true
+        "queuedForProcessing" in item.details
       ) {
-        queuedItems.push({
-          inboxItemId: item.id,
-          userId: item.userId,
-          rawText: item.rawText,
-          queuedAt: new Date((item.details as any).queuedAt || item.createdAt),
-          priority: (item.details as any).priority || "medium",
-        });
+        const details = item.details as InboxItemDetails;
+        if (details.queuedForProcessing === true) {
+          queuedItems.push({
+            inboxItemId: item.id,
+            userId: item.userId,
+            rawText: item.rawText,
+            queuedAt: new Date(details.queuedAt ?? item.createdAt ?? new Date()),
+            priority: details.priority ?? "medium",
+          });
+        }
       }
     }
 

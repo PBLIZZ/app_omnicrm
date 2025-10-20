@@ -227,10 +227,20 @@ export function ActiveTokensList() {
           <div className="flex items-center gap-1">
             {isActive && (
               <>
-                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(token.token)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(token.token)}
+                  aria-label="Copy onboarding URL"
+                >
                   <Copy className="h-3 w-3" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => openInNewTab(token.token)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openInNewTab(token.token)}
+                  aria-label="Open onboarding URL in new tab"
+                >
                   <ExternalLink className="h-3 w-3" />
                 </Button>
               </>
@@ -241,6 +251,7 @@ export function ActiveTokensList() {
               onClick={() => deleteTokenMutation.mutate(token.id)}
               disabled={deletingTokenId === token.id}
               className="text-red-500 hover:text-red-700 hover:bg-red-50"
+              aria-label="Delete token"
             >
               {deletingTokenId === token.id ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -262,7 +273,18 @@ export function ActiveTokensList() {
         <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
           <div className="flex items-center gap-1">
             <Users className="h-3 w-3" />
-            <span>{(Number(token.usedCount) || 0) > 0 ? "Used" : "Unused"}</span>
+            <span>
+              {token.maxUses === 1
+                ? (Number(token.usedCount) || 0) > 0
+                  ? "Used"
+                  : "Unused"
+                : `${token.maxUses - (Number(token.usedCount) || 0)} uses left`}
+            </span>
+            {token.maxUses > 1 && (
+              <span className="text-xs text-muted-foreground ml-2">
+                {Number(token.usedCount) || 0}/{token.maxUses} used
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <Clock className="h-3 w-3" />

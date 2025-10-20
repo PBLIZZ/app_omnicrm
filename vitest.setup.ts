@@ -252,6 +252,19 @@ if (typeof window !== "undefined") {
       hash: "",
     },
   });
+} else {
+  // For Node.js environment (MSW)
+  global.location = {
+    origin: "http://localhost:3000",
+    href: "http://localhost:3000",
+    protocol: "http:",
+    host: "localhost:3000",
+    hostname: "localhost",
+    port: "3000",
+    pathname: "/",
+    search: "",
+    hash: "",
+  } as Location;
 }
 
 // Note: Fake timers are disabled because they can interfere with MSW and React Query

@@ -4,7 +4,7 @@ import { logger } from "@/lib/observability";
 import { categorizeEmail } from "@/server/ai/connect/categorize-email";
 import { extractWisdom } from "@/server/ai/connect/extract-wisdom";
 import { matchToContacts } from "@/server/ai/connect/match-to-contacts";
-import { EmailIntelligence } from "@/server/ai/types/connect-types";
+import type { EmailIntelligence } from "@/server/ai/types/connect-types";
 import { getRawEventByIdService } from "@/server/services/raw-events.service";
 
 interface GmailPayload {
@@ -54,15 +54,54 @@ export async function processEmailIntelligence(
       },
     });
 
-    const results = await Promise.all([
-      categorizeEmail(userId, emailData),
-      matchToContacts(userId, emailData),
-    ]);
+    const classificationResult = await categorizeEmail(userId, emailData);
+    const contactMatchResult = await matchToContacts(userId, emailData);
+    const wisdomResult = await extractWisdom(userId, { ...emailData, classification: classificationResult });
 
-    const classification = results[0];
-    const contactMatch = results[1];
+    const extractedMetadata: EmailIntelligence["classification"]["extractedMetadata"] = {};
+    const metadata = classificationResult.extractedMetadata ?? {};
+    if (typeof metadata.senderDomain === "string") {
+      extractedMetadata.senderDomain = metadata.senderDomain;
+    }
+    if (typeof metadata.hasAppointmentLanguage === "boolean") {
+      extractedMetadata.hasAppointmentLanguage = metadata.hasAppointmentLanguage;
+    }
+    if (typeof metadata.hasPaymentLanguage === "boolean") {
+      extractedMetadata.hasPaymentLanguage = metadata.hasPaymentLanguage;
+    }
+    if (typeof metadata.isFromClient === "boolean") {
+      extractedMetadata.isFromClient = metadata.isFromClient;
+    }
+    if (typeof metadata.urgencyLevel === "string" && metadata.urgencyLevel) {
+      extractedMetadata.urgencyLevel = metadata.urgencyLevel as
+        EmailIntelligence["classification"]["extractedMetadata"]["urgencyLevel"];
+    }
 
-    const wisdom = await extractWisdom(userId, { ...emailData, classification });
+    const classification: EmailIntelligence["classification"] = {
+      primaryCategory: classificationResult.primaryCategory,
+      subCategory: classificationResult.subCategory,
+      confidence: classificationResult.confidence,
+      businessRelevance: classificationResult.businessRelevance,
+      reasoning: classificationResult.reasoning,
+      extractedMetadata,
+    };
+
+    const contactMatch: EmailIntelligence["contactMatch"] = {};
+    if (contactMatchResult.contactId) {
+      contactMatch.contactId = contactMatchResult.contactId;
+    }
+    if (typeof contactMatchResult.confidence === "number") {
+      contactMatch.confidence = contactMatchResult.confidence;
+    }
+    if (Array.isArray(contactMatchResult.matchingFactors) && contactMatchResult.matchingFactors.length > 0) {
+      contactMatch.matchingFactors = contactMatchResult.matchingFactors;
+    }
+
+    const wisdom: EmailIntelligence["wisdom"] = {
+      insights: wisdomResult.keyInsights,
+      recommendations: wisdomResult.actionableItems,
+      followUpActions: wisdomResult.businessOpportunities,
+    };
 
     const intelligence: EmailIntelligence = {
       classification,
@@ -71,8 +110,8 @@ export async function processEmailIntelligence(
       processingMeta: {
         model: "gpt-4o",
         processedAt: new Date(),
-        inputTokens: classification.inputTokens || 0,
-        outputTokens: classification.outputTokens || 0,
+        inputTokens: 0,
+        outputTokens: 0,
       },
     };
 
@@ -90,7 +129,7 @@ export async function processEmailIntelligence(
 
     return intelligence;
   } catch (error) {
-    logger.error("Failed to process email intelligence", {
+    await logger.error("Failed to process email intelligence", {
       operation: "process_email_intelligence",
       additionalData: {
         userId,

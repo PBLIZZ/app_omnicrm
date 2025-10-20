@@ -41,16 +41,21 @@ export function mapToTaskWithUI(task: Task): Task & {
   isHighPriority: boolean;
   hasSubtasks: boolean;
 } {
-  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+  // Type-safe property access with proper null checks
+  const taskDueDate = (task as { dueDate?: string | null }).dueDate;
+  const dueDate = taskDueDate ? new Date(taskDueDate) : null;
+  const status = (task as { status: "todo" | "in_progress" | "done" | "canceled" }).status;
+  const priority = (task as { priority: "low" | "medium" | "high" | "urgent" }).priority;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   return {
     ...task,
-    isCompleted: task.status === "done",
-    isOverdue: dueDate ? dueDate < new Date() && task.status !== "done" : false,
+    isCompleted: status === "done",
+    isOverdue: dueDate ? dueDate < new Date() && status !== "done" : false,
     isDueToday: dueDate ? dueDate.toDateString() === new Date().toDateString() : false,
-    isHighPriority: ["high", "urgent"].includes(task.priority),
+    isHighPriority: ["high", "urgent"].includes(priority),
     hasSubtasks: false, // Would be computed via join query in repository layer
   };
 }

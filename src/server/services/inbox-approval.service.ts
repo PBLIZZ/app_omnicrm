@@ -16,6 +16,24 @@ import { AppError } from "@/lib/errors/app-error";
 import { getDb } from "@/server/db/client";
 import type { IntelligentProcessingResult } from "@/server/ai/connect/intelligent-inbox-processor";
 import { z } from "zod";
+import type { InboxItem } from "@repo";
+
+// Type definitions for inbox item details
+interface InboxItemDetails {
+  intelligentProcessing?: IntelligentProcessingResult;
+  processedAt?: string;
+  status?: "pending_approval" | string;
+}
+
+// Type guard to check if details has intelligent processing
+function hasIntelligentProcessing(details: unknown): details is InboxItemDetails {
+  return (
+    details !== null &&
+    typeof details === "object" &&
+    "intelligentProcessing" in details &&
+    "status" in details
+  );
+}
 
 // Approval workflow schemas
 export const InboxApprovalRequestSchema = z.object({
@@ -140,7 +158,7 @@ export async function storeIntelligentProcessingResult(
  */
 export async function getPendingApprovalItems(userId: string): Promise<
   Array<{
-    inboxItem: any; // InboxItem type
+    inboxItem: InboxItem;
     processingResult: IntelligentProcessingResult;
   }>
 > {
@@ -156,16 +174,24 @@ export async function getPendingApprovalItems(userId: string): Promise<
     const pendingItems = items.items
       .filter(
         (item) =>
-          item.details &&
-          typeof item.details === "object" &&
-          "intelligentProcessing" in item.details &&
-          (item.details as any).status === "pending_approval",
+          hasIntelligentProcessing(item.details) && item.details.status === "pending_approval",
       )
-      .map((item) => ({
-        inboxItem: item,
-        processingResult: (item.details as any)
-          .intelligentProcessing as IntelligentProcessingResult,
-      }));
+      .map((item) => {
+        // TypeScript knows details is InboxItemDetails here due to filter
+        const details = item.details as InboxItemDetails;
+        if (!details.intelligentProcessing) {
+          throw new AppError(
+            "Intelligent processing data missing",
+            "MISSING_PROCESSING_DATA",
+            "validation",
+            false,
+          );
+        }
+        return {
+          inboxItem: item,
+          processingResult: details.intelligentProcessing,
+        };
+      });
 
     return pendingItems;
   } catch (error) {
@@ -201,7 +227,7 @@ export async function processApprovedItems(
 
     // Get the original processing result
     const inboxItem = await inboxRepo.getInboxItem(userId, approvalRequest.inboxItemId);
-    if (!inboxItem || !inboxItem.details || typeof inboxItem.details !== "object") {
+    if (!inboxItem || !hasIntelligentProcessing(inboxItem.details)) {
       throw new AppError(
         "Inbox item or processing result not found",
         "NOT_FOUND",
@@ -211,8 +237,8 @@ export async function processApprovedItems(
       );
     }
 
-    const processingResult = (inboxItem.details as any)
-      .intelligentProcessing as IntelligentProcessingResult;
+    const details = inboxItem.details as InboxItemDetails;
+    const processingResult = details.intelligentProcessing;
     if (!processingResult) {
       throw new AppError("Processing result not found", "NOT_FOUND", "database", false, 404);
     }
@@ -277,13 +303,19 @@ export async function processApprovedItems(
       // Resolve project ID if it was created
       let resolvedProjectId = originalTask.projectId;
       if (originalTask.projectId && projectIdMap.has(originalTask.projectId)) {
-        resolvedProjectId = projectIdMap.get(originalTask.projectId)!;
+        const mappedProjectId = projectIdMap.get(originalTask.projectId);
+        if (mappedProjectId) {
+          resolvedProjectId = mappedProjectId;
+        }
       }
 
       // Resolve parent task ID if it was created
       let resolvedParentTaskId = originalTask.parentTaskId;
       if (originalTask.parentTaskId && taskIdMap.has(originalTask.parentTaskId)) {
-        resolvedParentTaskId = taskIdMap.get(originalTask.parentTaskId)!;
+        const mappedParentTaskId = taskIdMap.get(originalTask.parentTaskId);
+        if (mappedParentTaskId) {
+          resolvedParentTaskId = mappedParentTaskId;
+        }
       }
 
       const dueDate = taskApproval.modifications?.dueDate || originalTask.dueDate;

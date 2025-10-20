@@ -14,7 +14,7 @@ const ParamsSchema = z.object({
 export const GET = handleAuthWithParams(
   z.void(),
   TokenInfoSchema,
-  async (voidInput, userId, params) => {
+  async (_voidInput, userId, params): Promise<z.infer<typeof TokenInfoSchema>> => {
     const { tokenId } = ParamsSchema.parse(params);
     return getTokenByIdService(userId, tokenId);
   },
@@ -23,7 +23,7 @@ export const GET = handleAuthWithParams(
 export const DELETE = handleAuthWithParams(
   z.void(),
   DeleteTokenResponseSchema,
-  async (voidInput, userId, params) => {
+  async (_voidInput, userId, params): Promise<z.infer<typeof DeleteTokenResponseSchema>> => {
     const { tokenId } = ParamsSchema.parse(params);
     return await deleteTokenService(userId, tokenId);
   },

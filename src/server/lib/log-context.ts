@@ -1,6 +1,11 @@
 import type { NextRequest } from "next/server";
 import { getServerUserId } from "@/server/auth/user";
 
+type RequestContext = {
+  reqId?: string;
+  userId?: string;
+};
+
 // Non-throwing user id resolver for logging context
 async function tryGetUserId(): Promise<string | undefined> {
   try {
@@ -13,5 +18,15 @@ async function tryGetUserId(): Promise<string | undefined> {
 export async function buildLogContext(req?: NextRequest): Promise<RequestContext> {
   const reqId = req?.headers.get("x-request-id") ?? undefined;
   const userId = await tryGetUserId();
-  return { reqId, userId };
+
+  const context: RequestContext = {};
+  if (reqId) {
+    context.reqId = reqId;
+  }
+
+  if (userId) {
+    context.userId = userId;
+  }
+
+  return context;
 }

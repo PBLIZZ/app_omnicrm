@@ -14,6 +14,8 @@ export const ADMIN_ALLOWED_TABLES = [
   "embeddings",
 ] as const;
 
+type AdminAllowedTable = (typeof ADMIN_ALLOWED_TABLES)[number];
+
 // Table mapping for Drizzle operations
 const tableMap = {
   raw_events: rawEvents,

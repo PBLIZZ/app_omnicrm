@@ -1,17 +1,17 @@
 // New file for extracting wisdom from emails
 
-import { generateText, ChatMessage } from "@/server/ai/core/llm.service";
-import { EmailClassification } from "@/server/ai/types/connect-types";
+import { generateText } from "@/server/ai/core/llm.service";
+import type { ChatMessage } from "@/server/ai/core/llm.service";
 
 interface EmailWisdom {
-  insights: string[];
-  actionItems: string[];
+  keyInsights: string[];
+  actionableItems: string[];
   wellnessTags: string[];
   marketingOpportunities: string[];
   businessOpportunities: string[];
-  senderMood: string;
-  recommendFollowUp: boolean;
-  followUpReason?: string;
+  clientMood: string;
+  followUpRecommended: boolean;
+  followUpReason?: string | undefined;
 }
 
 const buildExtractWisdomPrompt = ({
@@ -23,7 +23,14 @@ const buildExtractWisdomPrompt = ({
   subject: string;
   bodyText: string;
   senderName: string;
-  classification: EmailClassification;
+  classification: {
+    primaryCategory: string;
+    subCategory: string;
+    confidence: number;
+    businessRelevance: number;
+    reasoning: string;
+    extractedMetadata?: Record<string, unknown>;
+  };
 }): ChatMessage[] => {
   return [
     {
@@ -47,7 +54,7 @@ Return your analysis in JSON format matching the EmailWisdom interface.`,
 
 Subject: ${subject}
 Sender: ${senderName}
-Classification: ${classification}
+Classification: ${classification.primaryCategory} - ${classification.subCategory}
 Body: ${bodyText}
 
 Focus on actionable insights that can help improve client relationships and business outcomes.`,
@@ -62,7 +69,14 @@ export async function extractWisdom(
     bodyText?: string;
     senderEmail?: string;
     senderName?: string;
-    classification: EmailClassification;
+    classification: {
+      primaryCategory: string;
+      subCategory: string;
+      confidence: number;
+      businessRelevance: number;
+      reasoning: string;
+      extractedMetadata?: Record<string, unknown>;
+    };
   },
 ): Promise<EmailWisdom> {
   const subject = emailData.subject ?? "";
@@ -92,7 +106,18 @@ export async function extractWisdom(
 
   try {
     const response = await generateText<EmailWisdom>(userId, { model: "default", messages });
-    return response.data;
+    const data = response.data;
+
+    return {
+      keyInsights: Array.isArray(data.keyInsights) ? data.keyInsights : [],
+      actionableItems: Array.isArray(data.actionableItems) ? data.actionableItems : [],
+      wellnessTags: Array.isArray(data.wellnessTags) ? data.wellnessTags : [],
+      marketingOpportunities: Array.isArray(data.marketingOpportunities) ? data.marketingOpportunities : [],
+      businessOpportunities: Array.isArray(data.businessOpportunities) ? data.businessOpportunities : [],
+      clientMood: data.clientMood ?? "neutral",
+      followUpRecommended: data.followUpRecommended ?? false,
+      followUpReason: data.followUpReason,
+    };
   } catch (error) {
     console.error("Failed to extract wisdom from email:", error);
     // Return fallback wisdom data

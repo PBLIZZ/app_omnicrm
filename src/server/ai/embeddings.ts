@@ -12,6 +12,22 @@ import { createHash } from "crypto";
 import { getOpenAIClient, isOpenAIConfigured } from "@/server/ai/providers/openai";
 import { parseEnvBool } from "@/lib/utils/env-helpers";
 
+function parseEmbeddingValue(value: string | null): number[] | null {
+  if (!value) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      Array.isArray(parsed) &&
+      parsed.every((item): item is number => typeof item === "number" && Number.isFinite(item))
+    ) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Generate embedding for text content
  *
@@ -88,6 +104,7 @@ export async function storeEmbedding(
 ): Promise<string> {
   const db = await getDb();
   const { embedding, contentHash } = await generateEmbeddingWithHash(text, userId);
+  const embeddingJson = JSON.stringify(embedding);
 
   const result = await db
     .insert(embeddings)
@@ -95,7 +112,7 @@ export async function storeEmbedding(
       userId,
       ownerType,
       ownerId,
-      embedding,
+      embedding: embeddingJson,
       contentHash,
       chunkIndex,
       meta: {
@@ -127,7 +144,7 @@ export async function getEmbeddingByHash(
     .where(and(eq(embeddings.userId, userId), eq(embeddings.contentHash, contentHash)))
     .limit(1);
 
-  return result[0]?.embedding ?? null;
+  return parseEmbeddingValue(result[0]?.embedding ?? null);
 }
 
 /**
@@ -215,9 +232,10 @@ export async function findSimilarEmbeddings(
   // Calculate similarities
   const similarities = results
     .map((result) => {
-      if (!result.embedding) return null;
+      const vector = parseEmbeddingValue(result.embedding);
+      if (!vector) return null;
 
-      const similarity = cosineSimilarity(targetEmbedding, result.embedding);
+      const similarity = cosineSimilarity(targetEmbedding, vector);
       return {
         id: result.id,
         ownerId: result.ownerId,

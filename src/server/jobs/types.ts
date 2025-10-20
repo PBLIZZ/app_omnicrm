@@ -9,9 +9,8 @@ export type JobRecordBase = Job;
 // Job kind categories
 export type GenericJobKind = "embed" | "insight" | "extract_contacts";
 export type GoogleJobKind = "google_gmail_sync" | "google_calendar_sync" | "normalize_google_email" | "normalize_google_event";
-export type EmailIntelligenceJobKind = "email_intelligence" | "email_intelligence_batch" | "email_intelligence_cleanup";
 
-export type JobKind = GenericJobKind | GoogleJobKind | EmailIntelligenceJobKind;
+export type JobKind = GenericJobKind | GoogleJobKind;
 
 // Payloads
 
@@ -41,20 +40,6 @@ export interface ContactExtractionPayload {
   batchId?: string;
 }
 
-export interface EmailIntelligenceJobPayload {
-  rawEventId: string;
-  batchId?: string;
-  maxRetries?: number;
-}
-
-export interface EmailIntelligenceBatchJobPayload {
-  batchId: string;
-  maxItems?: number;
-}
-
-export interface EmailIntelligenceCleanupJobPayload {
-  batchId: string;
-}
 
 export type JobPayloadByKind = {
   embed: EmbedJobPayload;
@@ -64,9 +49,6 @@ export type JobPayloadByKind = {
   google_calendar_sync: BatchJobPayload;
   normalize_google_email: BatchJobPayload;
   normalize_google_event: BatchJobPayload;
-  email_intelligence: EmailIntelligenceJobPayload;
-  email_intelligence_batch: EmailIntelligenceBatchJobPayload;
-  email_intelligence_cleanup: EmailIntelligenceCleanupJobPayload;
 };
 
 // Database record shape (matches your schema, but we type payload by kind)

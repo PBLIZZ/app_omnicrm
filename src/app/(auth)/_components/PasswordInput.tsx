@@ -21,7 +21,11 @@ export function PasswordInput({
 
   return (
     <div className="relative">
+      <label htmlFor="password-input" className="sr-only">
+        Password
+      </label>
       <Input
+        id="password-input"
         type={showPassword ? "text" : "password"}
         placeholder={placeholder}
         value={value}
@@ -33,6 +37,8 @@ export function PasswordInput({
         type="button"
         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
         onClick={() => setShowPassword(!showPassword)}
+        aria-label={showPassword ? "Hide password field" : "Show password field"}
+        tabIndex={-1}
       >
         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>

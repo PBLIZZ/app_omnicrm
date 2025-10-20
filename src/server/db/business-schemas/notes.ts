@@ -7,7 +7,7 @@
  * - UpdateNote (partial insert type)
  *
  * This file contains ONLY API-specific schemas for note operations.
- * 
+ *
  * Updated for new Notes spec:
  * - content_rich (TipTap JSON)
  * - content_plain (redacted text for search/AI)
@@ -41,9 +41,8 @@ export const CreateNoteBodySchema = z.object({
   tags: z.array(z.string()).optional().default([]),
   goalIds: z.array(z.string().uuid()).optional(),
   sourceType: NoteSourceTypeSchema.optional().default("typed"),
-  contactId: z.string().uuid().optional(),
+  contactId: z.string().uuid("Valid contact ID is required"),
 });
-
 
 /**
  * Update Note Schema
@@ -54,7 +53,6 @@ export const UpdateNoteBodySchema = z.object({
   tags: z.array(z.string()).optional(),
   goalIds: z.array(z.string().uuid()).optional(),
 });
-
 
 /**
  * Notes List Response Schema
@@ -79,4 +77,3 @@ export const GetNotesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
-

@@ -19,6 +19,8 @@ function createWrapper() {
     defaultOptions: {
       queries: {
         retry: false,
+        staleTime: 0,
+        gcTime: 0,
       },
     },
   });
@@ -44,7 +46,14 @@ describe("useContacts hooks", () => {
             lastNote: "Recent interaction",
           },
         ],
-        total: 1,
+        pagination: {
+          page: 1,
+          pageSize: 25,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
       };
 
       mockApiClient.get.mockResolvedValue(mockResponse);
@@ -57,10 +66,10 @@ describe("useContacts hooks", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockApiClient.get).toHaveBeenCalledWith("/api/contacts?");
+      expect(mockApiClient.get).toHaveBeenCalledWith("/api/contacts?page=1&pageSize=25");
       expect(result.current.data).toEqual({
         items: mockResponse.items,
-        total: mockResponse.total,
+        total: mockResponse.pagination.total,
       });
     });
 
@@ -74,7 +83,14 @@ describe("useContacts hooks", () => {
             lastNote: null,
           },
         ],
-        total: 1,
+        pagination: {
+          page: 1,
+          pageSize: 25,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
       };
 
       mockApiClient.get.mockResolvedValue(mockResponse);
@@ -87,15 +103,27 @@ describe("useContacts hooks", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockApiClient.get).toHaveBeenCalledWith("/api/contacts?search=john");
+      expect(mockApiClient.get).toHaveBeenCalledWith(
+        "/api/contacts?page=1&pageSize=25&search=john",
+      );
       expect(result.current.data).toEqual({
         items: mockResponse.items,
-        total: mockResponse.total,
+        total: mockResponse.pagination.total,
       });
     });
 
     it("should trim search query before making request", async () => {
-      const mockResponse = { items: [], total: 0 };
+      const mockResponse = {
+        items: [],
+        pagination: {
+          page: 1,
+          pageSize: 25,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
       mockApiClient.get.mockResolvedValue(mockResponse);
 
       const { result } = renderHook(() => useEnhancedContacts("  jane  "), {
@@ -106,11 +134,23 @@ describe("useContacts hooks", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockApiClient.get).toHaveBeenCalledWith("/api/contacts?search=jane");
+      expect(mockApiClient.get).toHaveBeenCalledWith(
+        "/api/contacts?page=1&pageSize=25&search=jane",
+      );
     });
 
     it("should handle empty search results", async () => {
-      const mockResponse = { items: [], total: 0 };
+      const mockResponse = {
+        items: [],
+        pagination: {
+          page: 1,
+          pageSize: 25,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
       mockApiClient.get.mockResolvedValue(mockResponse);
 
       const { result } = renderHook(() => useEnhancedContacts("nonexistent"), {
@@ -167,7 +207,7 @@ describe("useContacts hooks", () => {
       });
 
       expect(mockApiClient.get).toHaveBeenCalledWith("/api/contacts/suggestions");
-      expect(result.current.data).toEqual(mockResponse);
+      expect(result.current.data).toEqual(mockResponse.suggestions);
     });
 
     it("should not fetch suggestions when disabled", () => {
@@ -206,7 +246,7 @@ describe("useContacts hooks", () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(result.current.data).toEqual({ suggestions: [] });
+      expect(result.current.data).toEqual([]);
     });
   });
 });

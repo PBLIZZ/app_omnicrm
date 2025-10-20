@@ -87,7 +87,15 @@ export function useCalendarIntelligence(
       const matchingClient = findMatchingClient(event, clients);
 
       return {
-        ...event,
+        id: event.id,
+        title: event.title,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        ...(event.location !== null && { location: event.location ?? undefined }),
+        ...(event.attendees && { attendees: event.attendees }),
+        ...(event.eventType && { eventType: event.eventType }),
+        ...(event.businessCategory && { businessCategory: event.businessCategory }),
+        ...(event.description && { description: event.description }),
         clientContext: matchingClient
           ? {
               clientId: matchingClient.id,
@@ -118,7 +126,12 @@ export function useCalendarIntelligence(
 
     const weekEvents = events.filter((event) => {
       const eventDate = new Date(event.startTime);
-      return eventDate >= weekStart && eventDate <= weekEnd;
+      // Skip events with invalid dates
+      if (isNaN(eventDate.getTime())) {
+        return false;
+      }
+      const isInWeek = eventDate >= weekStart && eventDate <= weekEnd;
+      return isInWeek;
     });
 
     const totalAppointments = weekEvents.length;
@@ -149,7 +162,9 @@ export function useCalendarIntelligence(
     const uniqueClients = new Set(
       weekEvents
         .map((event) => findMatchingClient(event, clients))
-        .filter((client): client is NonNullable<typeof client> => client !== null && client !== undefined)
+        .filter(
+          (client): client is NonNullable<typeof client> => client !== null && client !== undefined,
+        )
         .map((client) => client.id),
     ).size;
 

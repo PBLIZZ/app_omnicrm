@@ -34,7 +34,9 @@ export class ContactsRepository {
 
     const conditions = [eq(contacts.userId, userId)];
     if (params.search) {
-      conditions.push(ilike(contacts.displayName, `%${params.search}%`));
+      conditions.push(
+        sql`(${contacts.displayName} ILIKE ${`%${params.search}%`} OR ${contacts.primaryEmail} ILIKE ${`%${params.search}%`})`
+      );
     }
 
     // Count total
@@ -86,7 +88,9 @@ export class ContactsRepository {
 
     const conditions = [eq(contacts.userId, userId)];
     if (params.search) {
-      conditions.push(ilike(contacts.displayName, `%${params.search}%`));
+      conditions.push(
+        sql`(${contacts.displayName} ILIKE ${`%${params.search}%`} OR ${contacts.primaryEmail} ILIKE ${`%${params.search}%`})`
+      );
     }
 
     // Count total

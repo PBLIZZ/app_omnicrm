@@ -6,6 +6,14 @@
 
 import { expect } from "vitest";
 import { AppError } from "@/lib/errors/app-error";
+import type { ErrorCategory } from "@/lib/constants/errorCategories";
+
+/**
+ * Type guard to check if an error is an AppError
+ */
+function isAppError(error: unknown): error is AppError {
+  return error instanceof AppError;
+}
 
 /**
  * Expected AppError properties
@@ -13,9 +21,9 @@ import { AppError } from "@/lib/errors/app-error";
 export interface ExpectedAppError {
   message?: string;
   code?: string;
-  category?: "validation" | "database" | "api" | "security" | "business_logic";
-  statusCode?: number;
-  isOperational?: boolean;
+  category?: ErrorCategory;
+  retryable?: boolean;
+  details?: unknown;
 }
 
 /**
@@ -38,37 +46,35 @@ export function expectAppError(
     throw new Error("Expected AppError but got different error type");
   }
 
-  const err = error;
-
   // Check message if provided
   if (expected.message !== undefined) {
     if (expected.message.includes("*")) {
       // Pattern matching
       const pattern = expected.message.replace(/\*/g, ".*");
-      expect(err.message).toMatch(new RegExp(pattern));
+      expect(error.message).toMatch(new RegExp(pattern));
     } else {
-      expect(err.message).toBe(expected.message);
+      expect(error.message).toBe(expected.message);
     }
   }
 
   // Check error code if provided
   if (expected.code !== undefined) {
-    expect(err.code).toBe(expected.code);
+    expect(error.code).toBe(expected.code);
   }
 
   // Check category if provided
   if (expected.category !== undefined) {
-    expect(err.category).toBe(expected.category);
+    expect(error.category).toBe(expected.category);
   }
 
-  // Check status code if provided
-  if (expected.statusCode !== undefined) {
-    expect(err.statusCode).toBe(expected.statusCode);
+  // Check retryable flag if provided
+  if (expected.retryable !== undefined) {
+    expect(error.retryable).toBe(expected.retryable);
   }
 
-  // Check operational flag if provided
-  if (expected.isOperational !== undefined) {
-    expect(err.isOperational).toBe(expected.isOperational);
+  // Check details if provided
+  if (expected.details !== undefined) {
+    expect(error.details).toEqual(expected.details);
   }
 }
 
@@ -95,9 +101,9 @@ export async function expectAppErrorRejection(
  * Create a mock AppError with sensible defaults and optional overrides.
  *
  * Defaults: `message` = "Test error", `code` = "TEST_ERROR", `category` = "validation",
- * `statusCode` = 500, `isOperational` = true.
+ * `retryable` = false, `details` = undefined.
  *
- * @param props - Partial properties to override the default error fields (`message`, `code`, `category`, `statusCode`, `isOperational`)
+ * @param props - Partial properties to override the default error fields (`message`, `code`, `category`, `retryable`, `details`)
  * @returns The constructed `AppError` with provided overrides applied
  */
 export function createMockAppError(props: Partial<ExpectedAppError> = {}): AppError {
@@ -105,8 +111,8 @@ export function createMockAppError(props: Partial<ExpectedAppError> = {}): AppEr
     props.message || "Test error",
     props.code || "TEST_ERROR",
     props.category || "validation",
-    props.isOperational ?? true,
-    props.statusCode || 500,
+    props.retryable ?? false,
+    props.details,
   );
 }
 
@@ -116,43 +122,43 @@ export function createMockAppError(props: Partial<ExpectedAppError> = {}): AppEr
 export const commonAppErrors = {
   notFound: (resource: string = "Resource"): ExpectedAppError => ({
     code: "NOT_FOUND",
-    statusCode: 404,
     category: "validation",
     message: `${resource} not found`,
+    retryable: false,
   }),
 
   dbError: (message: string = "Database operation failed"): ExpectedAppError => ({
     code: "DB_ERROR",
-    statusCode: 500,
     category: "database",
     message,
+    retryable: true,
   }),
 
   validationError: (message: string = "Validation failed"): ExpectedAppError => ({
     code: "VALIDATION_ERROR",
-    statusCode: 400,
     category: "validation",
     message,
+    retryable: false,
   }),
 
   unauthorized: (): ExpectedAppError => ({
     code: "UNAUTHORIZED",
-    statusCode: 401,
-    category: "security",
+    category: "authentication",
     message: "Unauthorized",
+    retryable: false,
   }),
 
   forbidden: (): ExpectedAppError => ({
     code: "FORBIDDEN",
-    statusCode: 403,
-    category: "security",
+    category: "authentication",
     message: "Forbidden",
+    retryable: false,
   }),
 
   serviceUnavailable: (): ExpectedAppError => ({
     code: "SERVICE_UNAVAILABLE",
-    statusCode: 503,
-    category: "api",
+    category: "network",
     message: "Service unavailable",
+    retryable: true,
   }),
 };

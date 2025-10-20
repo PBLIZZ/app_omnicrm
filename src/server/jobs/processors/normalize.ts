@@ -13,6 +13,12 @@ interface BatchJobPayload {
   provider?: string;
 }
 
+// Google Calendar event payload types
+interface GoogleCalendarDateTime {
+  dateTime?: string;
+  date?: string;
+  timeZone?: string;
+}
 import { GmailMessagePayload, isGmailPayload } from "@/server/db/business-schemas";
 
 // Use the properly validated Gmail payload type
@@ -175,7 +181,7 @@ export async function runNormalizeGoogleEmail(job: JobRecord): Promise<void> {
           sourceId: messageId ?? "",
           sourceMeta: enrichedSourceMeta as Record<string, unknown> | null | undefined,
           batchId: event.batchId ?? null,
-        } as any);
+        } as never);
 
         itemsInserted++;
         itemsFetched++;
@@ -431,7 +437,7 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
             payload["start"] !== null &&
             "timeZone" in payload["start"]
           ) {
-            return (payload["start"] as any).timeZone ?? null;
+            return (payload["start"] as GoogleCalendarDateTime).timeZone ?? null;
           }
           return null;
         })(),
@@ -443,24 +449,24 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
             typeof payload["start"] === "object" &&
             payload["start"] !== null
           ) {
-            const start = payload["start"];
+            const start = payload["start"] as GoogleCalendarDateTime;
             if ("dateTime" in start) {
-              return (start as any).dateTime ?? null;
+              return start.dateTime ?? null;
             }
             if ("date" in start) {
-              return (start as any).date ?? null;
+              return start.date ?? null;
             }
           }
           return null;
         })(),
         endTime: (() => {
           if (payload["end"] && typeof payload["end"] === "object" && payload["end"] !== null) {
-            const end = payload["end"];
+            const end = payload["end"] as GoogleCalendarDateTime;
             if ("dateTime" in end) {
-              return (end as any).dateTime ?? null;
+              return end.dateTime ?? null;
             }
             if ("date" in end) {
-              return (end as any).date ?? null;
+              return end.date ?? null;
             }
           }
           return null;
@@ -494,7 +500,7 @@ export async function runNormalizeGoogleEvent(job: JobRecord): Promise<void> {
         sourceId: payload["id"] as string,
         sourceMeta: enrichedSourceMeta,
         batchId: row.batchId,
-      } as any);
+      } as never);
 
       // Calendar event data is now stored in the interactions table via sourceMeta
       // All calendar event details (attendees, location, times, etc.) are in enrichedSourceMeta

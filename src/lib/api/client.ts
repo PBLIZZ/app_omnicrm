@@ -164,7 +164,7 @@ export async function apiRequest<T = unknown>(
   let absoluteUrl = url;
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     const baseUrl =
-      typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_API_URL;
+      typeof window !== "undefined" ? window.location.origin : process.env["NEXT_PUBLIC_API_URL"];
 
     if (!baseUrl) {
       throw new Error(
@@ -175,9 +175,8 @@ export async function apiRequest<T = unknown>(
   }
 
   // Build headers
-  const headers: HeadersInit = {
-    credentials: "same-origin",
-    ...fetchOptions.headers,
+  const headers: Record<string, string> = {
+    ...((fetchOptions.headers as Record<string, string>) || {}),
   };
 
   // Add CSRF token for unsafe methods (POST, PUT, PATCH, DELETE)
@@ -187,17 +186,7 @@ export async function apiRequest<T = unknown>(
   ) {
     const csrfToken = getCsrfToken();
     if (csrfToken) {
-      const setCsrfHeader = (h: HeadersInit) => {
-        if (h instanceof Headers) {
-          h.set("x-csrf-token", csrfToken);
-        } else if (Array.isArray(h)) {
-          h.push(["x-csrf-token", csrfToken]);
-        } else if (h && typeof h === "object") {
-          (h as Record<string, string>)["x-csrf-token"] = csrfToken;
-        }
-        return h;
-      };
-      fetchOptions.headers = setCsrfHeader(fetchOptions.headers || {});
+      headers["x-csrf-token"] = csrfToken;
     }
   }
 
@@ -207,16 +196,42 @@ export async function apiRequest<T = unknown>(
     fetchOptions.method &&
     ["POST", "PUT", "PATCH"].includes(fetchOptions.method.toUpperCase())
   ) {
-    (headers as Record<string, string>)["content-type"] = "application/json";
+    headers["content-type"] = "application/json";
   }
 
   try {
-    const response = await fetch(absoluteUrl, {
+    let response = await fetch(absoluteUrl, {
       credentials: "same-origin",
       ...fetchOptions,
       headers,
       signal: finalSignal,
     });
+
+    // Handle 403 CSRF errors with automatic retry
+    if (response.status === 403 && fetchOptions.method && 
+        ["POST", "PUT", "PATCH", "DELETE"].includes(fetchOptions.method.toUpperCase())) {
+      const errorBody = await response.clone().json().catch(() => null);
+      
+      // If middleware returned missing_csrf OR invalid_csrf, it may have set fresh cookies - retry once
+      if (isRecord(errorBody) && (errorBody["error"] === "missing_csrf" || errorBody["error"] === "invalid_csrf")) {
+        // Wait a tiny bit for cookies to settle
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        const newCsrfToken = getCsrfToken();
+        
+        if (newCsrfToken) {
+          // Retry with fresh token
+          const retryHeaders = { ...headers, "x-csrf-token": newCsrfToken };
+          
+          response = await fetch(absoluteUrl, {
+            credentials: "same-origin",
+            ...fetchOptions,
+            headers: retryHeaders,
+            signal: finalSignal,
+          });
+        }
+      }
+    }
 
     if (!response.ok) {
       const rawBody = await response
@@ -447,47 +462,7 @@ export async function safeRequest<T>(
   }
 }
 
-function extractString(obj: unknown, key: string): string | undefined {
-  if (
-    typeof obj === "object" &&
-    obj !== null &&
-    key in obj &&
-    typeof (obj as Record<string, unknown>)[key] === "string"
-  ) {
-    return (obj as Record<string, unknown>)[key] as string;
-  }
-  return undefined;
-}
-
-async function handleError(response: Response, rawBody: string): Promise<never> {
-  let parsedBody: unknown;
-  let message = response.statusText || rawBody || "Request failed";
-  let code = "UNKNOWN_ERROR";
-  let details: unknown = null;
-
-  try {
-    parsedBody = await response.json();
-    message = extractString(parsedBody, "message") || extractString(parsedBody, "error") || message;
-    code = extractString(parsedBody, "code") || code;
-    details = extractString(parsedBody, "details") || null;
-  } catch {
-    // If JSON parse fails, check if it's text
-    try {
-      parsedBody = await response.text();
-      message =
-        extractString(parsedBody, "message") || extractString(parsedBody, "error") || message;
-    } catch {
-      // Fall back to raw body if it's short
-      if (rawBody.length < 1000) {
-        message = rawBody;
-      }
-    }
-  }
-
-  throw new ApiError(message, code, "api", false, response.status, details);
-}
-
-export async function parseJson<T = unknown>(response: Response): Promise<unknown> {
+export async function parseJson(response: Response): Promise<unknown> {
   return response.json();
 }
 

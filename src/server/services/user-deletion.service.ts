@@ -123,8 +123,8 @@ export async function deleteUserDataService(
     const userTaskIds = await tx
       .select({ id: tasks.id })
       .from(tasks)
-      .where(eq(tasks.userId, userId));
-    const taskIds = userTaskIds.map((t) => t.id);
+      .where(eq(tasks.userId, userId)) as Array<{ id: string }>;
+    const taskIds = userTaskIds.map((t) => t.id) as string[];
     const taskContactTagsResult =
       taskIds.length > 0
         ? await tx.delete(taskContactTags).where(inArray(taskContactTags.taskId, taskIds))

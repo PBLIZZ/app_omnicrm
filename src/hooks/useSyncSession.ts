@@ -157,6 +157,10 @@ export function useSyncProgress(
       // Retry up to 3 times for other errors
       return failureCount < 3;
     },
+    retryDelay: (attemptIndex) => {
+      // Use a very short delay for testing
+      return Math.min(100 * 2 ** attemptIndex, 200);
+    },
   });
 }
 

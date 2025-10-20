@@ -21,7 +21,7 @@ import { getDb } from "@/server/db/client";
 export interface CreateNoteInput {
   contentPlain: string;
   contentRich?: unknown;
-  contactId?: string | undefined;
+  contactId: string;
   tags?: string[] | undefined;
   sourceType?: "typed" | "voice" | "upload" | undefined;
 }
@@ -64,7 +64,7 @@ export async function listNotesService(
       error instanceof Error ? error.message : "Failed to list notes",
       "DB_ERROR",
       "database",
-      false
+      false,
     );
   }
 }
@@ -90,7 +90,7 @@ export async function getNoteByIdService(userId: string, noteId: string): Promis
       error instanceof Error ? error.message : "Failed to get note",
       "DB_ERROR",
       "database",
-      false
+      false,
     );
   }
 }
@@ -113,7 +113,7 @@ export async function getNotesByContactIdService(
       error instanceof Error ? error.message : "Failed to get notes by contact",
       "DB_ERROR",
       "database",
-      false
+      false,
     );
   }
 }
@@ -139,18 +139,32 @@ export async function createNoteService(userId: string, input: CreateNoteInput):
     throw new AppError("Note content is required", "VALIDATION_ERROR", "validation", false);
   }
 
+  if (!input.contactId) {
+    throw new AppError("Contact ID is required", "VALIDATION_ERROR", "validation", false);
+  }
+
+  // Reject dummy/invalid contact IDs
+  if (input.contactId === "00000000-0000-0000-0000-000000000000") {
+    throw new AppError("Please select a valid contact", "VALIDATION_ERROR", "validation", false);
+  }
+
   // Business logic: Redact PII from content
   const redactionResult = redactPII(input.contentPlain);
 
+  // Log if PII was detected and redacted (but don't block the save)
   if (redactionResult.hasRedactions) {
-    throw new AppError("PII detected in note content", "VALIDATION_ERROR", "validation", false);
+    console.warn("PII detected and redacted in note content", {
+      userId,
+      contactId: input.contactId,
+      entityTypes: [...new Set(redactionResult.entities.map((e) => e.type))],
+    });
   }
 
   try {
     // Call repository with sanitized data
     const note = await repo.createNote({
       userId,
-      contactId: input.contactId ?? null,
+      contactId: input.contactId,
       contentPlain: redactionResult.sanitizedText,
       contentRich: input.contentRich ?? {},
       tags: input.tags ?? [],
@@ -164,7 +178,7 @@ export async function createNoteService(userId: string, input: CreateNoteInput):
       error instanceof Error ? error.message : "Failed to create note",
       "DB_ERROR",
       "database",
-      false
+      false,
     );
   }
 }
@@ -212,8 +226,13 @@ export async function updateNoteService(
     // Business logic: Redact PII from updated content
     const redactionResult = redactPII(input.contentPlain);
 
+    // Log if PII was detected and redacted (but don't block the update)
     if (redactionResult.hasRedactions) {
-      throw new AppError("PII detected in note content", "VALIDATION_ERROR", "validation", false);
+      console.warn("PII detected and redacted in note update", {
+        userId,
+        noteId,
+        entityTypes: [...new Set(redactionResult.entities.map((e) => e.type))],
+      });
     }
 
     updateData.contentPlain = redactionResult.sanitizedText;
@@ -246,7 +265,7 @@ export async function updateNoteService(
       error instanceof Error ? error.message : "Failed to update note",
       "DB_ERROR",
       "database",
-      false
+      false,
     );
   }
 }
@@ -274,7 +293,7 @@ export async function deleteNoteService(userId: string, noteId: string): Promise
       error instanceof Error ? error.message : "Failed to delete note",
       "DB_ERROR",
       "database",
-      false
+      false,
     );
   }
 }

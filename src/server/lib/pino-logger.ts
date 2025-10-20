@@ -7,6 +7,8 @@
 import pino from "pino";
 import pretty from "pino-pretty";
 
+type LogBindings = pino.Bindings;
+
 const redactPaths = [
   "req.headers.authorization",
   "req.headers.cookie",

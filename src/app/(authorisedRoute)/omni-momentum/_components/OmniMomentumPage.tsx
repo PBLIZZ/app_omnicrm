@@ -399,7 +399,7 @@ function HabitTrackers(): JSX.Element {
       </CardHeader>
       <CardContent className="space-y-3 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Incomplete Habits */}
-        {incompleteHabits.map((habit: Habit, index: number) => (
+        {incompleteHabits.map((habit: Habit) => (
           <div
             key={habit.id}
             className="flex items-center justify-between p-3 bg-white rounded-lg border hover:shadow-sm transition-shadow"

@@ -27,13 +27,13 @@ function isPostgresError(error: unknown): error is PostgresError {
 }
 import type {
   AiInsight,
-  NewAiInsight,
+  CreateAiInsight,
   Embedding,
-  NewEmbedding,
+  CreateEmbedding,
   Interaction,
-  NewInteraction,
+  CreateInteraction,
   RawEvent,
-  NewRawEvent,
+  CreateRawEvent,
 } from "@/server/db/schema";
 
 const isTest = process.env.NODE_ENV === "test";
@@ -63,14 +63,16 @@ const supaAdmin =
 // Allow-list of tables that the secret key client may write to.
 export const ALLOWED_TABLES = ["raw_events", "interactions", "ai_insights", "embeddings"] as const;
 
+type AllowedTable = (typeof ALLOWED_TABLES)[number];
+
 type InsertRow<T extends AllowedTable> = T extends "raw_events"
-  ? NewRawEvent
+  ? CreateRawEvent
   : T extends "interactions"
-    ? NewInteraction
+    ? CreateInteraction
     : T extends "ai_insights"
-      ? NewAiInsight
+      ? CreateAiInsight
       : T extends "embeddings"
-        ? NewEmbedding
+        ? CreateEmbedding
         : never;
 
 type SelectRow<T extends AllowedTable> = T extends "raw_events"

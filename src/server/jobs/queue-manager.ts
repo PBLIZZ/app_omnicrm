@@ -6,9 +6,28 @@ import type { JobKind, JobPayloadByKind } from "./types";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/observability";
 
+export interface BatchJobOptions {
+  attempts?: number;
+  backoff?: { type: string; delay?: number } | number;
+  delay?: number;
+  priority?: number;
+  jobId?: string;
+}
+
 export interface BatchJob {
   payload: Record<string, unknown>;
   options?: BatchJobOptions;
+}
+
+export interface BatchStatus {
+  batchId: string;
+  total: number;
+  completed: number;
+  failed: number;
+  pending: number;
+  status: "in_progress" | "completed" | "failed" | "cancelled";
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export class QueueManager {
@@ -110,8 +129,19 @@ export class QueueManager {
         overallStatus = failed > completed / 2 ? "failed" : "completed";
       }
 
-      const createdAt = new Date(Math.min(...batchJobs.map((job) => job.createdAt.getTime())));
-      const updatedAt = new Date(Math.max(...batchJobs.map((job) => job.updatedAt.getTime())));
+      const createdAtTimestamps = batchJobs
+        .map((job) => job.createdAt?.getTime())
+        .filter((timestamp): timestamp is number => timestamp != null);
+      const updatedAtTimestamps = batchJobs
+        .map((job) => job.updatedAt?.getTime())
+        .filter((timestamp): timestamp is number => timestamp != null);
+
+      if (createdAtTimestamps.length === 0 || updatedAtTimestamps.length === 0) {
+        throw new Error("Batch jobs missing timestamp data");
+      }
+
+      const createdAt = new Date(Math.min(...createdAtTimestamps));
+      const updatedAt = new Date(Math.max(...updatedAtTimestamps));
 
       return {
         batchId,

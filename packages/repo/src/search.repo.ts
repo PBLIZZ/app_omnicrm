@@ -168,21 +168,30 @@ export class SearchRepository {
         .limit(limitPerType);
 
       for (const row of taskRows) {
+        const taskId: string = String(row.id);
+        const taskName: string = String(row.name);
+        const taskStatus = row.status as string;
+        const taskPriority = row.priority as string;
+        const taskDueDate = row.dueDate as string | null;
+        const taskProjectId = row.projectId as string | null;
+        const taskCreatedAt = row.createdAt as Date;
+        const taskUpdatedAt = row.updatedAt as Date;
+
         results.push({
-          id: row["id"],
+          id: taskId,
           type: "task",
-          title: row["name"],
-          content: JSON.stringify(row["details"] || {}),
+          title: taskName,
+          content: JSON.stringify(row.details || {}),
           metadata: {
-            status: row["status"],
-            priority: row["priority"],
-            dueDate: row["dueDate"],
-            projectId: row["projectId"],
+            status: taskStatus,
+            priority: taskPriority,
+            dueDate: taskDueDate,
+            projectId: taskProjectId,
           },
           score: 1,
           source: "traditional",
-          createdAt: row["createdAt"],
-          updatedAt: row["updatedAt"],
+          createdAt: taskCreatedAt,
+          updatedAt: taskUpdatedAt,
         });
       }
     }
@@ -371,19 +380,28 @@ export class SearchRepository {
 
         if (!task) return null;
 
+        const taskId: string = String(task.id);
+        const taskName: string = String(task.name);
+        const taskStatus = task.status as string;
+        const taskPriority = task.priority as string;
+        const taskDueDate = task.dueDate as string | null;
+        const taskProjectId = task.projectId as string | null;
+        const taskCreatedAt = task.createdAt as Date;
+        const taskUpdatedAt = task.updatedAt as Date;
+
         return {
-          id: task["id"],
+          id: taskId,
           type: "task",
-          title: task["name"],
-          content: JSON.stringify(task["details"] || {}),
+          title: taskName,
+          content: JSON.stringify(task.details || {}),
           metadata: {
-            status: task["status"],
-            priority: task["priority"],
-            dueDate: task["dueDate"],
-            projectId: task["projectId"],
+            status: taskStatus,
+            priority: taskPriority,
+            dueDate: taskDueDate,
+            projectId: taskProjectId,
           },
-          createdAt: task["createdAt"],
-          updatedAt: task["updatedAt"],
+          createdAt: taskCreatedAt,
+          updatedAt: taskUpdatedAt,
         };
       }
 

@@ -19,6 +19,7 @@ export const queryKeys = {
       all: ["google", "calendar"] as const,
       status: () => ["google", "calendar", "status"] as const,
       events: () => ["google", "calendar", "events"] as const,
+      clients: () => ["google", "calendar", "clients"] as const,
       sync: () => ["google", "calendar", "sync"] as const,
     },
 
@@ -47,7 +48,8 @@ export const queryKeys = {
   // Contacts and related data
   contacts: {
     all: ["/api/contacts"] as const,
-    list: (filters?: { search?: string; page?: number; pageSize?: number }) => ["/api/contacts", filters] as const,
+    list: (filters?: { search?: string; page?: number; pageSize?: number }) =>
+      ["/api/contacts", filters] as const,
     detail: (id: string) => ["/api/contacts", "detail", id] as const,
     byId: (id: string) => ["/api/contacts", id] as const,
     notes: (contactId: string) => ["/api/contacts", contactId, "notes"] as const,

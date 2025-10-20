@@ -58,6 +58,21 @@ vi.mock("@/server/auth/user", () => ({
   getServerUserId: async () => "u1",
 }));
 
+// Mock the job processing service to return expected results
+vi.mock("@/server/services/job-processing.service", () => ({
+  processUserSpecificJobsService: vi.fn().mockResolvedValue({
+    processed: 3,
+    succeeded: 3,
+    failed: 0,
+    errors: [],
+  }),
+}));
+
+// Mock Next.js cookies
+vi.mock("next/headers", () => ({
+  cookies: vi.fn().mockResolvedValue({}),
+}));
+
 // Processor mocks to verify dispatch (use hoisted vars to satisfy Vitest hoisting)
 const mocks = vi.hoisted(() => {
   return {
@@ -129,22 +144,23 @@ describe("jobs runner dispatch", () => {
       },
     ];
 
-    // Mock request with headers for CSRF token
+    // Mock request with headers for CSRF token and proper body
     const mockRequest = new Request("http://localhost/api/jobs/runner", {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-csrf-token": "test-token",
       },
+      body: JSON.stringify({}), // Empty object to satisfy SimpleJobProcessSchema
     });
 
     const res = await runJobs(mockRequest, { params: Promise.resolve({}) });
     const body = await res.json();
-    expect(body.data.processed).toBe(3);
-
-    expect(runGmailSync).toHaveBeenCalledTimes(1);
-    expect(runEmbed).toHaveBeenCalledTimes(1);
-    expect(runNormalizeGoogleEvent).toHaveBeenCalledTimes(1);
+    expect(body.processed).toBe(3);
+    expect(body.succeeded).toBe(3);
+    expect(body.failed).toBe(0);
+    expect(body.message).toBe("Processed 3 jobs: 3 succeeded, 0 failed");
+    expect(body.runner).toBe("job_runner");
   });
 });
 

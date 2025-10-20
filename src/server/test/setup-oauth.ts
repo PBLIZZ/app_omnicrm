@@ -29,9 +29,10 @@ export async function setupTestOAuthTokens(userId: string): Promise<void> {
 
   const tokenData = {
     userId,
+    service: "google",
     provider: "google" as const,
-    accessToken: encryptString(accessToken),
-    refreshToken: refreshToken ? encryptString(refreshToken) : null,
+    accessToken: await encryptString(accessToken),
+    refreshToken: refreshToken ? await encryptString(refreshToken) : null,
     expiryDate: new Date(Date.now() + 3600000), // 1 hour from now
     updatedAt: new Date(),
   };

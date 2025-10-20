@@ -78,61 +78,6 @@ export function useOmniConnect(): UseOmniConnectResult {
     },
     staleTime: 30000, // 30 seconds - refetch in background after this
     retry: (failureCount, error) => shouldRetry(error, failureCount),
-    // Initial data - assume disconnected until we know otherwise
-    initialData: {
-      connection: {
-        isConnected: false,
-        emailCount: 0,
-        contactCount: 0,
-      },
-      emailPreview: {
-        emails: [],
-        range: null,
-        previewRange: null,
-      },
-      jobs: {
-        active: [],
-        summary: {
-          queued: 0,
-          running: 0,
-          completed: 0,
-          failed: 0,
-        },
-        currentBatch: null,
-      },
-      syncStatus: {
-        googleConnected: true,
-        serviceTokens: {
-          google: true,
-          gmail: true,
-          calendar: true,
-          unified: true,
-        },
-        flags: {
-          gmail: true,
-          calendar: true,
-        },
-        lastSync: {
-          gmail: null,
-          calendar: null,
-        },
-        lastBatchId: null,
-        grantedScopes: {
-          gmail: null,
-          calendar: null,
-        },
-        jobs: {
-          queued: 0,
-          done: 0,
-          error: 0,
-        },
-        embedJobs: {
-          queued: 0,
-          done: 0,
-          error: 0,
-        },
-      },
-    },
   });
 
   // OAuth connection mutation

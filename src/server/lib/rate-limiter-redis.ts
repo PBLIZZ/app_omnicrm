@@ -16,7 +16,7 @@ export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   resetTime: number;
-  retryAfter?: number;
+  retryAfter?: number | undefined;
 }
 
 // Default configurations for different endpoint types
@@ -197,7 +197,9 @@ export class RedisRateLimiter {
   ): Promise<void> {
     const key = config.keyGenerator(req);
     try {
-      await this.redis.del(key);
+      if (this.redis) {
+        await this.redis.del(key);
+      }
     } catch (error) {
       console.error("Rate limiter clear Redis error:", error);
     }

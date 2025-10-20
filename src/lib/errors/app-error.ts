@@ -86,4 +86,11 @@ export class ErrorHandler {
   static systemError(message: string, code = "SYSTEM_ERROR"): AppError {
     return new AppError(message, code, "system", true);
   }
+
+  /**
+   * Create database-specific error
+   */
+  static databaseError(message: string, code = "DATABASE_ERROR"): AppError {
+    return new AppError(message, code, "database", true);
+  }
 }

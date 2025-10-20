@@ -85,11 +85,13 @@ export function useZones(options: UseZonesOptions = {}): UseZonesReturn {
     queryKey: queryKeys.zones.list(withStats),
     queryFn: async (): Promise<Zone[] | ZoneWithStats[]> => {
       if (withStats) {
-        const result = await apiClient.get<ZonesWithStatsResponse>(apiUrl);
-        return result.items ?? [];
+        const result = await apiClient.get<{ success: boolean; data: ZonesWithStatsResponse }>(
+          apiUrl,
+        );
+        return result.data?.items ?? [];
       } else {
-        const result = await apiClient.get<ZonesResponse>(apiUrl);
-        return result.items ?? [];
+        const result = await apiClient.get<{ success: boolean; data: ZonesResponse }>(apiUrl);
+        return result.data?.items ?? [];
       }
     },
     refetchInterval: autoRefetch ? 300000 : false, // Auto-refresh every 5 minutes (zones change rarely)

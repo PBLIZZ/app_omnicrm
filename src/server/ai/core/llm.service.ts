@@ -29,6 +29,14 @@ export interface LLMResponse<T = unknown> {
   costUsd?: number;
 }
 
+export interface InsightResponse {
+  title: string;
+  summary: string;
+  confidence: number;
+  tags: string[];
+  priority: string;
+}
+
 // Unified generateText function
 export async function generateText<T>(
   userId: string,

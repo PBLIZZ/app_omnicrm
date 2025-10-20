@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,11 +19,13 @@ import { DynamicBreadcrumb } from "./DynamicBreadcrumb";
 import { SidebarBrandHeader } from "./SidebarBrandHeader";
 import { SidebarMainSectionNav } from "./SidebarMainSectionNav";
 import { Button } from "@/components/ui/button";
-import { Bot } from "lucide-react";
+import { Bot, Zap } from "lucide-react";
 // import { SearchModal } from "@/components/SearchModal"; // Temporarily disabled
 import { toast } from "sonner";
 import { useHeaderControls } from "@/hooks/use-header-controls";
+import { post } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { RapidNoteModal } from "@/app/(authorisedRoute)/contacts/[contactId]/notes/[noteId]/_components/RapidNoteModal";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -45,6 +48,78 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
     // notificationCount,
     // handleSearch, // Temporarily disabled
   } = useHeaderControls();
+
+  // State for rapid note modal
+  const [isRapidNoteModalOpen, setIsRapidNoteModalOpen] = useState(false);
+
+  // Note: ContactSearchCombobox handles its own data fetching
+
+  // Handle rapid note modal closing
+  const handleCloseRapidNoteModal = (): void => {
+    setIsRapidNoteModalOpen(false);
+  };
+
+  // Handle rapid note save
+  const handleSaveRapidNote = async (noteData: {
+    contactId: string;
+    content: string;
+    sourceType: "typed" | "voice";
+  }): Promise<{ success: boolean }> => {
+    try {
+      await post("/api/notes", {
+        contactId: noteData.contactId,
+        contentPlain: noteData.content,
+        sourceType: noteData.sourceType,
+      });
+
+      toast.success("Note saved successfully!");
+      setIsRapidNoteModalOpen(false);
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to save note:", error);
+      // Error toast is already shown by the API client
+      return { success: false };
+    }
+  };
+
+  // Handle rapid note modal opening
+  const handleRapidNote = (): void => {
+    setIsRapidNoteModalOpen(true);
+  };
+
+  // Keyboard shortcut handler
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      // Check for Cmd+Shift+N (Mac) or Ctrl+Shift+N (Windows/Linux)
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const isModifierPressed = isMac ? event.metaKey : event.ctrlKey;
+
+      if (isModifierPressed && event.shiftKey && event.key === "N") {
+        event.preventDefault();
+        handleRapidNote();
+      }
+    };
+
+    // Add event listener
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Cleanup
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  // CSRF token preflight - ensure tokens exist before user actions
+  useEffect(() => {
+    // Trigger middleware to issue CSRF tokens via any safe GET request
+    fetch("/api/health", {
+      method: "GET",
+      credentials: "same-origin",
+    }).catch(() => {
+      // Silent fail - tokens will be issued on first mutation attempt
+    });
+  }, []);
+
   return (
     <SidebarProvider>
       <div className="flex w-full">
@@ -98,11 +173,25 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
                 variant="ghost"
                 size="sm"
                 className="relative hover-glow"
+                aria-label="AI Assistant"
+                title="AI Assistant"
                 onClick={() => {
                   toast.info("AI Assistant coming soon! Track progress at GitHub Issues.");
                 }}
               >
                 <Bot className="h-6 w-6" />
+              </Button>
+
+              {/* Rapid Note Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="relative hover-glow"
+                aria-label="Rapid Note"
+                title="Rapid Note"
+                onClick={handleRapidNote}
+              >
+                <Zap className="h-6 w-6" />
               </Button>
 
               {/* Theme Toggle */}
@@ -113,6 +202,13 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
           <main className="flex flex-1 flex-col gap-4 p-4 min-h-0">{children}</main>
         </SidebarInset>
       </div>
+
+      {/* Rapid Note Modal */}
+      <RapidNoteModal
+        isOpen={isRapidNoteModalOpen}
+        onClose={handleCloseRapidNoteModal}
+        onSave={handleSaveRapidNote}
+      />
     </SidebarProvider>
   );
 }

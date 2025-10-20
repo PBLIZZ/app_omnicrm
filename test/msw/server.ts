@@ -27,17 +27,20 @@ export function setupMswServer() {
     href: "http://localhost:3000/",
   } as Location;
 
-  // Start server before all tests
+  // Start server before all tests with base URL configuration
   server.listen({
     onUnhandledRequest: "warn", // Warn about unhandled requests during development
   });
 
   // Reset handlers after each test
   server.events.on("request:start", ({ request }) => {
-    // Optional: log requests during test debugging
-    if (process.env["DEBUG_MSW"]) {
-      console.log("MSW intercepted:", request.method, request.url);
-    }
+    // Always log requests during test debugging
+    console.log("MSW intercepted:", request.method, request.url);
+  });
+
+  server.events.on("response:mocked", ({ request, response }) => {
+    // Log responses during test debugging
+    console.log("MSW response:", request.method, request.url, response.status);
   });
 }
 

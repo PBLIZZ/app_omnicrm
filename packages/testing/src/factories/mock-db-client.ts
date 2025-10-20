@@ -60,18 +60,33 @@ export interface MockQueryBuilder<T = any[]> {
  * Mock DbClient type
  */
 export interface MockDbClient {
-  select: Mock<any[], MockQueryBuilder>;
-  insert: Mock<any[], MockQueryBuilder>;
-  update: Mock<any[], MockQueryBuilder>;
-  delete: Mock<any[], MockQueryBuilder>;
-  execute: Mock<any[], Promise<any[]>>;
-  transaction: Mock<[(tx: MockDbClient) => Promise<any>], Promise<any>>;
+  select: Mock<(...args: any[]) => MockQueryBuilder>;
+  insert: Mock<(...args: any[]) => MockQueryBuilder>;
+  update: Mock<(...args: any[]) => MockQueryBuilder>;
+  delete: Mock<(...args: any[]) => MockQueryBuilder>;
+  execute: Mock<(...args: any[]) => Promise<any[]>>;
+  transaction: Mock<(callback: (tx: MockDbClient) => Promise<any>) => Promise<any>>;
   query: {
     [key: string]: {
-      findFirst: Mock<any[], Promise<any>>;
-      findMany: Mock<any[], Promise<any[]>>;
+      findFirst: Mock<(...args: any[]) => Promise<any>>;
+      findMany: Mock<(...args: any[]) => Promise<any[]>>;
     };
   };
+  // Chainable methods for backwards compatibility with existing tests - always provided by createMockDbClient
+  from: Mock<(...args: any[]) => MockQueryBuilder>;
+  where: Mock<(...args: any[]) => MockQueryBuilder>;
+  orderBy: Mock<(...args: any[]) => MockQueryBuilder>;
+  limit: Mock<(num: number) => MockQueryBuilder>;
+  offset: Mock<(num: number) => MockQueryBuilder>;
+  values: Mock<(...args: any[]) => MockQueryBuilder>;
+  set: Mock<(...args: any[]) => MockQueryBuilder>;
+  returning: Mock<(...args: any[]) => Promise<any[]>>;
+  innerJoin: Mock<(...args: any[]) => MockQueryBuilder>;
+  leftJoin: Mock<(...args: any[]) => MockQueryBuilder>;
+  rightJoin: Mock<(...args: any[]) => MockQueryBuilder>;
+  fullJoin: Mock<(...args: any[]) => MockQueryBuilder>;
+  onConflictDoUpdate: Mock<(...args: any[]) => MockQueryBuilder>;
+  onConflictDoNothing: Mock<(...args: any[]) => MockQueryBuilder>;
 }
 
 /**
@@ -145,6 +160,8 @@ export function createMockQueryBuilder(finalValue: any[] = []): MockQueryBuilder
  * @returns A mock DbClient with chainable query methods
  */
 export function createMockDbClient(): MockDbClient {
+  const builder = createMockQueryBuilder([]);
+
   const mockDb: MockDbClient = {
     select: vi.fn(() => createMockQueryBuilder([])),
     insert: vi.fn(() => createMockQueryBuilder([{ id: "test-id" }])),
@@ -165,6 +182,21 @@ export function createMockDbClient(): MockDbClient {
         }),
       },
     ),
+    // Chainable methods for backwards compatibility
+    from: vi.fn().mockReturnValue(builder),
+    where: vi.fn().mockReturnValue(builder),
+    orderBy: vi.fn().mockReturnValue(builder),
+    limit: vi.fn().mockReturnValue(builder),
+    offset: vi.fn().mockReturnValue(builder),
+    values: vi.fn().mockReturnValue(builder),
+    set: vi.fn().mockReturnValue(builder),
+    returning: vi.fn().mockResolvedValue([]),
+    innerJoin: vi.fn().mockReturnValue(builder),
+    leftJoin: vi.fn().mockReturnValue(builder),
+    rightJoin: vi.fn().mockReturnValue(builder),
+    fullJoin: vi.fn().mockReturnValue(builder),
+    onConflictDoUpdate: vi.fn().mockReturnValue(builder),
+    onConflictDoNothing: vi.fn().mockReturnValue(builder),
   };
 
   return mockDb;

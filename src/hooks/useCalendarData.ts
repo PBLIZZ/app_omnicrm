@@ -52,9 +52,13 @@ export interface UseCalendarDataResult {
   eventsError: unknown;
   clientsError: unknown;
   statusError: unknown;
-  refetchEvents: (options?: RefetchOptions) => Promise<QueryObserverResult<CalendarEvent[], unknown>>;
+  refetchEvents: (
+    options?: RefetchOptions,
+  ) => Promise<QueryObserverResult<CalendarEvent[], unknown>>;
   refetchClients: (options?: RefetchOptions) => Promise<QueryObserverResult<Client[], unknown>>;
-  refetchStatus: (options?: RefetchOptions) => Promise<QueryObserverResult<CalendarConnectionStatus, unknown>>;
+  refetchStatus: (
+    options?: RefetchOptions,
+  ) => Promise<QueryObserverResult<CalendarConnectionStatus, unknown>>;
   refreshAll: () => void;
 }
 
@@ -77,15 +81,32 @@ export function useCalendarData(): UseCalendarDataResult {
     isLoading: isEventsLoading,
     error: eventsError,
     refetch: refetchEvents,
+    status: eventsStatus,
+    fetchStatus: eventsFetchStatus,
   } = useQuery<CalendarEvent[]>({
-    queryKey: queryKeys.calendar.events(),
+    queryKey: queryKeys.google.calendar.events(),
     queryFn: async (): Promise<CalendarEvent[]> => {
-      // TODO: Replace with proper calendar events API when available
-      // For now, return empty array until we implement calendar events fetch from raw_events
-      return [];
+      const result = await apiClient.get<{ events: unknown[] }>("/api/google/calendar/events", {
+        showErrorToast: false,
+      });
+      console.log("Events query result:", result);
+      const events = result.events || [];
+      console.log("Events query returning:", events);
+      const mappedEvents = mapEventsData(events);
+      console.log("Mapped events:", mappedEvents);
+      return mappedEvents;
     },
     staleTime: 60_000,
-    retry: (failureCount, error) => shouldRetry(error, failureCount),
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+  });
+
+  console.log("Events query state:", {
+    status: eventsStatus,
+    fetchStatus: eventsFetchStatus,
+    isLoading: isEventsLoading,
+    dataLength: eventsData.length,
+    error: eventsError,
   });
 
   // Client data query
@@ -95,18 +116,24 @@ export function useCalendarData(): UseCalendarDataResult {
     error: clientsError,
     refetch: refetchClients,
   } = useQuery<Client[]>({
-    queryKey: queryKeys.calendar.clients(),
+    queryKey: queryKeys.google.calendar.clients(),
     queryFn: async (): Promise<Client[]> => {
-      const result = await apiClient.get<unknown>("/api/contacts");
+      const result = await apiClient.get<unknown>("/api/google/calendar/clients", {
+        showErrorToast: false,
+      });
+      console.log("Clients query result:", result);
       return mapClientsData(result);
     },
     staleTime: 60_000,
-    retry: (failureCount, error) => shouldRetry(error, failureCount),
   });
 
   // Connection status query
   const {
-    data: connectionStatus,
+    data: connectionStatus = {
+      isConnected: false,
+      upcomingEventsCount: 0,
+      reason: "loading",
+    },
     isLoading: isStatusLoading,
     error: statusError,
     refetch: refetchStatus,
@@ -126,7 +153,7 @@ export function useCalendarData(): UseCalendarDataResult {
           };
         };
         upcomingEventsCount?: number;
-      }>("/api/google/status");
+      }>("/api/google/status", { showErrorToast: false });
 
       const calendarService = response.services?.calendar;
       if (!calendarService) {
@@ -151,12 +178,6 @@ export function useCalendarData(): UseCalendarDataResult {
     },
     staleTime: 15_000,
     retry: (failureCount, error) => shouldRetry(error, failureCount),
-    // Initial data - assume disconnected until we know otherwise
-    initialData: {
-      isConnected: false,
-      upcomingEventsCount: 0,
-      reason: "loading",
-    },
   });
 
   // Refresh all data
@@ -189,7 +210,6 @@ export function useCalendarData(): UseCalendarDataResult {
     refreshAll,
   };
 }
-
 
 // Helper function to map clients data with proper typing
 function mapClientsData(json: unknown): Client[] {
@@ -274,4 +294,63 @@ function mapClientData(contact: unknown): Client {
         }
       : { preferredTimes: [], preferredServices: [], goals: [] },
   };
+}
+
+// Helper function to map events data with proper typing and defaults
+function mapEventsData(json: unknown[]): CalendarEvent[] {
+  const isRecord = (v: unknown): v is Record<string, unknown> =>
+    typeof v === "object" && v !== null;
+
+  const getString = (r: Record<string, unknown>, key: string): string | undefined => {
+    const v = r[key];
+    return typeof v === "string" ? v : undefined;
+  };
+
+  const getArray = (r: Record<string, unknown>, key: string): unknown[] => {
+    const v = r[key];
+    return Array.isArray(v) ? v : [];
+  };
+
+  return json.filter(isRecord).map((e): CalendarEvent => {
+    const id = getString(e, "id") ?? `event-${Math.random()}`;
+    const title = getString(e, "title") ?? "Untitled";
+    const startTime = getString(e, "startTime") ?? new Date().toISOString();
+    const endTime = getString(e, "endTime") ?? new Date(Date.now() + 3600000).toISOString();
+    const location = getString(e, "location") ?? "";
+    const description = getString(e, "description") ?? null;
+    const status = getString(e, "status") ?? null;
+    const eventType = getString(e, "eventType") ?? null;
+    const businessCategory = getString(e, "businessCategory") ?? null;
+    const googleEventId = getString(e, "googleEventId");
+
+    // Handle attendees array
+    const attendeesRaw = getArray(e, "attendees");
+    const attendees = attendeesRaw
+      .filter(isRecord)
+      .map((a) => {
+        const attendee: { email: string; name?: string; responseStatus?: string } = {
+          email: getString(a, "email") ?? "",
+        };
+        const name = getString(a, "name");
+        if (name) attendee.name = name;
+        const responseStatus = getString(a, "responseStatus");
+        if (responseStatus) attendee.responseStatus = responseStatus;
+        return attendee;
+      })
+      .filter((a) => a.email); // Only include attendees with email
+
+    return {
+      id,
+      ...(googleEventId && { googleEventId }),
+      title,
+      description,
+      startTime,
+      endTime,
+      attendees: attendees.length > 0 ? attendees : null,
+      location,
+      status,
+      eventType,
+      businessCategory,
+    };
+  });
 }

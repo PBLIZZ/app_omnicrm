@@ -152,6 +152,7 @@ describe("DocumentsRepository", () => {
         .mockReturnValueOnce(countBuilder as any);
 
       // Try to request more than max (200)
+      await repo.listDocuments(mockUserId, { pageSize: 500 });
 
       expect(mockDb.select).toHaveBeenCalled();
     });

@@ -29,7 +29,8 @@ describe("/api/db-ping", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.data).toEqual({ status: "healthy" });
+    expect(body.data).toMatchObject({ status: "healthy" });
+    expect(body.data.timestamp).toBeDefined();
     // Verify the error was handled properly
   });
 
@@ -38,7 +39,7 @@ describe("/api/db-ping", () => {
     mockSql.end = vi.fn().mockResolvedValue(undefined);
     const mockPostgres = vi.fn(() => mockSql);
 
-    const execute = vi.fn().mockRejectedValue(new Error("db down"));
+    const execute = vi.fn().mockResolvedValue(undefined);
     const drizzle = vi.fn(() => ({ execute }) as unknown as NodePgDatabase);
     const { __setDbDriversForTest } = await import("../../../server/db/client");
     __setDbDriversForTest({

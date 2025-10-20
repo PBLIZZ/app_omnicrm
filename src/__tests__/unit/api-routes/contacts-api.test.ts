@@ -78,8 +78,8 @@ vi.mock("@/server/services/contacts.service", () => ({
   getContactWithNotesService: vi.fn().mockImplementation(() => {
     console.log("getContactWithNotesService mock called");
     return Promise.resolve({
-      id: "contact-123",
-      userId: "test-user-id",
+      id: "123e4567-e89b-12d3-a456-426614174000",
+      userId: "123e4567-e89b-12d3-a456-426614174001",
       displayName: "Test Contact",
       primaryEmail: "test@example.com",
       primaryPhone: "+1234567890",
@@ -101,8 +101,8 @@ vi.mock("@/server/services/contacts.service", () => ({
       notes: [
         {
           id: "123e4567-e89b-12d3-a456-426614174003",
-          userId: "test-user-id",
-          contactId: "contact-123",
+          userId: "123e4567-e89b-12d3-a456-426614174001",
+          contactId: "123e4567-e89b-12d3-a456-426614174000",
           contentRich: null,
           contentPlain: "Test note",
           tags: [],
@@ -160,7 +160,9 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should require authentication", async () => {
       const { getServerUserId } = await import("@/server/auth/user");
-      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+      vi.mocked(getServerUserId).mockRejectedValueOnce(
+        Object.assign(new Error("Unauthorized"), { status: 401 }),
+      );
 
       const request = new Request("http://localhost:3000/api/contacts");
 
@@ -287,7 +289,9 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should require authentication", async () => {
       const { getServerUserId } = await import("@/server/auth/user");
-      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+      vi.mocked(getServerUserId).mockRejectedValueOnce(
+        Object.assign(new Error("Unauthorized"), { status: 401 }),
+      );
 
       const request = new Request("http://localhost:3000/api/contacts", {
         method: "POST",
@@ -305,15 +309,15 @@ describe("Contacts API Routes - Unit Tests", () => {
       const { getContactWithNotesService } = await import("@/server/services/contacts.service");
       vi.mocked(getContactWithNotesService).mockResolvedValueOnce({
         ...createMockContact({
-          id: "contact-123",
+          id: "123e4567-e89b-12d3-a456-426614174000",
           displayName: "Test Contact",
           primaryEmail: "test@example.com",
         }),
         notes: [
           {
             id: "123e4567-e89b-12d3-a456-426614174003",
-            userId: testUtils.defaultUserId,
-            contactId: "contact-123",
+            userId: "123e4567-e89b-12d3-a456-426614174001",
+            contactId: "123e4567-e89b-12d3-a456-426614174000",
             contentRich: null,
             contentPlain: "Test note",
             piiEntities: [],
@@ -325,8 +329,10 @@ describe("Contacts API Routes - Unit Tests", () => {
         ],
       });
 
-      const request = new Request("http://localhost:3000/api/contacts/contact-123");
-      const context = makeRouteContext({ contactId: "contact-123" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/123e4567-e89b-12d3-a456-426614174000",
+      );
+      const context = makeRouteContext({ contactId: "123e4567-e89b-12d3-a456-426614174000" });
 
       const response = await getContactById(request, context);
       const data = await response.json();
@@ -337,17 +343,22 @@ describe("Contacts API Routes - Unit Tests", () => {
       }
 
       expect(response.status).toBe(200);
-      expect(data.id).toBe("contact-123");
+      expect(data.id).toBe("123e4567-e89b-12d3-a456-426614174000");
       expect(data).toHaveProperty("notes");
       expect(Array.isArray(data.notes)).toBe(true);
     });
 
-    it("should return 404 for non-existent contact", async () => {
+    it("should return 404 for 00000000-0000-0000-0000-000000000000 contact", async () => {
       const { getContactWithNotesService } = await import("@/server/services/contacts.service");
-      vi.mocked(getContactWithNotesService).mockRejectedValueOnce(new Error("Contact not found"));
+      const { ApiError } = await import("@/lib/api/errors");
+      vi.mocked(getContactWithNotesService).mockRejectedValueOnce(
+        ApiError.notFound("Contact not found"),
+      );
 
-      const request = new Request("http://localhost:3000/api/contacts/non-existent");
-      const context = makeRouteContext({ contactId: "non-existent" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/00000000-0000-0000-0000-000000000000",
+      );
+      const context = makeRouteContext({ contactId: "00000000-0000-0000-0000-000000000000" });
 
       const response = await getContactById(request, context);
       expect(response.status).toBe(404);
@@ -355,10 +366,14 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should require authentication", async () => {
       const { getServerUserId } = await import("@/server/auth/user");
-      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+      vi.mocked(getServerUserId).mockRejectedValueOnce(
+        Object.assign(new Error("Unauthorized"), { status: 401 }),
+      );
 
-      const request = new Request("http://localhost:3000/api/contacts/contact-123");
-      const context = makeRouteContext({ contactId: "contact-123" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/123e4567-e89b-12d3-a456-426614174000",
+      );
+      const context = makeRouteContext({ contactId: "123e4567-e89b-12d3-a456-426614174000" });
 
       const response = await getContactById(request, context);
       expect(response.status).toBe(401);
@@ -370,7 +385,7 @@ describe("Contacts API Routes - Unit Tests", () => {
       const { updateContactService } = await import("@/server/services/contacts.service");
       vi.mocked(updateContactService).mockResolvedValueOnce(
         createMockContact({
-          id: "contact-123",
+          id: "123e4567-e89b-12d3-a456-426614174000",
           displayName: "Updated Name",
           primaryEmail: "updated@example.com",
         }),
@@ -381,12 +396,15 @@ describe("Contacts API Routes - Unit Tests", () => {
         primaryEmail: "updated@example.com",
       };
 
-      const request = new Request("http://localhost:3000/api/contacts/contact-123", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(updateData),
-      });
-      const context = makeRouteContext({ contactId: "contact-123" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/123e4567-e89b-12d3-a456-426614174000",
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(updateData),
+        },
+      );
+      const context = makeRouteContext({ contactId: "123e4567-e89b-12d3-a456-426614174000" });
 
       const response = await updateContact(request, context);
       const data = await response.json();
@@ -396,16 +414,20 @@ describe("Contacts API Routes - Unit Tests", () => {
       expect(data.primaryEmail).toBe("updated@example.com");
     });
 
-    it("should return 404 for non-existent contact", async () => {
+    it("should return 404 for 00000000-0000-0000-0000-000000000000 contact", async () => {
       const { updateContactService } = await import("@/server/services/contacts.service");
-      vi.mocked(updateContactService).mockRejectedValueOnce(new Error("Contact not found"));
+      const { ApiError } = await import("@/lib/api/errors");
+      vi.mocked(updateContactService).mockRejectedValueOnce(ApiError.notFound("Contact not found"));
 
-      const request = new Request("http://localhost:3000/api/contacts/non-existent", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName: "Test" }),
-      });
-      const context = makeRouteContext({ contactId: "non-existent" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/00000000-0000-0000-0000-000000000000",
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ displayName: "Test" }),
+        },
+      );
+      const context = makeRouteContext({ contactId: "00000000-0000-0000-0000-000000000000" });
 
       const response = await updateContact(request, context);
       expect(response.status).toBe(404);
@@ -416,12 +438,15 @@ describe("Contacts API Routes - Unit Tests", () => {
         primaryEmail: "not-an-email",
       };
 
-      const request = new Request("http://localhost:3000/api/contacts/contact-123", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(invalidData),
-      });
-      const context = makeRouteContext({ contactId: "contact-123" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/123e4567-e89b-12d3-a456-426614174000",
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(invalidData),
+        },
+      );
+      const context = makeRouteContext({ contactId: "123e4567-e89b-12d3-a456-426614174000" });
 
       const response = await updateContact(request, context);
       expect(response.status).toBe(400);
@@ -429,14 +454,19 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should require authentication", async () => {
       const { getServerUserId } = await import("@/server/auth/user");
-      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+      vi.mocked(getServerUserId).mockRejectedValueOnce(
+        Object.assign(new Error("Unauthorized"), { status: 401 }),
+      );
 
-      const request = new Request("http://localhost:3000/api/contacts/contact-123", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName: "Test" }),
-      });
-      const context = makeRouteContext({ contactId: "contact-123" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/123e4567-e89b-12d3-a456-426614174000",
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ displayName: "Test" }),
+        },
+      );
+      const context = makeRouteContext({ contactId: "123e4567-e89b-12d3-a456-426614174000" });
 
       const response = await updateContact(request, context);
       expect(response.status).toBe(401);
@@ -448,10 +478,13 @@ describe("Contacts API Routes - Unit Tests", () => {
       const { deleteContactService } = await import("@/server/services/contacts.service");
       vi.mocked(deleteContactService).mockResolvedValueOnce(true);
 
-      const request = new Request("http://localhost:3000/api/contacts/contact-123", {
-        method: "DELETE",
-      });
-      const context = makeRouteContext({ contactId: "contact-123" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/123e4567-e89b-12d3-a456-426614174000",
+        {
+          method: "DELETE",
+        },
+      );
+      const context = makeRouteContext({ contactId: "123e4567-e89b-12d3-a456-426614174000" });
 
       const response = await deleteContact(request, context);
       const data = await response.json();
@@ -465,10 +498,13 @@ describe("Contacts API Routes - Unit Tests", () => {
       const { deleteContactService } = await import("@/server/services/contacts.service");
       vi.mocked(deleteContactService).mockResolvedValueOnce(false);
 
-      const request = new Request("http://localhost:3000/api/contacts/non-existent", {
-        method: "DELETE",
-      });
-      const context = makeRouteContext({ contactId: "non-existent" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/00000000-0000-0000-0000-000000000000",
+        {
+          method: "DELETE",
+        },
+      );
+      const context = makeRouteContext({ contactId: "00000000-0000-0000-0000-000000000000" });
 
       const response = await deleteContact(request, context);
       const data = await response.json();
@@ -479,12 +515,17 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should require authentication", async () => {
       const { getServerUserId } = await import("@/server/auth/user");
-      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+      vi.mocked(getServerUserId).mockRejectedValueOnce(
+        Object.assign(new Error("Unauthorized"), { status: 401 }),
+      );
 
-      const request = new Request("http://localhost:3000/api/contacts/contact-123", {
-        method: "DELETE",
-      });
-      const context = makeRouteContext({ contactId: "contact-123" });
+      const request = new Request(
+        "http://localhost:3000/api/contacts/123e4567-e89b-12d3-a456-426614174000",
+        {
+          method: "DELETE",
+        },
+      );
+      const context = makeRouteContext({ contactId: "123e4567-e89b-12d3-a456-426614174000" });
 
       const response = await deleteContact(request, context);
       expect(response.status).toBe(401);
@@ -514,7 +555,7 @@ describe("Contacts API Routes - Unit Tests", () => {
 
       await getContactCount(request);
 
-      expect(countContactsService).toHaveBeenCalledWith(testUtils.defaultUserId, "john");
+      expect(countContactsService).toHaveBeenCalledWith("test-user-id", "john");
     });
 
     it("should return 0 for empty database", async () => {
@@ -532,7 +573,9 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should require authentication", async () => {
       const { getServerUserId } = await import("@/server/auth/user");
-      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+      vi.mocked(getServerUserId).mockRejectedValueOnce(
+        Object.assign(new Error("Unauthorized"), { status: 401 }),
+      );
 
       const request = new Request("http://localhost:3000/api/contacts/count");
 
@@ -550,7 +593,11 @@ describe("Contacts API Routes - Unit Tests", () => {
       });
 
       const bulkData = {
-        contactIds: ["contact-1", "contact-2", "contact-3"],
+        ids: [
+          "123e4567-e89b-12d3-a456-426614174001",
+          "123e4567-e89b-12d3-a456-426614174002",
+          "123e4567-e89b-12d3-a456-426614174003",
+        ],
       };
 
       const request = new Request("http://localhost:3000/api/contacts/bulk-delete", {
@@ -568,9 +615,9 @@ describe("Contacts API Routes - Unit Tests", () => {
       expect(data.errors).toEqual([]);
     });
 
-    it("should validate contactIds array", async () => {
+    it("should validate ids array", async () => {
       const invalidData = {
-        contactIds: "not-an-array",
+        ids: "not-an-array",
       };
 
       const request = new Request("http://localhost:3000/api/contacts/bulk-delete", {
@@ -585,7 +632,7 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should require at least one contact ID", async () => {
       const invalidData = {
-        contactIds: [],
+        ids: [],
       };
 
       const request = new Request("http://localhost:3000/api/contacts/bulk-delete", {
@@ -606,7 +653,11 @@ describe("Contacts API Routes - Unit Tests", () => {
       });
 
       const bulkData = {
-        contactIds: ["contact-1", "contact-2", "contact-3"],
+        ids: [
+          "123e4567-e89b-12d3-a456-426614174001",
+          "123e4567-e89b-12d3-a456-426614174002",
+          "123e4567-e89b-12d3-a456-426614174003",
+        ],
       };
 
       const request = new Request("http://localhost:3000/api/contacts/bulk-delete", {
@@ -625,12 +676,14 @@ describe("Contacts API Routes - Unit Tests", () => {
 
     it("should require authentication", async () => {
       const { getServerUserId } = await import("@/server/auth/user");
-      vi.mocked(getServerUserId).mockRejectedValueOnce(new Error("Unauthorized"));
+      vi.mocked(getServerUserId).mockRejectedValueOnce(
+        Object.assign(new Error("Unauthorized"), { status: 401 }),
+      );
 
       const request = new Request("http://localhost:3000/api/contacts/bulk-delete", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ contactIds: ["test"] }),
+        body: JSON.stringify({ ids: ["test"] }),
       });
 
       const response = await bulkDeleteContacts(request);

@@ -9,6 +9,30 @@ import { toast } from "sonner";
 type ErrorSeverity = "debug" | "info" | "warn" | "error" | "critical";
 type ErrorCategory = "auth" | "api" | "database" | "validation" | "security" | "performance" | "ui" | "integration" | "business_logic";
 
+interface SuccessToastOptions {
+  description?: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+}
+
+interface InfoToastOptions {
+  description?: string;
+  duration?: number;
+}
+
+interface LogEntry {
+  timestamp: string;
+  level: ErrorSeverity;
+  category: ErrorCategory;
+  message: string;
+  context?: ErrorContext | undefined;
+  error?: Error | undefined;
+  stack?: string | undefined;
+  requestId?: string | undefined;
+}
+
 interface ErrorContext {
   operation: string;
   component?: string;
@@ -299,7 +323,7 @@ class UnifiedLogger {
     response: T | { error: string; code?: string },
     operation: string,
     context?: ErrorContext,
-  ): T | never {
+  ): T {
     // Check if response is an error object
     if (typeof response === 'object' && response !== null && 'error' in response) {
       const errorResponse = response as { error: string; code?: string };
@@ -378,7 +402,7 @@ export const logInfo = (message: string, options?: InfoToastOptions): void =>
   logger.progress(message, options?.description, options);
 
 export const handleApiError = <T>(
-  response: { ok: boolean; data?: T; error?: string },
+  response: T | { error: string; code?: string },
   operation: string,
   context?: ErrorContext,
 ): T => {

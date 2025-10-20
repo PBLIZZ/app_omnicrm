@@ -1,5 +1,15 @@
 
 /**
+ * Email content structure for analysis
+ */
+interface EmailContent {
+  subject?: string;
+  bodyText?: string;
+  sender?: string;
+  timestamp?: Date;
+}
+
+/**
  * Analyzes sentiment trends across a collection of emails
  * @param emails - Array of email content to analyze
  * @returns string - Sentiment trend analysis result

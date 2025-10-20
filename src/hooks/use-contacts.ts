@@ -260,3 +260,19 @@ export function useCreateContactsFromSuggestions() {
     },
   });
 }
+
+// ============================================================================
+// ALIASES FOR BACKWARD COMPATIBILITY
+// ============================================================================
+
+/**
+ * Alias for useContacts with enhanced functionality
+ * @deprecated Use useContacts directly
+ */
+export const useEnhancedContacts = useContacts;
+
+/**
+ * Alias for useContactSuggestions
+ * @deprecated Use useContactSuggestions directly
+ */
+export const useContactsuggestions = useContactSuggestions;

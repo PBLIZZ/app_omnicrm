@@ -360,7 +360,7 @@ describe("ContactsRepository", () => {
 
   describe("countContacts", () => {
     it("should count all contacts for user", async () => {
-      const countBuilder = createMockQueryBuilder([{ value: 42 }]);
+      const countBuilder = createMockQueryBuilder([{ count: 42 }]);
       vi.mocked(mockDb.select).mockReturnValue(countBuilder);
 
       const result = await repo.countContacts(mockUserId);
@@ -369,7 +369,7 @@ describe("ContactsRepository", () => {
     });
 
     it("should count contacts with search filter", async () => {
-      const countBuilder = createMockQueryBuilder([{ value: 5 }]);
+      const countBuilder = createMockQueryBuilder([{ count: 5 }]);
       vi.mocked(mockDb.select).mockReturnValue(countBuilder);
 
       const result = await repo.countContacts(mockUserId, "yoga");

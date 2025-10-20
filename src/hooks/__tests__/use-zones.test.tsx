@@ -2,7 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { ReactNode } from "react";
-import { useZones, useZoneByName, useZoneById, useZoneOptions, WELLNESS_ZONES, isValidWellnessZone, getZoneColor, getZoneIcon } from "../use-zones";
+import {
+  useZones,
+  useZoneByName,
+  useZoneById,
+  useZoneOptions,
+  WELLNESS_ZONES,
+  isValidWellnessZone,
+  getZoneColor,
+  getZoneIcon,
+} from "../use-zones";
 import { apiClient } from "../../lib/api/client";
 
 vi.mock("@/lib/api/client", () => ({
@@ -33,7 +42,13 @@ describe("useZones hooks", () => {
   });
 
   it("fetches zones without stats by default", async () => {
-    mockApiClient.get.mockResolvedValue({ success: true, data: { items: [{ id: 1, name: "Personal Wellness", color: "#111111", iconName: "heart" }], total: 1 } });
+    mockApiClient.get.mockResolvedValue({
+      success: true,
+      data: {
+        items: [{ id: 1, name: "Personal Wellness", color: "#111111", iconName: "heart" }],
+        total: 1,
+      },
+    });
     const { result } = renderHook(() => useZones(), { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -42,8 +57,26 @@ describe("useZones hooks", () => {
   });
 
   it("fetches zones with stats when withStats is true", async () => {
-    mockApiClient.get.mockResolvedValue({ success: true, data: { items: [{ id: 2, name: "Client Care", color: "#222222", iconName: "user", projectCount: 1, taskCount: 2, activeTaskCount: 1 }], total: 1 } });
-    const { result } = renderHook(() => useZones({ withStats: true }), { wrapper: createWrapper() });
+    mockApiClient.get.mockResolvedValue({
+      success: true,
+      data: {
+        items: [
+          {
+            id: 2,
+            name: "Client Care",
+            color: "#222222",
+            iconName: "user",
+            projectCount: 1,
+            taskCount: 2,
+            activeTaskCount: 1,
+          },
+        ],
+        total: 1,
+      },
+    });
+    const { result } = renderHook(() => useZones({ withStats: true }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.zones[0]).toHaveProperty("projectCount");
@@ -51,13 +84,21 @@ describe("useZones hooks", () => {
   });
 
   it("exposes helper hooks", async () => {
-    mockApiClient.get.mockResolvedValue({ success: true, data: { items: [{ id: 3, name: "Self Care", color: "#333333", iconName: "star" }], total: 1 } });
-    const { result: base } = renderHook(() => useZones(), { wrapper: createWrapper() });
+    mockApiClient.get.mockResolvedValue({
+      success: true,
+      data: { items: [{ id: 3, name: "Self Care", color: "#333333", iconName: "star" }], total: 1 },
+    });
+    const wrapper = createWrapper();
+    const { result: base } = renderHook(() => useZones(), { wrapper });
     await waitFor(() => expect(base.current.isLoading).toBe(false));
 
-    const { result: byName } = renderHook(() => useZoneByName("Self Care"), { wrapper: createWrapper() });
-    const { result: byId } = renderHook(() => useZoneById(3), { wrapper: createWrapper() });
-    const { result: options } = renderHook(() => useZoneOptions(), { wrapper: createWrapper() });
+    const { result: byName } = renderHook(() => useZoneByName("Self Care"), { wrapper });
+    const { result: byId } = renderHook(() => useZoneById(3), { wrapper });
+    const { result: options } = renderHook(() => useZoneOptions(), { wrapper });
+
+    await waitFor(() => expect(byName.current.isLoading).toBe(false));
+    await waitFor(() => expect(byId.current.isLoading).toBe(false));
+    await waitFor(() => expect(options.current.isLoading).toBe(false));
 
     expect(byName.current.zone?.name).toBe("Self Care");
     expect(byId.current.zone?.id).toBe(3);

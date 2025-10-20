@@ -83,7 +83,7 @@ export function TokenGeneratorSection() {
             value={hoursValid.toString()}
             onValueChange={(value) => setHoursValid(parseInt(value))}
           >
-            <SelectTrigger className="h-10">
+            <SelectTrigger className="h-10" aria-label="Select duration">
               <SelectValue placeholder="Select duration" />
             </SelectTrigger>
             <SelectContent>

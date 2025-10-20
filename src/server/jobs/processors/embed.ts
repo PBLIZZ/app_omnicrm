@@ -20,7 +20,7 @@ export async function runEmbed(job: JobRecord<"embed">): Promise<void> {
     const payload = job.payload;
     const ownerType = payload.ownerType;
     const ownerId = payload.ownerId;
-    const batchMaxItems = payload.maxItems ?? maxItems;
+    const batchMaxItems = maxItems;
 
     await logger.info("Starting embedding generation", {
       operation: "embed_process",
@@ -153,8 +153,8 @@ async function processSpecificInteraction(
       source: interaction.source,
       contentLength: textContent.length,
       generatedAt: new Date().toISOString(),
-    },
-  });
+    } as Record<string, unknown>,
+  } as never);
 
   return { generated: true };
 }
@@ -204,7 +204,7 @@ async function processSpecificDocument(
 
   // Generate embedding content
   const docTitle = document.title ?? "";
-  const docContent = document.textContent ?? "";
+  const docContent = document.text ?? "";
   const textContent = buildEmbedInput({
     text: `${docTitle} ${docContent}`.trim(),
   });
@@ -228,7 +228,7 @@ async function processSpecificDocument(
       contentLength: textContent.length,
       generatedAt: new Date().toISOString(),
     },
-  });
+  } as never);
 
   return { generated: true };
 }
@@ -298,7 +298,7 @@ async function processMissingEmbeddings(
           contentLength: textContent.length,
           generatedAt: new Date().toISOString(),
         },
-      });
+      } as never);
 
       generated++;
     } catch (error) {
@@ -319,7 +319,7 @@ async function processMissingEmbeddings(
     .select({
       id: documents.id,
       title: documents.title,
-      textContent: documents.textContent,
+      text: documents.text,
       mime: documents.mime,
     })
     .from(documents)
@@ -342,7 +342,7 @@ async function processMissingEmbeddings(
 
   for (const document of documentsWithoutEmbeddings) {
     const docTitle = document.title ?? "";
-    const docContent = document.textContent ?? "";
+    const docContent = document.text ?? "";
     const textContent = buildEmbedInput({
       text: `${docTitle} ${docContent}`.trim(),
     });
@@ -368,7 +368,7 @@ async function processMissingEmbeddings(
           contentLength: textContent.length,
           generatedAt: new Date().toISOString(),
         },
-      });
+      } as never);
 
       generated++;
     } catch (error) {

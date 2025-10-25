@@ -118,6 +118,7 @@
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.62.0",
     "react-hotkeys-hook": "^5.2.1",
+    "react-intersection-observer": "^9.16.0",
     "recharts": "^3.2.1",
     "sanitize-html": "^2.17.0",
     "sharp": "^0.34.4",

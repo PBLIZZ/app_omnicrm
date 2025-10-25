@@ -45,15 +45,6 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
       const typeCheck: IsNullable = true;
       expect(typeCheck).toBe(true);
     });
-
-    it("Contact type must have tags as jsonb", () => {
-      type TagsType = DbContact["tags"];
-      // Tags should be unknown (jsonb) or a specific array type
-      type IsCorrectType = TagsType extends unknown ? true : false;
-
-      const typeCheck: IsCorrectType = true;
-      expect(typeCheck).toBe(true);
-    });
   });
 
   describe("Adapter Integration", () => {
@@ -90,7 +81,6 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
           source: client.source,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          tags: client.tags as string[],
           lifecycleStage: client.lifecycleStage,
           confidenceScore: client.confidenceScore,
           dateOfBirth: client.dateOfBirth,
@@ -113,7 +103,6 @@ describe("Schema Drift Detection - OmniClient/Contact", () => {
         primaryPhone: null,
         source: "manual",
         lifecycleStage: "prospect",
-        tags: ["wellness", "vip"],
         confidenceScore: "0.95",
         createdAt: new Date(),
         updatedAt: new Date(),

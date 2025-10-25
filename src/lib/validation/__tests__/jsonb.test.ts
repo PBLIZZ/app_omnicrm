@@ -3,7 +3,6 @@ import {
   ContactAddressSchema,
   ContactHealthContextSchema,
   ContactPreferencesSchema,
-  ContactTagsSchema,
   ContactDetailsSchema,
   TaskDetailsSchema,
   ProjectDetailsSchema,
@@ -131,32 +130,12 @@ describe("jsonb validation schemas", () => {
     });
   });
 
-  describe("ContactTagsSchema", () => {
-    it("should validate array of strings", () => {
-      const tags = ["vip", "prospect", "active"];
-      expect(ContactTagsSchema.parse(tags)).toEqual(tags);
-    });
-
-    it("should accept empty arrays", () => {
-      expect(ContactTagsSchema.parse([])).toEqual([]);
-    });
-
-    it("should accept undefined", () => {
-      expect(ContactTagsSchema.parse(undefined)).toBeUndefined();
-    });
-
-    it("should reject non-string values", () => {
-      expect(() => ContactTagsSchema.parse([1, 2, 3])).toThrow();
-    });
-  });
-
   describe("ContactDetailsSchema", () => {
     it("should validate structured details", () => {
       const details = {
         description: "Important client",
         notes: "Prefers email communication",
         metadata: { source: "referral" },
-        tags: ["vip"],
         customFields: { industry: "healthcare" },
       };
       const result = ContactDetailsSchema.parse(details);
@@ -193,9 +172,7 @@ describe("jsonb validation schemas", () => {
     });
 
     it("should enforce priority enum", () => {
-      expect(() =>
-        TaskDetailsSchema.parse({ priority: "super-urgent" }),
-      ).toThrow();
+      expect(() => TaskDetailsSchema.parse({ priority: "super-urgent" })).toThrow();
     });
 
     it("should accept valid priorities", () => {
@@ -231,13 +208,7 @@ describe("jsonb validation schemas", () => {
     });
 
     it("should enforce status enum", () => {
-      const validStatuses = [
-        "planning",
-        "active",
-        "on-hold",
-        "completed",
-        "cancelled",
-      ] as const;
+      const validStatuses = ["planning", "active", "on-hold", "completed", "cancelled"] as const;
       validStatuses.forEach((status) => {
         const result = ProjectDetailsSchema.parse({ status });
         expect(result.status).toBe(status);

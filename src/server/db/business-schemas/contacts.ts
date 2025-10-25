@@ -17,7 +17,6 @@ import {
   ContactAddressSchema,
   ContactHealthContextSchema,
   ContactPreferencesSchema,
-  ContactTagsSchema,
 } from "@/lib/validation/jsonb";
 import { PaginationQuerySchema } from "@/lib/validation/common";
 
@@ -45,7 +44,6 @@ export const ContactSchema = z.object({
   address: z.unknown(),
   healthContext: z.unknown(),
   preferences: z.unknown(),
-  tags: z.unknown(),
   createdAt: z.coerce.date().nullable(),
   updatedAt: z.coerce.date().nullable(),
 });
@@ -65,7 +63,6 @@ export const CreateContactBodySchema = z.object({
   photoUrl: z.string().optional(),
   source: z.string().optional(),
   lifecycleStage: z.string().optional(),
-  tags: ContactTagsSchema,
   confidenceScore: z.string().optional(),
   dateOfBirth: z.string().optional(),
   emergencyContactName: z.string().optional(),
@@ -91,7 +88,6 @@ export const UpdateContactBodySchema = z
     photoUrl: z.string().nullish(),
     source: z.string().nullish(),
     lifecycleStage: z.string().nullish(),
-    tags: ContactTagsSchema.nullish(),
     confidenceScore: z.string().nullish(),
     dateOfBirth: z.string().nullish(),
     emergencyContactName: z.string().nullish(),
@@ -114,7 +110,6 @@ export const GetContactsQuerySchema = PaginationQuerySchema.extend({
   sort: z.enum(["displayName", "createdAt", "updatedAt"]).default("createdAt"),
   search: z.string().optional(),
   lifecycleStage: z.array(z.string()).optional(),
-  tags: z.array(z.string()).optional(),
   source: z.array(z.string()).optional(),
   hasEmail: z.boolean().optional(),
   hasPhone: z.boolean().optional(),
@@ -129,11 +124,17 @@ export type GetContactsQuery = z.infer<typeof GetContactsQuerySchema>;
 // ============================================================================
 
 /**
- * Contact with last note preview (service layer enrichment)
+ * Contact with last note preview and tags (service layer enrichment)
  * Note: JSONB fields are unknown from DB, use structured schemas for input validation
  */
 export const ContactWithLastNoteSchema = ContactSchema.extend({
   lastNote: z.string().nullable(),
+  tags: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    color: z.string(),
+    category: z.string(),
+  })),
 });
 
 /**

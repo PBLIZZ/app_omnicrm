@@ -6,7 +6,11 @@
  */
 
 import { z } from "zod";
-import { createSanitizedErrorResponse } from "@/server/lib/error-sanitizer";
+import { AppError } from "@/lib/errors/app-error";
+import {
+  createSanitizedErrorResponse,
+  type ErrorContext,
+} from "@/server/lib/error-sanitizer";
 import { logError } from "@/server/lib/structured-logger";
 
 export {
@@ -22,6 +26,56 @@ export {
   safeRequest,
   type ApiRequestOptions,
 } from "./api/client";
+
+const JSON_HEADERS = { "content-type": "application/json" } as const;
+
+function mapAppErrorToStatus(error: AppError): number {
+  switch (error.category) {
+    case "validation":
+      return 400;
+    case "authentication":
+      return 401;
+    case "network":
+      return 503;
+    case "database":
+      return 500;
+    default:
+      return 500;
+  }
+}
+
+function respondWithAppError(
+  error: AppError,
+  logMessage: string,
+  context: ErrorContext,
+): Response {
+  logError(
+    logMessage,
+    context,
+    error,
+    {
+      code: error.code,
+      category: error.category,
+      retryable: error.retryable,
+    },
+  );
+
+  const sanitizedError = createSanitizedErrorResponse(error, context);
+
+  return new Response(JSON.stringify(sanitizedError), {
+    headers: JSON_HEADERS,
+    status: mapAppErrorToStatus(error),
+  });
+}
+
+function extractEndpoint(url: string | null | undefined): string {
+  if (!url) return "unknown";
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
 
 /**
  * Typed API Handler Pattern
@@ -54,7 +108,7 @@ export function handle<TIn, TOut>(
       const validated = output.parse(result);
 
       return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 200,
       });
     } catch (error) {
@@ -65,30 +119,27 @@ export function handle<TIn, TOut>(
             details: error.issues,
           }),
           {
-            headers: { "content-type": "application/json" },
+            headers: JSON_HEADERS,
             status: 400,
           },
         );
       }
 
-      // Log error with structured logging
-      logError(
-        "API handler error",
-        {
-          operation: "api_handler",
-          endpoint: "unknown",
-        },
-        error,
-      );
-
-      // Return sanitized error response
-      const sanitizedError = createSanitizedErrorResponse(error, {
+      const context = {
         operation: "api_handler",
-        endpoint: "unknown",
-      });
+        endpoint: extractEndpoint(req?.url),
+      };
+
+      if (error instanceof AppError) {
+        return respondWithAppError(error, "API handler error", context);
+      }
+
+      logError("API handler error", context, error);
+
+      const sanitizedError = createSanitizedErrorResponse(error, context);
 
       return new Response(JSON.stringify(sanitizedError), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 500,
       });
     }
@@ -134,7 +185,7 @@ export function handleAuth<TIn, TOut>(
                 details: error.message,
               }),
               {
-                headers: { "content-type": "application/json" },
+                headers: JSON_HEADERS,
                 status: 400,
               },
             );
@@ -148,7 +199,7 @@ export function handleAuth<TIn, TOut>(
       const validated = output.parse(result);
 
       return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 200,
       });
     } catch (error) {
@@ -163,7 +214,7 @@ export function handleAuth<TIn, TOut>(
             details: error.details,
           }),
           {
-            headers: { "content-type": "application/json" },
+            headers: JSON_HEADERS,
             status: error.status,
           },
         );
@@ -176,7 +227,7 @@ export function handleAuth<TIn, TOut>(
             details: error.issues,
           }),
           {
-            headers: { "content-type": "application/json" },
+            headers: JSON_HEADERS,
             status: 400,
           },
         );
@@ -185,29 +236,28 @@ export function handleAuth<TIn, TOut>(
       // Handle auth errors
       if (error instanceof Error && "status" in error && error.status === 401) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           status: 401,
         });
       }
 
+      const context = {
+        operation: "authenticated_api_handler",
+        endpoint: extractEndpoint(req?.url),
+      };
+
+      if (error instanceof AppError) {
+        return respondWithAppError(error, "Authenticated API handler error", context);
+      }
+
       // Log error with structured logging
-      logError(
-        "Authenticated API handler error",
-        {
-          operation: "authenticated_api_handler",
-          endpoint: "unknown",
-        },
-        error,
-      );
+      logError("Authenticated API handler error", context, error);
 
       // Return sanitized error response
-      const sanitizedError = createSanitizedErrorResponse(error, {
-        operation: "authenticated_api_handler",
-        endpoint: "unknown",
-      });
+      const sanitizedError = createSanitizedErrorResponse(error, context);
 
       return new Response(JSON.stringify(sanitizedError), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 500,
       });
     }
@@ -226,28 +276,27 @@ export function handleGet<TOut>(output: z.ZodType<TOut>, fn: () => Promise<TOut>
       const validated = output.parse(result);
 
       return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 200,
       });
     } catch (error) {
-      // Log error with structured logging
-      logError(
-        "GET API handler error",
-        {
-          operation: "get_api_handler",
-          endpoint: "unknown",
-        },
-        error,
-      );
-
-      // Return sanitized error response
-      const sanitizedError = createSanitizedErrorResponse(error, {
+      const context = {
         operation: "get_api_handler",
         endpoint: "unknown",
-      });
+      };
+
+      if (error instanceof AppError) {
+        return respondWithAppError(error, "GET API handler error", context);
+      }
+
+      // Log error with structured logging
+      logError("GET API handler error", context, error);
+
+      // Return sanitized error response
+      const sanitizedError = createSanitizedErrorResponse(error, context);
 
       return new Response(JSON.stringify(sanitizedError), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 500,
       });
     }
@@ -271,7 +320,7 @@ export function handleGetWithQuery<TQuery, TOut>(
       const validated = output.parse(result);
 
       return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 200,
       });
     } catch (error) {
@@ -282,30 +331,29 @@ export function handleGetWithQuery<TQuery, TOut>(
             details: error.issues,
           }),
           {
-            headers: { "content-type": "application/json" },
+            headers: JSON_HEADERS,
             status: 400,
           },
         );
       }
 
+      const context = {
+        operation: "get_query_api_handler",
+        endpoint: extractEndpoint(req?.url),
+      };
+
+      if (error instanceof AppError) {
+        return respondWithAppError(error, "GET with query API handler error", context);
+      }
+
       // Log error with structured logging
-      logError(
-        "GET with query API handler error",
-        {
-          operation: "get_query_api_handler",
-          endpoint: "unknown",
-        },
-        error,
-      );
+      logError("GET with query API handler error", context, error);
 
       // Return sanitized error response
-      const sanitizedError = createSanitizedErrorResponse(error, {
-        operation: "get_query_api_handler",
-        endpoint: "unknown",
-      });
+      const sanitizedError = createSanitizedErrorResponse(error, context);
 
       return new Response(JSON.stringify(sanitizedError), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 500,
       });
     }
@@ -335,7 +383,7 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
       const validated = output.parse(result);
 
       return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 200,
       });
     } catch (error) {
@@ -350,7 +398,7 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
             details: error.details,
           }),
           {
-            headers: { "content-type": "application/json" },
+            headers: JSON_HEADERS,
             status: error.status,
           },
         );
@@ -363,7 +411,7 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
             details: error.issues,
           }),
           {
-            headers: { "content-type": "application/json" },
+            headers: JSON_HEADERS,
             status: 400,
           },
         );
@@ -372,29 +420,32 @@ export function handleGetWithQueryAuth<TQuery, TOut>(
       // Handle auth errors
       if (error instanceof Error && "status" in error && error.status === 401) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           status: 401,
         });
       }
 
+      const context = {
+        operation: "authenticated_get_query_api_handler",
+        endpoint: extractEndpoint(req?.url),
+      };
+
+      if (error instanceof AppError) {
+        return respondWithAppError(
+          error,
+          "Authenticated GET with query API handler error",
+          context,
+        );
+      }
+
       // Log error with structured logging
-      logError(
-        "Authenticated GET with query API handler error",
-        {
-          operation: "authenticated_get_query_api_handler",
-          endpoint: "unknown",
-        },
-        error,
-      );
+      logError("Authenticated GET with query API handler error", context, error);
 
       // Return sanitized error response
-      const sanitizedError = createSanitizedErrorResponse(error, {
-        operation: "authenticated_get_query_api_handler",
-        endpoint: "unknown",
-      });
+      const sanitizedError = createSanitizedErrorResponse(error, context);
 
       return new Response(JSON.stringify(sanitizedError), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 500,
       });
     }
@@ -430,7 +481,7 @@ export function handleAuthWithParams<TIn, TOut, TParams extends Record<string, s
           if (error instanceof SyntaxError) {
             return new Response(
               JSON.stringify({ error: "Malformed JSON", details: error.message }),
-              { status: 400, headers: { "content-type": "application/json" } },
+              { status: 400, headers: JSON_HEADERS },
             );
           }
           throw error;
@@ -442,7 +493,7 @@ export function handleAuthWithParams<TIn, TOut, TParams extends Record<string, s
       const validated = output.parse(result);
 
       return new Response(JSON.stringify(validated), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 200,
       });
     } catch (error) {
@@ -451,42 +502,45 @@ export function handleAuthWithParams<TIn, TOut, TParams extends Record<string, s
       if (error instanceof ApiError) {
         return new Response(JSON.stringify({ error: error.message, details: error.details }), {
           status: error.status,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
         });
       }
 
       if (error instanceof z.ZodError) {
         return new Response(JSON.stringify({ error: "Validation failed", details: error.issues }), {
           status: 400,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
         });
       }
 
       if (error instanceof Error && "status" in error && error.status === 401) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
         });
       }
 
+      const logContext = {
+        operation: "authenticated_api_handler_with_params",
+        endpoint: extractEndpoint(req?.url),
+      };
+
+      if (error instanceof AppError) {
+        return respondWithAppError(
+          error,
+          "Authenticated API handler with params error",
+          logContext,
+        );
+      }
+
       // Log error with structured logging
-      logError(
-        "Authenticated API handler with params error",
-        {
-          operation: "authenticated_api_handler_with_params",
-          endpoint: "unknown",
-        },
-        error,
-      );
+      logError("Authenticated API handler with params error", logContext, error);
 
       // Return sanitized error response
-      const sanitizedError = createSanitizedErrorResponse(error, {
-        operation: "authenticated_api_handler_with_params",
-        endpoint: "unknown",
-      });
+      const sanitizedError = createSanitizedErrorResponse(error, logContext);
 
       return new Response(JSON.stringify(sanitizedError), {
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         status: 500,
       });
     }

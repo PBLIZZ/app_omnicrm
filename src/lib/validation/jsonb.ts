@@ -64,12 +64,6 @@ export const ContactPreferencesSchema = z
 
 export type ContactPreferences = z.infer<typeof ContactPreferencesSchema>;
 
-/**
- * Contact Tags Schema
- * Validates tags as array of strings
- */
-export const ContactTagsSchema = z.array(z.string()).optional();
-
 // ============================================================================
 // CONTACT DETAILS SCHEMA
 // ============================================================================
@@ -83,7 +77,6 @@ export const ContactDetailsSchema = z
     description: z.string().optional(),
     notes: z.string().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
-    tags: z.array(z.string()).optional(),
     customFields: z.record(z.string(), z.unknown()).optional(),
   })
   .catchall(z.unknown()); // Allow extra fields

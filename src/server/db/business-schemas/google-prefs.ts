@@ -145,56 +145,18 @@ export const GoogleStatusQuerySchema = z.object({
 });
 
 /**
- * Google Status Response Schema - Updated to match service implementation
+ * Google Status Response Schema - Simplified
  * Used by /api/google/status endpoint
+ * Returns only the fields actually used in the UI
  */
 export const GoogleStatusResponseSchema = z.object({
-  // Service-specific status with auto-refresh info
-  services: z.object({
-    gmail: z.object({
-      connected: z.boolean(),
-      autoRefreshed: z.boolean(),
-      integration: z.object({
-        service: z.string(),
-        expiryDate: z.string().nullable(),
-        hasRefreshToken: z.boolean(),
-      }).nullable(),
-      lastSync: z.string().nullable(),
-    }),
-    calendar: z.object({
-      connected: z.boolean(),
-      autoRefreshed: z.boolean(),
-      integration: z.object({
-        service: z.string(),
-        expiryDate: z.string().nullable(),
-        hasRefreshToken: z.boolean(),
-      }).nullable(),
-      lastSync: z.string().nullable(),
-    }),
+  gmail: z.object({
+    connected: z.boolean(),
+    lastSync: z.string().nullable(),
   }),
-
-  // Feature flags
-  features: z.object({
-    gmail: z.boolean(),
-    calendar: z.boolean(),
+  calendar: z.object({
+    connected: z.boolean(),
+    lastSync: z.string().nullable(),
   }),
-
-  // Job processing metrics
-  jobs: z.object({
-    queued: z.number(),
-    done: z.number(),
-    error: z.number(),
-  }),
-  embedJobs: z.object({
-    queued: z.number(),
-    done: z.number(),
-    error: z.number(),
-  }),
-
-  lastBatchId: z.string().nullable(),
-
-  // Cache metadata
-  _cached: z.boolean().optional(),
-  _cacheTime: z.string().optional(),
 });
 

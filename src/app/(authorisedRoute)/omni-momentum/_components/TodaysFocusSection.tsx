@@ -1,79 +1,99 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Button,
-  Badge,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui";
-import { format } from "date-fns";
-import { Brain, Clock, Target, Inbox, Sparkles } from "lucide-react";
-import { useInbox } from "@/hooks/use-inbox";
-import type { InboxItem } from "@/server/db/business-schemas/productivity";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import { Target } from "lucide-react";
+import { TaskCard } from "./TaskCard";
+import { useMomentum } from "@/hooks/use-momentum";
+import type { TaskListItem } from "packages/repo/src/types/productivity.types";
+import { AnimatePresence, motion } from "framer-motion";
 
+interface Top3TasksResponse {
+  tasks: TaskListItem[];
+  summary: string;
+}
+
+/**
+ * TodaysFocusSection - Shows top 3 priority tasks selected by AI
+ *
+ * Uses LLM to analyze all tasks and select the top 3 based on value to user's life/business
+ */
 export function TodaysFocusSection(): JSX.Element {
-  const { items, isLoading } = useInbox({
-    filters: { status: ["unprocessed", "processed"] },
+  const queryClient = useQueryClient();
+  const { projects } = useMomentum(); // Get projects for the dropdown
+  const { data, isLoading, error, refetch } = useQuery<Top3TasksResponse>({
+    queryKey: ["momentum", "top3-tasks"],
+    queryFn: async () => {
+      const result = await apiClient.get<Top3TasksResponse>("/api/omni-momentum/tasks/top3");
+
+      // Cache the full ranked list in localStorage
+      if (result.tasks && result.tasks.length > 0) {
+        localStorage.setItem("momentum-ranked-tasks", JSON.stringify(result.tasks));
+      }
+
+      return result;
+    },
+    staleTime: Infinity, // Never consider stale - we'll update optimistically
+    refetchInterval: false, // No polling
+    refetchOnWindowFocus: false, // No refetch on focus
+    retry: 1,
   });
-  const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null);
 
-  const { focusItems, remainingItems } = useMemo(() => {
-    const unprocessed = items.filter((item: InboxItem) => item.status === "unprocessed");
-    return {
-      focusItems: unprocessed.slice(0, 3),
-      remainingItems: unprocessed.slice(3),
-    };
-  }, [items]);
+  const handleToggleComplete = async (taskId: string): Promise<void> => {
+    try {
+      // Mark task as done using PUT method
+      await apiClient.put(`/api/omni-momentum/tasks/${taskId}`, {
+        status: "done",
+      });
 
-  const handleProcessItem = (item: InboxItem): void => {
-    setSelectedItem(item);
-  };
+      // Get the cached ranked list
+      const cached = localStorage.getItem("momentum-ranked-tasks");
+      if (cached) {
+        const rankedTasks: TaskListItem[] = JSON.parse(cached);
+        // Filter out the completed task and get next 3
+        const remainingTasks = rankedTasks.filter((t) => t.id !== taskId);
+        const next3 = remainingTasks.slice(0, 3);
 
-  const handleDialogChange = (open: boolean): void => {
-    if (!open) {
-      setSelectedItem(null);
+        // Update cache with remaining tasks
+        localStorage.setItem("momentum-ranked-tasks", JSON.stringify(remainingTasks));
+
+        // Update the query data directly without refetching
+        queryClient.setQueryData<Top3TasksResponse>(["momentum", "top3-tasks"], {
+          tasks: next3,
+          summary: data?.summary || "Your next priorities",
+        });
+
+        console.log("Updated top 3 from cache:", next3);
+      } else {
+        // If no cache, refetch
+        await refetch();
+      }
+    } catch (err) {
+      console.error("Error completing task:", err);
     }
   };
 
-  const computeWordCount = (item: InboxItem): number => {
-    const candidate = (item as { wordCount?: unknown }).wordCount;
-    if (typeof candidate === "number" && Number.isFinite(candidate)) {
-      return Math.max(candidate, 1);
-    }
-    const tokens = item.rawText.trim().split(/\s+/).filter(Boolean);
-    return tokens.length > 0 ? tokens.length : 1;
-  };
-
-  const formatCreatedAt = (value: InboxItem["createdAt"]): string | null => {
-    if (!value) return null;
-    const date = new Date(value as unknown as Date | string | number);
-    if (Number.isNaN(date.getTime())) return null;
-    return format(date, "MMM d, h:mm a");
+  const handleExpand = (taskId: string): void => {
+    // TODO: Implement task expansion
+    console.log("Expand task:", taskId);
   };
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="h-[400px] flex flex-col">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="w-5 h-5 text-blue-500" />
             Today&apos;s Focus
           </CardTitle>
+          <CardDescription>AI is selecting your top 3 priorities...</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
+        <CardContent className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-16 bg-gray-100 rounded-lg" />
+                <div className="h-32 bg-gray-100 rounded-lg" />
               </div>
             ))}
           </div>
@@ -82,142 +102,76 @@ export function TodaysFocusSection(): JSX.Element {
     );
   }
 
-  return (
-    <>
-      <Card>
+  if (error) {
+    return (
+      <Card className="h-[400px] flex flex-col">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="w-5 h-5 text-blue-500" />
             Today&apos;s Focus
           </CardTitle>
-          <CardDescription>Your top 3 priorities. Keep it simple, stay focused.</CardDescription>
+          <CardDescription>Unable to load your focus tasks</CardDescription>
         </CardHeader>
-        <CardContent>
-          {focusItems.length === 0 ? (
-            <div className="text-center py-8">
-              <Target className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-              <h3 className="font-medium text-gray-900 mb-2">Ready to focus?</h3>
-              <p className="text-gray-500 text-sm">
-                Use Quick Capture above to add your thoughts and priorities.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {focusItems.map((item: InboxItem, index: number) => (
-                <div
-                  key={item.id}
-                  className="flex items-start gap-4 p-4 bg-white rounded-lg border-2 border-blue-100 hover:border-blue-200 transition-colors"
-                >
-                  <div className="flex items-center justify-center w-8 h-8 bg-blue-500 text-white rounded-full text-lg font-bold flex-shrink-0">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base text-gray-900 mb-2 line-clamp-3">{item.rawText}</p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatCreatedAt(item.createdAt) ?? "Just now"}
-                      </span>
-                      <Badge variant="outline" className="ml-2">
-                        {computeWordCount(item)} words
-                      </Badge>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="flex-shrink-0 bg-blue-600 hover:bg-blue-700"
-                    onClick={() => handleProcessItem(item)}
-                  >
-                    <Brain className="w-4 h-4 mr-1.5" />
-                    Process
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+        <CardContent className="flex-1 overflow-y-auto">
+          <div className="text-center py-8">
+            <p className="text-sm text-gray-600">Error loading tasks. Please try again later.</p>
+          </div>
         </CardContent>
       </Card>
+    );
+  }
 
-      {remainingItems.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Inbox className="w-5 h-5 text-gray-600" />
-            </CardTitle>
-            <CardDescription>
-              These will move to your top priorities as you process the items above.
-            </CardDescription>
-          </CardHeader>
-            <CardContent>
-            <div className="space-y-2">
-              {remainingItems.map((item: InboxItem) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 line-clamp-1">{item.rawText}</p>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                      <Clock className="w-3 h-3" />
-                      {formatCreatedAt(item.createdAt) ?? "Just now"}
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-shrink-0"
-                    onClick={() => handleProcessItem(item)}
-                  >
-                    <Brain className="w-4 h-4 mr-1" />
-                    Process
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+  const tasks = data?.tasks ?? [];
+  const summary = data?.summary ?? "";
 
-      <Dialog open={selectedItem !== null} onOpenChange={handleDialogChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Brain className="w-5 h-5 text-blue-600" />
-              AI Processing
-            </DialogTitle>
-            <DialogDescription>
-              AI-powered categorization will be available in Phase 2.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-gray-700 font-medium mb-2">Item to process:</p>
-              <p className="text-sm text-gray-900">{selectedItem?.rawText}</p>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg border">
-              <p className="text-sm text-gray-600">
-                <span className="font-semibold">Coming soon:</span> AI will analyze this item and
-                suggest the best category (Task, Project, Zone, or Note) with intelligent
-                recommendations.
-              </p>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => handleDialogChange(false)}>
-                Close
-              </Button>
-              <Button
-                variant="default"
-                className="bg-blue-600 hover:bg-blue-700"
-                onClick={() => handleDialogChange(false)}
-              >
-                <Sparkles className="w-4 h-4 mr-1" />
-                OK, Got It
-              </Button>
-            </div>
+  console.log("TodaysFocusSection render:", {
+    isLoading,
+    error,
+    tasksCount: tasks.length,
+    dataKeys: data ? Object.keys(data) : null,
+    fullData: data,
+  });
+
+  return (
+    <Card className="h-[400px] bg-gradient-to-br from-sky-50 via-emerald-50 to-teal-50 border-sky-200 flex flex-col">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-blue-500" />
+          Today&apos;s Focus
+        </CardTitle>
+        <CardDescription>
+          {summary ||
+            "Your top 3 priorities selected by AI based on value to your life and business"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex-1 overflow-y-auto">
+        {tasks.length === 0 ? (
+          <div className="text-center py-8">
+            <Target className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+            <h3 className="font-medium text-gray-900 mb-2">Ready to focus?</h3>
+            <p className="text-gray-500 text-sm">
+              Complete some tasks or add new ones to see your AI-selected priorities here.
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <AnimatePresence mode="popLayout">
+              {tasks.map((task, index) => (
+                <motion.div
+                  key={task.id}
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -50 }}
+                  transition={{ duration: 0.3, delay: index * 0.1 }}
+                  layout
+                >
+                  <TaskCard task={task} projects={projects} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

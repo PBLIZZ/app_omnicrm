@@ -22,7 +22,6 @@ export type ContactDTO = {
   createdAt: string;
   updatedAt: string;
   avatar?: string;
-  tags?: string[];
   lifecycleStage?: (typeof LIFECYCLE_CONTACT_STAGES)[number];
   lastContactDate?: string;
   notes?: string;
@@ -35,7 +34,6 @@ export type CreateContactInput = {
   primaryPhone?: string | null;
   company?: string | null;
   notes?: string | null;
-  tags?: string[];
   lifecycleStage?: (typeof LIFECYCLE_CONTACT_STAGES)[number];
 };
 
@@ -82,7 +80,6 @@ export type Interaction = {
 
 export type NewInteraction = Omit<Interaction, "id" | "createdAt">;
 
-
 export type NoteDTO = {
   id: string;
   contactId: string;
@@ -103,7 +100,6 @@ export type CreateTaskInput = {
   estimatedMinutes?: number;
 };
 
-
 // Utility to convert empty strings to null (matches app behavior)
 function emptyToNull(value: string | undefined | null): string | null {
   if (value === undefined || value === null || value.trim() === "") {
@@ -111,63 +107,6 @@ function emptyToNull(value: string | undefined | null): string | null {
   }
   return value;
 }
-
-// Wellness-specific data for contacts
-const WELLNESS_TAGS = [
-  // Services (14)
-  "Yoga",
-  "Massage",
-  "Meditation",
-  "Pilates",
-  "Reiki",
-  "Acupuncture",
-  "Personal Training",
-  "Nutrition Coaching",
-  "Life Coaching",
-  "Therapy",
-  "Workshops",
-  "Retreats",
-  "Group Classes",
-  "Private Sessions",
-
-  // Demographics (11)
-  "Senior",
-  "Young Adult",
-  "Professional",
-  "Parent",
-  "Student",
-  "Beginner",
-  "Intermediate",
-  "Advanced",
-  "VIP",
-  "Local",
-  "Traveler",
-
-  // Goals & Health (11)
-  "Stress Relief",
-  "Weight Loss",
-  "Flexibility",
-  "Strength Building",
-  "Pain Management",
-  "Mental Health",
-  "Spiritual Growth",
-  "Mindfulness",
-  "Athletic Performance",
-  "Injury Recovery",
-  "Prenatal",
-
-  // Engagement Patterns (10)
-  "Regular Attendee",
-  "Weekend Warrior",
-  "Early Bird",
-  "Evening Preferred",
-  "Seasonal Contact",
-  "Frequent Visitor",
-  "Occasional Visitor",
-  "High Spender",
-  "Referral Source",
-  "Social Media Active",
-];
 
 const LIFECYCLE_CONTACT_STAGES = [
   "Prospect",
@@ -202,7 +141,6 @@ export function makeContactDTO(overrides: Partial<ContactDTO> = {}): ContactDTO 
     createdAt: faker.date.past().toISOString(),
     updatedAt: faker.date.recent().toISOString(),
     avatar: faker.image.avatar(),
-    tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
     lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CONTACT_STAGES),
     lastContactDate: faker.date.recent().toISOString(),
     notes: faker.lorem.paragraph(),
@@ -220,7 +158,6 @@ export function makeCreateContactInput(
     primaryPhone: emptyToNull(faker.phone.number()),
     company: emptyToNull(faker.company.name()),
     notes: emptyToNull(faker.lorem.paragraph()),
-    tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
     lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CONTACT_STAGES),
     ...overrides,
   };
@@ -235,7 +172,6 @@ export function makeUpdateContactInput(
     primaryPhone: emptyToNull(faker.phone.number()),
     company: emptyToNull(faker.company.name()),
     notes: emptyToNull(faker.lorem.paragraph()),
-    tags: faker.helpers.arrayElements(WELLNESS_TAGS, { min: 0, max: 3 }),
     lifecycleStage: faker.helpers.arrayElement(LIFECYCLE_CONTACT_STAGES),
     ...overrides,
   };
@@ -368,7 +304,6 @@ export function makeNewInteraction(overrides: Partial<NewInteraction> = {}): New
   return newInteraction;
 }
 
-
 // =============================================================================
 // NOTES FACTORIES
 // =============================================================================
@@ -409,7 +344,6 @@ export function makeCreateTaskInput(overrides: Partial<CreateTaskInput> = {}): C
 // =============================================================================
 // AI INSIGHTS FACTORIES
 // =============================================================================
-
 
 // =============================================================================
 // BATCH FACTORY HELPERS

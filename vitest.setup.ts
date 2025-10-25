@@ -278,6 +278,31 @@ vi.mock("date-fns", () => ({
     const hours = Math.floor(diff / (1000 * 60 * 60));
     return `${hours} hours ago`;
   }),
+  format: vi.fn((date, formatStr) => {
+    const d = new Date(date);
+    if (formatStr === "yyyy-MM-dd") {
+      return d.toISOString().split("T")[0];
+    }
+    if (formatStr === "MMM d") {
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+    return d.toISOString();
+  }),
+  addDays: vi.fn((date, days) => {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  }),
+  setHours: vi.fn((date, hours) => {
+    const result = new Date(date);
+    result.setHours(hours);
+    return result;
+  }),
+  setMinutes: vi.fn((date, minutes) => {
+    const result = new Date(date);
+    result.setMinutes(minutes);
+    return result;
+  }),
 }));
 
 // React Query should NOT be globally mocked - let individual tests handle it

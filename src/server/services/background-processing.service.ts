@@ -70,7 +70,7 @@ async function processInboxItemIntelligently(
           name: suggestedProject.name,
           status: suggestedProject.status,
           dueDate,
-          zoneId: suggestedProject.zoneId,
+          zoneUuid: suggestedProject.zoneUuid,
           details: {
             createdFromInbox: true,
             originalProjectId: suggestedProject.id,
@@ -115,7 +115,6 @@ async function processInboxItemIntelligently(
             originalTaskId: suggestedTask.id,
             confidence: suggestedTask.confidence,
             reasoning: suggestedTask.reasoning,
-            tags: suggestedTask.tags,
             description: suggestedTask.description,
             estimatedMinutes: suggestedTask.estimatedMinutes,
           },

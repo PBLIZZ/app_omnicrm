@@ -46,13 +46,12 @@ export const InboxApprovalRequestSchema = z.object({
         .object({
           name: z.string().optional(),
           description: z.string().optional(),
-          priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+          priority: z.enum(["low", "medium", "high"]).optional(),
           estimatedMinutes: z.number().optional(),
           dueDate: z.coerce.date().nullable().optional(),
-          zoneId: z.number().int().optional(),
+          zoneUuid: z.string().uuid().optional(),
           projectId: z.string().uuid().nullable().optional(),
           parentTaskId: z.string().uuid().nullable().optional(),
-          tags: z.array(z.string()).optional(),
         })
         .optional(),
     }),
@@ -265,7 +264,7 @@ export async function processApprovedItems(
         name: projectApproval.modifications?.name || originalProject.name,
         status: projectApproval.modifications?.status || originalProject.status,
         dueDate: projectDueDate?.toISOString().split("T")[0] ?? null,
-        zoneId: projectApproval.modifications?.zoneId || originalProject.zoneId,
+        zoneUuid: projectApproval.modifications?.zoneUuid || originalProject.zoneUuid,
         details: {
           createdFromInbox: true,
           originalProjectId: originalProject.id,
@@ -280,7 +279,7 @@ export async function processApprovedItems(
       createdProjects.push({
         id: createdProject.id,
         name: createdProject.name,
-        zoneId: createdProject.zoneId,
+        zoneUuid: createdProject.zoneUuid,
       });
     }
 
@@ -309,28 +308,21 @@ export async function processApprovedItems(
         }
       }
 
-      // Resolve parent task ID if it was created
-      let resolvedParentTaskId = originalTask.parentTaskId;
-      if (originalTask.parentTaskId && taskIdMap.has(originalTask.parentTaskId)) {
-        const mappedParentTaskId = taskIdMap.get(originalTask.parentTaskId);
-        if (mappedParentTaskId) {
-          resolvedParentTaskId = mappedParentTaskId;
-        }
-      }
-
       const dueDate = taskApproval.modifications?.dueDate || originalTask.dueDate;
+
+      // Normalize priority: "urgent" was deprecated, map to "high"
+      const rawPriority = taskApproval.modifications?.priority || originalTask.priority;
+      const priority: "low" | "medium" | "high" = rawPriority === "urgent" ? "high" : (rawPriority as "low" | "medium" | "high");
+
       const taskData: Omit<CreateTask, "userId"> = {
         name: taskApproval.modifications?.name || originalTask.name,
-        priority: taskApproval.modifications?.priority || originalTask.priority,
+        priority,
         dueDate: dueDate?.toISOString().split("T")[0] ?? null,
         projectId:
           taskApproval.modifications?.projectId !== undefined
             ? taskApproval.modifications.projectId
             : resolvedProjectId,
-        parentTaskId:
-          taskApproval.modifications?.parentTaskId !== undefined
-            ? taskApproval.modifications.parentTaskId
-            : resolvedParentTaskId,
+        zoneUuid: taskApproval.modifications?.zoneUuid ?? null,
         status: "todo" as const,
         completedAt: null,
         details: {
@@ -338,7 +330,6 @@ export async function processApprovedItems(
           originalTaskId: originalTask.id,
           confidence: originalTask.confidence,
           reasoning: originalTask.reasoning,
-          tags: taskApproval.modifications?.tags || originalTask.tags,
           description: taskApproval.modifications?.description || originalTask.description,
           estimatedMinutes:
             taskApproval.modifications?.estimatedMinutes || originalTask.estimatedMinutes,

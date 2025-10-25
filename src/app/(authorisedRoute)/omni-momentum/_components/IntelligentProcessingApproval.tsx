@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Tag, Calendar } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 interface IntelligentTask {
@@ -29,7 +29,6 @@ interface IntelligentTask {
   zoneId: number | null;
   projectId: string | null;
   parentTaskId: string | null;
-  tags: string[];
   confidence: number;
   reasoning: string;
 }
@@ -448,12 +447,6 @@ export function IntelligentProcessingApproval({
                               <div className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
                                 {new Date(task.dueDate).toLocaleDateString()}
-                              </div>
-                            )}
-                            {task.tags.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Tag className="h-3 w-3" />
-                                {task.tags.join(", ")}
                               </div>
                             )}
                           </div>

@@ -31,6 +31,8 @@ import { VoiceRecorder } from "./VoiceRecorder";
 import { ContactSearchCombobox } from "./ContactSearchCombobox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { validateNoPII, type PIIValidationResult } from "@/lib/pii-detector-client";
+import { waitForTranscription } from "./waitForTranscription";
 
 export interface Contact {
   id: string;
@@ -57,7 +59,7 @@ export interface RapidNoteModalProps {
     contactId: string;
     content: string;
     sourceType: "typed" | "voice";
-  }) => Promise<{ success: boolean }>;
+  }) => Promise<{ success: boolean; redactionWarning?: boolean }>;
 
   /**
    * Optional: Pre-select the last viewed contact
@@ -80,7 +82,9 @@ export function RapidNoteModal({
   );
   const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [sourceType, setSourceType] = useState<"typed" | "voice">("typed");
+  const [piiValidation, setPiiValidation] = useState<PIIValidationResult | null>(null);
 
   // Pre-select last viewed contact when modal opens
   useEffect(() => {
@@ -119,29 +123,45 @@ export function RapidNoteModal({
   const isApproachingLimit = characterCount > WARNING_THRESHOLD;
   const isAtLimit = characterCount >= MAX_CHARACTERS;
 
-  // Handle text input with character limit
+  // Handle text input with character limit and PII detection
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     const newContent = e.target.value;
     if (newContent.length <= MAX_CHARACTERS) {
       setContent(newContent);
       setSourceType("typed");
+
+      // Run PII detection on content change
+      const validation = validateNoPII(newContent);
+      setPiiValidation(validation);
     }
   };
 
   // Handle voice recording complete
   const handleRecordingComplete = useCallback(async (_audioBlob: Blob) => {
     setIsRecording(false);
+    setIsTranscribing(true);
 
-    // TODO: Implement transcription via API
-    // For now, we'll just show a placeholder
-    // In production, this would call the transcription service
-    const transcribedText = "[Transcription pending - integrate with /api/notes/transcribe]";
+    try {
+      // Await a mockable helper to represent transcription latency (mocked in tests)
+      await waitForTranscription();
+      // Placeholder until /api/notes/transcribe is implemented
+      // When available, call the endpoint with multipart/form-data and replace the fallback text
+      const transcribedText = "[Transcribing audio… integration pending]";
 
-    setContent((prev) => {
-      const combined = prev + (prev ? "\n\n" : "") + transcribedText;
-      return combined.slice(0, MAX_CHARACTERS);
-    });
-    setSourceType("voice");
+      const newContent = content + (content ? "\n\n" : "") + transcribedText;
+      const finalContent = newContent.slice(0, MAX_CHARACTERS);
+      setContent(finalContent);
+      setSourceType("voice");
+
+      // Run PII detection on transcribed content
+      const validation = validateNoPII(finalContent);
+      setPiiValidation(validation);
+    } catch (error) {
+      console.error("Transcription failed:", error);
+      toast.error("Transcription failed. Please try again.");
+    } finally {
+      setIsTranscribing(false);
+    }
   }, []);
 
   // Handle save
@@ -161,11 +181,23 @@ export function RapidNoteModal({
     setIsSaving(true);
 
     try {
-      await onSave({
+      const result = await onSave({
         contactId: selectedContactId,
         content: content.trim(),
         sourceType,
       });
+
+      // Show appropriate toast based on redaction
+      if (result.redactionWarning) {
+        toast.error("PII detected and redacted", {
+          description: "Sensitive information was automatically removed from your note.",
+          duration: 5000,
+        });
+      } else {
+        toast.success("Note saved successfully", {
+          duration: 3000,
+        });
+      }
 
       // Clear draft and reset form
       if (selectedContactId) {
@@ -176,6 +208,7 @@ export function RapidNoteModal({
       setContent("");
       setSelectedContactId(lastViewedContactId);
       setSourceType("typed");
+      setPiiValidation(null);
       onClose();
     } catch (error) {
       console.error("Failed to save note:", error);
@@ -223,6 +256,21 @@ export function RapidNoteModal({
             />
           </div>
 
+          {/* PII Warning Banner */}
+          {piiValidation?.hasPII && (
+            <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <div className="text-amber-600 text-sm font-medium">
+                  ⚠️ Sensitive information detected
+                </div>
+              </div>
+              <div className="text-amber-700 text-sm mt-1">
+                The following information will be automatically removed:{" "}
+                {piiValidation.detectedTypes.join(", ")}
+              </div>
+            </div>
+          )}
+
           {/* Voice Recorder (when active) */}
           {isRecording && (
             <div className="border rounded-lg p-4 bg-muted/50">
@@ -263,11 +311,11 @@ export function RapidNoteModal({
                 onChange={handleContentChange}
                 placeholder="Type your note here or click the microphone to record..."
                 className="h-full resize-none font-sans"
-                disabled={isRecording}
+                disabled={isRecording || isTranscribing}
               />
 
               {/* Mic Button (overlay on textarea) */}
-              {!isRecording && (
+              {!isRecording && !isTranscribing && (
                 <Button
                   type="button"
                   variant="outline"
@@ -278,6 +326,17 @@ export function RapidNoteModal({
                 >
                   <Mic className="h-4 w-4" />
                 </Button>
+              )}
+
+              {isTranscribing && (
+                <div
+                  className="absolute bottom-3 right-3 flex items-center gap-2 text-sm text-muted-foreground"
+                  aria-live="polite"
+                  aria-busy="true"
+                >
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Transcribing…
+                </div>
               )}
             </div>
 

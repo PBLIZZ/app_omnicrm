@@ -49,8 +49,18 @@ export const projectStatusEnum = pgEnum("project_status", [
   "completed",
   "archived",
 ]);
-export const taskPriorityEnum = pgEnum("task_priority", ["low", "medium", "high", "urgent"]);
+export const taskPriorityEnum = pgEnum("task_priority", ["low", "medium", "high"]);
 export const taskStatusEnum = pgEnum("task_status", ["todo", "in_progress", "done", "canceled"]);
+
+// Tag category enum for the new tagging system
+export const tagCategoryEnum = pgEnum("tag_category", [
+  "services_modalities",
+  "client_demographics",
+  "schedule_attendance",
+  "health_wellness",
+  "marketing_engagement",
+  "emotional_mental",
+]);
 
 // ============================================================================
 // CRM - Customer Relationship Management
@@ -107,7 +117,6 @@ export const contacts = pgTable("contacts", {
   address: jsonb("address"),
   healthContext: jsonb("health_context"),
   preferences: jsonb("preferences"),
-  tags: jsonb("tags"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
@@ -115,11 +124,10 @@ export const contacts = pgTable("contacts", {
 export const notes = pgTable("notes", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
-  contactId: uuid("contact_id").references(() => contacts.id),
+  contactId: uuid("contact_id").notNull().references(() => contacts.id),
   contentRich: jsonb("content_rich").notNull().default({}),
   contentPlain: text("content_plain").notNull().default(""),
   piiEntities: jsonb("pii_entities").notNull().default([]),
-  tags: text("tags").array().notNull().default([]),
   sourceType: noteSourceTypeEnum("source_type").notNull().default("typed"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -209,21 +217,16 @@ export const projects = pgTable("projects", {
   status: projectStatusEnum("status").default("active").notNull(),
   dueDate: date("due_date"),
   details: jsonb("details"),
-  zoneId: integer("zone_id").references(() => zones.id),
+  zoneUuid: uuid("zone_uuid").references(() => zones.uuidId),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-// Self-referential table: tasks can have parent tasks
-// TypeScript can't infer the type correctly due to circular reference
-// @ts-expect-error - TS7022: Self-referential table definition
 export const tasks = pgTable("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
   projectId: uuid("project_id").references(() => projects.id),
-  // @ts-expect-error - TS7024: Self-referential foreign key
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
-  parentTaskId: uuid("parent_task_id").references(() => tasks.id),
+  zoneUuid: uuid("zone_uuid").references(() => zones.uuidId),
   name: text("name").notNull(),
   status: taskStatusEnum("status").default("todo").notNull(),
   priority: taskPriorityEnum("priority").default("medium").notNull(),
@@ -234,27 +237,79 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-export const taskContactTags = pgTable(
-  "task_contact_tags",
-  {
-    taskId: uuid("task_id")
-      .notNull()
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
-      .references(() => tasks.id),
-    contactId: uuid("contact_id")
-      .notNull()
-      .references(() => contacts.id),
-  },
-  (t) => ({
-    pk: primaryKey({ columns: [t.taskId, t.contactId] }),
-  }),
-);
+// Legacy task_contact_tags table removed - replaced with new tagging system
 
 export const zones = pgTable("zones", {
-  id: integer("id").primaryKey(),
+  uuidId: uuid("uuid_id").primaryKey().notNull().defaultRandom(),
   name: text("name").notNull(),
   color: text("color"),
   iconName: text("icon_name"),
+});
+
+// ============================================================================
+// TAGGING SYSTEM - New relational tagging system
+// ============================================================================
+
+// Main tags table (app-wide)
+export const tags = pgTable("tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id"), // Nullable for system tags
+  name: text("name").notNull(),
+  category: tagCategoryEnum("category").notNull().default("services_modalities"),
+  color: text("color").notNull().default("#3B82F6"),
+  isSystem: boolean("is_system").notNull().default(false),
+  usageCount: integer("usage_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Junction table for contact tags
+export const contactTags = pgTable("contact_tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contactId: uuid("contact_id")
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id")
+    .notNull()
+    .references(() => tags.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  createdBy: uuid("created_by").notNull(),
+});
+
+// Junction table for task tags
+export const taskTags = pgTable("task_tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id")
+    .notNull()
+    .references(() => tags.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Junction table for note tags
+export const noteTags = pgTable("note_tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  noteId: uuid("note_id")
+    .notNull()
+    .references(() => notes.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id")
+    .notNull()
+    .references(() => tags.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Junction table for goal tags
+export const goalTags = pgTable("goal_tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  goalId: uuid("goal_id")
+    .notNull()
+    .references(() => goals.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id")
+    .notNull()
+    .references(() => tags.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 // ============================================================================
@@ -406,6 +461,18 @@ export const userIntegrations = pgTable(
   }),
 );
 
+export const userProfiles = pgTable("user_profiles", {
+  userId: uuid("user_id").primaryKey().notNull(),
+  preferredName: text("preferred_name"),
+  organizationName: text("organization_name"),
+  profilePhotoUrl: text("profile_photo_url"),
+  bio: text("bio"),
+  phone: text("phone"),
+  website: text("website"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const aiQuotas = pgTable("ai_quotas", {
   userId: uuid("user_id").primaryKey().notNull(),
   creditsLeft: integer("credits_left").notNull(),
@@ -539,36 +606,26 @@ export const noteGoalsRelations = relations(noteGoals, ({ one }) => ({
 
 export const projectsRelations = relations(projects, ({ one }) => ({
   zone: one(zones, {
-    fields: [projects.zoneId],
-    references: [zones.id],
+    fields: [projects.zoneUuid],
+    references: [zones.uuidId],
   }),
 }));
 
 // Raw events no longer have direct contact relations - contact linking happens in interactions table
 
-export const taskContactTagsRelations = relations(taskContactTags, ({ one }) => ({
-  task: one(tasks, {
-    fields: [taskContactTags.taskId],
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    references: [tasks.id],
-  }),
-  contact: one(contacts, {
-    fields: [taskContactTags.contactId],
-    references: [contacts.id],
-  }),
-}));
+// Legacy taskContactTagsRelations removed - replaced with new tagging system
 
 export const tasksRelations = relations(tasks, ({ one }) => ({
   project: one(projects, {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     fields: [tasks.projectId],
+
     references: [projects.id],
   }),
-  parentTask: one(tasks, {
+  zone: one(zones, {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    fields: [tasks.parentTaskId],
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    references: [tasks.id],
+    fields: [tasks.zoneUuid],
+    references: [zones.uuidId],
   }),
 }));
 
@@ -587,6 +644,61 @@ export const habitCompletionsRelations = relations(habitCompletions, ({ one }) =
   habit: one(habits, {
     fields: [habitCompletions.habitId],
     references: [habits.id],
+  }),
+}));
+
+// ============================================================================
+// TAGGING SYSTEM RELATIONS
+// ============================================================================
+
+export const tagsRelations = relations(tags, ({ many }) => ({
+  contactTags: many(contactTags),
+  taskTags: many(taskTags),
+  noteTags: many(noteTags),
+  goalTags: many(goalTags),
+}));
+
+export const contactTagsRelations = relations(contactTags, ({ one }) => ({
+  contact: one(contacts, {
+    fields: [contactTags.contactId],
+    references: [contacts.id],
+  }),
+  tag: one(tags, {
+    fields: [contactTags.tagId],
+    references: [tags.id],
+  }),
+}));
+
+export const taskTagsRelations = relations(taskTags, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskTags.taskId],
+    references: [tasks.id],
+  }),
+  tag: one(tags, {
+    fields: [taskTags.tagId],
+    references: [tags.id],
+  }),
+}));
+
+export const noteTagsRelations = relations(noteTags, ({ one }) => ({
+  note: one(notes, {
+    fields: [noteTags.noteId],
+    references: [notes.id],
+  }),
+  tag: one(tags, {
+    fields: [noteTags.tagId],
+    references: [tags.id],
+  }),
+}));
+
+export const goalTagsRelations = relations(goalTags, ({ one }) => ({
+  goal: one(goals, {
+    fields: [goalTags.goalId],
+    references: [goals.id],
+  }),
+  tag: one(tags, {
+    fields: [goalTags.tagId],
+    references: [tags.id],
   }),
 }));
 
@@ -631,6 +743,10 @@ export type CreateJob = typeof jobs.$inferInsert;
 
 export type UserIntegration = typeof userIntegrations.$inferSelect;
 export type CreateUserIntegration = typeof userIntegrations.$inferInsert;
+
+export type UserProfile = typeof userProfiles.$inferSelect;
+export type CreateUserProfile = typeof userProfiles.$inferInsert;
+export type UpdateUserProfile = Partial<CreateUserProfile>;
 
 export type InboxItem = typeof inboxItems.$inferSelect;
 export type CreateInboxItem = typeof inboxItems.$inferInsert;
@@ -681,6 +797,23 @@ export type UpdateHabit = Partial<CreateHabit>;
 export type HabitCompletion = typeof habitCompletions.$inferSelect;
 export type CreateHabitCompletion = typeof habitCompletions.$inferInsert;
 export type UpdateHabitCompletion = Partial<CreateHabitCompletion>;
+
+// Tag system types
+export type Tag = typeof tags.$inferSelect;
+export type CreateTag = typeof tags.$inferInsert;
+export type UpdateTag = Partial<CreateTag>;
+
+export type ContactTag = typeof contactTags.$inferSelect;
+export type CreateContactTag = typeof contactTags.$inferInsert;
+
+export type TaskTag = typeof taskTags.$inferSelect;
+export type CreateTaskTag = typeof taskTags.$inferInsert;
+
+export type NoteTag = typeof noteTags.$inferSelect;
+export type CreateNoteTag = typeof noteTags.$inferInsert;
+
+export type GoalTag = typeof goalTags.$inferSelect;
+export type CreateGoalTag = typeof goalTags.$inferInsert;
 
 // Extended types for common patterns
 export type ContactWithNotes = Contact & { notes: Note[] };

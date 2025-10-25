@@ -10,11 +10,12 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardContent,
   Input,
   Label,
   Separator,
+  AlertDescription,
+  Alert,
 } from "@/components/ui";
 import {
   fetchCurrentUser,
@@ -26,6 +27,7 @@ import { AccountDataManagement } from "../_components/AccountDataManagement";
 
 // Constants
 import { PASSWORD_MIN_LENGTH } from "@/lib/constants/auth";
+import { Shield, User as UserIcon, Info, Lock } from "lucide-react";
 const ROUTES = {
   LogIn: "/log-in",
   dashboard: "/omni-flow",
@@ -213,102 +215,145 @@ export default function AccountPage(): JSX.Element {
   }
 
   return (
-    <div className="container mx-auto max-w-4xl py-8">
+    <div className="container mx-auto max-w-6xl py-8">
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-sky-500">Account Settings</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-3xl font-bold tracking-tight">Your Practice Profile</h1>
+          <p className="text-gray-600 mt-2">
             Manage your account details, security settings, and privacy controls.
           </p>
         </div>
 
         <div className="grid gap-8 md:grid-cols-2">
-          {/* Account Information & Security */}
-          <Card className="bg-sky-500/10 border-sky-500/20 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold text-sky-500">Account & Security</CardTitle>
-              <CardDescription>Manage your account details and password.</CardDescription>
-            </CardHeader>
+          {/* LEFT COLUMN */}
+          <div className="space-y-6">
+            {/* Account Information & Security */}
+            <Card className="bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-50 border-l-4 border-teal-400 shadow-lg">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <UserIcon className="h-5 w-5" />
+                  <CardTitle>Account Information</CardTitle>
+                </div>
+              </CardHeader>
 
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-sky-500">Account Information</h3>
-                <p>
-                  <span className="font-medium text-violet-400">Email:</span> {user.email}
-                </p>
-                <p>
-                  <span className="font-medium text-violet-400">Account Created:</span>{" "}
-                  {user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
-                </p>
-                {user.last_sign_in_at && (
-                  <p>
-                    <span className="font-medium text-violet-400">Last Sign In:</span>{" "}
-                    {new Date(user.last_sign_in_at).toLocaleString()}
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <p className="text-gray-900 text-sm">
+                    <span className="text-sm font-medium text-gray-900">Email:</span> {user.email}
+                  </p>
+                  <p className="text-gray-900 text-sm">
+                    <span className="text-sm font-medium text-gray-900">Account Created:</span>{" "}
+                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
+                  </p>
+                  {user.last_sign_in_at && (
+                    <p className="text-gray-900 text-sm">
+                      <span className="text-sm font-medium text-gray-900">Last Sign In:</span>{" "}
+                      {new Date(user.last_sign_in_at).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <h3 className="text-base font-semibold flex items-center gap-2 text-gray-900">
+                    <Lock className="h-4 w-4" />
+                    Change Password
+                  </h3>
+                  <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                    <div>
+                      <Label htmlFor="new_password" className="text-gray-900">
+                        New Password
+                      </Label>
+                      <Input
+                        id="new_password"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Enter new password"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="confirm_new_password" className="text-gray-900">
+                        Confirm New Password
+                      </Label>
+                      <Input
+                        id="confirm_new_password"
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="Confirm new password"
+                        required
+                      />
+                    </div>
+                    <Button type="submit" className="w-full sm:w-auto" disabled={isPasswordLoading}>
+                      {isPasswordLoading ? "Updating..." : "Update Password"}
+                    </Button>
+                  </form>
+                </div>
+
+                {messageState.text && (
+                  <p
+                    className={`mt-4 text-sm ${messageState.type === "error" ? "text-red-600" : "text-green-600"}`}
+                  >
+                    {messageState.text}
                   </p>
                 )}
-              </div>
 
-              <Separator />
+                <Separator />
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-sky-500">Change Password</h3>
-                <form onSubmit={handlePasswordUpdate} className="space-y-4">
-                  <div>
-                    <Label htmlFor="new_password" className="text-violet-400">
-                      New Password
-                    </Label>
-                    <Input
-                      id="new_password"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Enter new password"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="confirm_new_password" className="text-violet-400">
-                      Confirm New Password
-                    </Label>
-                    <Input
-                      id="confirm_new_password"
-                      type="password"
-                      value={confirmNewPassword}
-                      onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      placeholder="Confirm new password"
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full sm:w-auto" disabled={isPasswordLoading}>
-                    {isPasswordLoading ? "Updating..." : "Update Password"}
+                <div>
+                  <Button
+                    variant="destructive"
+                    onClick={handleSignOut}
+                    className="w-full sm:w-auto"
+                    disabled={isLoggingOut || isPasswordLoading}
+                  >
+                    {isLoggingOut ? "Logging out..." : "Log Out"}
                   </Button>
-                </form>
-              </div>
+                </div>
+              </CardContent>
+            </Card>
 
-              {messageState.text && (
-                <p
-                  className={`mt-4 text-sm ${messageState.type === "error" ? "text-red-600" : "text-green-600"}`}
-                >
-                  {messageState.text}
+            {/* Privacy & Data Retention - Moved from AccountDataManagement */}
+            <Card className="bg-gradient-to-br from-sky-50 via-violet-50 to-sky-50 border-l-4 border-sky-400">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Info className="h-5 w-5" />
+                  <CardTitle>Privacy & Data Retention</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-gray-600">
+                <p>
+                  <span className="text-gray-900">Backup Retention:</span> Deleted data may remain
+                  in encrypted backups for up to 30 days before being permanently purged from all
+                  systems.
                 </p>
-              )}
+                <p>
+                  <span className="text-gray-900">Third-party Services:</span> We will also request
+                  deletion of your data from integrated services like email providers and analytics
+                  platforms.
+                </p>
+                <p>
+                  <span className="text-gray-900">Audit Logs:</span> For security and compliance, we
+                  maintain minimal audit logs of deletion requests (without personal information)
+                  for regulatory purposes.
+                </p>
+              </CardContent>
+            </Card>
+            {/* Privacy Notice */}
+            <Alert className="bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-50 border-l-4 border-teal-400">
+              <Shield className="h-4 w-4" />
+              <AlertDescription className="text-gray-600">
+                Your privacy is important to us. You have full control over your data and can export
+                or delete it at any time. All operations comply with GDPR and other privacy
+                regulations.
+              </AlertDescription>
+            </Alert>
+          </div>
 
-              <Separator />
-
-              <div>
-                <Button
-                  variant="destructive"
-                  onClick={handleSignOut}
-                  className="w-full sm:w-auto"
-                  disabled={isLoggingOut || isPasswordLoading}
-                >
-                  {isLoggingOut ? "Logging out..." : "Log Out"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* GDPR Data Management */}
+          {/* RIGHT COLUMN - GDPR Data Management */}
           <div>
             <AccountDataManagement />
           </div>
@@ -317,7 +362,7 @@ export default function AccountPage(): JSX.Element {
         <div className="text-center">
           <Link
             href={ROUTES.dashboard}
-            className="text-sm font-medium text-sky-500 hover:underline"
+            className="text-sm font-medium text-gray-900 hover:underline"
           >
             Back to Dashboard
           </Link>

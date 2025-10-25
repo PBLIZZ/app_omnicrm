@@ -16,14 +16,21 @@ export type Task = {
   userId: string;
   projectId: string | null;
   parentTaskId: string | null;
+  zoneUuid: string | null; // Changed from zoneId (number) to zoneUuid (string/UUID)
   name: string;
   status: "todo" | "in_progress" | "done" | "canceled";
-  priority: "low" | "medium" | "high" | "urgent";
+  priority: "low" | "medium" | "high"; // Note: "urgent" removed to match database enum
   dueDate: string | null; // date column returns string
   details: unknown;
   completedAt: Date | null;
   createdAt: Date | null;
   updatedAt: Date | null;
+  tags?: Array<{
+    id: string;
+    name: string;
+    color: string;
+    category: string | null;
+  }>;
 };
 
 export type Project = {
@@ -35,11 +42,12 @@ export type Project = {
   details: unknown;
   createdAt: Date | null;
   updatedAt: Date | null;
-  zoneId: number | null;
+  zoneUuid: string | null; // Changed from zoneId (number) to zoneUuid (string/UUID)
 };
 
 export type Zone = {
-  id: number;
+  id: number; // Legacy integer ID
+  uuidId: string; // New UUID ID (used for task/project references)
   name: string;
   color: string | null;
   iconName: string | null;
@@ -132,7 +140,9 @@ export type ProjectWithZone = Project & {
 // INPUT TYPES (for create/update)
 // ============================================================================
 
-export type CreateTask = Omit<Task, "id" | "createdAt" | "updatedAt">;
+export type CreateTask = Omit<Task, "id" | "createdAt" | "updatedAt" | "completedAt"> & {
+  completedAt?: Date | null; // Optional for create, defaults to null in DB
+};
 export type UpdateTask = Partial<CreateTask>;
 
 export type CreateProject = Omit<Project, "id" | "createdAt" | "updatedAt">;

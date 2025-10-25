@@ -6,7 +6,16 @@ import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, User, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock,
+  User,
+  AlertTriangle,
+  ChevronRight,
+  Home,
+  Users,
+  FileText,
+} from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 import { useContact } from "@/hooks/use-contacts";
@@ -25,7 +34,11 @@ export function NoteDetailView({ contactId, noteId }: NoteDetailViewProps): JSX.
   const router = useRouter();
 
   // Fetch note details
-  const { data: note, isLoading: noteLoading, error: noteError } = useQuery({
+  const {
+    data: note,
+    isLoading: noteLoading,
+    error: noteError,
+  } = useQuery({
     queryKey: [`/api/notes/${noteId}`],
     queryFn: async (): Promise<Note> => {
       // apiClient.get unwraps { success: true, data: T } to just T
@@ -66,6 +79,43 @@ export function NoteDetailView({ contactId, noteId }: NoteDetailViewProps): JSX.
 
   return (
     <div className="container mx-auto py-6 space-y-6">
+      {/* Breadcrumb */}
+      <nav className="flex items-center space-x-2 text-sm text-muted-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push("/contacts")}
+          className="h-6 px-2 text-muted-foreground hover:text-foreground"
+        >
+          <Home className="h-3 w-3 mr-1" />
+          Home
+        </Button>
+        <ChevronRight className="h-3 w-3" />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push("/contacts")}
+          className="h-6 px-2 text-muted-foreground hover:text-foreground"
+        >
+          <Users className="h-3 w-3 mr-1" />
+          Contacts
+        </Button>
+        <ChevronRight className="h-3 w-3" />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/contacts/${contactId}`)}
+          className="h-6 px-2 text-muted-foreground hover:text-foreground"
+        >
+          Contact Details
+        </Button>
+        <ChevronRight className="h-3 w-3" />
+        <span className="flex items-center text-foreground">
+          <FileText className="h-3 w-3 mr-1" />
+          Notes
+        </span>
+      </nav>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -78,11 +128,7 @@ export function NoteDetailView({ contactId, noteId }: NoteDetailViewProps): JSX.
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Note Details</h1>
-            {contact && (
-              <p className="text-sm text-muted-foreground">
-                For {contact.displayName}
-              </p>
-            )}
+            {contact && <p className="text-sm text-muted-foreground">For {contact.displayName}</p>}
           </div>
         </div>
       </div>
@@ -121,7 +167,7 @@ export function NoteDetailView({ contactId, noteId }: NoteDetailViewProps): JSX.
           {(() => {
             const piiEntities = note.piiEntities;
             if (!isPIIEntitiesArray(piiEntities) || piiEntities.length === 0) return null;
-            
+
             return (
               <div className="border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 rounded">
                 <div className="flex items-start gap-2">
@@ -147,29 +193,12 @@ export function NoteDetailView({ contactId, noteId }: NoteDetailViewProps): JSX.
               <p className="whitespace-pre-wrap">{note.contentPlain}</p>
             )}
           </div>
-
-          {/* Tags */}
-          {note.tags && note.tags.length > 0 && (
-            <div className="pt-4 border-t">
-              <p className="text-sm font-medium mb-2">Tags</p>
-              <div className="flex flex-wrap gap-2">
-                {note.tags.map((tag, index) => (
-                  <Badge key={index} variant="outline" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
       {/* Actions */}
       <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={() => router.push(`/contacts/${contactId}`)}
-        >
+        <Button variant="outline" onClick={() => router.push(`/contacts/${contactId}`)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Contact
         </Button>

@@ -121,27 +121,27 @@
     - [x] 1.4.7 Write unit test: Button click opens RapidNoteModal
     - [x] 1.4.8 Implement: Wire button click to open RapidNoteModal
   - [ ] 1.5 Create transcription service integration
-    - [ ] 1.5.1 Write unit test: Transcription service sends correct multipart/form-data
-    - [ ] 1.5.2 Write unit test: Mock OpenAI Whisper API and test successful transcription
-    - [ ] 1.5.3 Implement: Set up OpenAI Whisper API client configuration
-    - [ ] 1.5.4 Implement: Create transcription service function (accepts audio blob, returns text)
-    - [ ] 1.5.5 Implement: Implement multipart/form-data upload with audio file
-    - [ ] 1.5.6 Write unit test: Retry logic triggers on network failure with exponential backoff
-    - [ ] 1.5.7 Implement: Add retry logic with exponential backoff for network failures
-    - [ ] 1.5.8 Write unit test: Invalid audio format returns proper error message
-    - [ ] 1.5.9 Write unit test: API unavailable scenario handled gracefully
-    - [ ] 1.5.10 Implement: Handle error states (API unavailable, invalid audio format)
-    - [ ] 1.5.11 Write unit test: Progress indicator displays during transcription
-    - [ ] 1.5.12 Implement: Display transcription progress indicator in modal
-  - [ ] 1.6 Integrate PII redaction for rapid notes
-    - [ ] 1.6.1 Write unit test: PII detection function identifies emails, phones, SSNs
-    - [ ] 1.6.2 Implement: Reuse existing PII detection function from notes.service.ts
-    - [ ] 1.6.3 Write unit test: PII detection runs before sending to server
-    - [ ] 1.6.4 Implement: Run PII detection on save before sending to server
-    - [ ] 1.6.5 Write unit test: Amber warning banner shows when PII detected client-side
-    - [ ] 1.6.6 Implement: Display amber warning banner if PII detected client-side
-    - [ ] 1.6.7 Write unit test: Red toast shows after server-side redaction
-    - [ ] 1.6.8 Implement: Show red toast notification after server-side redaction
+    - [x] 1.5.1 Write unit test: Transcription service sends correct multipart/form-data
+    - [x] 1.5.2 Write unit test: Mock OpenAI Whisper API and test successful transcription
+    - [x] 1.5.3 Implement: Set up OpenAI Whisper API client configuration
+    - [x] 1.5.4 Implement: Create transcription service function (accepts audio blob, returns text)
+    - [x] 1.5.5 Implement: Implement multipart/form-data upload with audio file
+    - [x] 1.5.6 Write unit test: Retry logic triggers on network failure with exponential backoff
+    - [x] 1.5.7 Implement: Add retry logic with exponential backoff for network failures
+    - [x] 1.5.8 Write unit test: Invalid audio format returns proper error message
+    - [x] 1.5.9 Write unit test: API unavailable scenario handled gracefully
+    - [x] 1.5.10 Implement: Handle error states (API unavailable, invalid audio format)
+    - [x] 1.5.11 Write unit test: Progress indicator displays during transcription
+    - [x] 1.5.12 Implement: Display transcription progress indicator in modal
+  - [x] 1.6 Integrate PII redaction for rapid notes
+    - [x] 1.6.1 Write unit test: PII detection function identifies emails, phones, SSNs
+    - [x] 1.6.2 Implement: Reuse existing PII detection function from notes.service.ts
+    - [x] 1.6.3 Write unit test: PII detection runs before sending to server
+    - [x] 1.6.4 Implement: Run PII detection on save before sending to server
+    - [x] 1.6.5 Write unit test: Amber warning banner shows when PII detected client-side
+    - [x] 1.6.6 Implement: Display amber warning banner if PII detected client-side
+    - [x] 1.6.7 Write unit test: Red toast shows after server-side redaction
+    - [x] 1.6.8 Implement: Show red toast notification after server-side redaction
   - [ ] 1.7 Implement toast notifications for save confirmation
     - [ ] 1.7.1 Write unit test: Green "Note saved" toast shows on successful save
     - [ ] 1.7.2 Implement: Show green "Note saved" toast on successful save (3s duration)

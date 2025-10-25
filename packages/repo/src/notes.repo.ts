@@ -1,4 +1,4 @@
-import { eq, and, desc, ilike } from "drizzle-orm";
+import { eq, and, desc, ilike, count } from "drizzle-orm";
 import { notes, type Note, type CreateNote } from "@/server/db/schema";
 import type { DbClient } from "@/server/db/client";
 
@@ -59,6 +59,37 @@ export class NotesRepository {
   }
 
   /**
+   * Get notes for a specific contact with pagination
+   */
+  async listNotesByContactIdPaginated(
+    userId: string,
+    contactId: string,
+    params: { page: number; pageSize: number },
+  ): Promise<{ notes: Note[]; total: number }> {
+    const { page, pageSize } = params;
+    const offset = (page - 1) * pageSize;
+
+    // Get total count
+    const [totalResult] = await this.db
+      .select({ count: count() })
+      .from(notes)
+      .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)));
+
+    const total = totalResult?.count ?? 0;
+
+    // Get paginated notes
+    const rows = await this.db
+      .select()
+      .from(notes)
+      .where(and(eq(notes.userId, userId), eq(notes.contactId, contactId)))
+      .orderBy(desc(notes.createdAt))
+      .limit(pageSize)
+      .offset(offset);
+
+    return { notes: rows, total };
+  }
+
+  /**
    * Search notes by content
    */
   async searchNotes(userId: string, searchTerm: string): Promise<Note[]> {
@@ -82,7 +113,6 @@ export class NotesRepository {
         contactId: data.contactId ?? null,
         contentPlain: data.contentPlain,
         contentRich: data.contentRich ?? {},
-        tags: data.tags ?? [],
         piiEntities: data.piiEntities ?? [],
         sourceType: data.sourceType ?? "typed",
       })

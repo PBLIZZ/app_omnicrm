@@ -77,6 +77,7 @@ CREATE TABLE public.inbox_items (
   status inbox_item_status NOT NULL DEFAULT 'unprocessed',
   created_task_id UUID, -- Nullable, will be populated after processing
   processed_at TIMESTAMPTZ,
+  details JSONB, -- Additional metadata and processing details
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

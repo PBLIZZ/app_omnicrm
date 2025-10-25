@@ -25,7 +25,6 @@ const NoteSchema = z.object({
   contentRich: z.unknown(),
   contentPlain: z.string(),
   piiEntities: z.unknown(),
-  tags: z.array(z.string()),
   sourceType: z.enum(["typed", "voice", "upload"]),
   createdAt: z.date().nullable(),
   updatedAt: z.date().nullable(),

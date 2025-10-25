@@ -13,20 +13,33 @@ import {
 } from "@/components/ui/sidebar";
 
 // Icons for the settings navigation
-import { User, CreditCard, Bell, Mail, Calendar as CalendarIcon, FileText } from "lucide-react";
+import {
+  User,
+  CreditCard,
+  Bell,
+  Mail,
+  Calendar as CalendarIcon,
+  FileText,
+  Tag,
+  Sparkles,
+  Plug,
+} from "lucide-react";
 import { useSyncStatus } from "@/hooks/use-sync-status";
 
-// Navigation items for the settings section
+// Navigation items for the settings section - Wellness-friendly language
 const settingsNavItems = [
-  { title: "Account", href: "/settings/account", icon: User },
-  { title: "Billing", href: "/settings/billing", icon: CreditCard },
-  { title: "Notifications", href: "/settings/notifications", icon: Bell },
-  { title: "Intake Form", href: "/settings/onboarding", icon: FileText },
+  { title: "Practice Profile", href: "/settings/profile", icon: User },
+  { title: "Account & Security", href: "/settings/account", icon: User },
+  { title: "Plans & Payments", href: "/settings/billing", icon: CreditCard },
+  { title: "Connect Your Tools", href: "/settings/integrations", icon: Plug },
+  { title: "Stay Informed", href: "/settings/notifications", icon: Bell },
+  { title: "Label Your Work", href: "/settings/tags", icon: Tag },
+  { title: "Getting Started", href: "/settings/welcome-guide", icon: Sparkles },
+  { title: "Client Intake", href: "/settings/onboarding", icon: FileText },
 ];
 
 export function SettingsSidebar(): JSX.Element {
   const pathname = usePathname();
-  const { data: syncStatus } = useSyncStatus();
 
   return (
     <SidebarContent>
@@ -43,54 +56,6 @@ export function SettingsSidebar(): JSX.Element {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-        </SidebarMenu>
-      </SidebarGroup>
-
-      <SidebarGroup>
-        <SidebarGroupLabel>Integrations</SidebarGroupLabel>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex items-center justify-between w-full px-2 py-1.5 rounded-md">
-              <div className="flex items-center">
-                <Mail className="w-4 h-4 mr-3" />
-                <span>Gmail</span>
-              </div>
-              <div className="text-xs">
-                {syncStatus?.serviceTokens?.gmail ? (
-                  <span className="text-green-600">Connected</span>
-                ) : (
-                  <button
-                    onClick={async () => {
-                      const response = await fetch("/api/google/gmail/connect", { method: "POST" });
-                      const data = await response.json();
-                      if (data.url) window.location.href = data.url;
-                    }}
-                    className="text-blue-600 hover:underline"
-                  >
-                    Connect
-                  </button>
-                )}
-              </div>
-            </div>
-          </SidebarMenuItem>
-
-          <SidebarMenuItem>
-            <div className="flex items-center justify-between w-full px-2 py-1.5 rounded-md">
-              <div className="flex items-center">
-                <CalendarIcon className="w-4 h-4 mr-3" />
-                <span>Calendar</span>
-              </div>
-              <div className="text-xs">
-                {syncStatus?.serviceTokens?.calendar ? (
-                  <span className="text-green-600">Connected</span>
-                ) : (
-                  <a href="/api/google/calendar/oauth" className="text-blue-600 hover:underline">
-                    Connect
-                  </a>
-                )}
-              </div>
-            </div>
-          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroup>
     </SidebarContent>

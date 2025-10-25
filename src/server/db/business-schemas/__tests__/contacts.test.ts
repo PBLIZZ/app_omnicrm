@@ -23,9 +23,9 @@ describe("Contacts Business Schemas", () => {
       const input = {
         displayName: "John Doe",
       };
-      
+
       const result = CreateContactBodySchema.parse(input);
-      
+
       expect(result.displayName).toBe("John Doe");
       expect(result.primaryEmail).toBeUndefined();
       expect(result.primaryPhone).toBeUndefined();
@@ -39,7 +39,7 @@ describe("Contacts Business Schemas", () => {
         photoUrl: "https://example.com/photo.jpg",
         source: "calendar_import",
         lifecycleStage: "Core Client",
-        tags: ["yoga", "regular_attendee"],
+        // tags: ["yoga", "regular_attendee"], // Tags field removed - now using relational tagging system
         confidenceScore: "0.85",
         dateOfBirth: "1990-01-15",
         emergencyContactName: "Mike Johnson",
@@ -62,12 +62,11 @@ describe("Contacts Business Schemas", () => {
           communicationMethod: "email",
         },
       };
-      
+
       const result = CreateContactBodySchema.parse(input);
-      
+
       expect(result.displayName).toBe("Sarah Johnson");
       expect(result.primaryEmail).toBe("sarah@example.com");
-      expect(result.tags).toEqual(["yoga", "regular_attendee"]);
     });
 
     it("should require displayName", () => {
@@ -86,7 +85,7 @@ describe("Contacts Business Schemas", () => {
         primaryEmail: "test@example.com",
       };
       expect(() => CreateContactBodySchema.parse(validInput)).not.toThrow();
-      
+
       const invalidInput = {
         displayName: "Test",
         primaryEmail: "not-an-email",
@@ -94,32 +93,14 @@ describe("Contacts Business Schemas", () => {
       expect(() => CreateContactBodySchema.parse(invalidInput)).toThrow();
     });
 
-    it("should validate tags as array of strings", () => {
-      const input = {
-        displayName: "Test",
-        tags: ["wellness", "yoga", "meditation"],
-      };
-      
-      const result = CreateContactBodySchema.parse(input);
-      expect(result.tags).toEqual(["wellness", "yoga", "meditation"]);
-    });
-
-    it("should validate empty tags array", () => {
-      const input = {
-        displayName: "Test",
-        tags: [],
-      };
-      
-      const result = CreateContactBodySchema.parse(input);
-      expect(result.tags).toEqual([]);
-    });
+    // Tag validation tests removed - now using relational tagging system
 
     it("should validate confidenceScore as string", () => {
       const input = {
         displayName: "Test",
         confidenceScore: "0.95",
       };
-      
+
       const result = CreateContactBodySchema.parse(input);
       expect(result.confidenceScore).toBe("0.95");
     });
@@ -132,7 +113,7 @@ describe("Contacts Business Schemas", () => {
           city: "Seattle",
         },
       };
-      
+
       const result = CreateContactBodySchema.parse(input);
       expect(result.address).toBeDefined();
     });
@@ -145,7 +126,7 @@ describe("Contacts Business Schemas", () => {
           medications: [],
         },
       };
-      
+
       const result = CreateContactBodySchema.parse(input);
       expect(result.healthContext).toBeDefined();
     });
@@ -157,7 +138,7 @@ describe("Contacts Business Schemas", () => {
           communicationMethod: "email",
         },
       };
-      
+
       const result = CreateContactBodySchema.parse(input);
       expect(result.preferences).toBeDefined();
     });
@@ -173,7 +154,7 @@ describe("Contacts Business Schemas", () => {
       const input = {
         displayName: "Updated Name",
       };
-      
+
       const result = UpdateContactBodySchema.parse(input);
       expect(result.displayName).toBe("Updated Name");
     });
@@ -183,7 +164,7 @@ describe("Contacts Business Schemas", () => {
         primaryEmail: null,
         primaryPhone: null,
       };
-      
+
       const result = UpdateContactBodySchema.parse(input);
       expect(result.primaryEmail).toBeNull();
       expect(result.primaryPhone).toBeNull();
@@ -207,7 +188,7 @@ describe("Contacts Business Schemas", () => {
         primaryEmail: "new@example.com",
         lifecycleStage: "VIP Client",
       };
-      
+
       const result = UpdateContactBodySchema.parse(input);
       expect(result.displayName).toBe("New Name");
       expect(result.primaryEmail).toBe("new@example.com");
@@ -218,7 +199,7 @@ describe("Contacts Business Schemas", () => {
   describe("GetContactsQuerySchema", () => {
     it("should validate with defaults", () => {
       const result = GetContactsQuerySchema.parse({});
-      
+
       expect(result.page).toBe(1);
       expect(result.pageSize).toBe(20);
       expect(result.sort).toBe("createdAt");
@@ -233,16 +214,16 @@ describe("Contacts Business Schemas", () => {
         order: "asc",
         search: "john",
         lifecycleStage: ["Core Client", "VIP Client"],
-        tags: ["yoga", "wellness"],
+        // tags: ["yoga", "wellness"], // Tags field removed - now using relational tagging system
         source: ["calendar_import"],
         hasEmail: true,
         hasPhone: false,
         createdAfter: "2024-01-01",
         createdBefore: "2024-12-31",
       };
-      
+
       const result = GetContactsQuerySchema.parse(input);
-      
+
       expect(result.page).toBe(2);
       expect(result.pageSize).toBe(50);
       expect(result.sort).toBe("displayName");
@@ -263,7 +244,7 @@ describe("Contacts Business Schemas", () => {
 
     it("should validate sort enum values", () => {
       const validSorts = ["displayName", "createdAt", "updatedAt"];
-      
+
       validSorts.forEach((sort) => {
         const result = GetContactsQuerySchema.parse({ sort });
         expect(result.sort).toBe(sort);
@@ -280,7 +261,7 @@ describe("Contacts Business Schemas", () => {
         page: "3",
         pageSize: "25",
       } as any);
-      
+
       expect(result.page).toBe(3);
       expect(result.pageSize).toBe(25);
     });
@@ -289,7 +270,7 @@ describe("Contacts Business Schemas", () => {
       const result = GetContactsQuerySchema.parse({
         createdAfter: "2024-01-01",
       } as any);
-      
+
       expect(result.createdAfter).toBeInstanceOf(Date);
     });
   });
@@ -307,7 +288,7 @@ describe("Contacts Business Schemas", () => {
           hasPrev: false,
         },
       };
-      
+
       const result = ContactListResponseSchema.parse(input);
       expect(result.items).toEqual([]);
       expect(result.pagination.total).toBe(0);
@@ -324,7 +305,7 @@ describe("Contacts Business Schemas", () => {
           hasPrev: false,
         },
       };
-      
+
       expect(() => ContactListResponseSchema.parse(input)).toThrow();
     });
 
@@ -332,7 +313,7 @@ describe("Contacts Business Schemas", () => {
       const input = {
         items: [],
       };
-      
+
       expect(() => ContactListResponseSchema.parse(input)).toThrow();
     });
 
@@ -348,7 +329,7 @@ describe("Contacts Business Schemas", () => {
           hasPrev: true,
         },
       };
-      
+
       const result = ContactListResponseSchema.parse(input);
       expect(result.pagination.page).toBe(2);
       expect(result.pagination.hasNext).toBe(true);
@@ -381,12 +362,9 @@ describe("Contacts Business Schemas", () => {
   describe("BulkDeleteBodySchema", () => {
     it("should validate array of UUIDs", () => {
       const input = {
-        ids: [
-          "550e8400-e29b-41d4-a716-446655440000",
-          "650e8400-e29b-41d4-a716-446655440001",
-        ],
+        ids: ["550e8400-e29b-41d4-a716-446655440000", "650e8400-e29b-41d4-a716-446655440001"],
       };
-      
+
       const result = BulkDeleteBodySchema.parse(input);
       expect(result.ids).toHaveLength(2);
     });
@@ -397,20 +375,21 @@ describe("Contacts Business Schemas", () => {
     });
 
     it("should enforce maximum of 100 IDs", () => {
-      const ids = Array.from({ length: 101 }, (_, i) => 
-        `${i}50e8400-e29b-41d4-a716-446655440000`.slice(0, 36)
+      const ids = Array.from({ length: 101 }, (_, i) =>
+        `${i}50e8400-e29b-41d4-a716-446655440000`.slice(0, 36),
       );
       const input = { ids };
-      
+
       expect(() => BulkDeleteBodySchema.parse(input)).toThrow();
     });
 
     it("should accept exactly 100 IDs", () => {
-      const ids = Array.from({ length: 100 }, (_, i) => 
-        `550e8400-e29b-41d4-a716-44665544${String(i).padStart(4, "0")}`
+      const ids = Array.from(
+        { length: 100 },
+        (_, i) => `550e8400-e29b-41d4-a716-44665544${String(i).padStart(4, "0")}`,
       );
       const input = { ids };
-      
+
       const result = BulkDeleteBodySchema.parse(input);
       expect(result.ids).toHaveLength(100);
     });
@@ -419,7 +398,7 @@ describe("Contacts Business Schemas", () => {
       const input = {
         ids: ["not-a-uuid", "also-not-a-uuid"],
       };
-      
+
       expect(() => BulkDeleteBodySchema.parse(input)).toThrow();
     });
   });
@@ -430,7 +409,7 @@ describe("Contacts Business Schemas", () => {
         deleted: 5,
         errors: [],
       };
-      
+
       const result = BulkDeleteResponseSchema.parse(input);
       expect(result.deleted).toBe(5);
       expect(result.errors).toEqual([]);
@@ -444,7 +423,7 @@ describe("Contacts Business Schemas", () => {
           { id: "id-2", error: "Permission denied" },
         ],
       };
-      
+
       const result = BulkDeleteResponseSchema.parse(input);
       expect(result.deleted).toBe(3);
       expect(result.errors).toHaveLength(2);
@@ -471,9 +450,9 @@ describe("Contacts Business Schemas", () => {
         keyFindings: ["Regular attendance", "High satisfaction"],
         error: false,
       };
-      
+
       const result = ContactAIInsightsResponseSchema.parse(input);
-      
+
       expect(result.insights).toBeTruthy();
       expect(result.suggestions).toHaveLength(2);
       expect(result.confidence).toBe(0.85);
@@ -489,7 +468,7 @@ describe("Contacts Business Schemas", () => {
         error: true,
         errorMessage: "AI service unavailable",
       };
-      
+
       const result = ContactAIInsightsResponseSchema.parse(input);
       expect(result.error).toBe(true);
       expect(result.errorMessage).toBe("AI service unavailable");
@@ -504,7 +483,7 @@ describe("Contacts Business Schemas", () => {
         keyFindings: [],
       };
       expect(() => ContactAIInsightsResponseSchema.parse(invalidLow)).toThrow();
-      
+
       const invalidHigh = {
         insights: "test",
         suggestions: [],
@@ -524,7 +503,7 @@ describe("Contacts Business Schemas", () => {
         keyFindings: [],
       });
       expect(min.confidence).toBe(0);
-      
+
       const max = ContactAIInsightsResponseSchema.parse({
         insights: "test",
         suggestions: [],
@@ -543,7 +522,7 @@ describe("Contacts Business Schemas", () => {
         confidence: 0.5,
         keyFindings: [],
       });
-      
+
       expect(result.error).toBeUndefined();
       expect(result.errorMessage).toBeUndefined();
     });

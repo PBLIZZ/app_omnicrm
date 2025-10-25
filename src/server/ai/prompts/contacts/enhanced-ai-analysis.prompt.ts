@@ -162,7 +162,6 @@ Common Labels: ${data.gmailAnalysis.commonLabels.join(", ")}
 Based on this comprehensive data, provide wellness insights as JSON:
 {
   "stage": "Prospect|Active Client|Regular Client|VIP Client|At Risk|Lost Client|Non-Client",
-  "tags": ["array of relevant wellness tags"],
   "confidenceScore": 0.0-1.0,
   "notes": "Personalized insights combining calendar and email patterns"
 }

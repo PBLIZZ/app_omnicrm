@@ -56,7 +56,6 @@ describe("NotesService", () => {
           contactId: mockContactId,
           contentPlain: "Test note content",
           contentRich: {},
-          tags: ["important"],
           piiEntities: [],
           sourceType: "typed",
           createdAt: new Date(),
@@ -108,7 +107,6 @@ describe("NotesService", () => {
         contactId: mockContactId,
         contentPlain: "Test note content",
         contentRich: {},
-        tags: ["important"],
         piiEntities: [],
         sourceType: "typed",
         createdAt: new Date(),
@@ -145,7 +143,6 @@ describe("NotesService", () => {
         contentPlain: "Test note with email@example.com",
         contentRich: { type: "doc", content: [] },
         contactId: mockContactId,
-        tags: ["important"],
         sourceType: "typed" as const,
       };
 
@@ -186,7 +183,6 @@ describe("NotesService", () => {
     it("should update an existing note", async () => {
       const updateData = {
         contentPlain: "Updated note content",
-        tags: ["updated"],
       };
 
       const mockUpdatedNote = {
@@ -195,7 +191,6 @@ describe("NotesService", () => {
         contactId: mockContactId,
         contentPlain: "Updated note content",
         contentRich: {},
-        tags: ["updated"],
         piiEntities: [],
         sourceType: "typed",
         createdAt: new Date(),
@@ -260,7 +255,6 @@ describe("NotesService", () => {
           contactId: mockContactId,
           contentPlain: "Contact note",
           contentRich: {},
-          tags: [],
           piiEntities: [],
           sourceType: "typed",
           createdAt: new Date(),

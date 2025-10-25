@@ -15,8 +15,17 @@ import { NullableDateInputSchema } from "@/lib/validation/common";
 // Note: Drizzle imports removed - UI enrichment moved to service-layer mappers
 // Per architecture blueprint: business schemas are pure validation only
 
+/**
+ * Relaxed UUID validator for test/seed data
+ * Accepts any string matching UUID format (8-4-4-4-12 hex pattern)
+ * without strict RFC 4122 variant/version validation
+ */
+const uuidLike = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "Invalid UUID format");
+
 const taskStatusValues = ["todo", "in_progress", "done", "canceled"] as const;
-const taskPriorityValues = ["low", "medium", "high", "urgent"] as const;
+const taskPriorityValues = ["low", "medium", "high"] as const;
 const projectStatusValues = ["active", "on_hold", "completed", "archived"] as const;
 
 const detailsSchema = z.record(z.string(), z.unknown());
@@ -26,10 +35,11 @@ const detailsSchema = z.record(z.string(), z.unknown());
 // ============================================================================
 
 export const TaskSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
-  projectId: z.string().uuid().nullable().optional(),
-  parentTaskId: z.string().uuid().nullable().optional(),
+  id: uuidLike,
+  userId: uuidLike,
+  projectId: uuidLike.nullable().optional(),
+  parentTaskId: uuidLike.nullable().optional(),
+  zoneUuid: uuidLike.nullable().optional(), // Changed from zoneId (number) to zoneUuid (UUID)
   name: z.string(),
   status: z.enum(taskStatusValues),
   priority: z.enum(taskPriorityValues),
@@ -38,14 +48,21 @@ export const TaskSchema = z.object({
   completedAt: z.date().nullable(),
   createdAt: z.date().nullable(),
   updatedAt: z.date().nullable(),
+  tags: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    color: z.string(),
+    category: z.string().nullable(),
+  })).optional(),
 });
 
 export type TaskSchemaOutput = z.infer<typeof TaskSchema>;
 
 export const CreateTaskSchema = z.object({
   name: z.string().min(1),
-  projectId: z.string().uuid().nullable().optional(),
-  parentTaskId: z.string().uuid().nullable().optional(),
+  projectId: uuidLike.nullable().optional(),
+  parentTaskId: uuidLike.nullable().optional(),
+  zoneUuid: uuidLike.nullable().optional(), // Changed from zoneId (number) to zoneUuid (UUID)
   status: z.enum(taskStatusValues).optional(),
   priority: z.enum(taskPriorityValues).optional(),
   dueDate: NullableDateInputSchema.optional(),
@@ -60,8 +77,8 @@ export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>;
 
 export const ProjectSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
+  id: uuidLike,
+  userId: uuidLike,
   name: z.string(),
   status: z.enum(projectStatusValues),
   dueDate: z.string().nullable(), // date column returns string
@@ -98,17 +115,45 @@ export type UpdateProjectInput = z.infer<typeof UpdateProjectSchema>;
 
 /**
  * Task filters for search/filtering
+ * Note: Query params are always strings, so we handle type coercion
  */
 export const TaskFiltersSchema = z.object({
   search: z.string().optional(),
-  status: z.array(z.string()).optional(),
-  priority: z.array(z.string()).optional(),
-  projectId: z.string().uuid().optional(),
-  parentTaskId: z.string().uuid().nullable().optional(),
-  taggedContactId: z.string().uuid().optional(),
+  status: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (typeof val === "string") return [val];
+      return val;
+    }),
+  priority: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (typeof val === "string") return [val];
+      return val;
+    }),
+  projectId: uuidLike.optional(),
+  // Handle string "null" from query params - convert to undefined for proper filtering
+  parentTaskId: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val || val === "null" || val === "undefined") return undefined;
+      // Validate as UUID after string conversion
+      return uuidLike.parse(val);
+    }),
+  taggedContactId: uuidLike.optional(),
   dueAfter: z.coerce.date().optional(),
   dueBefore: z.coerce.date().optional(),
-  hasSubtasks: z.boolean().optional(),
+  // Coerce string "true"/"false" to boolean
+  hasSubtasks: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((val) => {
+      if (typeof val === "string") return val === "true";
+      return val;
+    }),
 });
 
 export type TaskFilters = z.infer<typeof TaskFiltersSchema>;
@@ -319,7 +364,7 @@ export const InboxProcessingContextSchema = z.object({
     .optional(),
   zones: z.array(
     z.object({
-      id: z.number(),
+      uuidId: z.string(),
       name: z.string(),
       color: z.string().nullable(),
       iconName: z.string().nullable(),
@@ -334,7 +379,7 @@ export type InboxProcessingContext = z.infer<typeof InboxProcessingContextSchema
  */
 export const InboxProcessingResultDTOSchema = z.object({
   suggestedZone: z.string(),
-  suggestedPriority: z.enum(["low", "medium", "high", "urgent"]),
+  suggestedPriority: z.enum(["low", "medium", "high"]),
   suggestedProject: z.string().nullable(),
   extractedTasks: z.array(
     z.object({

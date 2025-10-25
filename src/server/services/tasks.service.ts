@@ -16,7 +16,7 @@ import { sanitizeJsonb } from "@/lib/validation/jsonb";
 // Helper: Convert Date to string for date columns
 function dateToString(date: Date | null | undefined): string | null {
   if (!date) return null;
-  return date.toISOString().split('T')[0] as string;
+  return date.toISOString().split("T")[0] as string;
 }
 
 // ============================================================================
@@ -31,8 +31,8 @@ export async function createTaskService(
   data: {
     name: string;
     projectId?: string | null | undefined;
-    parentTaskId?: string | null | undefined;
-    priority?: "low" | "medium" | "high" | "urgent" | undefined;
+    zoneUuid?: string | null | undefined;
+    priority?: "low" | "medium" | "high" | undefined;
     status?: "todo" | "in_progress" | "done" | "canceled" | undefined;
     dueDate?: Date | null | undefined;
     details?: unknown;
@@ -45,24 +45,15 @@ export async function createTaskService(
     // Business logic: normalize details
     const normalizedDetails = data.details && typeof data.details === "object" ? data.details : {};
 
-    // Business logic: validate parent task exists if provided
-    if (data.parentTaskId) {
-      const parentTask = await repo.getTask(data.parentTaskId, userId);
-      if (!parentTask) {
-        throw new AppError("Parent task not found", "PARENT_TASK_NOT_FOUND", "validation", false);
-      }
-    }
-
-    // Create task
+    // Create task - omit completedAt to let DB default to null
     const task = await repo.createTask(userId, {
       name: data.name,
       projectId: data.projectId ?? null,
-      parentTaskId: data.parentTaskId ?? null,
+      zoneUuid: data.zoneUuid ?? null,
       priority: data.priority ?? "medium",
       status: data.status ?? "todo",
       dueDate: dateToString(data.dueDate),
       details: normalizedDetails,
-      completedAt: null,
     });
 
     return task;
@@ -146,12 +137,20 @@ export async function updateTaskService(
   try {
     // Business logic: Filter undefined values and normalize details
     const cleanData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
+      Object.entries(data).filter(([, value]) => value !== undefined),
     );
 
     // Business logic: Sanitize details field if present
     if (cleanData["details"] !== undefined) {
       cleanData["details"] = sanitizeJsonb(cleanData["details"]);
+    }
+
+    // Business logic: Convert Date objects to strings for database
+    if (cleanData["dueDate"] instanceof Date) {
+      cleanData["dueDate"] = cleanData["dueDate"].toISOString().split("T")[0];
+    }
+    if (cleanData["completedAt"] instanceof Date) {
+      cleanData["completedAt"] = cleanData["completedAt"].toISOString();
     }
 
     await repo.updateTask(taskId, userId, cleanData);
@@ -220,15 +219,11 @@ export async function getPendingApprovalTasksService(
   const repo = createProductivityRepository(db);
 
   try {
-    // Get tasks with status='pending_approval' or similar
-    // Adjust the status filter based on your actual schema
-    const tasks = await repo.getTasks(userId, {
-      status: ["pending_approval"],
-    });
-
+    // For now, return empty array since we don't have pending_approval status
+    // This can be implemented later when we add AI-generated task approval workflow
     return {
-      tasks,
-      total: tasks.length,
+      tasks: [],
+      total: 0,
     };
   } catch (error) {
     throw new AppError(
@@ -243,7 +238,10 @@ export async function getPendingApprovalTasksService(
 /**
  * Approve a task
  */
-export async function approveTaskService(userId: string, taskId: string): Promise<TaskListItem | null> {
+export async function approveTaskService(
+  userId: string,
+  taskId: string,
+): Promise<TaskListItem | null> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -268,7 +266,10 @@ export async function approveTaskService(userId: string, taskId: string): Promis
 /**
  * Reject a task
  */
-export async function rejectTaskService(userId: string, taskId: string): Promise<TaskListItem | null> {
+export async function rejectTaskService(
+  userId: string,
+  taskId: string,
+): Promise<TaskListItem | null> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 

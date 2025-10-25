@@ -38,6 +38,7 @@ const SUPABASE_ERROR_MESSAGES: Record<string, string> = {
 
 /**
  * Fetch the current authenticated user
+ * Returns null user without error when no session exists (user not logged in)
  */
 export async function fetchCurrentUser(): Promise<{ user: User | null; error?: Error }> {
   try {
@@ -47,9 +48,15 @@ export async function fetchCurrentUser(): Promise<{ user: User | null; error?: E
       error,
     } = await supabase.auth.getUser();
 
+    // No session is a normal state (user not logged in), not an error
     if (error) {
-      logger.error("Error fetching current user", { operation: "fetchCurrentUser" }, new Error(error.message));
-      return { user: null, error: new Error(error.message) };
+      // Only log actual errors, not "no session" states
+      if (error.message !== "Auth session missing!" && !error.message.includes("session")) {
+        logger.error("Error fetching current user", { operation: "fetchCurrentUser" }, new Error(error.message));
+        return { user: null, error: new Error(error.message) };
+      }
+      // User simply not logged in - this is expected on login page
+      return { user: null };
     }
 
     return { user };

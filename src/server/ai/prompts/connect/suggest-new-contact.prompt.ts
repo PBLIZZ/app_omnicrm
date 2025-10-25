@@ -17,14 +17,12 @@ Lifecycle Stages:
 - Referring Client: Brings referrals
 - VIP Client: High-value or long-term client
 
-Wellness Tags: Yoga, Massage, Meditation, Pilates, Stress Relief, Mental Health, etc.
 
 Respond with JSON:
 {
   "displayName": string,
   "primaryEmail": string,
   "estimatedStage": string,
-  "suggestedTags": string[]
 }`,
     },
     {

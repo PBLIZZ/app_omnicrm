@@ -82,9 +82,11 @@ export type {
   ConsentData,
   TokenValidationResult,
 } from "./onboarding.repo";
+export { TagsRepository, createTagsRepository } from "./tags.repo";
+export { UserProfilesRepository, createUserProfilesRepository } from "./user-profiles.repo";
 
 // Auth User types
-export type { UserContext, UserProfile } from "./auth-user.repo";
+export type { UserContext, UserProfile as AuthUserProfile } from "./auth-user.repo";
 
 // Search types
 export type { SearchResultDTO, TraditionalSearchParams, SemanticSearchParams } from "./search.repo";

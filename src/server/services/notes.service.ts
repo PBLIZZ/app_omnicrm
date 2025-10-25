@@ -22,19 +22,31 @@ export interface CreateNoteInput {
   contentPlain: string;
   contentRich?: unknown;
   contactId: string;
-  tags?: string[] | undefined;
   sourceType?: "typed" | "voice" | "upload" | undefined;
 }
 
 export interface UpdateNoteInput {
   contentPlain?: string | undefined;
   contentRich?: unknown;
-  tags?: string[] | undefined;
 }
 
 export interface ListNotesParams {
   contactId?: string | undefined;
   search?: string | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+}
+
+export interface PaginatedNotesResult {
+  notes: Note[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
 }
 
 // ============================================================================
@@ -62,6 +74,48 @@ export async function listNotesService(
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : "Failed to list notes",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
+ * List notes for a contact with pagination
+ */
+export async function listNotesByContactIdPaginatedService(
+  userId: string,
+  contactId: string,
+  params: { page?: number; pageSize?: number } = {},
+): Promise<PaginatedNotesResult> {
+  const db = await getDb();
+  const repo = createNotesRepository(db);
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 10;
+
+  try {
+    const { notes, total } = await repo.listNotesByContactIdPaginated(userId, contactId, {
+      page,
+      pageSize,
+    });
+
+    const totalPages = Math.ceil(total / pageSize);
+
+    return {
+      notes,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to list notes with pagination",
       "DB_ERROR",
       "database",
       false,
@@ -167,7 +221,6 @@ export async function createNoteService(userId: string, input: CreateNoteInput):
       contactId: input.contactId,
       contentPlain: redactionResult.sanitizedText,
       contentRich: input.contentRich ?? {},
-      tags: input.tags ?? [],
       piiEntities: redactionResult.entities,
       sourceType: input.sourceType ?? "typed",
     });
@@ -201,7 +254,7 @@ export async function updateNoteService(
   input: UpdateNoteInput,
 ): Promise<Note> {
   // Validate at least one field is provided
-  if (!input.contentPlain && !input.contentRich && !input.tags) {
+  if (!input.contentPlain && !input.contentRich) {
     throw new AppError(
       "At least one field must be provided for update",
       "VALIDATION_ERROR",
@@ -214,7 +267,6 @@ export async function updateNoteService(
   const updateData: {
     contentPlain?: string;
     contentRich?: unknown;
-    tags?: string[];
     piiEntities?: unknown;
   } = {};
 
@@ -241,10 +293,6 @@ export async function updateNoteService(
 
   if (input.contentRich !== undefined) {
     updateData.contentRich = input.contentRich;
-  }
-
-  if (input.tags !== undefined) {
-    updateData.tags = input.tags;
   }
 
   const db = await getDb();

@@ -43,11 +43,11 @@ describe("Notes Business Schemas", () => {
       const input = {
         contentPlain: "This is a test note",
       };
-      
+
       const result = CreateNoteBodySchema.parse(input);
-      
+
       expect(result.contentPlain).toBe("This is a test note");
-      expect(result.tags).toEqual([]);
+      // tags field removed - now using relational tagging system
       expect(result.sourceType).toBe("typed");
       expect(result.contentRich).toBeUndefined();
       expect(result.contactId).toBeUndefined();
@@ -57,17 +57,17 @@ describe("Notes Business Schemas", () => {
       const input = {
         contentPlain: "Meeting notes",
         contentRich: { type: "doc", content: [] },
-        tags: ["important", "follow-up"],
+        // tags field removed - now using relational tagging system
         goalIds: ["550e8400-e29b-41d4-a716-446655440000"],
         sourceType: "voice" as const,
         contactId: "650e8400-e29b-41d4-a716-446655440000",
       };
-      
+
       const result = CreateNoteBodySchema.parse(input);
-      
+
       expect(result.contentPlain).toBe("Meeting notes");
       expect(result.contentRich).toEqual({ type: "doc", content: [] });
-      expect(result.tags).toEqual(["important", "follow-up"]);
+      // tags field removed - now using relational tagging system
       expect(result.goalIds).toHaveLength(1);
       expect(result.sourceType).toBe("voice");
       expect(result.contactId).toBe("650e8400-e29b-41d4-a716-446655440000");
@@ -96,63 +96,44 @@ describe("Notes Business Schemas", () => {
           ],
         },
       };
-      
+
       const result = CreateNoteBodySchema.parse(input);
       expect(result.contentRich).toBeDefined();
     });
 
-    it("should validate empty tags array", () => {
-      const input = {
-        contentPlain: "Test note",
-        tags: [],
-      };
-      
-      const result = CreateNoteBodySchema.parse(input);
-      expect(result.tags).toEqual([]);
-    });
+    // Tag validation tests removed - now using relational tagging system
 
-    it("should validate multiple tags", () => {
-      const input = {
-        contentPlain: "Test note",
-        tags: ["wellness", "yoga", "nutrition", "follow-up"],
-      };
-      
-      const result = CreateNoteBodySchema.parse(input);
-      expect(result.tags).toHaveLength(4);
-    });
+    // Tag validation tests removed - now using relational tagging system
 
     it("should validate UUID format for contactId", () => {
       const validInput = {
         contentPlain: "Test",
         contactId: "550e8400-e29b-41d4-a716-446655440000",
       };
-      
+
       expect(() => CreateNoteBodySchema.parse(validInput)).not.toThrow();
-      
+
       const invalidInput = {
         contentPlain: "Test",
         contactId: "not-a-uuid",
       };
-      
+
       expect(() => CreateNoteBodySchema.parse(invalidInput)).toThrow();
     });
 
     it("should validate UUID format for goalIds", () => {
       const validInput = {
         contentPlain: "Test",
-        goalIds: [
-          "550e8400-e29b-41d4-a716-446655440000",
-          "660e8400-e29b-41d4-a716-446655440001",
-        ],
+        goalIds: ["550e8400-e29b-41d4-a716-446655440000", "660e8400-e29b-41d4-a716-446655440001"],
       };
-      
+
       expect(() => CreateNoteBodySchema.parse(validInput)).not.toThrow();
-      
+
       const invalidInput = {
         contentPlain: "Test",
         goalIds: ["not-a-uuid"],
       };
-      
+
       expect(() => CreateNoteBodySchema.parse(invalidInput)).toThrow();
     });
 
@@ -164,7 +145,7 @@ describe("Notes Business Schemas", () => {
 
     it("should validate all sourceType options", () => {
       const sources: Array<"typed" | "voice" | "upload"> = ["typed", "voice", "upload"];
-      
+
       sources.forEach((source) => {
         const result = CreateNoteBodySchema.parse({
           contentPlain: "Test",
@@ -185,7 +166,7 @@ describe("Notes Business Schemas", () => {
       const input = {
         contentPlain: "Updated content",
       };
-      
+
       const result = UpdateNoteBodySchema.parse(input);
       expect(result.contentPlain).toBe("Updated content");
     });
@@ -194,25 +175,18 @@ describe("Notes Business Schemas", () => {
       const input = {
         contentRich: { type: "doc", content: [] },
       };
-      
+
       const result = UpdateNoteBodySchema.parse(input);
       expect(result.contentRich).toBeDefined();
     });
 
-    it("should validate updating tags", () => {
-      const input = {
-        tags: ["updated-tag"],
-      };
-      
-      const result = UpdateNoteBodySchema.parse(input);
-      expect(result.tags).toEqual(["updated-tag"]);
-    });
+    // Tag validation tests removed - now using relational tagging system
 
     it("should validate updating goalIds", () => {
       const input = {
         goalIds: ["550e8400-e29b-41d4-a716-446655440000"],
       };
-      
+
       const result = UpdateNoteBodySchema.parse(input);
       expect(result.goalIds).toHaveLength(1);
     });
@@ -226,20 +200,20 @@ describe("Notes Business Schemas", () => {
       const invalidInput = {
         goalIds: ["invalid-uuid"],
       };
-      
+
       expect(() => UpdateNoteBodySchema.parse(invalidInput)).toThrow();
     });
 
     it("should validate multiple field updates", () => {
       const input = {
         contentPlain: "New content",
-        tags: ["new-tag"],
+        // tags field removed - now using relational tagging system
         goalIds: ["550e8400-e29b-41d4-a716-446655440000"],
       };
-      
+
       const result = UpdateNoteBodySchema.parse(input);
       expect(result.contentPlain).toBe("New content");
-      expect(result.tags).toEqual(["new-tag"]);
+      // tags field removed - now using relational tagging system
       expect(result.goalIds).toHaveLength(1);
     });
   });
@@ -250,7 +224,7 @@ describe("Notes Business Schemas", () => {
         notes: [],
         total: 0,
       };
-      
+
       const result = NotesListResponseSchema.parse(input);
       expect(result.notes).toEqual([]);
       expect(result.total).toBe(0);
@@ -264,7 +238,7 @@ describe("Notes Business Schemas", () => {
         ],
         total: 2,
       };
-      
+
       const result = NotesListResponseSchema.parse(input);
       expect(result.notes).toHaveLength(2);
       expect(result.total).toBe(2);
@@ -274,7 +248,7 @@ describe("Notes Business Schemas", () => {
       const input = {
         total: 0,
       };
-      
+
       expect(() => NotesListResponseSchema.parse(input)).toThrow();
     });
 
@@ -282,7 +256,7 @@ describe("Notes Business Schemas", () => {
       const input = {
         notes: [],
       };
-      
+
       expect(() => NotesListResponseSchema.parse(input)).toThrow();
     });
 
@@ -291,7 +265,7 @@ describe("Notes Business Schemas", () => {
         notes: "not an array",
         total: 0,
       };
-      
+
       expect(() => NotesListResponseSchema.parse(input)).toThrow();
     });
 
@@ -300,7 +274,7 @@ describe("Notes Business Schemas", () => {
         notes: [],
         total: "0",
       };
-      
+
       expect(() => NotesListResponseSchema.parse(input)).toThrow();
     });
   });
@@ -308,7 +282,7 @@ describe("Notes Business Schemas", () => {
   describe("GetNotesQuerySchema", () => {
     it("should validate with defaults", () => {
       const result = GetNotesQuerySchema.parse({});
-      
+
       expect(result.limit).toBe(50);
       expect(result.offset).toBe(0);
       expect(result.contactId).toBeUndefined();
@@ -322,9 +296,9 @@ describe("Notes Business Schemas", () => {
         limit: 20,
         offset: 10,
       };
-      
+
       const result = GetNotesQuerySchema.parse(input);
-      
+
       expect(result.contactId).toBe("550e8400-e29b-41d4-a716-446655440000");
       expect(result.search).toBe("test query");
       expect(result.limit).toBe(20);
@@ -335,7 +309,7 @@ describe("Notes Business Schemas", () => {
       const invalidInput = {
         contactId: "not-a-uuid",
       };
-      
+
       expect(() => GetNotesQuerySchema.parse(invalidInput)).toThrow();
     });
 
@@ -352,7 +326,7 @@ describe("Notes Business Schemas", () => {
     it("should accept boundary limit values", () => {
       const min = GetNotesQuerySchema.parse({ limit: 1 });
       const max = GetNotesQuerySchema.parse({ limit: 100 });
-      
+
       expect(min.limit).toBe(1);
       expect(max.limit).toBe(100);
     });
@@ -372,7 +346,7 @@ describe("Notes Business Schemas", () => {
         limit: "25",
         offset: "10",
       } as any);
-      
+
       expect(result.limit).toBe(25);
       expect(result.offset).toBe(10);
     });

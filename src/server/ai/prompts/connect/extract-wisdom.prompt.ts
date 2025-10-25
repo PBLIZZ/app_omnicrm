@@ -26,16 +26,10 @@ Focus on:
 - Client communication patterns and mood
 - Marketing intelligence and growth opportunities
 
-For wellness tags, use these categories when relevant:
-Services: Yoga, Massage, Meditation, Pilates, Reiki, Acupuncture, Personal Training, Nutrition Coaching, Life Coaching, Therapy
-Health Focus: Stress Relief, Weight Loss, Flexibility, Strength, Pain Management, Mental Health, Spiritual Growth, Mindfulness
-Client Types: Senior, Young Adult, Professional, Parent, Student, Beginner, Intermediate, Advanced
-
 Respond with valid JSON matching this schema:
 {
   "keyInsights": string[], // 2-4 most important insights
   "actionItems": string[], // specific actionable steps
-  "wellnessTags": string[], // relevant wellness/health tags
   "marketingTips": string[], // marketing insights (optional)
   "businessOpportunities": string[], // growth opportunities (optional)
   "clientMood": "positive" | "neutral" | "concerned" | "frustrated" | "excited" | null,

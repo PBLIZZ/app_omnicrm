@@ -23,7 +23,7 @@ export class ZonesRepository {
   async listZones(): Promise<ZoneDTO[]> {
     const rows = await this.db
       .select({
-        id: zones.id,
+        uuidId: zones.uuidId,
         name: zones.name,
         color: zones.color,
         iconName: zones.iconName,
@@ -35,18 +35,18 @@ export class ZonesRepository {
   }
 
   /**
-   * Get a single zone by ID
+   * Get a single zone by UUID
    */
-  async getZoneById(zoneId: number): Promise<ZoneDTO | null> {
+  async getZoneById(zoneUuid: string): Promise<ZoneDTO | null> {
     const rows = await this.db
       .select({
-        id: zones.id,
+        uuidId: zones.uuidId,
         name: zones.name,
         color: zones.color,
         iconName: zones.iconName,
       })
       .from(zones)
-      .where(eq(zones.id, zoneId))
+      .where(eq(zones.uuidId, zoneUuid))
       .limit(1);
 
     if (rows.length === 0) {
@@ -62,7 +62,7 @@ export class ZonesRepository {
   async getZoneByName(name: string): Promise<ZoneDTO | null> {
     const rows = await this.db
       .select({
-        id: zones.id,
+        uuidId: zones.uuidId,
         name: zones.name,
         color: zones.color,
         iconName: zones.iconName,
@@ -83,14 +83,14 @@ export class ZonesRepository {
    */
   async createZone(data: CreateZoneDTO): Promise<ZoneDTO> {
     const insertValues = {
-      id: data.id ?? undefined,
+      uuidId: data.uuidId ?? undefined,
       name: data.name,
       color: data.color ?? null,
       iconName: data.iconName ?? null,
     };
 
     const [newZone] = await this.db.insert(zones).values(insertValues).returning({
-      id: zones.id,
+      uuidId: zones.uuidId,
       name: zones.name,
       color: zones.color,
       iconName: zones.iconName,
@@ -106,7 +106,7 @@ export class ZonesRepository {
   /**
    * Update an existing zone (admin function)
    */
-  async updateZone(zoneId: number, data: UpdateZoneDTO): Promise<ZoneDTO | null> {
+  async updateZone(zoneUuid: string, data: UpdateZoneDTO): Promise<ZoneDTO | null> {
     const updateValues = {
       ...(data.name !== undefined && { name: data.name }),
       ...(data.color !== undefined && { color: data.color ?? null }),
@@ -116,9 +116,9 @@ export class ZonesRepository {
     const [updatedZone] = await this.db
       .update(zones)
       .set(updateValues)
-      .where(eq(zones.id, zoneId))
+      .where(eq(zones.uuidId, zoneUuid))
       .returning({
-        id: zones.id,
+        uuidId: zones.uuidId,
         name: zones.name,
         color: zones.color,
         iconName: zones.iconName,
@@ -134,11 +134,11 @@ export class ZonesRepository {
   /**
    * Delete a zone (admin function)
    */
-  async deleteZone(zoneId: number): Promise<boolean> {
+  async deleteZone(zoneUuid: string): Promise<boolean> {
     const result = await this.db
       .delete(zones)
-      .where(eq(zones.id, zoneId))
-      .returning({ id: zones.id });
+      .where(eq(zones.uuidId, zoneUuid))
+      .returning({ uuidId: zones.uuidId });
 
     return result.length > 0;
   }
@@ -149,7 +149,7 @@ export class ZonesRepository {
   async getZonesWithStats(): Promise<ZoneWithStatsDTO[]> {
     const rows = await this.db
       .select({
-        id: zones.id,
+        uuidId: zones.uuidId,
         name: zones.name,
         color: zones.color,
         iconName: zones.iconName,

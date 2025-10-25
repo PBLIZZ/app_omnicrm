@@ -30,7 +30,6 @@ interface GeneratedInsight {
   title: string;
   summary: string;
   confidence: number;
-  tags: string[];
   priority: "low" | "medium" | "high" | "urgent";
   props?: Record<string, unknown>;
   actions?: Array<{
@@ -73,7 +72,6 @@ export class InsightWriter {
           title: insight.title,
           summary: insight.summary,
           confidence: insight.confidence,
-          tags: insight.tags,
           priority: insight.priority,
           status: "new",
           props: insight.props,
@@ -267,7 +265,6 @@ export class InsightWriter {
           title: String(result["title"] ?? `${task.kind} insight`),
           summary: String(result["summary"] ?? result["content"] ?? "Generated insight"),
           confidence: Number(result["confidence"] ?? 0.7),
-          tags: Array.isArray(result["tags"]) ? (result["tags"] as string[]) : [task.kind],
           priority: (result["priority"] as "low" | "medium" | "high" | "urgent") ?? "medium",
           props: (result["props"] as Record<string, unknown>) ?? result,
           actions,
@@ -312,7 +309,6 @@ export class InsightWriter {
       title: `Thread Summary: ${totalInteractions} interactions`,
       summary: `Recent thread contains ${totalInteractions} ${interactionTypes.join(", ")} interactions${hasEmailContent ? " with detailed content" : ""}.`,
       confidence: 0.8,
-      tags: ["thread", "summary", ...interactionTypes],
       priority: "medium",
       props: {
         totalInteractions,
@@ -387,7 +383,6 @@ export class InsightWriter {
       title: suggestion,
       summary: `Contact has ${recentInteractions.length} recent interactions. Last activity: ${lastInteractionDays} days ago.`,
       confidence: 0.7,
-      tags: ["follow-up", "engagement"],
       priority,
       props: {
         contactName: contact.displayName,
@@ -463,7 +458,6 @@ export class InsightWriter {
       title: `Weekly digest: ${opportunities.length} opportunities, ${totalInteractions} interactions`,
       summary: `This week: ${totalInteractions} interactions with ${uniqueContacts} contacts. ${newContacts} new contacts added.`,
       confidence: 0.9,
-      tags: ["digest", "weekly", "summary"],
       priority: "medium",
       props: {
         dateRange: {
@@ -539,7 +533,6 @@ export class InsightWriter {
       title: `Lead score: ${score}/100`,
       summary: `${scoreCategory.charAt(0).toUpperCase() + scoreCategory.slice(1)}-scoring prospect with ${totalInteractions} total interactions, ${recentInteractions} recent.`,
       confidence: 0.8,
-      tags: ["follow-up", "engagement", scoreCategory],
       priority,
       props: {
         score0To100: score,

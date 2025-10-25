@@ -1,14 +1,6 @@
 // Productivity repository - Projects, Tasks, Goals, and Daily Pulse
 import type { DbClient } from "@/server/db/client";
-import {
-  projects,
-  tasks,
-  goals,
-  dailyPulseLogs,
-  zones,
-  inboxItems,
-  taskContactTags,
-} from "@/server/db/schema";
+import { projects, tasks, goals, dailyPulseLogs, zones, inboxItems, taskTags, tags } from "@/server/db/schema";
 import { eq, desc, and, asc, isNull, inArray, sql } from "drizzle-orm";
 import type {
   TaskListItem,
@@ -28,7 +20,10 @@ export class ProductivityRepository {
   // PROJECTS (Pathways)
   // ============================================================================
 
-  async createProject(userId: string, data: Omit<CreateProject, 'userId'>): Promise<ProjectListItem> {
+  async createProject(
+    userId: string,
+    data: Omit<CreateProject, "userId">,
+  ): Promise<ProjectListItem> {
     const [project] = await this.db
       .insert(projects)
       .values({ ...data, userId })
@@ -43,12 +38,12 @@ export class ProductivityRepository {
 
   async getProjects(
     userId: string,
-    filters?: { zoneId?: number | undefined; status?: string[] | undefined },
+    filters?: { zoneUuid?: string | undefined; status?: string[] | undefined },
   ): Promise<ProjectListItem[]> {
     const whereConditions = [eq(projects.userId, userId)];
 
-    if (filters?.zoneId !== undefined) {
-      whereConditions.push(eq(projects.zoneId, filters.zoneId));
+    if (filters?.zoneUuid !== undefined) {
+      whereConditions.push(eq(projects.zoneUuid, filters.zoneUuid));
     }
 
     if (filters?.status && filters.status.length > 0) {
@@ -71,7 +66,7 @@ export class ProductivityRepository {
         details: projects.details,
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt,
-        zoneId: projects.zoneId,
+        zoneUuid: projects.zoneUuid,
       })
       .from(projects)
       .where(and(...whereConditions))
@@ -91,7 +86,7 @@ export class ProductivityRepository {
         details: projects.details,
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt,
-        zoneId: projects.zoneId,
+        zoneUuid: projects.zoneUuid,
       })
       .from(projects)
       .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
@@ -124,10 +119,28 @@ export class ProductivityRepository {
   // to infer it as `any`. This is a known Drizzle ORM limitation with circular references.
   // ESLint warnings for unsafe member access on `tasks` properties are expected and safe.
 
-  async createTask(userId: string, data: Omit<CreateTask, 'userId'>): Promise<TaskListItem> {
+  async createTask(userId: string, data: Omit<CreateTask, "userId">): Promise<TaskListItem> {
+    // Explicitly construct the insert data to avoid any extra fields
+    // Only include completedAt if it's explicitly provided (not null)
+    const insertData: any = {
+      userId,
+      name: data.name,
+      projectId: data.projectId,
+      zoneUuid: data.zoneUuid,
+      status: data.status,
+      priority: data.priority,
+      dueDate: data.dueDate,
+      details: data.details,
+    };
+
+    // Only add completedAt if it's not null (let DB default to null otherwise)
+    if (data.completedAt !== null) {
+      insertData.completedAt = data.completedAt;
+    }
+
     const [task] = await this.db
       .insert(tasks)
-      .values({ ...data, userId })
+      .values(insertData)
       .returning();
 
     if (!task) {
@@ -141,7 +154,6 @@ export class ProductivityRepository {
     userId: string,
     filters?: {
       projectId?: string | undefined;
-      parentTaskId?: string | null | undefined;
       status?: string[] | undefined;
       priority?: string[] | undefined;
     },
@@ -152,29 +164,15 @@ export class ProductivityRepository {
       whereConditions.push(eq(tasks.projectId, filters.projectId));
     }
 
-    if (filters?.parentTaskId !== undefined) {
-      if (filters.parentTaskId === null) {
-        whereConditions.push(isNull(tasks.parentTaskId));
-      } else {
-        whereConditions.push(eq(tasks.parentTaskId, filters.parentTaskId));
-      }
-    }
-
     if (filters?.status && filters.status.length > 0) {
       whereConditions.push(
-        inArray(
-          tasks.status,
-          filters.status as ("todo" | "in_progress" | "done" | "canceled")[],
-        ),
+        inArray(tasks.status, filters.status as ("todo" | "in_progress" | "done" | "canceled")[]),
       );
     }
 
     if (filters?.priority && filters.priority.length > 0) {
       whereConditions.push(
-        inArray(
-          tasks.priority,
-          filters.priority as ("low" | "medium" | "high" | "urgent")[],
-        ),
+        inArray(tasks.priority, filters.priority as ("low" | "medium" | "high")[]),
       );
     }
 
@@ -183,7 +181,7 @@ export class ProductivityRepository {
         id: tasks.id,
         userId: tasks.userId,
         projectId: tasks.projectId,
-        parentTaskId: tasks.parentTaskId,
+        zoneUuid: tasks.zoneUuid,
         name: tasks.name,
         status: tasks.status,
         priority: tasks.priority,
@@ -197,6 +195,40 @@ export class ProductivityRepository {
       .where(and(...whereConditions))
       .orderBy(desc(tasks.updatedAt));
 
+    // Fetch tags for all tasks in a single query
+    if (rows.length > 0) {
+      const taskIds = rows.map(r => r.id);
+      const taskTagsData = await this.db
+        .select({
+          taskId: taskTags.taskId,
+          tagId: tags.id,
+          tagName: tags.name,
+          tagColor: tags.color,
+          tagCategory: tags.category,
+        })
+        .from(taskTags)
+        .innerJoin(tags, eq(taskTags.tagId, tags.id))
+        .where(inArray(taskTags.taskId, taskIds));
+
+      // Group tags by task ID
+      const tagsByTaskId = taskTagsData.reduce((acc, row) => {
+        if (!acc[row.taskId]) acc[row.taskId] = [];
+        acc[row.taskId]!.push({
+          id: row.tagId,
+          name: row.tagName,
+          color: row.tagColor,
+          category: row.tagCategory,
+        });
+        return acc;
+      }, {} as Record<string, Array<{ id: string; name: string; color: string; category: string | null }>>);
+
+      // Attach tags to tasks
+      return rows.map(task => ({
+        ...task,
+        tags: tagsByTaskId[task.id] || [],
+      })) as TaskListItem[];
+    }
+
     return rows as TaskListItem[];
   }
 
@@ -206,7 +238,7 @@ export class ProductivityRepository {
         id: tasks.id,
         userId: tasks.userId,
         projectId: tasks.projectId,
-        parentTaskId: tasks.parentTaskId,
+        zoneUuid: tasks.zoneUuid,
         name: tasks.name,
         status: tasks.status,
         priority: tasks.priority,
@@ -229,7 +261,7 @@ export class ProductivityRepository {
         id: tasks.id,
         userId: tasks.userId,
         projectId: tasks.projectId,
-        parentTaskId: tasks.parentTaskId,
+        zoneUuid: tasks.zoneUuid,
         name: tasks.name,
         status: tasks.status,
         priority: tasks.priority,
@@ -246,29 +278,6 @@ export class ProductivityRepository {
     return rows as TaskListItem[];
   }
 
-  async getSubtasks(parentTaskId: string, userId: string): Promise<TaskListItem[]> {
-    const rows = await this.db
-      .select({
-        id: tasks.id,
-        userId: tasks.userId,
-        projectId: tasks.projectId,
-        parentTaskId: tasks.parentTaskId,
-        name: tasks.name,
-        status: tasks.status,
-        priority: tasks.priority,
-        dueDate: tasks.dueDate,
-        details: tasks.details,
-        completedAt: tasks.completedAt,
-        createdAt: tasks.createdAt,
-        updatedAt: tasks.updatedAt,
-      })
-      .from(tasks)
-      .where(and(eq(tasks.userId, userId), eq(tasks.parentTaskId, parentTaskId)))
-      .orderBy(asc(tasks.createdAt));
-
-    return rows as TaskListItem[];
-  }
-
   async updateTask(taskId: string, userId: string, data: Partial<CreateTask>): Promise<void> {
     // No filtering - service layer provides clean data
     await this.db
@@ -278,42 +287,8 @@ export class ProductivityRepository {
   }
 
   async deleteTask(taskId: string, userId: string): Promise<void> {
-    // Delete task and its contact tags
-    await this.db.delete(taskContactTags).where(eq(taskContactTags.taskId, taskId));
+    // Delete task (legacy task_contact_tags system removed)
     await this.db.delete(tasks).where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)));
-  }
-
-  // ============================================================================
-  // TASK CONTACT TAGS (Many-to-Many)
-  // ============================================================================
-
-  async addTaskContactTags(taskId: string, contactIds: string[]): Promise<void> {
-    if (contactIds.length === 0) return;
-
-    const tagData = contactIds.map((contactId) => ({
-      taskId,
-      contactId,
-    }));
-
-    await this.db.insert(taskContactTags).values(tagData).onConflictDoNothing();
-  }
-
-  async removeTaskContactTags(taskId: string, contactIds?: string[]): Promise<void> {
-    if (contactIds && contactIds.length > 0) {
-      // Remove specific contact tags
-      await this.db
-        .delete(taskContactTags)
-        .where(
-          and(eq(taskContactTags.taskId, taskId), inArray(taskContactTags.contactId, contactIds)),
-        );
-    } else {
-      // Remove all contact tags for this task
-      await this.db.delete(taskContactTags).where(eq(taskContactTags.taskId, taskId));
-    }
-  }
-
-  async getTaskContactTags(taskId: string): Promise<Array<{ taskId: string; contactId: string }>> {
-    return await this.db.select().from(taskContactTags).where(eq(taskContactTags.taskId, taskId));
   }
 
   // ============================================================================

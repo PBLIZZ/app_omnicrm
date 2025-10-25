@@ -132,19 +132,6 @@ export {
   type CronJobResult,
 } from "./jobs";
 
-// Sync Progress & Session Management
-export {
-  SyncProgressQuerySchema,
-  SyncProgressResponseSchema,
-  SyncCancelResponseSchema,
-  SyncSessionErrorSchema,
-  UserSyncPrefsUpdateSchema,
-  SyncSessionSchema,
-  NewSyncSessionSchema,
-  DrivePreferencesSchema,
-  type DrivePreferences,
-} from "./sync-progress";
-
 // Inbox Management
 // Base types (InboxItem, CreateInboxItem, UpdateInboxItem) are re-exported from schema.ts
 export * from "./productivity";
@@ -169,6 +156,14 @@ export {
   UserDeletionRequestSchema,
   UserDeletionResponseSchema,
 } from "./user-management";
+
+// User Profile
+export {
+  UpdateUserProfileSchema,
+  UserProfileSchema,
+  type UpdateUserProfileBody,
+  type UserProfileResponse,
+} from "./user-profile";
 
 // Onboarding Management
 export {

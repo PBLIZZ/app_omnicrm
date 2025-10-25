@@ -33,7 +33,6 @@ export interface MarketingWikiItem {
   title: string;
   summary: string;
   category: "strategy" | "content" | "automation" | "analytics";
-  tags: string[];
   dateAdded: string;
 }
 

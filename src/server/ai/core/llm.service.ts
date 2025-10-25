@@ -33,7 +33,6 @@ export interface InsightResponse {
   title: string;
   summary: string;
   confidence: number;
-  tags: string[];
   priority: string;
 }
 
@@ -157,7 +156,6 @@ ${JSON.stringify(request.context, null, 2)}`,
       title: string;
       summary: string;
       confidence: number;
-      tags: string[];
       priority: string;
     }>(userId, {
       model: "default",
@@ -168,10 +166,9 @@ ${JSON.stringify(request.context, null, 2)}`,
           title: { type: "string" },
           summary: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
-          tags: { type: "array", items: { type: "string" } },
           priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
         },
-        required: ["title", "summary", "confidence", "tags", "priority"],
+        required: ["title", "summary", "confidence", "priority"],
       },
     });
 
@@ -181,7 +178,6 @@ ${JSON.stringify(request.context, null, 2)}`,
       title: "Contact Summary",
       summary: "Unable to generate summary due to processing error",
       confidence: 0.1,
-      tags: ["error"],
       priority: "low",
     };
   }
@@ -210,7 +206,6 @@ ${JSON.stringify(request.context, null, 2)}`,
       title: string;
       summary: string;
       confidence: number;
-      tags: string[];
       priority: string;
     }>(userId, {
       model: "default",
@@ -221,10 +216,9 @@ ${JSON.stringify(request.context, null, 2)}`,
           title: { type: "string" },
           summary: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
-          tags: { type: "array", items: { type: "string" } },
           priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
         },
-        required: ["title", "summary", "confidence", "tags", "priority"],
+        required: ["title", "summary", "confidence", "priority"],
       },
     });
 
@@ -234,7 +228,6 @@ ${JSON.stringify(request.context, null, 2)}`,
       title: "Next Steps",
       summary: "Unable to generate next steps due to processing error",
       confidence: 0.1,
-      tags: ["error"],
       priority: "low",
     };
   }
@@ -263,7 +256,6 @@ ${JSON.stringify(request.context, null, 2)}`,
       title: string;
       summary: string;
       confidence: number;
-      tags: string[];
       priority: string;
     }>(userId, {
       model: "default",
@@ -274,10 +266,9 @@ ${JSON.stringify(request.context, null, 2)}`,
           title: { type: "string" },
           summary: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
-          tags: { type: "array", items: { type: "string" } },
           priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
         },
-        required: ["title", "summary", "confidence", "tags", "priority"],
+        required: ["title", "summary", "confidence", "priority"],
       },
     });
 
@@ -287,7 +278,6 @@ ${JSON.stringify(request.context, null, 2)}`,
       title: "Risk Assessment",
       summary: "Unable to assess risks due to processing error",
       confidence: 0.1,
-      tags: ["error"],
       priority: "low",
     };
   }
@@ -316,7 +306,6 @@ ${JSON.stringify(request.context, null, 2)}`,
       title: string;
       summary: string;
       confidence: number;
-      tags: string[];
       priority: string;
     }>(userId, {
       model: "default",
@@ -327,10 +316,9 @@ ${JSON.stringify(request.context, null, 2)}`,
           title: { type: "string" },
           summary: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
-          tags: { type: "array", items: { type: "string" } },
           priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
         },
-        required: ["title", "summary", "confidence", "tags", "priority"],
+        required: ["title", "summary", "confidence", "priority"],
       },
     });
 
@@ -340,7 +328,6 @@ ${JSON.stringify(request.context, null, 2)}`,
       title: "Persona Insight",
       summary: "Unable to analyze persona due to processing error",
       confidence: 0.1,
-      tags: ["error"],
       priority: "low",
     };
   }

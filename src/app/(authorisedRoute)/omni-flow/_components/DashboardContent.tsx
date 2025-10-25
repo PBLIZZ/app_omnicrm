@@ -192,17 +192,17 @@ export default function DashboardContent(): JSX.Element {
                       <div className="text-sm font-medium">Gmail</div>
                       <div
                         className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                          sync?.services?.gmail?.connected
+                          sync?.gmail?.connected
                             ? "bg-green-100 text-green-700"
                             : "bg-red-100 text-red-700"
                         }`}
                       >
-                        {sync?.services?.gmail?.connected ? "Connected" : "Not Connected"}
+                        {sync?.gmail?.connected ? "Connected" : "Not Connected"}
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {sync?.services?.gmail?.lastSync
-                        ? `Last synced: ${new Date(sync.services.gmail.lastSync).toLocaleDateString()} at ${new Date(sync.services.gmail.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                      {sync?.gmail?.lastSync
+                        ? `Last synced: ${new Date(sync.gmail.lastSync).toLocaleDateString()} at ${new Date(sync.gmail.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
                         : "Never synced"}
                     </div>
                   </div>
@@ -213,17 +213,17 @@ export default function DashboardContent(): JSX.Element {
                       <div className="text-sm font-medium">Calendar</div>
                       <div
                         className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                          sync?.services?.calendar?.connected
+                          sync?.calendar?.connected
                             ? "bg-green-100 text-green-700"
                             : "bg-red-100 text-red-700"
                         }`}
                       >
-                        {sync?.services?.calendar?.connected ? "Connected" : "Not Connected"}
+                        {sync?.calendar?.connected ? "Connected" : "Not Connected"}
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {sync?.services?.calendar?.lastSync
-                        ? `Last synced: ${new Date(sync.services.calendar.lastSync).toLocaleDateString()} at ${new Date(sync.services.calendar.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                      {sync?.calendar?.lastSync
+                        ? `Last synced: ${new Date(sync.calendar.lastSync).toLocaleDateString()} at ${new Date(sync.calendar.lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
                         : "Never synced"}
                     </div>
                   </div>

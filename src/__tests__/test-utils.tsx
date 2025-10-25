@@ -17,7 +17,6 @@ const baseMockContact = {
   primaryPhone: "+1234567890",
   source: "manual" as const,
   stage: "Core Client" as const,
-  tags: ["yoga", "regular"],
   confidenceScore: "0.85",
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",

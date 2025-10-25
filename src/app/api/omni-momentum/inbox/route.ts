@@ -5,12 +5,27 @@ import {
   quickCaptureService,
 } from "@/server/services/inbox.service";
 import { intelligentQuickCaptureService } from "@/server/services/enhanced-inbox.service";
+import { InboxStatsResponseSchema } from "@/server/db/business-schemas/productivity";
 import { z } from "zod";
 
 // Schema for query parameters
 const InboxQuerySchema = z.object({
-  status: z.array(z.string()).optional(),
-  stats: z.string().optional(),
+  status: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val): string[] | undefined => {
+      if (!val) return undefined;
+      if (typeof val === "string") return [val];
+      return val;
+    }),
+  stats: z
+    .union([z.literal("true"), z.literal("false"), z.boolean()])
+    .optional()
+    .transform((val): string | undefined => {
+      if (val === "true" || val === true) return "true";
+      if (val === "false" || val === false) return "false";
+      return undefined;
+    }),
 });
 
 // Response schemas
@@ -19,20 +34,11 @@ const InboxListResponseSchema = z.object({
   total: z.number(),
 });
 
-const InboxStatsResponseSchema = z.object({
-  total: z.number(),
-  unprocessed: z.number(),
-  processed: z.number(),
-  archived: z.number(),
-  recentActivity: z.number(),
-});
-
 // Schema for creating inbox items
 const CreateInboxItemSchema = z.object({
   content: z.string().min(1, "Content is required"),
   source: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]).optional().default("medium"),
-  tags: z.array(z.string()).optional().default([]),
   enableIntelligentProcessing: z.boolean().optional().default(false),
 });
 
@@ -49,8 +55,9 @@ export const GET = handleGetWithQueryAuth(
   z.union([InboxListResponseSchema, InboxStatsResponseSchema]),
   async (query, userId): Promise<unknown> => {
     if (query.stats === "true") {
-      // Return inbox statistics
-      return await getInboxStatsService(userId);
+      // Return inbox statistics wrapped in stats property per schema
+      const stats = await getInboxStatsService(userId);
+      return { stats };
     }
 
     // Get inbox items with filters

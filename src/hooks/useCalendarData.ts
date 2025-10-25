@@ -142,38 +142,25 @@ export function useCalendarData(): UseCalendarDataResult {
     queryFn: async (): Promise<CalendarConnectionStatus> => {
       // Use unified status API with auto-refresh and caching
       const response = await apiClient.get<{
-        services: {
-          calendar: {
-            connected: boolean;
-            integration?: {
-              hasRefreshToken?: boolean;
-            };
-            autoRefreshed?: boolean;
-            lastSync?: string;
-          };
+        calendar: {
+          connected: boolean;
+          lastSync: string | null;
         };
         upcomingEventsCount?: number;
       }>("/api/google/status", { showErrorToast: false });
 
-      const calendarService = response.services?.calendar;
-      if (!calendarService) {
+      const calendar = response.calendar;
+      if (!calendar) {
         return { isConnected: false, upcomingEventsCount: 0, reason: "api_error" };
       }
 
       return {
-        isConnected: calendarService.connected,
+        isConnected: calendar.connected,
         upcomingEventsCount: response.upcomingEventsCount ?? 0,
-        reason: calendarService.connected ? "connected" : "token_expired",
-        ...(calendarService.integration?.hasRefreshToken !== undefined && {
-          hasRefreshToken: calendarService.integration.hasRefreshToken,
+        reason: calendar.connected ? "connected" : "token_expired",
+        ...(calendar.lastSync !== null && {
+          lastSync: calendar.lastSync,
         }),
-        ...(calendarService.autoRefreshed !== undefined && {
-          autoRefreshed: calendarService.autoRefreshed,
-        }),
-        ...(calendarService.lastSync !== undefined &&
-          calendarService.lastSync !== null && {
-            lastSync: calendarService.lastSync,
-          }),
       };
     },
     staleTime: 15_000,

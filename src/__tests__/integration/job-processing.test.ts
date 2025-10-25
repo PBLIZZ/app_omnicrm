@@ -76,7 +76,7 @@ describe("Background Job Processing Integration Tests", () => {
         return {
           id: `insight-${contactId}`,
           stage: "New Client",
-          tags: ["ai-generated", "wellness"],
+          // tags: ["ai-generated", "wellness"], // Tags field removed - now using relational tagging system
           confidenceScore: 0.82,
           reasoning: "AI analysis complete",
         };
@@ -469,7 +469,7 @@ describe("Background Job Processing Integration Tests", () => {
           .update(contacts)
           .set({
             lifecycleStage: "Prospect",
-            tags: ["normalized", "batch-import"],
+            // tags: ["normalized", "batch-import"], // Tags field removed - now using relational tagging system
             updatedAt: new Date(),
           })
           .where(eq(contacts.id, extractJobPayloadField(job[0]!.payload, "contactId")));
@@ -552,13 +552,14 @@ describe("Background Job Processing Integration Tests", () => {
         );
 
       expect(processedContacts.every((c) => c.lifecycleStage === "Prospect")).toBe(true);
-      expect(
-        processedContacts.every((c) => {
-          if (!c.tags) return false;
-          const tags = Array.isArray(c.tags) ? c.tags : JSON.parse(c.tags as string);
-          return tags.includes("normalized");
-        }),
-      ).toBe(true);
+      // Tags field removed - now using relational tagging system
+      // expect(
+      //   processedContacts.every((c) => {
+      //     if (!c.tags) return false;
+      //     const tags = Array.isArray(c.tags) ? c.tags : JSON.parse(c.tags as string);
+      //     return tags.includes("normalized");
+      //   }),
+      // ).toBe(true);
 
       // Verify insights were generated for all contacts
       const generatedInsights = await db

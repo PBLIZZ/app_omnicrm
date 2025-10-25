@@ -1,5 +1,6 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { getSubtasksService, createTaskService } from "@/server/services/productivity.service";
+import { getSubtasksService } from "@/server/services/productivity.service";
+import { createTaskService } from "@/server/services/tasks.service";
 import { CreateTaskSchema, TaskSchema, TaskFiltersSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 

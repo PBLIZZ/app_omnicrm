@@ -302,19 +302,64 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
     }): Promise<Task> => {
       return await apiClient.put<Task>(`/api/omni-momentum/tasks/${taskId}`, data);
     },
+    // Optimistic update - update UI immediately before API call completes
+    onMutate: async ({ taskId, data }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.momentum.tasks(projectId ? { projectId } : {}) });
+      await queryClient.cancelQueries({ queryKey: ["momentum", "top3-tasks"] });
+
+      // Snapshot previous values for rollback
+      const previousTasks = queryClient.getQueryData<Task[]>(queryKeys.momentum.tasks(projectId ? { projectId } : {}));
+      const previousTop3 = queryClient.getQueryData(["momentum", "top3-tasks"]);
+
+      // Optimistically update tasks cache
+      queryClient.setQueryData<Task[]>(
+        queryKeys.momentum.tasks(projectId ? { projectId } : {}),
+        (old) => old?.map((task) => (task.id === taskId ? { ...task, ...data } as Task : task)),
+      );
+
+      // Optimistically update top3 cache
+      queryClient.setQueryData<{ tasks: Task[]; summary: string }>(
+        ["momentum", "top3-tasks"],
+        (old) => {
+          if (!old?.tasks) return old;
+          return {
+            ...old,
+            tasks: old.tasks.map((task) => (task.id === taskId ? { ...task, ...data } as Task : task)),
+          };
+        },
+      );
+
+      // Return context for rollback
+      return { previousTasks, previousTop3 };
+    },
     onSuccess: (updatedTask) => {
+      // Update with real data from server
       queryClient.setQueryData<Task[]>(
         queryKeys.momentum.tasks(projectId ? { projectId } : {}),
         (old) =>
           old?.map((task) => (task.id === updatedTask.id ? updatedTask : task)) ?? [updatedTask],
       );
+      queryClient.setQueryData<{ tasks: Task[]; summary: string }>(
+        ["momentum", "top3-tasks"],
+        (old) => {
+          if (!old?.tasks) return old;
+          return {
+            ...old,
+            tasks: old.tasks.map((task) => (task.id === updatedTask.id ? updatedTask : task)),
+          };
+        },
+      );
       queryClient.invalidateQueries({ queryKey: queryKeys.momentum.stats() });
-      toast({
-        title: "Task updated",
-        description: "Your changes have been saved.",
-      });
     },
-    onError: () => {
+    onError: (_error, _variables, context) => {
+      // Rollback on error
+      if (context?.previousTasks) {
+        queryClient.setQueryData(queryKeys.momentum.tasks(projectId ? { projectId } : {}), context.previousTasks);
+      }
+      if (context?.previousTop3) {
+        queryClient.setQueryData(["momentum", "top3-tasks"], context.previousTop3);
+      }
       toast({
         title: "Failed to update task",
         description: "Please try again.",
@@ -511,8 +556,11 @@ export function useTodaysFocus() {
   return useQuery({
     queryKey: queryKeys.momentum.todaysFocus(),
     queryFn: async (): Promise<Task[]> => {
+      // Only fetch top-level tasks (no parent) with todo status
+      const params = new URLSearchParams({ status: "todo" });
+      // Don't send parentTaskId at all - undefined query params are better than "null" strings
       const tasks = await apiClient.get<Task[]>(
-        "/api/omni-momentum/tasks?status=todo&parentTaskId=null",
+        `/api/omni-momentum/tasks?${params.toString()}`,
       );
       // Return top 3 tasks sorted by priority and due date
       return tasks

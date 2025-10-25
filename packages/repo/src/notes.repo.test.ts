@@ -16,7 +16,6 @@ describe("NotesRepository", () => {
     contactId: mockContactId,
     contentPlain: "Test note content",
     contentRich: {},
-    tags: [],
     piiEntities: [],
     sourceType: "typed",
     createdAt: new Date(),
@@ -262,17 +261,13 @@ describe("NotesRepository", () => {
     });
 
     it("should update only provided fields", async () => {
-      const mockNote = createMockNote({ tags: ["updated", "tags"] });
-      const updateBuilder = createMockQueryBuilder([mockNote]);
+      const updateBuilder = createMockQueryBuilder([createMockNote()]);
 
       vi.mocked(mockDb.update).mockReturnValue(updateBuilder);
 
-      const result = await repo.updateNote(mockUserId, mockNoteId, {
-        tags: ["updated", "tags"],
-      });
+      const result = await repo.updateNote(mockUserId, mockNoteId, {});
 
       expect(result).not.toBeNull();
-      expect(result?.tags).toEqual(["updated", "tags"]);
     });
 
     it("should return null when note not found", async () => {

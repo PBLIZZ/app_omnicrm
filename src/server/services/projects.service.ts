@@ -24,7 +24,7 @@ export async function createProjectService(
   userId: string,
   data: {
     name: string;
-    zoneId?: number | null | undefined;
+    zoneUuid?: string | null | undefined;
     dueDate?: Date | null | undefined;
     details?: unknown;
     status?: string | undefined;
@@ -40,7 +40,7 @@ export async function createProjectService(
     // Create project with normalized data
     const project = await repo.createProject(userId, {
       name: data.name,
-      zoneId: data.zoneId ?? null,
+      zoneUuid: data.zoneUuid ?? null,
       dueDate: data.dueDate ? data.dueDate.toISOString() : null,
       details: normalizedDetails,
       status: (data.status ?? "active") as "active" | "on_hold" | "completed" | "archived",
@@ -85,7 +85,7 @@ export async function getProjectService(
 export async function listProjectsService(
   userId: string,
   filters?: {
-    zoneId?: number | undefined;
+    zoneUuid?: string | undefined;
     status?: string[] | undefined;
   },
 ): Promise<Project[]> {
@@ -112,7 +112,7 @@ export async function updateProjectService(
   userId: string,
   data: {
     name?: string | undefined;
-    zoneId?: number | null | undefined;
+    zoneUuid?: string | null | undefined;
     dueDate?: Date | null | undefined;
     details?: unknown;
     status?: string | undefined;
@@ -124,7 +124,7 @@ export async function updateProjectService(
   try {
     // Business logic: Filter undefined values and normalize details
     const cleanData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
+      Object.entries(data).filter(([, value]) => value !== undefined),
     );
 
     // Business logic: Sanitize details field if present

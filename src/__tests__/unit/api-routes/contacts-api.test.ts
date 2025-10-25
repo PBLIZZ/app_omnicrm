@@ -49,7 +49,7 @@ function createMockContact(overrides: Partial<any> = {}) {
     photoUrl: "https://example.com/photo.jpg",
     source: "manual",
     lifecycleStage: "New Client",
-    tags: ["test"],
+    // tags: ["test"], // Tags field removed - now using relational tagging system
     confidenceScore: "0.8",
     dateOfBirth: "1990-01-01",
     emergencyContactName: "Jane Doe",
@@ -86,7 +86,7 @@ vi.mock("@/server/services/contacts.service", () => ({
       photoUrl: "https://example.com/photo.jpg",
       source: "manual",
       lifecycleStage: "New Client",
-      tags: ["test"],
+      // tags: ["test"], // Tags field removed - now using relational tagging system
       confidenceScore: "0.8",
       dateOfBirth: "1990-01-01",
       emergencyContactName: "Jane Doe",
@@ -105,7 +105,7 @@ vi.mock("@/server/services/contacts.service", () => ({
           contactId: "123e4567-e89b-12d3-a456-426614174000",
           contentRich: null,
           contentPlain: "Test note",
-          tags: [],
+          // tags: [], // Tags field removed - now using relational tagging system
           createdAt: new Date("2024-01-01T00:00:00Z"),
           updatedAt: new Date("2024-01-01T00:00:00Z"),
         },
@@ -321,7 +321,6 @@ describe("Contacts API Routes - Unit Tests", () => {
             contentRich: null,
             contentPlain: "Test note",
             piiEntities: [],
-            tags: [],
             sourceType: "typed",
             createdAt: new Date("2024-01-01T00:00:00Z"),
             updatedAt: new Date("2024-01-01T00:00:00Z"),

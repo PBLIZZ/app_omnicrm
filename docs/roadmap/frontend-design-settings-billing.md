@@ -1,1518 +1,695 @@
-# Frontend Design: Settings & Billing Interface Restructure
+# Frontend Design: Settings & Billing Interface - Current Implementation
 
-**Date:** August 12, 2025  
-**Project:** OmniCRM Settings & Billing Module Redesign  
-**Focus:** Modular Architecture, UX Excellence, GDPR Compliance
+**Date:** October 24, 2025 (Updated from August 12, 2025)
+**Project:** OmniCRM Settings & Billing Module
+**Status:** ✅ IMPLEMENTED (with documented gaps)
+
+---
+
+## Document Status & Purpose
+
+**This document has been updated to reflect the ACTUAL current implementation** rather than proposed future architecture. It serves as:
+1. Documentation of what EXISTS in the codebase
+2. Identification of gaps between original design and implementation
+3. Reference for future enhancements
+
+### Implementation Status Overview
+
+| Feature | Status | Location |
+|---------|--------|----------|
+| Settings Navigation | ✅ Implemented | `/settings/_components/SettingsSidebar.tsx` |
+| Account Page | ✅ Implemented | `/settings/account/page.tsx` |
+| Google Integrations | ✅ Implemented | Gmail & Calendar only |
+| Gmail Direct Sync | ✅ Implemented | Simplified - no job polling |
+| Theme Toggle | ✅ Implemented | Global header (not settings page) |
+| Tags Management | ✅ Implemented | `/settings/tags/page.tsx` (not linked) |
+| Billing Page | ❌ Not Implemented | Navigation link exists but no page |
+| Notifications Page | ❌ Not Implemented | Navigation link exists but no page |
+| Drive Integration | ❌ Not Implemented | Backend exists, no UI settings |
+| WhatsApp Integration | ❌ Never Implemented | Removed from design |
+| OpenAI Integration | ❌ Never Implemented | Removed from design |
 
 ---
 
 ## Overview
 
-This design addresses the critical findings from the comprehensive audit of the monolithic SyncSettingsPage (459 lines, 7 alert() calls, multiple responsibilities). The solution provides a modern, maintainable settings interface that follows component-driven architecture principles and integrates seamlessly with the existing shadcn/ui ecosystem.
+The settings interface implements a modern, modular architecture using shadcn/ui components with Next.js 15 App Router. The system provides:
 
-### Key Design Goals
+1. **Sidebar Navigation** - Persistent settings menu with integration status indicators
+2. **Account Management** - User profile with auto-populated data from Supabase Auth
+3. **Google Integrations** - Direct OAuth connections for Gmail and Calendar
+4. **Simplified Gmail Sync** - Direct sync endpoint (no complex job polling)
+5. **Theme Management** - Global header toggle for light/dark/system themes
+6. **Tags System** - Wellness-focused semantic tagging (5 categories)
 
-1. **Modular Component Architecture** - Replace monolithic component with focused, reusable modules
-2. **Progressive Disclosure** - Organize complex settings with intuitive navigation
-3. **European UX Standards** - DD/MM/YYYY dates, GDPR compliance built-in
-4. **Toast-Based Notifications** - Replace alert() calls with proper user feedback
-5. **Integration Management** - Visual status indicators for Google services
-6. **Billing & Subscription Management** - Plan upgrades, usage tracking, AI token management
+### Key Design Principles (Implemented)
 
----
-
-## Current Issues Analysis
-
-### Critical Problems Identified
-
-```typescript
-// BEFORE: Monolithic component with multiple responsibilities
-export default function SyncSettingsPage() {
-  // 459 lines of mixed concerns:
-  // - Google OAuth management
-  // - Sync preferences configuration
-  // - Preview and approval workflows
-  // - Error handling via alert()
-  // - State management sprawl
-
-  // ❌ 7 alert() calls - poor UX
-  alert(`Preview failed: ${result.error ?? "unknown_error"}`);
-  alert(`Undo: ${j.ok ? "ok" : j.error}`);
-
-  // ❌ Inline error handling - not reusable
-  // ❌ No loading states - poor feedback
-  // ❌ Mixed API concerns - hard to test
-  // ❌ US date formats - not European-friendly
-}
-```
-
-### Design System Integration
-
-**Current shadcn/ui Components Available:**
-
-- Button, Card, Dialog, Sheet, Sidebar
-- Input, Label, Textarea, Dropdown Menu
-- Badge, Avatar, Separator, Skeleton
-- Sonner (Toast system) - already implemented
-
-**Color Scheme (Current Implementation):**
-
-```css
-:root {
-  --primary: oklch(0.208 0.042 265.755); /* Deep blue-violet */
-  --secondary: oklch(0.968 0.007 247.896); /* Light neutral */
-  --accent: oklch(0.968 0.007 247.896); /* Accent neutral */
-  --destructive: oklch(0.577 0.245 27.325); /* Red-orange */
-
-  /* Chart colors for status indicators */
-  --chart-1: oklch(0.646 0.222 41.116); /* Amber/Orange */
-  --chart-2: oklch(0.6 0.118 184.704); /* Teal/Cyan */
-  --chart-3: oklch(0.398 0.07 227.392); /* Violet/Purple */
-  --chart-4: oklch(0.828 0.189 84.429); /* Sky/Green */
-}
-```
+✅ **Modular Component Architecture** - Focused components in `_components/` directories
+✅ **Toast-Based Notifications** - Sonner toast system replaces alert() calls
+✅ **shadcn/ui Integration** - Consistent design system across all settings
+✅ **Auto-populated User Data** - Pulls from Supabase Auth, no manual entry
+✅ **Direct Sync Pattern** - Simple POST to sync endpoint, immediate completion
 
 ---
 
-## Component Architecture Design
+## Current Architecture
 
 ### 1. Settings Layout Structure
 
+**Main Layout:** `/app/(authorisedRoute)/settings/layout.tsx` uses MainLayout with SettingsSidebar
+
+**Current Navigation Structure:**
 ```typescript
-// /src/components/settings/SettingsLayout.tsx
-interface SettingsLayoutProps {
-  children: React.ReactNode;
-  currentCategory: SettingsCategory;
-}
-
-export function SettingsLayout({ children, currentCategory }: SettingsLayoutProps) {
-  return (
-    <div className="flex min-h-screen">
-      <SettingsSidebar currentCategory={currentCategory} />
-      <main className="flex-1 p-8">
-        <SettingsHeader category={currentCategory} />
-        <div className="max-w-4xl">
-          {children}
-        </div>
-      </main>
-    </div>
-  );
-}
-```
-
-### 2. Settings Navigation System
-
-```typescript
-// /src/components/settings/SettingsSidebar.tsx
-type SettingsCategory =
-  | "profile"
-  | "integrations"
-  | "billing"
-  | "ai-assistant"
-  | "privacy-gdpr"
-  | "appearance";
-
-interface SettingsNavItem {
-  key: SettingsCategory;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badge?: string | number;
-  description: string;
-}
-
-const SETTINGS_NAVIGATION: SettingsNavItem[] = [
-  {
-    key: "profile",
-    label: "Profile & Account",
-    icon: User,
-    description: "Personal information and preferences",
-  },
-  {
-    key: "integrations",
-    label: "Integrations",
-    icon: Zap,
-    badge: "Connected",
-    description: "Google, Calendar, and third-party connections",
-  },
-  {
-    key: "billing",
-    label: "Billing & Plans",
-    icon: CreditCard,
-    description: "Subscription, usage, and payment methods",
-  },
-  {
-    key: "ai-assistant",
-    label: "AI Assistant",
-    icon: Bot,
-    badge: "Beta",
-    description: "Chat settings and AI token management",
-  },
-  {
-    key: "privacy-gdpr",
-    label: "Privacy & GDPR",
-    icon: Shield,
-    description: "Data privacy, export, and deletion controls",
-  },
-  {
-    key: "appearance",
-    label: "Appearance",
-    icon: Palette,
-    description: "Theme, language, and display preferences",
-  },
+// /src/app/(authorisedRoute)/settings/_components/SettingsSidebar.tsx
+const settingsNavItems = [
+  { title: "Account", href: "/settings/account", icon: User },
+  { title: "Billing", href: "/settings/billing", icon: CreditCard },      // ⚠️ No page
+  { title: "Notifications", href: "/settings/notifications", icon: Bell }, // ⚠️ No page
+  { title: "Intake Form", href: "/settings/onboarding", icon: FileText },
 ];
+
+// Missing from navigation but exists:
+// - Tags (/settings/tags) - Full implementation, just needs nav link
 ```
 
-### 3. Integrations Management (Redesigned Sync Settings)
-
+**Integrations Section (In Sidebar):**
 ```typescript
-// /src/components/settings/integrations/IntegrationsPage.tsx
-export function IntegrationsPage() {
-  return (
-    <div className="space-y-8">
-      <GoogleIntegrationCard />
-      <SyncPreferencesCard />
-      <SyncHistoryCard />
-      <IntegrationStatusCard />
-    </div>
-  );
-}
-
-// /src/components/settings/integrations/GoogleIntegrationCard.tsx
-interface GoogleConnectionStatus {
-  gmail: {
-    connected: boolean;
-    lastSync: Date | null;
-    emailCount: number;
-    status: 'active' | 'error' | 'syncing';
-  };
-  calendar: {
-    connected: boolean;
-    lastSync: Date | null;
-    eventCount: number;
-    status: 'active' | 'error' | 'syncing';
-  };
-}
-
-export function GoogleIntegrationCard() {
-  const { status, connect, disconnect } = useGoogleIntegration();
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <div className="p-2 bg-chart-2/10 rounded-md">
-            <Mail className="h-4 w-4 text-chart-2" />
-          </div>
-          Google Workspace
-        </CardTitle>
-        <CardDescription>
-          Connect Gmail and Calendar for automatic contact and event synchronization
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        <div className="grid md:grid-cols-2 gap-4">
-          <GoogleServiceCard
-            service="gmail"
-            icon={<Mail className="h-4 w-4" />}
-            title="Gmail Integration"
-            status={status.gmail}
-            onConnect={() => connect('gmail')}
-            onDisconnect={() => disconnect('gmail')}
-          />
-
-          <GoogleServiceCard
-            service="calendar"
-            icon={<Calendar className="h-4 w-4" />}
-            title="Calendar Integration"
-            status={status.calendar}
-            onConnect={() => connect('calendar')}
-            onDisconnect={() => disconnect('calendar')}
-          />
-        </div>
-
-        {(status.gmail.connected || status.calendar.connected) && (
-          <SyncActionsPanel />
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// /src/components/settings/integrations/GoogleServiceCard.tsx
-interface GoogleServiceCardProps {
-  service: 'gmail' | 'calendar';
-  icon: React.ReactNode;
-  title: string;
-  status: GoogleConnectionStatus['gmail'] | GoogleConnectionStatus['calendar'];
-  onConnect: () => Promise<void>;
-  onDisconnect: () => Promise<void>;
-}
-
-export function GoogleServiceCard({ service, icon, title, status, onConnect, onDisconnect }: GoogleServiceCardProps) {
-  const { isConnecting } = useConnectionState(service);
-
-  return (
-    <div className="border rounded-lg p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {icon}
-          <span className="font-medium">{title}</span>
-        </div>
-
-        <ConnectionStatusBadge status={status.status} connected={status.connected} />
-      </div>
-
-      {status.connected && (
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <div className="flex justify-between">
-            <span>Last sync:</span>
-            <span>{formatEuropeanDate(status.lastSync)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>{service === 'gmail' ? 'Emails' : 'Events'}:</span>
-            <span>{status.emailCount || status.eventCount}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        {status.connected ? (
-          <>
-            <Button variant="outline" size="sm" onClick={() => handleSync(service)}>
-              <RefreshCw className="h-3 w-3 mr-1" />
-              Sync Now
-            </Button>
-            <Button variant="outline" size="sm" onClick={onDisconnect}>
-              Disconnect
-            </Button>
-          </>
-        ) : (
-          <Button
-            onClick={onConnect}
-            disabled={isConnecting}
-            className="w-full"
-          >
-            {isConnecting ? (
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            ) : (
-              icon
-            )}
-            Connect {title}
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-```
-
-### 4. Sync Preferences with Smart Defaults
-
-```typescript
-// /src/components/settings/integrations/SyncPreferencesCard.tsx
-interface SyncPreferencesFormData {
-  gmail: {
-    query: string;
-    labelIncludes: string[];
-    labelExcludes: string[];
-    syncFrequency: 'realtime' | 'hourly' | 'daily' | 'manual';
-  };
-  calendar: {
-    includeOrganizerSelf: boolean;
-    includePrivate: boolean;
-    timeWindowDays: number;
-    syncFrequency: 'realtime' | 'hourly' | 'daily' | 'manual';
-  };
-}
-
-export function SyncPreferencesCard() {
-  const { preferences, updatePreferences, isLoading } = useSyncPreferences();
-  const [isEditing, setIsEditing] = useState(false);
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Sync Preferences</CardTitle>
-            <CardDescription>
-              Configure what data to sync and how frequently
-            </CardDescription>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditing(!isEditing)}
-          >
-            <Settings2 className="h-3 w-3 mr-1" />
-            {isEditing ? 'Save' : 'Edit'}
-          </Button>
-        </div>
-      </CardHeader>
-
-      <CardContent>
-        <div className="grid md:grid-cols-2 gap-6">
-          <GmailPreferencesPanel
-            preferences={preferences.gmail}
-            isEditing={isEditing}
-            onChange={(gmail) => updatePreferences({ gmail })}
-          />
-
-          <CalendarPreferencesPanel
-            preferences={preferences.calendar}
-            isEditing={isEditing}
-            onChange={(calendar) => updatePreferences({ calendar })}
-          />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// /src/components/settings/integrations/GmailPreferencesPanel.tsx
-export function GmailPreferencesPanel({ preferences, isEditing, onChange }: GmailPreferencesPanelProps) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 pb-2 border-b">
-        <Mail className="h-4 w-4 text-chart-2" />
-        <span className="font-medium">Gmail Settings</span>
-      </div>
-
-      <div className="space-y-3">
-        <div>
-          <Label htmlFor="gmail-query">Search Query</Label>
-          <Input
-            id="gmail-query"
-            value={preferences.query}
-            onChange={(e) => onChange({ ...preferences, query: e.target.value })}
-            disabled={!isEditing}
-            placeholder="is:unread -label:spam"
-            className="font-mono text-sm"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Use Gmail search syntax to filter emails
-          </p>
-        </div>
-
-        <div>
-          <Label>Include Labels</Label>
-          <TagInput
-            value={preferences.labelIncludes}
-            onChange={(labels) => onChange({ ...preferences, labelIncludes: labels })}
-            disabled={!isEditing}
-            placeholder="Add label..."
-          />
-        </div>
-
-        <div>
-          <Label>Exclude Labels</Label>
-          <TagInput
-            value={preferences.labelExcludes}
-            onChange={(labels) => onChange({ ...preferences, labelExcludes: labels })}
-            disabled={!isEditing}
-            placeholder="Add label..."
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="gmail-frequency">Sync Frequency</Label>
-          <Select
-            value={preferences.syncFrequency}
-            onValueChange={(value) => onChange({ ...preferences, syncFrequency: value })}
-            disabled={!isEditing}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="realtime">Real-time</SelectItem>
-              <SelectItem value="hourly">Every hour</SelectItem>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="manual">Manual only</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    </div>
-  );
-}
-```
-
-### 5. Billing & Subscription Management
-
-```typescript
-// /src/components/settings/billing/BillingPage.tsx
-interface SubscriptionPlan {
-  id: string;
-  name: string;
-  price: number;
-  currency: 'EUR' | 'USD' | 'GBP';
-  interval: 'month' | 'year';
-  features: string[];
-  aiTokens: number;
-  contactLimit: number;
-  current: boolean;
-}
-
-interface UsageMetrics {
-  aiTokensUsed: number;
-  aiTokensLimit: number;
-  contactsCount: number;
-  contactsLimit: number;
-  storageUsed: number; // in MB
-  storageLimit: number; // in MB
-  billingPeriodStart: Date;
-  billingPeriodEnd: Date;
-}
-
-export function BillingPage() {
-  const { subscription, usage, paymentMethods } = useBilling();
-
-  return (
-    <div className="space-y-8">
-      <CurrentPlanCard subscription={subscription} />
-      <UsageOverviewCard usage={usage} />
-      <AITokenManagementCard usage={usage} />
-      <PaymentMethodsCard methods={paymentMethods} />
-      <BillingHistoryCard />
-      <PlanComparisonCard currentPlan={subscription.plan} />
-    </div>
-  );
-}
-
-// /src/components/settings/billing/CurrentPlanCard.tsx
-export function CurrentPlanCard({ subscription }: { subscription: SubscriptionPlan }) {
-  return (
-    <Card className="bg-gradient-to-br from-chart-3/5 via-chart-4/5 to-chart-1/5">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Crown className="h-5 w-5 text-chart-1" />
-              {subscription.name} Plan
-            </CardTitle>
-            <CardDescription>
-              Your current subscription plan and billing details
-            </CardDescription>
-          </div>
-
-          <Badge variant="secondary" className="bg-chart-1/20 text-chart-1">
-            Active
-          </Badge>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        <div className="flex items-baseline gap-1">
-          <span className="text-3xl font-bold">€{subscription.price}</span>
-          <span className="text-muted-foreground">/{subscription.interval}</span>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-3 bg-background/50 rounded-lg">
-            <div className="text-2xl font-semibold text-chart-2">{subscription.aiTokens.toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">AI Tokens</div>
-          </div>
-
-          <div className="text-center p-3 bg-background/50 rounded-lg">
-            <div className="text-2xl font-semibold text-chart-3">
-              {subscription.contactLimit === -1 ? '∞' : subscription.contactLimit.toLocaleString()}
-            </div>
-            <div className="text-sm text-muted-foreground">Contacts</div>
-          </div>
-
-          <div className="text-center p-3 bg-background/50 rounded-lg">
-            <div className="text-2xl font-semibold text-chart-4">50GB</div>
-            <div className="text-sm text-muted-foreground">Storage</div>
-          </div>
-
-          <div className="text-center p-3 bg-background/50 rounded-lg">
-            <div className="text-2xl font-semibold text-chart-1">24/7</div>
-            <div className="text-sm text-muted-foreground">Support</div>
-          </div>
-        </div>
-
-        <div className="flex gap-2 pt-2">
-          <Button variant="outline">
-            <CreditCard className="h-3 w-3 mr-1" />
-            Update Payment
-          </Button>
-          <Button variant="outline">
-            <ArrowUpCircle className="h-3 w-3 mr-1" />
-            Upgrade Plan
-          </Button>
-          <Button variant="ghost">
-            <Download className="h-3 w-3 mr-1" />
-            Download Invoice
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// /src/components/settings/billing/UsageOverviewCard.tsx
-export function UsageOverviewCard({ usage }: { usage: UsageMetrics }) {
-  const aiTokensPercentage = (usage.aiTokensUsed / usage.aiTokensLimit) * 100;
-  const contactsPercentage = (usage.contactsCount / usage.contactsLimit) * 100;
-  const storagePercentage = (usage.storageUsed / usage.storageLimit) * 100;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" />
-          Usage Overview
-        </CardTitle>
-        <CardDescription>
-          Current usage for billing period {formatEuropeanDate(usage.billingPeriodStart)} - {formatEuropeanDate(usage.billingPeriodEnd)}
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        <UsageMetricBar
-          label="AI Tokens"
-          used={usage.aiTokensUsed}
-          limit={usage.aiTokensLimit}
-          percentage={aiTokensPercentage}
-          color="chart-2"
-          unit="tokens"
-        />
-
-        <UsageMetricBar
-          label="Contacts"
-          used={usage.contactsCount}
-          limit={usage.contactsLimit}
-          percentage={contactsPercentage}
-          color="chart-3"
-          unit="contacts"
-        />
-
-        <UsageMetricBar
-          label="Storage"
-          used={usage.storageUsed}
-          limit={usage.storageLimit}
-          percentage={storagePercentage}
-          color="chart-4"
-          unit="MB"
-        />
-      </CardContent>
-    </Card>
-  );
-}
-```
-
-### 6. AI Assistant Settings
-
-```typescript
-// /src/components/settings/ai/AIAssistantPage.tsx
-export function AIAssistantPage() {
-  return (
-    <div className="space-y-8">
-      <AITokenManagementCard />
-      <ChatPreferencesCard />
-      <AIModelSettingsCard />
-      <ContextSettingsCard />
-      <AIUsageAnalyticsCard />
-    </div>
-  );
-}
-
-// /src/components/settings/ai/AITokenManagementCard.tsx
-interface TokenUsage {
-  current: number;
-  limit: number;
-  resetDate: Date;
-  costThisMonth: number;
-  averagePerDay: number;
-  projectedMonthly: number;
-}
-
-export function AITokenManagementCard() {
-  const { tokenUsage, settings, updateSettings } = useAISettings();
-  const [showTokenPurchase, setShowTokenPurchase] = useState(false);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Zap className="h-4 w-4 text-chart-1" />
-          AI Token Management
-        </CardTitle>
-        <CardDescription>
-          Monitor and manage your AI conversation tokens
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-chart-1/10 rounded-lg border">
-            <div className="text-2xl font-bold text-chart-1">
-              {tokenUsage.current.toLocaleString()}
-            </div>
-            <div className="text-sm text-muted-foreground">Tokens Used</div>
-            <div className="text-xs mt-1">
-              of {tokenUsage.limit.toLocaleString()} available
-            </div>
-          </div>
-
-          <div className="text-center p-4 bg-chart-2/10 rounded-lg border">
-            <div className="text-2xl font-bold text-chart-2">
-              €{tokenUsage.costThisMonth.toFixed(2)}
-            </div>
-            <div className="text-sm text-muted-foreground">Cost This Month</div>
-            <div className="text-xs mt-1">
-              Projected: €{tokenUsage.projectedMonthly.toFixed(2)}
-            </div>
-          </div>
-
-          <div className="text-center p-4 bg-chart-3/10 rounded-lg border">
-            <div className="text-2xl font-bold text-chart-3">
-              {Math.ceil((tokenUsage.resetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))}
-            </div>
-            <div className="text-sm text-muted-foreground">Days Until Reset</div>
-            <div className="text-xs mt-1">
-              Resets {formatEuropeanDate(tokenUsage.resetDate)}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="token-limit">Monthly Token Budget</Label>
-            <span className="text-sm text-muted-foreground">
-              {settings.monthlyTokenLimit.toLocaleString()} tokens
-            </span>
-          </div>
-          <Slider
-            id="token-limit"
-            min={1000}
-            max={100000}
-            step={1000}
-            value={[settings.monthlyTokenLimit]}
-            onValueChange={([value]) => updateSettings({ monthlyTokenLimit: value })}
-            className="w-full"
-          />
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="usage-alerts"
-              checked={settings.usageAlerts}
-              onCheckedChange={(checked) => updateSettings({ usageAlerts: checked })}
-            />
-            <Label htmlFor="usage-alerts">Usage alerts at 80%</Label>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="auto-top-up"
-              checked={settings.autoTopUp}
-              onCheckedChange={(checked) => updateSettings({ autoTopUp: checked })}
-            />
-            <Label htmlFor="auto-top-up">Auto top-up when low</Label>
-          </div>
-        </div>
-
-        {tokenUsage.current > tokenUsage.limit * 0.8 && (
-          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-destructive" />
-              <span className="font-medium text-destructive">Token limit approaching</span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              You've used {Math.round((tokenUsage.current / tokenUsage.limit) * 100)}% of your monthly tokens.
-              Consider purchasing additional tokens or upgrading your plan.
-            </p>
-            <Button
-              size="sm"
-              className="mt-2"
-              onClick={() => setShowTokenPurchase(true)}
-            >
-              Purchase Tokens
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-```
-
-### 7. GDPR Privacy Controls
-
-```typescript
-// /src/components/settings/privacy/PrivacyGDPRPage.tsx
-export function PrivacyGDPRPage() {
-  return (
-    <div className="space-y-8">
-      <PrivacyOverviewCard />
-      <DataExportCard />
-      <DataDeletionCard />
-      <ConsentManagementCard />
-      <CookiePreferencesCard />
-      <DataProcessingCard />
-    </div>
-  );
-}
-
-// /src/components/settings/privacy/DataExportCard.tsx
-interface ExportRequest {
-  id: string;
-  type: 'full' | 'contacts' | 'conversations' | 'integrations';
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  requestedAt: Date;
-  completedAt?: Date;
-  downloadUrl?: string;
-  expiresAt?: Date;
-}
-
-export function DataExportCard() {
-  const { exportRequests, requestExport } = useDataExport();
-  const [selectedExportType, setSelectedExportType] = useState<ExportRequest['type']>('full');
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Data Export (GDPR Article 20)
-        </CardTitle>
-        <CardDescription>
-          Request a copy of your personal data in a machine-readable format
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="export-type">Export Type</Label>
-            <Select value={selectedExportType} onValueChange={setSelectedExportType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="full">Complete Data Export</SelectItem>
-                <SelectItem value="contacts">Contacts Only</SelectItem>
-                <SelectItem value="conversations">AI Conversations</SelectItem>
-                <SelectItem value="integrations">Integration Data</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground mt-1">
-              Choose what data to include in your export
-            </p>
-          </div>
-
-          <div className="flex items-end">
-            <Button onClick={() => requestExport(selectedExportType)} className="w-full">
-              <Download className="h-3 w-3 mr-1" />
-              Request Export
-            </Button>
-          </div>
-        </div>
-
-        {exportRequests.length > 0 && (
-          <div className="space-y-3">
-            <Label>Recent Export Requests</Label>
-            <div className="space-y-2">
-              {exportRequests.map((request) => (
-                <ExportRequestItem key={request.id} request={request} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="p-4 bg-muted/50 rounded-lg">
-          <h4 className="font-medium mb-2">Export Information</h4>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Data is exported in JSON format for portability</li>
-            <li>• Exports are available for 30 days after completion</li>
-            <li>• Processing typically takes 2-24 hours</li>
-            <li>• You'll receive an email notification when ready</li>
-            <li>• All exports are encrypted and password-protected</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// /src/components/settings/privacy/DataDeletionCard.tsx
-interface DeletionOption {
-  id: string;
-  label: string;
-  description: string;
-  consequences: string[];
-  irreversible: boolean;
-  confirmationRequired: boolean;
-}
-
-export function DataDeletionCard() {
-  const [showDeletionDialog, setShowDeletionDialog] = useState(false);
-  const [selectedDeletion, setSelectedDeletion] = useState<DeletionOption | null>(null);
-
-  const deletionOptions: DeletionOption[] = [
-    {
-      id: 'conversations',
-      label: 'Delete AI Conversations',
-      description: 'Remove all AI chat history and conversation data',
-      consequences: ['AI assistant loses context', 'Cannot be recovered'],
-      irreversible: true,
-      confirmationRequired: true
-    },
-    {
-      id: 'contacts',
-      label: 'Delete All Contacts',
-      description: 'Remove all contact records and associated data',
-      consequences: ['All contact data lost', 'Integration history cleared', 'Cannot be recovered'],
-      irreversible: true,
-      confirmationRequired: true
-    },
-    {
-      id: 'integrations',
-      label: 'Disconnect All Integrations',
-      description: 'Revoke all third-party connections and sync data',
-      consequences: ['Google access revoked', 'Sync history cleared', 'Can reconnect later'],
-      irreversible: false,
-      confirmationRequired: false
-    },
-    {
-      id: 'account',
-      label: 'Delete Entire Account',
-      description: 'Permanently delete your account and all associated data',
-      consequences: ['All data permanently deleted', 'Account cannot be recovered', 'Subscription cancelled'],
-      irreversible: true,
-      confirmationRequired: true
-    }
-  ];
-
-  return (
-    <>
-      <Card className="border-destructive/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <Trash2 className="h-4 w-4" />
-            Data Deletion (GDPR Article 17)
-          </CardTitle>
-          <CardDescription>
-            Request deletion of your personal data (Right to be Forgotten)
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          <div className="grid gap-3">
-            {deletionOptions.map((option) => (
-              <div
-                key={option.id}
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex-1">
-                  <div className="font-medium">{option.label}</div>
-                  <div className="text-sm text-muted-foreground">{option.description}</div>
-                  {option.irreversible && (
-                    <Badge variant="destructive" className="mt-1 text-xs">
-                      Irreversible
-                    </Badge>
-                  )}
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedDeletion(option);
-                    setShowDeletionDialog(true);
-                  }}
-                  className="border-destructive/20 text-destructive hover:bg-destructive/10"
-                >
-                  Delete
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
-              <div>
-                <h4 className="font-medium text-destructive">Important Notice</h4>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Some deletion requests are irreversible and will permanently remove your data.
-                  Please ensure you have exported any data you wish to keep before proceeding.
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <DeletionConfirmationDialog
-        isOpen={showDeletionDialog}
-        onClose={() => setShowDeletionDialog(false)}
-        option={selectedDeletion}
-      />
-    </>
-  );
-}
+<SidebarGroup>
+  <SidebarGroupLabel>Integrations</SidebarGroupLabel>
+  <SidebarMenu>
+    {/* Gmail - Shows connection status, connect button if disconnected */}
+    <SidebarMenuItem>
+      <Mail /> Gmail
+      {syncStatus?.gmail?.connected ? "Connected" : <button>Connect</button>}
+    </SidebarMenuItem>
+
+    {/* Calendar - Shows connection status */}
+    <SidebarMenuItem>
+      <CalendarIcon /> Calendar
+      {syncStatus?.calendar?.connected ? "Connected" : <a>Connect</a>}
+    </SidebarMenuItem>
+  </SidebarMenu>
+</SidebarGroup>
 ```
 
 ---
 
-## Enhanced UX Patterns
+## 2. Account Settings (ACTUAL IMPLEMENTATION)
 
-### 1. Toast-Based Notifications
+**Location:** `/app/(authorisedRoute)/settings/account/page.tsx`
+
+### User Data Auto-Population
+
+**✅ IMPLEMENTED:** User information is automatically fetched from Supabase Auth, NOT manually entered or pulled from Google API.
 
 ```typescript
-// /src/hooks/useNotifications.ts - Replace alert() calls
-import { toast } from "sonner";
-
-export function useNotifications() {
-  return {
-    success: (message: string, description?: string) => {
-      toast.success(message, {
-        description,
-        duration: 4000,
-      });
-    },
-
-    error: (message: string, description?: string) => {
-      toast.error(message, {
-        description,
-        duration: 6000,
-        action: {
-          label: "Retry",
-          onClick: () => window.location.reload(),
-        },
-      });
-    },
-
-    loading: (message: string) => {
-      return toast.loading(message, {
-        duration: Infinity,
-      });
-    },
-
-    promise: <T>(
-      promise: Promise<T>,
-      {
-        loading,
-        success,
-        error,
-      }: {
-        loading: string;
-        success: (data: T) => string;
-        error: (err: Error) => string;
-      },
-    ) => {
-      return toast.promise(promise, {
-        loading,
-        success,
-        error,
-        duration: 4000,
-      });
-    },
+// Current implementation pulls from Supabase Auth
+useEffect(() => {
+  const getUserData = async (): Promise<void> => {
+    const { user: currentUser, error } = await fetchCurrentUser();
+    if (error || !currentUser) {
+      toast.error("Failed to load user data");
+      router.push("/");
+    } else {
+      setUser(currentUser);
+    }
   };
-}
+  void getUserData();
+}, [router]);
 
-// Usage in components:
-export function GoogleServiceCard() {
-  const notifications = useNotifications();
+// Display shows Supabase user data
+<div className="space-y-2">
+  <p>
+    <span className="font-medium text-violet-400">Email:</span> {user.email}
+  </p>
+  <p>
+    <span className="font-medium text-violet-400">Account Created:</span>{" "}
+    {user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
+  </p>
+</div>
+```
 
-  const handleConnect = async (service: "gmail" | "calendar") => {
-    const connectPromise = connect(service);
+### Features Implemented
 
-    notifications.promise(connectPromise, {
-      loading: `Connecting to ${service}...`,
-      success: () => `${service} connected successfully!`,
-      error: (err) => `Failed to connect ${service}: ${err.message}`,
-    });
-  };
+✅ **Auto-populated email** from Supabase Auth
+✅ **Account creation date** from user metadata
+✅ **Password change** functionality
+✅ **Sign out** button
+✅ **GDPR data management** (export/deletion) via AccountDataManagement component
+
+### Features NOT Implemented
+
+❌ Profile photo upload
+❌ Display name editing
+❌ Phone number
+❌ Bio/description
+❌ Pull from Google API (uses Supabase instead)
+
+**Design Decision:** Keep user info simple and auto-populated from Supabase Auth. No need to pull from Google API as Supabase already has the authenticated user's email and metadata.
+
+---
+
+## 3. Google Integrations (ACTUAL IMPLEMENTATION)
+
+### Integration Endpoints
+
+**✅ Gmail:**
+- Connect: `POST /api/google/gmail/connect` → Returns OAuth URL
+- Callback: `GET /api/google/gmail/callback` → Handles OAuth return
+- Sync: `POST /api/google/gmail/sync` → Direct sync (see below)
+
+**✅ Calendar:**
+- Connect: `POST /api/google/calendar/connect` → Returns OAuth URL
+- Callback: `GET /api/google/calendar/callback` → Handles OAuth return
+
+**❌ Drive:** Backend files exist but NO settings UI (per user request)
+
+**Status Check:** `GET /api/google/status` → Returns connection status for all services
+
+### Gmail Sync - Simplified Direct Pattern
+
+**Location:** `/settings/_components/GmailSyncStatusPanel.tsx`
+
+**✅ ACTUAL IMPLEMENTATION:** Simple direct sync, NO job polling needed.
+
+```typescript
+// Direct sync mutation - completes immediately
+const startSyncMutation = useMutation({
+  mutationFn: async () =>
+    await apiClient.post<{
+      message: string;
+      stats: {
+        totalFound: number;
+        processed: number;
+        inserted: number;
+        errors: number;
+        batchId: string;
+      };
+    }>("/api/google/gmail/sync", {}, {
+      showErrorToast: false,
+      errorToastTitle: "Failed to start Gmail sync",
+    }),
+  onSuccess: (data) => {
+    setSyncPhase("completed");
+    setIsPolling(false);
+    toast.success("Gmail sync completed!");
+
+    // Show stats
+    if (data.stats) {
+      toast.info(`Processed ${data.stats.processed} emails`);
+    }
+
+    // Auto-clear after 10 seconds
+    setTimeout(() => {
+      setSyncPhase("idle");
+    }, 10000);
+  },
+  onError: (error) => {
+    setSyncPhase("error");
+    setIsPolling(false);
+    toast.error("Sync failed: " + error.message);
+  },
+});
+```
+
+**Code Comments Confirm Direct Sync:**
+```typescript
+// Line 45: "// Direct sync mode - no job polling needed"
+// Line 94: "// Note: Direct sync mode - no complex job polling needed"
+```
+
+**User Flow:**
+1. User clicks "Start Sync" button
+2. POST to `/api/google/gmail/sync`
+3. Sync completes immediately (synchronous)
+4. Stats returned in response
+5. Success toast shown with stats
+6. Auto-clear after 10 seconds
+
+**Comparison to Original Design:**
+
+| Original Design (Document) | Actual Implementation |
+|---------------------------|----------------------|
+| POST creates background job | POST performs sync immediately |
+| Poll job status endpoint | No polling needed |
+| Job states: queued → running → completed | Direct states: idle → syncing → completed |
+| Complex job management | Simple mutation pattern |
+
+**Design Decision:** Keep the simplified direct sync. It's faster, simpler to understand, and adequate for typical Gmail sync volumes. No need for complex background job orchestration.
+
+---
+
+## 4. Theme Management (ACTUAL IMPLEMENTATION)
+
+**Location:** `/components/ThemeToggle.tsx`
+**Used In:** `/components/layout/MainLayout.tsx` (Global Header)
+
+**✅ IMPLEMENTED:** Theme toggle is in the global header, NOT in settings page.
+
+```typescript
+// MainLayout.tsx - Line 198
+<ThemeToggle mounted={mounted} theme={theme} setTheme={setTheme} />
+```
+
+**Component Implementation:**
+```typescript
+// ThemeToggle.tsx
+export function ThemeToggle({ mounted, theme, setTheme }: ThemeToggleProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm">
+          {theme === "dark" ? <Moon /> : theme === "light" ? <Sun /> : <Monitor />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          <Sun className="mr-2 h-4 w-4" /> Light
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          <Moon className="mr-2 h-4 w-4" /> Dark
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          <Monitor className="mr-2 h-4 w-4" /> System
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 ```
 
-### 2. European Date Formatting
+**Theme Options:**
+- 🌞 **Light** - Bright theme for daytime use
+- 🌙 **Dark** - Dark theme for night/low-light
+- 💻 **System** - Follows OS preference
 
-```typescript
-// /src/lib/dateFormat.ts
-export function formatEuropeanDate(date: Date | null | undefined): string {
-  if (!date) return "-";
-
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
-}
-
-export function formatEuropeanDateTime(date: Date | null | undefined): string {
-  if (!date) return "-";
-
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-export function formatRelativeTime(date: Date): string {
-  const rtf = new Intl.RelativeTimeFormat("en-GB", { numeric: "auto" });
-  const diffInSeconds = Math.floor((Date.now() - date.getTime()) / 1000);
-
-  if (diffInSeconds < 60) return rtf.format(-diffInSeconds, "second");
-  if (diffInSeconds < 3600) return rtf.format(-Math.floor(diffInSeconds / 60), "minute");
-  if (diffInSeconds < 86400) return rtf.format(-Math.floor(diffInSeconds / 3600), "hour");
-  return rtf.format(-Math.floor(diffInSeconds / 86400), "day");
-}
+**Location in Header:**
+```
+[Sidebar Toggle] [Breadcrumbs] ............. [AI Bot] [Rapid Note] [Theme Toggle]
 ```
 
-### 3. Loading States and Skeletons
+**Design Decision:** ✅ KEEP theme toggle in global header. It's a frequently accessed setting that benefits from being in the persistent header rather than buried in settings. This follows common UX patterns (GitHub, VS Code, etc.).
 
+**Settings Page Implementation:**
+The main `/settings/page.tsx` has a "System" tab with a dark mode switch (lines 493-500), but this is part of a larger demo/prototype tabs interface. The actual functional theme toggle is in the header.
+
+**Recommendation:** Remove the dark mode switch from settings page "System" tab to avoid confusion. Single source of truth should be the header toggle.
+
+---
+
+## 5. Tags Management System (ACTUAL IMPLEMENTATION)
+
+**Location:** `/app/(authorisedRoute)/settings/tags/page.tsx`
+**Status:** ✅ Fully implemented but ⚠️ NOT linked in navigation
+
+### Wellness Tag System
+
+**5 Categories with 60 Pre-defined Tags:**
+
+```sql
+-- Database seeding via supabase/sql/wellness_tags_seed.sql
+1. services_modalities (14 tags)
+   - Yoga, Massage, Meditation, Pilates, Reiki, etc.
+
+2. client_demographics (11 tags)
+   - Senior, Young Adult, Professional, Parent, Student, etc.
+
+3. schedule_attendance (10 tags)
+   - Regular Attendee, Weekend Warrior, Early Bird, etc.
+
+4. health_wellness (11 tags)
+   - Stress Relief, Weight Loss, Flexibility, Pain Management, etc.
+
+5. emotional_mental (14 tags)
+   - Mindfulness, Mental Health, Spiritual Growth, etc.
+```
+
+### UI Implementation
+
+**Features Implemented:**
+- ✅ Tag creation with category selection
+- ✅ Color picker for custom tag colors
+- ✅ Category-based grouping display
+- ✅ Usage count tracking
+- ✅ Search/filter functionality
+- ⚠️ Edit function has TODO comment (line 64)
+- ⚠️ Delete function has TODO comment (line 171)
+
+**Backend API:** Fully functional at `/api/tags`
+- GET - List all tags for user
+- POST - Create new tag
+- PUT - Update tag (implemented)
+- DELETE - Delete tag (implemented)
+
+**Issue:** The page exists and works but isn't linked in SettingsSidebar navigation.
+
+**Fix Needed:**
 ```typescript
-// /src/components/settings/LoadingStates.tsx
-export function SettingsPageSkeleton() {
-  return (
-    <div className="space-y-8">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <Card key={i}>
-          <CardHeader>
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-96" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <div className="flex gap-2">
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-32" />
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-export function SyncStatusSkeleton() {
-  return (
-    <div className="grid md:grid-cols-2 gap-4">
-      {Array.from({ length: 2 }).map((_, i) => (
-        <div key={i} className="border rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-5 w-16" />
-          </div>
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-8 w-full" />
-        </div>
-      ))}
-    </div>
-  );
-}
+// Add to settingsNavItems in SettingsSidebar.tsx
+{ title: "Tags", href: "/settings/tags", icon: Tag }
 ```
 
 ---
 
-## API Integration Patterns
+## 6. Settings Page Tabs (PROTOTYPE IMPLEMENTATION)
 
-### 1. Custom Hooks for Settings Management
+**Location:** `/app/(authorisedRoute)/settings/page.tsx`
+
+**Status:** ⚠️ This is a PROTOTYPE tabs interface that overlaps with dedicated settings pages.
+
+### Tabs Implemented
+
+1. **Integrations Tab** - Shows Gmail, Calendar, Drive, OpenAI, WhatsApp
+2. **Sync Settings Tab** - Shows auto-sync toggles + GmailSyncStatusPanel
+3. **Profile Tab** - Manual profile form (conflicts with /settings/account)
+4. **Notifications Tab** - Notification preferences toggles
+5. **Security Tab** - Password change, 2FA toggles
+6. **System Tab** - Dark mode toggle, data export buttons
+
+### Issues with This Implementation
+
+❌ **Duplicates /settings/account functionality** - Profile tab shows manual form, but account page auto-populates from Supabase
+❌ **Shows removed integrations** - Drive (lines 193-214), OpenAI (lines 236-246), WhatsApp (lines 266-273)
+❌ **Conflicting theme toggle** - System tab has dark mode switch, but header has the real toggle
+❌ **Non-functional buttons** - Most buttons don't have real implementations
+
+**Design Decision:** This appears to be an early prototype or demo interface. The real settings are in dedicated pages (/settings/account, etc.).
+
+---
+
+## 7. Integrations Removed from Design
+
+Per user requirements, the following integrations are REMOVED from the settings UI:
+
+### ❌ Google Drive
+- **Backend files:** KEEP (user specified)
+- **Settings UI:** REMOVE
+- **Why:** Not actively used in current workflow
+- **Files to update:** Remove from `/settings/page.tsx` lines 193-214
+
+### ❌ OpenAI
+- **Reason:** Not implemented in actual system
+- **Files to update:** Remove from `/settings/page.tsx` lines 220-249
+
+### ❌ WhatsApp Business
+- **Reason:** Not implemented in actual system
+- **Files to update:** Remove from `/settings/page.tsx` lines 251-276
+
+### ✅ Gmail & Calendar ONLY
+These are the ONLY two Google integrations that should appear in settings UI.
+
+---
+
+## 8. Toast Notification System (IMPLEMENTED)
+
+**Library:** Sonner (already configured)
+**Location:** Available globally via `import { toast } from "sonner"`
+
+### Standard Toast Patterns
 
 ```typescript
-// /src/hooks/useGoogleIntegration.ts
-interface GoogleIntegrationHook {
-  status: GoogleConnectionStatus;
-  connect: (service: "gmail" | "calendar") => Promise<void>;
-  disconnect: (service: "gmail" | "calendar") => Promise<void>;
-  sync: (service: "gmail" | "calendar") => Promise<void>;
-  preview: (service: "gmail" | "calendar") => Promise<PreviewResult>;
-  isLoading: boolean;
-  error: string | null;
-}
+// Success notifications
+toast.success("Gmail connected successfully!");
+toast.success("Changes saved");
 
-export function useGoogleIntegration(): GoogleIntegrationHook {
-  const [status, setStatus] = useState<GoogleConnectionStatus>(initialStatus);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const notifications = useNotifications();
+// Error notifications
+toast.error("Failed to connect Gmail");
+toast.error(`Sync failed: ${error.message}`);
 
-  const connect = useCallback(
-    async (service: "gmail" | "calendar") => {
-      setIsLoading(true);
-      setError(null);
+// Info notifications
+toast.info("Processing in background...");
+toast.info(`Processed ${count} emails`);
 
-      try {
-        // Trigger OAuth flow
-        window.location.href = `/api/google/oauth?scope=${service}`;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Connection failed";
-        setError(errorMessage);
-        notifications.error(`Failed to connect ${service}`, errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [notifications],
-  );
-
-  const sync = useCallback(
-    async (service: "gmail" | "calendar") => {
-      const syncPromise = callAPI(`/api/sync/approve/${service}`, "POST");
-
-      notifications.promise(syncPromise, {
-        loading: `Starting ${service} sync...`,
-        success: (result) => `${service} sync completed: ${result.processed} items`,
-        error: (err) => `Sync failed: ${err.message}`,
-      });
-
-      return syncPromise;
-    },
-    [notifications],
-  );
-
-  // Load status on mount and when needed
-  useEffect(() => {
-    loadStatus();
-  }, []);
-
-  return {
-    status,
-    connect,
-    disconnect,
-    sync,
-    preview,
-    isLoading,
-    error,
-  };
-}
-
-// /src/hooks/useSyncPreferences.ts
-export function useSyncPreferences() {
-  const [preferences, setPreferences] = useState<SyncPreferencesFormData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const notifications = useNotifications();
-
-  const loadPreferences = useCallback(async () => {
-    try {
-      const response = await fetch("/api/settings/sync/prefs");
-      if (!response.ok) throw new Error("Failed to load preferences");
-
-      const data = await response.json();
-      setPreferences(data);
-    } catch (err) {
-      notifications.error("Failed to load sync preferences");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [notifications]);
-
-  const updatePreferences = useCallback(
-    async (updates: Partial<SyncPreferencesFormData>) => {
-      const newPrefs = { ...preferences, ...updates };
-      setPreferences(newPrefs);
-
-      try {
-        const response = await fetch("/api/settings/sync/prefs", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "x-csrf-token": getCsrfToken() || "",
-          },
-          body: JSON.stringify(newPrefs),
-        });
-
-        if (!response.ok) throw new Error("Failed to save preferences");
-
-        notifications.success("Preferences saved successfully");
-      } catch (err) {
-        // Revert optimistic update
-        setPreferences(preferences);
-        notifications.error("Failed to save preferences");
-      }
-    },
-    [preferences, notifications],
-  );
-
-  useEffect(() => {
-    loadPreferences();
-  }, [loadPreferences]);
-
-  return {
-    preferences,
-    updatePreferences,
-    isLoading,
-    reload: loadPreferences,
-  };
-}
+// Warning notifications
+toast.warning("Your session will expire in 5 minutes");
 ```
 
-### 2. Error Boundary for Settings
+### Toast Usage in Settings
 
+✅ **Account page** - Uses toast for save confirmations, errors
+✅ **Gmail sync** - Uses toast for sync status updates
+✅ **Integrations** - Uses toast for connection success/failure
+
+❌ **No alert() calls** - All replaced with toast notifications
+
+---
+
+## 9. European Date Formatting
+
+**Current Implementation:** Standard JavaScript `toLocaleDateString()`
+
+**Example from account page:**
 ```typescript
-// /src/components/settings/SettingsErrorBoundary.tsx
-export class SettingsErrorBoundary extends Component<
-  { children: ReactNode; fallback?: ReactNode },
-  { hasError: boolean; error?: Error }
-> {
-  constructor(props: { children: ReactNode; fallback?: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
+{user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
+```
 
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
+**Issues:**
+- Uses browser locale (US format in US browsers: MM/DD/YYYY)
+- Not consistently European (DD/MM/YYYY)
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Settings Error Boundary caught an error:', error, errorInfo);
+**Recommendation:** Add locale parameter for European format:
+```typescript
+new Date(user.created_at).toLocaleDateString('en-GB', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric'
+}) // Output: "24/10/2025"
+```
 
-    // Report to monitoring service
-    if (typeof window !== 'undefined') {
-      toast.error('Settings Error', {
-        description: 'An unexpected error occurred. Please refresh the page.',
-        action: {
-          label: 'Refresh',
-          onClick: () => window.location.reload()
-        }
-      });
-    }
-  }
+**Utility function needed:** Create `formatEuropeanDate()` helper in `/lib/utils/date-helpers.ts`
 
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback || (
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Something went wrong</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">
-              An error occurred while loading this settings section.
-            </p>
-            <Button
-              onClick={() => this.setState({ hasError: false })}
-              variant="outline"
-            >
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      );
-    }
+---
 
-    return this.props.children;
-  }
-}
+## 10. Component Architecture Patterns
+
+### Current Patterns (Following CLAUDE.md)
+
+✅ **Layered Architecture:**
+- Repository Layer: `packages/repo/src/*.repo.ts`
+- Service Layer: `src/server/services/*.service.ts`
+- Route Layer: `src/app/api/*/route.ts`
+- Component Layer: `src/app/(authorisedRoute)/_components/*.tsx`
+
+✅ **Error Handling:**
+- Services throw `AppError` with status codes
+- Routes use `handleAuth()` wrapper
+- Toast notifications for user feedback
+
+✅ **Type Safety:**
+- Strict TypeScript
+- No `any` types
+- No non-null assertions
+- Proper type guards
+
+### Settings Component Structure
+
+```
+src/app/(authorisedRoute)/settings/
+├── layout.tsx                    # Settings layout wrapper
+├── page.tsx                      # Main settings (tabs prototype)
+├── account/
+│   └── page.tsx                  # Account settings (REAL)
+├── onboarding/
+│   └── page.tsx                  # Intake form settings
+├── tags/
+│   └── page.tsx                  # Tags management (REAL, not linked)
+└── _components/
+    ├── SettingsSidebar.tsx       # Navigation sidebar
+    ├── GmailSyncStatusPanel.tsx  # Gmail sync UI
+    └── AccountDataManagement.tsx # GDPR data export/deletion
 ```
 
 ---
 
-## File Structure
+## 11. What's Missing vs. Original Design
 
-```bash
+### Pages Not Implemented
+
+❌ **Billing Page** (`/settings/billing`)
+- Navigation link exists
+- No actual page implementation
+- Would need: subscription plans, payment methods, usage tracking
+
+❌ **Notifications Page** (`/settings/notifications`)
+- Navigation link exists
+- No actual page implementation
+- Would need: email prefs, push notifications, alert settings
+
+### Features Not Implemented
+
+❌ **AI Assistant Settings**
+- Original design included token management
+- Model selection
+- Usage quotas
+- Not present in current implementation
+
+❌ **Advanced Sync Preferences**
+- Original design had detailed Gmail filters
+- Date range selection
+- Contact matching rules
+- Current implementation is simpler (direct sync, no config)
+
+❌ **GDPR Privacy Controls (Partial)**
+- Data export exists
+- Data deletion exists
+- But no dedicated privacy settings page
+- Currently in AccountDataManagement component only
+
+### Navigation Not Complete
+
+⚠️ **Tags page exists but not linked**
+- Fully functional at `/settings/tags`
+- Just needs nav link in SettingsSidebar
+
+---
+
+## 12. Recommended Updates
+
+### High Priority
+
+1. **Remove obsolete integrations from `/settings/page.tsx`:**
+   - Remove Drive integration UI (lines 193-214)
+   - Remove OpenAI integration UI (lines 220-249)
+   - Remove WhatsApp integration UI (lines 251-276)
+
+2. **Add Tags to navigation:**
+   ```typescript
+   { title: "Tags", href: "/settings/tags", icon: Tag }
+   ```
+
+3. **Complete Tags page TODO items:**
+   - Wire up Edit functionality (line 64)
+   - Wire up Delete functionality (line 171)
+
+4. **Clarify settings page architecture:**
+   - Either remove tabs prototype from `/settings/page.tsx`
+   - Or consolidate with dedicated pages
+   - Avoid duplication between tabs and `/settings/account`
+
+### Medium Priority
+
+5. **Add European date formatting utility:**
+   - Create `formatEuropeanDate()` helper
+   - Use throughout settings pages
+
+6. **Remove duplicate dark mode toggle:**
+   - Keep in global header only
+   - Remove from settings page "System" tab
+
+7. **Document user info source:**
+   - Update inline comments to clarify Supabase Auth is source
+   - Not Google API
+
+### Low Priority
+
+8. **Consider implementing missing pages:**
+   - Billing page (if needed)
+   - Notifications page (if needed)
+   - Or remove nav links if not planned
+
+9. **Enhance Gmail sync feedback:**
+   - Add progress percentage
+   - Show sync history
+   - Error details
+
+---
+
+## 13. File Structure (Current)
+
+```
 src/
-├── components/
+├── app/(authorisedRoute)/
 │   └── settings/
-│       ├── SettingsLayout.tsx           # Main layout with sidebar
-│       ├── SettingsSidebar.tsx          # Navigation sidebar
-│       ├── SettingsHeader.tsx           # Page header
-│       ├── SettingsErrorBoundary.tsx    # Error handling
-│       ├── LoadingStates.tsx            # Skeleton components
-│       │
-│       ├── integrations/                # Google Integration (replaces SyncSettingsPage)
-│       │   ├── IntegrationsPage.tsx
-│       │   ├── GoogleIntegrationCard.tsx
-│       │   ├── GoogleServiceCard.tsx
-│       │   ├── SyncPreferencesCard.tsx
-│       │   ├── GmailPreferencesPanel.tsx
-│       │   ├── CalendarPreferencesPanel.tsx
-│       │   ├── SyncActionsPanel.tsx
-│       │   ├── SyncHistoryCard.tsx
-│       │   └── IntegrationStatusCard.tsx
-│       │
-│       ├── billing/                     # Billing & Subscriptions
-│       │   ├── BillingPage.tsx
-│       │   ├── CurrentPlanCard.tsx
-│       │   ├── UsageOverviewCard.tsx
-│       │   ├── PaymentMethodsCard.tsx
-│       │   ├── BillingHistoryCard.tsx
-│       │   └── PlanComparisonCard.tsx
-│       │
-│       ├── ai/                          # AI Assistant Settings
-│       │   ├── AIAssistantPage.tsx
-│       │   ├── AITokenManagementCard.tsx
-│       │   ├── ChatPreferencesCard.tsx
-│       │   ├── AIModelSettingsCard.tsx
-│       │   ├── ContextSettingsCard.tsx
-│       │   └── AIUsageAnalyticsCard.tsx
-│       │
-│       ├── privacy/                     # GDPR & Privacy
-│       │   ├── PrivacyGDPRPage.tsx
-│       │   ├── PrivacyOverviewCard.tsx
-│       │   ├── DataExportCard.tsx
-│       │   ├── DataDeletionCard.tsx
-│       │   ├── ConsentManagementCard.tsx
-│       │   ├── CookiePreferencesCard.tsx
-│       │   └── DataProcessingCard.tsx
-│       │
-│       ├── profile/                     # Profile & Account
-│       │   ├── ProfilePage.tsx
-│       │   ├── AccountInfoCard.tsx
-│       │   ├── SecuritySettingsCard.tsx
-│       │   └── TwoFactorCard.tsx
-│       │
-│       └── appearance/                  # Theme & Display
-│           ├── AppearancePage.tsx
-│           ├── ThemeSettingsCard.tsx
-│           ├── LanguageSettingsCard.tsx
-│           └── DisplayPreferencesCard.tsx
+│       ├── layout.tsx
+│       ├── page.tsx                          # Tabs prototype (needs cleanup)
+│       ├── account/
+│       │   └── page.tsx                      # ✅ Account settings
+│       ├── onboarding/
+│       │   └── page.tsx                      # ✅ Intake form
+│       ├── tags/
+│       │   └── page.tsx                      # ✅ Tags (not linked)
+│       └── _components/
+│           ├── SettingsSidebar.tsx           # ✅ Navigation
+│           ├── GmailSyncStatusPanel.tsx      # ✅ Gmail sync
+│           └── AccountDataManagement.tsx     # ✅ GDPR
 │
-├── hooks/
-│   ├── useGoogleIntegration.ts         # Google services management
-│   ├── useSyncPreferences.ts           # Sync settings hook
-│   ├── useBilling.ts                   # Billing & subscription data
-│   ├── useAISettings.ts                # AI assistant configuration
-│   ├── useNotifications.ts             # Toast notifications
-│   └── useDataExport.ts                # GDPR data export
+├── components/
+│   ├── layout/
+│   │   └── MainLayout.tsx                    # ✅ Global header with theme toggle
+│   ├── ThemeToggle.tsx                       # ✅ Theme switcher
+│   ├── TagManager.tsx                        # ✅ Tag display component
+│   └── TagSelector.tsx                       # ✅ Tag selection component
 │
 ├── lib/
-│   ├── dateFormat.ts                   # European date formatting
-│   └── settingsUtils.ts               # Shared utilities
+│   ├── api.ts                                # ✅ API client with auth
+│   └── services/client/
+│       └── auth.service.ts                   # ✅ fetchCurrentUser()
 │
-└── app/
-    └── settings/
-        ├── layout.tsx                  # Settings app layout
-        ├── page.tsx                    # Default: Profile page
-        ├── integrations/
-        │   └── page.tsx                # Google integrations
-        ├── billing/
-        │   └── page.tsx                # Billing & plans
-        ├── ai-assistant/
-        │   └── page.tsx                # AI settings
-        ├── privacy-gdpr/
-        │   └── page.tsx                # Privacy controls
-        └── appearance/
-            └── page.tsx                # Theme & display
+└── server/
+    └── services/
+        ├── google-integration.service.ts     # ✅ Gmail/Calendar OAuth
+        └── google-status.service.ts          # ✅ Connection status
 ```
 
 ---
 
-## Implementation Priority
+## 14. API Endpoints (Current)
 
-### Phase 1: Core Infrastructure (Week 1)
+### Google Integration
+- `POST /api/google/gmail/connect` - Start Gmail OAuth
+- `GET /api/google/gmail/callback` - Handle OAuth callback
+- `POST /api/google/gmail/sync` - Direct sync (no job polling)
+- `POST /api/google/calendar/connect` - Start Calendar OAuth
+- `GET /api/google/calendar/callback` - Handle OAuth callback
+- `GET /api/google/status` - Get connection status
 
-1. **SettingsLayout** and **SettingsSidebar** - Navigation foundation
-2. **SettingsErrorBoundary** - Error handling
-3. **useNotifications** - Replace all alert() calls
-4. **dateFormat.ts** - European date formatting
+### Tags Management
+- `GET /api/tags` - List user tags
+- `POST /api/tags` - Create tag
+- `PUT /api/tags/:id` - Update tag
+- `DELETE /api/tags/:id` - Delete tag
 
-### Phase 2: Integrations Refactor (Week 2)
-
-1. **IntegrationsPage** - Replace monolithic SyncSettingsPage
-2. **GoogleIntegrationCard** with service cards
-3. **SyncPreferencesCard** with modular panels
-4. **Toast notifications** for all sync operations
-
-### Phase 3: Billing & AI Settings (Week 3)
-
-1. **BillingPage** with subscription management
-2. **AITokenManagementCard** with usage tracking
-3. **UsageOverviewCard** with progress indicators
-
-### Phase 4: GDPR & Privacy (Week 4)
-
-1. **PrivacyGDPRPage** with data controls
-2. **DataExportCard** with GDPR Article 20 compliance
-3. **DataDeletionCard** with Right to be Forgotten
-4. **ConsentManagementCard** for privacy preferences
+### User Management
+- Available via Supabase Auth SDK (no custom endpoints needed)
 
 ---
 
-## Testing Strategy
+## 15. Testing Recommendations
 
-### Component Testing
+### Unit Tests Needed
+- [ ] TagManager component
+- [ ] TagSelector component
+- [ ] GmailSyncStatusPanel state transitions
+- [ ] Theme toggle functionality
 
-```typescript
-// /src/components/settings/__tests__/GoogleIntegrationCard.test.tsx
-describe('GoogleIntegrationCard', () => {
-  it('shows connection status correctly', () => {
-    render(<GoogleIntegrationCard />);
-    expect(screen.getByText('Google Workspace')).toBeInTheDocument();
-  });
+### Integration Tests Needed
+- [ ] Gmail OAuth flow
+- [ ] Gmail sync end-to-end
+- [ ] Tag CRUD operations
+- [ ] Account data export
 
-  it('handles connection flow with toast notifications', async () => {
-    const mockConnect = jest.fn();
-    render(<GoogleIntegrationCard onConnect={mockConnect} />);
-
-    fireEvent.click(screen.getByText('Connect Gmail'));
-    expect(mockConnect).toHaveBeenCalledWith('gmail');
-  });
-
-  it('formats European dates correctly', () => {
-    const lastSync = new Date('2025-08-12T14:30:00Z');
-    render(<GoogleServiceCard status={{ lastSync, connected: true }} />);
-
-    expect(screen.getByText('12/08/2025')).toBeInTheDocument();
-  });
-});
-```
-
-### Integration Testing
-
-```typescript
-// Test the complete settings flow
-describe('Settings Integration', () => {
-  it('navigates between settings categories', () => {
-    render(<SettingsLayout />);
-
-    fireEvent.click(screen.getByText('Integrations'));
-    expect(screen.getByText('Google Workspace')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Billing & Plans'));
-    expect(screen.getByText('Current Plan')).toBeInTheDocument();
-  });
-
-  it('saves preferences with proper error handling', async () => {
-    const mockSave = jest.fn().mockRejectedValue(new Error('Network error'));
-    render(<SyncPreferencesCard onSave={mockSave} />);
-
-    fireEvent.click(screen.getByText('Save Preferences'));
-
-    await waitFor(() => {
-      expect(screen.getByText('Failed to save preferences')).toBeInTheDocument();
-    });
-  });
-});
-```
+### E2E Tests Needed
+- [ ] Settings navigation flow
+- [ ] Connect Gmail → Sync → Verify
+- [ ] Create/edit/delete tags
+- [ ] Theme switching persistence
 
 ---
 
-## Success Metrics
+## Conclusion
 
-### Technical Improvements
+This document now accurately reflects the **current implementation** rather than a future proposal. Key takeaways:
 
-- **Reduced Complexity**: 459-line component → 8 focused components (<100 lines each)
-- **Eliminated Alert() Calls**: 0 alert() calls, all replaced with toast notifications
-- **Error Handling**: Proper error boundaries and user feedback
-- **European Standards**: DD/MM/YYYY dates throughout
-- **Type Safety**: Full TypeScript coverage for all settings interfaces
+✅ **Core Settings Work:** Account, Gmail, Calendar, Tags all functional
+✅ **Simplified Sync:** Direct sync pattern is simpler and adequate
+✅ **Clean Architecture:** Follows CLAUDE.md patterns consistently
+⚠️ **Navigation Gaps:** Tags page needs linking
+⚠️ **Prototype Cleanup:** Main settings page has obsolete demo tabs
+❌ **Removed Features:** Drive, OpenAI, WhatsApp not in scope
 
-### User Experience Improvements
-
-- **Progressive Disclosure**: Complex settings organized by category
-- **Visual Status Indicators**: Clear connection states and sync status
-- **Loading States**: Skeleton loading for all async operations
-- **GDPR Compliance**: Built-in data export and deletion controls
-- **Responsive Design**: Mobile-friendly settings interface
-
-### Maintainability Gains
-
-- **Modular Components**: Easy to test and extend individual settings
-- **Reusable Hooks**: Shared logic for API calls and state management
-- **Consistent Patterns**: Standardized card layouts and form controls
-- **Error Boundaries**: Graceful failure handling at component level
-
-This design provides a comprehensive solution to the current SyncSettingsPage issues while establishing a scalable foundation for future settings categories. The modular architecture ensures each component has a single responsibility, making the codebase more maintainable and the user experience significantly improved.
+**Next Steps:**
+1. Remove obsolete integrations from settings page
+2. Link Tags page in navigation
+3. Complete Tags edit/delete functionality
+4. Decide on billing/notifications pages
+5. Add European date formatting utility

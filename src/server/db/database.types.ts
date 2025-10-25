@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       ai_insights: {
@@ -132,7 +107,7 @@ export type Database = {
           granted: boolean
           granted_at: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           signature_image_url: string | null
           signature_svg: string | null
           updated_at: string
@@ -147,7 +122,7 @@ export type Database = {
           granted?: boolean
           granted_at?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           signature_image_url?: string | null
           signature_svg?: string | null
           updated_at?: string
@@ -162,7 +137,7 @@ export type Database = {
           granted?: boolean
           granted_at?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           signature_image_url?: string | null
           signature_svg?: string | null
           updated_at?: string
@@ -258,6 +233,45 @@ export type Database = {
           },
         ]
       }
+      contact_tags: {
+        Row: {
+          contact_id: string
+          created_at: string
+          created_by: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_tags_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           address: Json | null
@@ -277,7 +291,6 @@ export type Database = {
           primary_phone: string | null
           referral_source: string | null
           source: string | null
-          tags: Json | null
           updated_at: string
           user_id: string
         }
@@ -299,7 +312,6 @@ export type Database = {
           primary_phone?: string | null
           referral_source?: string | null
           source?: string | null
-          tags?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -321,7 +333,6 @@ export type Database = {
           primary_phone?: string | null
           referral_source?: string | null
           source?: string | null
-          tags?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -422,6 +433,42 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      goal_tags: {
+        Row: {
+          created_at: string
+          goal_id: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          goal_id: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          goal_id?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_tags_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       goals: {
         Row: {
@@ -575,6 +622,7 @@ export type Database = {
         Row: {
           created_at: string
           created_task_id: string | null
+          details: Json | null
           id: string
           processed_at: string | null
           raw_text: string
@@ -585,6 +633,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_task_id?: string | null
+          details?: Json | null
           id?: string
           processed_at?: string | null
           raw_text: string
@@ -595,6 +644,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_task_id?: string | null
+          details?: Json | null
           id?: string
           processed_at?: string | null
           raw_text?: string
@@ -764,40 +814,73 @@ export type Database = {
           },
         ]
       }
+      note_tags: {
+        Row: {
+          created_at: string
+          id: string
+          note_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_tags_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
-          contact_id: string | null
+          contact_id: string
           content_plain: string
           content_rich: Json
           created_at: string
           id: string
           pii_entities: Json
           source_type: Database["public"]["Enums"]["note_source_type"]
-          tags: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
-          contact_id?: string | null
+          contact_id: string
           content_plain?: string
           content_rich?: Json
           created_at?: string
           id?: string
           pii_entities?: Json
           source_type?: Database["public"]["Enums"]["note_source_type"]
-          tags?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
-          contact_id?: string | null
+          contact_id?: string
           content_plain?: string
           content_rich?: Json
           created_at?: string
           id?: string
           pii_entities?: Json
           source_type?: Database["public"]["Enums"]["note_source_type"]
-          tags?: string[]
           updated_at?: string
           user_id?: string
         }
@@ -856,7 +939,7 @@ export type Database = {
           contact_id: string
           created_at: string | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           photo_path: string
           user_agent: string | null
           user_id: string
@@ -866,7 +949,7 @@ export type Database = {
           contact_id: string
           created_at?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           photo_path: string
           user_agent?: string | null
           user_id: string
@@ -876,7 +959,7 @@ export type Database = {
           contact_id?: string
           created_at?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           photo_path?: string
           user_agent?: string | null
           user_id?: string
@@ -893,7 +976,7 @@ export type Database = {
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
           user_id: string
-          zone_id: number | null
+          zone_uuid: string | null
         }
         Insert: {
           created_at?: string
@@ -904,7 +987,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
           user_id: string
-          zone_id?: number | null
+          zone_uuid?: string | null
         }
         Update: {
           created_at?: string
@@ -915,15 +998,15 @@ export type Database = {
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
           user_id?: string
-          zone_id?: number | null
+          zone_uuid?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "projects_zone_id_fkey"
-            columns: ["zone_id"]
+            foreignKeyName: "projects_zone_uuid_fkey"
+            columns: ["zone_uuid"]
             isOneToOne: false
             referencedRelation: "zones"
-            referencedColumns: ["id"]
+            referencedColumns: ["uuid_id"]
           },
         ]
       }
@@ -981,29 +1064,71 @@ export type Database = {
         }
         Relationships: []
       }
-      task_contact_tags: {
+      tags: {
         Row: {
-          contact_id: string
+          category: Database["public"]["Enums"]["tag_category"]
+          category_color: string | null
+          color: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          usage_count: number
+          user_id: string
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["tag_category"]
+          category_color?: string | null
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          usage_count?: number
+          user_id: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["tag_category"]
+          category_color?: string | null
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          usage_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      task_tags: {
+        Row: {
+          created_at: string
+          id: string
+          tag_id: string
           task_id: string
         }
         Insert: {
-          contact_id: string
+          created_at?: string
+          id?: string
+          tag_id: string
           task_id: string
         }
         Update: {
-          contact_id?: string
+          created_at?: string
+          id?: string
+          tag_id?: string
           task_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "task_contact_tags_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "task_tags_tag_id_fkey"
+            columns: ["tag_id"]
             isOneToOne: false
-            referencedRelation: "contacts"
+            referencedRelation: "tags"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "task_contact_tags_task_id_fkey"
+            foreignKeyName: "task_tags_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
@@ -1019,12 +1144,12 @@ export type Database = {
           due_date: string | null
           id: string
           name: string
-          parent_task_id: string | null
           priority: Database["public"]["Enums"]["task_priority"]
           project_id: string | null
           status: Database["public"]["Enums"]["task_status"]
           updated_at: string
           user_id: string
+          zone_uuid: string | null
         }
         Insert: {
           completed_at?: string | null
@@ -1033,12 +1158,12 @@ export type Database = {
           due_date?: string | null
           id?: string
           name: string
-          parent_task_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           updated_at?: string
           user_id: string
+          zone_uuid?: string | null
         }
         Update: {
           completed_at?: string | null
@@ -1047,27 +1172,27 @@ export type Database = {
           due_date?: string | null
           id?: string
           name?: string
-          parent_task_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           updated_at?: string
           user_id?: string
+          zone_uuid?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "tasks_parent_task_id_fkey"
-            columns: ["parent_task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "tasks_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_zone_uuid_fkey"
+            columns: ["zone_uuid"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["uuid_id"]
           },
         ]
       }
@@ -1176,20 +1301,20 @@ export type Database = {
         Row: {
           color: string | null
           icon_name: string | null
-          id: number
           name: string
+          uuid_id: string
         }
         Insert: {
           color?: string | null
           icon_name?: string | null
-          id?: number
           name: string
+          uuid_id?: string
         }
         Update: {
           color?: string | null
           icon_name?: string | null
-          id?: number
           name?: string
+          uuid_id?: string
         }
         Relationships: []
       }
@@ -1206,30 +1331,15 @@ export type Database = {
         }
         Returns: boolean
       }
-      gtrgm_compress: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_decompress: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_in: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_options: {
-        Args: { "": unknown }
+      create_starter_template_tags: {
+        Args: { user_uuid: string }
         Returns: undefined
       }
-      gtrgm_out: {
-        Args: { "": unknown }
-        Returns: unknown
+      create_wellness_starter_tags: {
+        Args: { user_uuid: string }
+        Returns: undefined
       }
-      immutable_90_days_ago: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      immutable_90_days_ago: { Args: never; Returns: string }
       onboard_client_with_token: {
         Args: {
           p_client: Json
@@ -1239,22 +1349,9 @@ export type Database = {
         }
         Returns: string
       }
-      set_limit: {
-        Args: { "": number }
-        Returns: number
-      }
-      show_limit: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      show_trgm: {
-        Args: { "": string }
-        Returns: string[]
-      }
-      stable_90_days_ago: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      stable_90_days_ago: { Args: never; Returns: string }
     }
     Enums: {
       consent_type: "data_processing" | "marketing" | "hipaa" | "photography"
@@ -1268,7 +1365,13 @@ export type Database = {
       note_source_type: "typed" | "voice" | "upload"
       project_status: "active" | "on_hold" | "completed" | "archived"
       provider_type: "gmail" | "calendar" | "drive" | "upload"
-      task_priority: "low" | "medium" | "high" | "urgent"
+      tag_category:
+        | "services_modalities"
+        | "client_demographics"
+        | "schedule_attendance"
+        | "health_wellness"
+        | "emotional_mental"
+      task_priority: "low" | "medium" | "high"
       task_status: "todo" | "in_progress" | "done" | "canceled"
     }
     CompositeTypes: {
@@ -1395,9 +1498,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       consent_type: ["data_processing", "marketing", "hipaa", "photography"],
@@ -1412,7 +1512,14 @@ export const Constants = {
       note_source_type: ["typed", "voice", "upload"],
       project_status: ["active", "on_hold", "completed", "archived"],
       provider_type: ["gmail", "calendar", "drive", "upload"],
-      task_priority: ["low", "medium", "high", "urgent"],
+      tag_category: [
+        "services_modalities",
+        "client_demographics",
+        "schedule_attendance",
+        "health_wellness",
+        "emotional_mental",
+      ],
+      task_priority: ["low", "medium", "high"],
       task_status: ["todo", "in_progress", "done", "canceled"],
     },
   },

@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { createUserIntegrationsRepository } from "@repo";
+import { createUserIntegrationsRepository, UserIntegrationsRepository } from "@repo";
 import { getDb } from "@/server/db/client";
 import { decryptString, encryptString, isEncrypted } from "@/server/utils/crypto";
 import type { GmailClient } from "./gmail";
@@ -80,7 +80,100 @@ function extractOAuthRow(row: {
 }
 
 /**
+ * Proactively refresh tokens for a service if they are expired or about to expire.
+ * This ensures tokens are always fresh before making API calls.
+ *
+ * @param userId - The user identifier
+ * @param service - The Google service ('gmail' or 'calendar')
+ * @param integration - The integration data from database
+ * @param repo - The user integrations repository
+ * @returns true if tokens were refreshed, false otherwise
+ */
+async function refreshTokenIfNeeded(
+  userId: string,
+  service: string,
+  integration: {
+    accessToken: string;
+    refreshToken: string | null;
+    expiryDate: Date | null;
+  },
+  repo: UserIntegrationsRepository,
+): Promise<boolean> {
+  // Skip if no expiry date (shouldn't happen, but handle gracefully)
+  if (!integration.expiryDate) {
+    return false;
+  }
+
+  // Skip if no refresh token
+  if (!integration.refreshToken) {
+    console.warn(`refreshTokenIfNeeded: No refresh token for ${service}, cannot refresh`);
+    return false;
+  }
+
+  const now = new Date();
+  const bufferMs = 5 * 60 * 1000; // 5 minute buffer
+  const expiryWithBuffer = new Date(integration.expiryDate.getTime() - bufferMs);
+
+  // Check if token is expired or about to expire
+  if (now < expiryWithBuffer) {
+    return false; // Token is still valid
+  }
+
+  console.warn(
+    `refreshTokenIfNeeded: Token for ${service} is expired or expiring soon, refreshing...`,
+  );
+
+  try {
+    if (!process.env["GOOGLE_CLIENT_ID"] || !process.env["GOOGLE_CLIENT_SECRET"]) {
+      throw new Error("Missing Google OAuth configuration");
+    }
+
+    const auth = new google.auth.OAuth2(
+      process.env["GOOGLE_CLIENT_ID"],
+      process.env["GOOGLE_CLIENT_SECRET"],
+    );
+
+    // Decrypt the refresh token
+    const decryptedRefresh = isEncrypted(integration.refreshToken)
+      ? await decryptString(integration.refreshToken)
+      : integration.refreshToken;
+
+    auth.setCredentials({
+      refresh_token: decryptedRefresh,
+    });
+
+    // Manually trigger token refresh
+    const { credentials } = await auth.refreshAccessToken();
+
+    console.warn(
+      `refreshTokenIfNeeded: Successfully refreshed token for ${service}, new expiry: ${credentials.expiry_date ? new Date(credentials.expiry_date).toISOString() : 'none'}`,
+    );
+
+    // Encrypt and save new tokens
+    const encryptedAccess = credentials.access_token
+      ? await encryptString(credentials.access_token)
+      : integration.accessToken;
+
+    const encryptedRefresh = credentials.refresh_token
+      ? await encryptString(credentials.refresh_token)
+      : integration.refreshToken;
+
+    await repo.updateRawTokens(userId, "google", service, {
+      accessToken: encryptedAccess,
+      refreshToken: encryptedRefresh,
+      expiryDate: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
+    });
+
+    return true;
+  } catch (error) {
+    console.error(`refreshTokenIfNeeded: Failed to refresh token for ${service}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Builds authenticated Gmail and Calendar API clients for the given user.
+ * Proactively refreshes expired tokens before creating clients.
  *
  * @param userId - The identifier of the user whose stored Google integration tokens will be used
  * @returns An object with `gmail` and `calendar` API clients authenticated for the user
@@ -186,21 +279,47 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
     return auth;
   }
 
-  // Strict service-specific token enforcement - no fallbacks
+  // Proactively refresh expired tokens before creating OAuth clients
   const gmailRow = rows.find((r) => r.service === "gmail");
   const calendarRow = rows.find((r) => r.service === "calendar");
 
-  if (!gmailRow) {
+  // Refresh tokens if needed
+  if (gmailRow) {
+    try {
+      await refreshTokenIfNeeded(userId, "gmail", gmailRow, userIntegrationsRepo);
+    } catch (error) {
+      console.error("Failed to refresh Gmail token:", error);
+      // Continue with existing token - OAuth client will handle refresh on next API call
+    }
+  }
+
+  if (calendarRow) {
+    try {
+      await refreshTokenIfNeeded(userId, "calendar", calendarRow, userIntegrationsRepo);
+    } catch (error) {
+      console.error("Failed to refresh Calendar token:", error);
+      // Continue with existing token - OAuth client will handle refresh on next API call
+    }
+  }
+
+  // Re-fetch rows after potential refresh to get updated tokens
+  const refreshedRows = await userIntegrationsRepo.getRawIntegrationData(userId, "google");
+  const refreshedGmailRow = refreshedRows.find((r) => r.service === "gmail");
+  const refreshedCalendarRow = refreshedRows.find((r) => r.service === "calendar");
+
+  // Strict service-specific token enforcement - no fallbacks
+
+  if (!refreshedGmailRow) {
     throw Object.assign(new Error("Gmail access not approved by user"), { status: 403 });
   }
 
-  if (!calendarRow) {
+  if (!refreshedCalendarRow) {
     throw Object.assign(new Error("Calendar access not approved by user"), { status: 403 });
   }
 
   const [gmailAuth, calendarAuth] = await Promise.all([
-    buildOAuthFromRow(extractOAuthRow(gmailRow)),
-    buildOAuthFromRow(extractOAuthRow(calendarRow)),
+    buildOAuthFromRow(extractOAuthRow(refreshedGmailRow)),
+    buildOAuthFromRow(extractOAuthRow(refreshedCalendarRow)),
   ]);
 
   return {

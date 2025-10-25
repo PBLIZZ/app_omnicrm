@@ -103,7 +103,6 @@ export async function getContactData(
         n.contact_id,
         n.content_plain,
         n.content_rich,
-        n.tags,
         n.source_type,
         n.created_at,
         n.updated_at
@@ -212,7 +211,6 @@ export async function getBatchContactData(
         n.contact_id as note_contact_id,
         n.content_plain,
         n.content_rich,
-        n.tags,
         n.source_type,
         n.created_at,
         n.updated_at
@@ -231,7 +229,6 @@ export async function getBatchContactData(
         'photo_url', cd.photo_url,
         'source', cd.source,
         'lifecycle_stage', cd.lifecycle_stage,
-        'tags', cd.tags,
         'confidence_score', cd.confidence_score,
         'date_of_birth', cd.date_of_birth,
         'emergency_contact_name', cd.emergency_contact_name,
@@ -285,7 +282,6 @@ export async function getBatchContactData(
               'contact_id', cn.note_contact_id,
               'content_plain', cn.content_plain,
               'content_rich', cn.content_rich,
-              'tags', cn.tags,
               'source_type', cn.source_type,
               'created_at', cn.created_at,
               'updated_at', cn.updated_at
@@ -303,7 +299,6 @@ export async function getBatchContactData(
               'contact_id', cd.contact_id,
               'content_plain', cd.content_plain,
               'content_rich', cd.content_rich,
-              'tags', cd.tags,
               'source_type', cd.source_type,
               'created_at', cd.created_at,
               'updated_at', cd.updated_at

@@ -5,10 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { ChevronLeft, ChevronRight, List, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, List, ChevronDown, Clock, Edit, Trash2 } from "lucide-react";
 import { ContactDetailsCard } from "./ContactDetailsCard";
 import { toast } from "sonner";
 import type { ContactSearchFilters } from "./types";
+import { AvatarImage } from "@/components/ui/avatar-image";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useContact, useDeleteContact } from "@/hooks/use-contacts";
 
 interface ContactDetailsNavWrapperProps {
   contactId: string;
@@ -30,7 +33,6 @@ function hasActiveFilters(filterState?: ContactSearchFilters): boolean {
 
   return !!(
     filterState.lifecycleStage?.length ||
-    filterState.tags?.length ||
     filterState.source?.length ||
     filterState.dateRange ||
     filterState.query ||
@@ -53,19 +55,6 @@ function FilterHoverContent({ filterState }: { filterState: ContactSearchFilters
             {filterState.lifecycleStage.map((stage) => (
               <Badge key={stage} variant="secondary" className="text-xs">
                 {stage}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {filterState.tags && filterState.tags.length > 0 && (
-        <div>
-          <div className="text-xs font-medium text-muted-foreground mb-1">Tags</div>
-          <div className="flex flex-wrap gap-1">
-            {filterState.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
               </Badge>
             ))}
           </div>
@@ -107,6 +96,10 @@ export function ContactDetailsNavWrapper({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [navigationContext, setNavigationContext] = useState<NavigationContext | null>(null);
+
+  // Fetch contact data
+  const { data: contact, isLoading: contactLoading } = useContact(contactId);
+  const deleteContactMutation = useDeleteContact();
 
   // Extract navigation context from localStorage or URL params
   useEffect(() => {
@@ -228,50 +221,143 @@ export function ContactDetailsNavWrapper({
 
   const showFilters = hasActiveFilters(navigationContext?.filterState);
 
+  const handleDelete = (): void => {
+    if (contact && confirm(`Are you sure you want to delete ${contact.displayName}?`)) {
+      deleteContactMutation.mutate(contactId, {
+        onSuccess: () => {
+          router.push("/contacts");
+        },
+      });
+    }
+  };
+
   return (
     <div className="relative">
-      {/* Navigation Bar - only show if we have navigation context */}
-      {navigationContext && (
+      {/* Combined Navigation + Contact Header Row */}
+      {navigationContext && contact && !contactLoading && (
         <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
           <div className="container mx-auto px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
+            {/* Single row: Contact on left, Navigation on right */}
+            <div className="flex items-center justify-between gap-6">
+              {/* Left: Contact Info (Photo + 3-line details) */}
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <AvatarImage
+                  src={contact.photoUrl}
+                  alt={contact.displayName}
+                  size="lg"
+                  className="h-16 w-16 flex-shrink-0"
+                />
+
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  {/* Line 1: Name + Edit/Delete icons */}
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-bold tracking-tight truncate">
+                      {contact.displayName}
+                    </h1>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => router.push(`/contacts/${contactId}/edit`)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Edit Contact</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleDelete}
+                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Delete Contact</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+
+                  {/* Line 2: Lifecycle Stage + Referral */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {contact.lifecycleStage && (
+                      <Badge variant="secondary" className="text-xs font-medium">
+                        {contact.lifecycleStage}
+                      </Badge>
+                    )}
+
+                    {contact.referralSource && (
+                      <Badge variant="outline" className="text-xs">
+                        Ref: {contact.referralSource}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Line 3: Date Added timestamp */}
+                  {contact.createdAt && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>Added {new Date(contact.createdAt).toLocaleDateString("en-GB")}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: All Navigation Controls */}
+              <div className="flex items-center gap-3 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleBackToList}
-                  className="flex items-center"
+                  className="flex items-center h-9"
                 >
                   <List className="h-4 w-4 mr-2" />
                   Back to List
                 </Button>
 
-                <div className="text-sm text-muted-foreground">
-                  {navigationContext.currentIndex + 1} of {navigationContext.contactIds.length}{" "}
-                  contacts
-                  {showFilters && navigationContext.filterState && (
-                    <HoverCard>
-                      <HoverCardTrigger asChild>
-                        <Badge variant="secondary" className="ml-2 cursor-pointer inline-flex items-center gap-1">
-                          Filtered
-                          <ChevronDown className="h-3 w-3" />
-                        </Badge>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-auto" side="bottom" align="start">
-                        <FilterHoverContent filterState={navigationContext.filterState} />
-                      </HoverCardContent>
-                    </HoverCard>
-                  )}
-                </div>
-              </div>
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  {navigationContext.currentIndex + 1} of {navigationContext.contactIds.length}
+                </span>
 
-              <div className="flex items-center space-x-2 shrink-0">
+                {showFilters && navigationContext.filterState && (
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <Badge
+                        variant="secondary"
+                        className="cursor-pointer inline-flex items-center gap-1"
+                      >
+                        Filtered
+                        <ChevronDown className="h-3 w-3" />
+                      </Badge>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-auto" side="bottom" align="start">
+                      <FilterHoverContent filterState={navigationContext.filterState} />
+                    </HoverCardContent>
+                  </HoverCard>
+                )}
+
+                <div className="h-6 w-px bg-border" />
+
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handlePrevious}
                   disabled={navigationContext.currentIndex <= 0}
-                  className="flex items-center"
+                  className="flex items-center h-8"
                 >
                   <ChevronLeft className="h-4 w-4 mr-1" />
                   Previous
@@ -282,7 +368,7 @@ export function ContactDetailsNavWrapper({
                   size="sm"
                   onClick={handleNext}
                   disabled={navigationContext.currentIndex >= navigationContext.totalItems - 1}
-                  className="flex items-center"
+                  className="flex items-center h-8"
                 >
                   Next
                   <ChevronRight className="h-4 w-4 ml-1" />
@@ -293,7 +379,7 @@ export function ContactDetailsNavWrapper({
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Main Content - ContactDetailsCard now won't show its own header since we're showing it above */}
       <ContactDetailsCard contactId={contactId} />
     </div>
   );

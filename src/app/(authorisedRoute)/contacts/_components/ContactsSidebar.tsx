@@ -1,8 +1,8 @@
 "use client";
 
-import { Users, UserPlus } from "lucide-react";
+import { Users, UserPlus, LayoutGrid, MessageSquare, User } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Badge,
   SidebarContent,
@@ -17,7 +17,19 @@ import { useContacts } from "@/hooks/use-contacts";
 export function ContactsSidebar(): JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: contactsData } = useContacts("");
+
+  // Extract contactId from pathname if on contact details page
+  const contactIdMatch = pathname.match(/^\/contacts\/([^\/]+)$/);
+  const contactId = contactIdMatch ? contactIdMatch[1] : null;
+  const currentTab = searchParams.get("tab") || "overview";
+
+  const handleTabChange = (tab: string): void => {
+    if (contactId) {
+      router.push(`/contacts/${contactId}?tab=${tab}`);
+    }
+  };
 
   return (
     <SidebarContent>
@@ -65,6 +77,47 @@ export function ContactsSidebar(): JSX.Element {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroup>
+
+      {/* Contact Detail Views - Only show when viewing a contact */}
+      {contactId && (
+        <SidebarGroup>
+          <SidebarGroupLabel>Contact Views</SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={currentTab === "overview"}
+                onClick={() => handleTabChange("overview")}
+                tooltip="Overview"
+              >
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                <span>Overview</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={currentTab === "notes"}
+                onClick={() => handleTabChange("notes")}
+                tooltip="All Notes"
+              >
+                <MessageSquare className="w-4 h-4 mr-2" />
+                <span>All Notes</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={currentTab === "details"}
+                onClick={() => handleTabChange("details")}
+                tooltip="Contact Details"
+              >
+                <User className="w-4 h-4 mr-2" />
+                <span>Contact Details</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      )}
     </SidebarContent>
   );
 }

@@ -72,7 +72,6 @@ export class SearchRepository {
             email: row.primaryEmail,
             phone: row.primaryPhone,
             lifecycleStage: row.lifecycleStage,
-            tags: row.tags,
           },
           score: 1,
           source: "traditional",
@@ -104,7 +103,6 @@ export class SearchRepository {
           metadata: {
             contactId: row.note.contactId,
             contactName: row.contact?.displayName,
-            tags: row.note.tags,
             sourceType: row.note.sourceType,
           },
           score: 1,
@@ -297,7 +295,6 @@ export class SearchRepository {
             email: contact.primaryEmail,
             phone: contact.primaryPhone,
             lifecycleStage: contact.lifecycleStage,
-            tags: contact.tags,
           },
           createdAt: contact.createdAt,
           updatedAt: contact.updatedAt,
@@ -327,7 +324,6 @@ export class SearchRepository {
           metadata: {
             contactId: row.note.contactId,
             contactName: row.contact?.displayName,
-            tags: row.note.tags,
             sourceType: row.note.sourceType,
           },
           createdAt: row.note.createdAt,

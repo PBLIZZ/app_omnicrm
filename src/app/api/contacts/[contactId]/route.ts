@@ -31,7 +31,6 @@ const ContactWithNotesSchema = ContactSchema.extend({
       contactId: z.string().uuid().nullable(),
       contentPlain: z.string(),
       contentRich: z.unknown().nullable(),
-      tags: z.array(z.string()).nullable(),
       createdAt: z.date().nullable(),
       updatedAt: z.date().nullable(),
     }),

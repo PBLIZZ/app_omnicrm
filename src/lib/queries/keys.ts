@@ -102,6 +102,15 @@ export const queryKeys = {
     todaysFocus: () => ["momentum", "today-focus"] as const,
     stats: () => ["momentum", "stats"] as const,
   },
+
+  // Tasks - Direct access for use-tasks hook
+  tasks: {
+    all: ["tasks"] as const,
+    list: (filters?: Record<string, unknown>, sort?: Record<string, unknown>, search?: string) =>
+      ["tasks", "list", filters, sort, search] as const,
+    detail: (id: string) => ["tasks", "detail", id] as const,
+    byId: (id: string) => ["tasks", id] as const,
+  },
 } as const;
 
 /**

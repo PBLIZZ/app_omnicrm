@@ -26,7 +26,6 @@ export const IntelligentTaskSchema = z.object({
   zoneId: z.number().int().nullable(),
   projectId: z.string().uuid().nullable(),
   parentTaskId: z.string().uuid().nullable(),
-  tags: z.array(z.string()).default([]),
   confidence: z.number().min(0).max(1),
   reasoning: z.string(),
 });
@@ -80,7 +79,7 @@ function buildIntelligentProcessingPrompt(
 2. **ZONE CATEGORIZATION**: Assign each task to the most appropriate zone (Life, Business, etc.)
 3. **PROJECT ASSIGNMENT**: Identify when tasks belong to existing or new projects
 4. **HIERARCHY DETECTION**: Determine task/subtask and project/task relationships
-5. **INTELLIGENT PARSING**: Extract priorities, due dates, time estimates, and tags
+5. **INTELLIGENT PARSING**: Extract priorities, due dates, time estimates
 
 Available zones: ${availableZones}
 
@@ -107,7 +106,6 @@ Return a JSON object with this exact structure:
       "zoneId": number or null,
       "projectId": "generated-uuid" or null,
       "parentTaskId": "generated-uuid" or null,
-      "tags": ["tag1", "tag2"],
       "confidence": 0.0-1.0,
       "reasoning": "Why this categorization"
     }
@@ -209,7 +207,6 @@ export async function processIntelligentInboxItem(
           zoneId: context.zones[0]?.id || null,
           projectId: null,
           parentTaskId: null,
-          tags: [],
           confidence: 0.3,
           reasoning: "Fallback processing due to AI error",
         },

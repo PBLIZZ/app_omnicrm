@@ -31,6 +31,7 @@ interface CreateNoteData {
 interface UpdateNoteData {
   noteId: string;
   content: string;
+  contentRich?: string;
 }
 
 interface DeleteNoteData {
@@ -59,7 +60,9 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
     queryKey: ["/api/notes", contactId],
     queryFn: async (): Promise<Note[]> => {
       // API returns { notes: Note[], total: number }
-      const response = await apiClient.get<{ notes: Note[]; total: number }>(`/api/notes?contactId=${contactId}`);
+      const response = await apiClient.get<{ notes: Note[]; total: number }>(
+        `/api/notes?contactId=${contactId}`,
+      );
       return response?.notes ?? [];
     },
     enabled: !!contactId,
@@ -91,7 +94,6 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
         contactId,
         contentPlain: newNote.content,
         contentRich: {},
-        tags: [],
         piiEntities: [],
         sourceType: "typed",
         createdAt: new Date(),
@@ -135,6 +137,7 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
       // apiClient automatically unwraps { success: true, data: T } → returns T
       const note = await apiClient.put<Note>(`/api/notes/${data.noteId}`, {
         contentPlain: data.content,
+        contentRich: data.contentRich || data.content,
       });
       return note;
     },
@@ -147,7 +150,12 @@ export function useNotes({ contactId }: UseNotesOptions): UseNotesReturn {
         if (!old) return [];
         return old.map((note) =>
           note.id === updatedNote.noteId
-            ? { ...note, contentPlain: updatedNote.content, updatedAt: new Date() }
+            ? {
+                ...note,
+                contentPlain: updatedNote.content,
+                contentRich: updatedNote.contentRich || updatedNote.content,
+                updatedAt: new Date(),
+              }
             : note,
         );
       });

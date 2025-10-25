@@ -199,124 +199,6 @@ export const contactsColumns: ColumnDef<ContactWithLastNote>[] = [
     },
   },
   {
-    accessorKey: "tags",
-    header: "Tags",
-    cell: ({ row }) => {
-      const tagsData = row.getValue("tags") as string[] | string | null;
-      let tags: string[] = [];
-
-      // Tags come as array from API, not string
-      if (Array.isArray(tagsData)) {
-        tags = tagsData;
-      } else if (typeof tagsData === "string" && tagsData) {
-        try {
-          tags = JSON.parse(tagsData) as string[];
-        } catch {
-          tags = [];
-        }
-      }
-
-      const getTagColor = (tag: string): string => {
-        // Service types - Blue
-        if (
-          [
-            "Yoga",
-            "Massage",
-            "Meditation",
-            "Pilates",
-            "Reiki",
-            "Acupuncture",
-            "Personal Training",
-            "Nutrition Coaching",
-            "Life Coaching",
-            "Therapy",
-          ].includes(tag)
-        ) {
-          return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
-        }
-        // Class/Session types - Purple
-        if (["Workshops", "Retreats", "Group Classes", "Private Sessions"].includes(tag)) {
-          return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300";
-        }
-        // Demographics - Green
-        if (
-          [
-            "Senior",
-            "Young Adult",
-            "Professional",
-            "Parent",
-            "Student",
-            "Beginner",
-            "Intermediate",
-            "Advanced",
-            "VIP",
-            "Local",
-            "Traveler",
-          ].includes(tag)
-        ) {
-          return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
-        }
-        // Goals & Health - Orange
-        if (
-          [
-            "Stress Relief",
-            "Weight Loss",
-            "Flexibility",
-            "Strength Building",
-            "Pain Management",
-            "Mental Health",
-            "Spiritual Growth",
-            "Mindfulness",
-            "Athletic Performance",
-            "Injury Recovery",
-            "Prenatal",
-            "Postnatal",
-          ].includes(tag)
-        ) {
-          return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
-        }
-        // Engagement patterns - Teal
-        if (
-          [
-            "Regular Attendee",
-            "Weekend Warrior",
-            "Early Bird",
-            "Evening Preferred",
-            "Seasonal Client",
-            "Frequent Visitor",
-            "Occasional Visitor",
-            "High Spender",
-            "Referral Source",
-            "Social Media Active",
-          ].includes(tag)
-        ) {
-          return "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300";
-        }
-        // Default - Gray
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
-      };
-
-      return (
-        <div className="flex gap-1 flex-wrap">
-          {tags.length > 0 ? (
-            tags.slice(0, 4).map((tag: string, index: number) => (
-              <Badge key={index} className={`text-xs ${getTagColor(tag)}`}>
-                {tag}
-              </Badge>
-            ))
-          ) : (
-            <span className="text-muted-foreground italic text-sm">No tags</span>
-          )}
-          {tags.length > 4 && (
-            <Badge variant="outline" className="text-xs">
-              +{tags.length - 4}
-            </Badge>
-          )}
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: "source",
     header: "Source",
     filterFn: arrayIncludesFilter,
@@ -369,6 +251,45 @@ export const contactsColumns: ColumnDef<ContactWithLastNote>[] = [
         <span className="text-muted-foreground italic text-sm">No stage</span>
       );
     },
+  },
+  {
+    id: "tags",
+    header: "Tags",
+    cell: ({ row }) => {
+      const contact = row.original;
+      const contactTags = contact.tags || [];
+
+      if (contactTags.length === 0) {
+        return null;
+      }
+
+      // Show max 2 tags + "N more" pill
+      const visibleTags = contactTags.slice(0, 2);
+      const hiddenCount = contactTags.length - 2;
+
+      return (
+        <div className="flex flex-wrap gap-1 items-center max-w-[200px]">
+          {visibleTags.map((tag) => (
+            <Badge
+              key={tag.id}
+              className="text-xs px-2 py-0.5 rounded-full border-0"
+              style={{
+                backgroundColor: tag.color,
+                color: "#fff",
+              }}
+            >
+              {tag.name}
+            </Badge>
+          ))}
+          {hiddenCount > 0 && (
+            <Badge variant="outline" className="text-xs px-2 py-0.5">
+              +{hiddenCount}
+            </Badge>
+          )}
+        </div>
+      );
+    },
+    enableHiding: true,
   },
   {
     accessorKey: "updatedAt",

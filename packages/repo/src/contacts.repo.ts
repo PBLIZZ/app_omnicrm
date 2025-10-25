@@ -1,5 +1,5 @@
 import { eq, and, ilike, desc, asc, inArray, count, sql } from "drizzle-orm";
-import { contacts, notes, type Contact, type CreateContact } from "@/server/db/schema";
+import { contacts, notes, contactTags, tags, type Contact, type CreateContact } from "@/server/db/schema";
 import type { DbClient } from "@/server/db/client";
 
 /**
@@ -35,7 +35,7 @@ export class ContactsRepository {
     const conditions = [eq(contacts.userId, userId)];
     if (params.search) {
       conditions.push(
-        sql`(${contacts.displayName} ILIKE ${`%${params.search}%`} OR ${contacts.primaryEmail} ILIKE ${`%${params.search}%`})`
+        sql`(${contacts.displayName} ILIKE ${`%${params.search}%`} OR ${contacts.primaryEmail} ILIKE ${`%${params.search}%`})`,
       );
     }
 
@@ -67,7 +67,7 @@ export class ContactsRepository {
   }
 
   /**
-   * List contacts with last note preview using single JOIN query
+   * List contacts with last note preview and tags using single JOIN query
    * Optimized to avoid N+1 query problem
    */
   async listContactsWithLastNote(
@@ -79,7 +79,7 @@ export class ContactsRepository {
       page?: number;
       pageSize?: number;
     } = {},
-  ): Promise<{ items: (Contact & { lastNote: string | null })[]; total: number }> {
+  ): Promise<{ items: (Contact & { lastNote: string | null; tags: Array<{ id: string; name: string; color: string; category: string }> })[]; total: number }> {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 50;
     const offset = (page - 1) * pageSize;
@@ -89,7 +89,7 @@ export class ContactsRepository {
     const conditions = [eq(contacts.userId, userId)];
     if (params.search) {
       conditions.push(
-        sql`(${contacts.displayName} ILIKE ${`%${params.search}%`} OR ${contacts.primaryEmail} ILIKE ${`%${params.search}%`})`
+        sql`(${contacts.displayName} ILIKE ${`%${params.search}%`} OR ${contacts.primaryEmail} ILIKE ${`%${params.search}%`})`,
       );
     }
 
@@ -102,7 +102,7 @@ export class ContactsRepository {
     const totalRow = countResult[0];
     const total = totalRow?.count ?? 0;
 
-    // Fetch items with last note preview using LEFT JOIN
+    // Fetch items with last note preview and tags using LEFT JOIN
     const sortColumnMap = {
       displayName: contacts.displayName,
       createdAt: contacts.createdAt,
@@ -120,7 +120,6 @@ export class ContactsRepository {
         photoUrl: contacts.photoUrl,
         source: contacts.source,
         lifecycleStage: contacts.lifecycleStage,
-        tags: contacts.tags,
         confidenceScore: contacts.confidenceScore,
         dateOfBirth: contacts.dateOfBirth,
         emergencyContactName: contacts.emergencyContactName,
@@ -134,6 +133,20 @@ export class ContactsRepository {
         updatedAt: contacts.updatedAt,
         // Last note preview
         lastNote: sql<string | null>`LEFT(notes.content_plain, 500)`,
+        // Tags array aggregation
+        tags: sql<Array<{ id: string; name: string; color: string; category: string }>>`
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'id', ${tags.id},
+                'name', ${tags.name},
+                'color', ${tags.color},
+                'category', ${tags.category}
+              )
+            ) FILTER (WHERE ${tags.id} IS NOT NULL),
+            '[]'
+          )
+        `,
       })
       .from(contacts)
       .leftJoin(
@@ -142,14 +155,17 @@ export class ContactsRepository {
           eq(notes.contactId, contacts.id),
           eq(notes.userId, userId),
           sql`notes.created_at = (
-            SELECT MAX(n2.created_at) 
-            FROM notes n2 
-            WHERE n2.contact_id = contacts.id 
+            SELECT MAX(n2.created_at)
+            FROM notes n2
+            WHERE n2.contact_id = contacts.id
             AND n2.user_id = ${userId}
           )`,
         ),
       )
+      .leftJoin(contactTags, eq(contactTags.contactId, contacts.id))
+      .leftJoin(tags, eq(tags.id, contactTags.tagId))
       .where(and(...conditions))
+      .groupBy(contacts.id, notes.contentPlain)
       .orderBy(sortDir(sortColumnMap[sortKey]))
       .limit(pageSize)
       .offset(offset);

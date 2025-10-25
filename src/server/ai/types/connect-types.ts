@@ -36,7 +36,6 @@ export interface ContactWithContext {
   primaryEmail?: string | null;
   primaryPhone?: string | null;
   lifecycleStage?: string | null;
-  tags?: string[];
   createdAt: string;
   updatedAt: string;
   // Context information

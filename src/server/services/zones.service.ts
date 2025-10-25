@@ -39,12 +39,12 @@ export async function listZonesService(): Promise<Zone[]> {
 /**
  * Get a single zone by ID
  */
-export async function getZoneByIdService(zoneId: number): Promise<Zone | null> {
+export async function getZoneByIdService(zoneUuid: string): Promise<Zone | null> {
   const db = await getDb();
   const repo = createZonesRepository(db);
 
   try {
-    return await repo.getZoneById(zoneId);
+    return await repo.getZoneById(zoneUuid);
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : "Failed to get zone by ID",
@@ -75,6 +75,31 @@ export async function getZoneByNameService(name: string): Promise<Zone | null> {
 }
 
 /**
+ * Get a single zone by slug (URL-friendly name)
+ */
+export async function getZoneBySlug(slug: string): Promise<Zone | null> {
+  const db = await getDb();
+  const repo = createZonesRepository(db);
+
+  try {
+    // Convert slug to zone name
+    const zoneName = slug
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
+    return await repo.getZoneByName(zoneName);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Failed to get zone by slug",
+      "DB_ERROR",
+      "database",
+      false,
+    );
+  }
+}
+
+/**
  * Create a new zone (admin function)
  */
 export async function createZoneService(data: CreateZone): Promise<Zone> {
@@ -97,14 +122,14 @@ export async function createZoneService(data: CreateZone): Promise<Zone> {
  * Update an existing zone (admin function)
  */
 export async function updateZoneService(
-  zoneId: number,
+  zoneUuid: string,
   data: Partial<CreateZone>,
 ): Promise<Zone | null> {
   const db = await getDb();
   const repo = createZonesRepository(db);
 
   try {
-    return await repo.updateZone(zoneId, data);
+    return await repo.updateZone(zoneUuid, data);
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : "Failed to update zone",
@@ -118,12 +143,12 @@ export async function updateZoneService(
 /**
  * Delete a zone (admin function)
  */
-export async function deleteZoneService(zoneId: number): Promise<void> {
+export async function deleteZoneService(zoneUuid: string): Promise<void> {
   const db = await getDb();
   const repo = createZonesRepository(db);
 
   try {
-    const deleted = await repo.deleteZone(zoneId);
+    const deleted = await repo.deleteZone(zoneUuid);
     if (!deleted) {
       throw new AppError("Zone not found", "ZONE_NOT_FOUND", "validation", false);
     }

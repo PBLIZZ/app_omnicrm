@@ -16,7 +16,6 @@ interface SemanticSearchResult {
   date: string;
   subject: string;
   preview: string;
-  tags?: string[];
 }
 
 // Type guards for runtime validation

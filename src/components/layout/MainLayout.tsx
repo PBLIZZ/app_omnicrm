@@ -19,7 +19,8 @@ import { DynamicBreadcrumb } from "./DynamicBreadcrumb";
 import { SidebarBrandHeader } from "./SidebarBrandHeader";
 import { SidebarMainSectionNav } from "./SidebarMainSectionNav";
 import { Button } from "@/components/ui/button";
-import { Bot, Zap } from "lucide-react";
+import { Bot, Zap, Home, Settings } from "lucide-react";
+import Link from "next/link";
 // import { SearchModal } from "@/components/SearchModal"; // Temporarily disabled
 import { toast } from "sonner";
 import { useHeaderControls } from "@/hooks/use-header-controls";
@@ -145,8 +146,39 @@ export function MainLayout({ children }: MainLayoutProps): JSX.Element {
             <Separator orientation="vertical" className="mr-2 h-4" />
             <DynamicBreadcrumb />
             <div className="flex-1" />
-            <div className="flex items-center gap-2"></div>
-            {/* Right Side - Search, AI, Notifications, User */}
+
+            {/* Quick Navigation Icons */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+                className="h-9 w-9"
+                title="Dashboard"
+                aria-label="Go to Dashboard"
+              >
+                <Link href="/omni-flow">
+                  <Home className="h-5 w-5" />
+                </Link>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+                className="h-9 w-9"
+                title="Settings"
+                aria-label="Go to Settings"
+              >
+                <Link href="/settings">
+                  <Settings className="h-5 w-5" />
+                </Link>
+              </Button>
+
+              <Separator orientation="vertical" className="mx-2 h-4" />
+            </div>
+
+            {/* Right Side - AI, Rapid Note, Theme */}
             <div className="flex items-center gap-2">
               {/* Global Search - Temporarily disabled */}
               {/* TODO: Implement unified search for clients, tasks, notes, etc.

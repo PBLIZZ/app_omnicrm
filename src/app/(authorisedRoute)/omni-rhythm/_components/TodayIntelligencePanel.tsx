@@ -450,27 +450,8 @@ function getEventCategory(appointment: Appointment): string | undefined {
   return undefined;
 }
 
-// Helper function to extract wellness tags from event content
 function getEventTags(appointment: Appointment): string[] {
-  const tags: string[] = [];
-  const text = `${appointment.title} ${appointment.description ?? ""}`.toLowerCase();
-
-  // Wellness service tags
-  if (/\b(yoga|vinyasa|hatha|yin)\b/.test(text)) tags.push("yoga");
-  if (/\b(massage|bodywork|therapeutic)\b/.test(text)) tags.push("massage");
-  if (/\b(meditation|mindfulness|breathing)\b/.test(text)) tags.push("meditation");
-  if (/\b(pilates|barre)\b/.test(text)) tags.push("pilates");
-  if (/\b(reiki|energy|healing)\b/.test(text)) tags.push("reiki");
-  if (/\b(acupuncture|tcm)\b/.test(text)) tags.push("acupuncture");
-  if (/\b(nutrition|diet|wellness coaching)\b/.test(text)) tags.push("nutrition");
-  if (/\b(therapy|counseling|psychology)\b/.test(text)) tags.push("therapy");
-
-  // Intensity/level tags
-  if (/\b(beginner|intro|new)\b/.test(text)) tags.push("beginner");
-  if (/\b(advanced|intensive|master)\b/.test(text)) tags.push("advanced");
-  if (/\b(gentle|restorative|relaxing)\b/.test(text)) tags.push("gentle");
-
-  return tags.slice(0, 3); // Limit to 3 tags for UI cleanliness
+  return [];
 }
 
 // Helper function to group appointments by time periods and sort chronologically

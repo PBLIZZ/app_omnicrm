@@ -35,7 +35,6 @@ export type ContactWithNotes = Contact & {
     contentRich: unknown;
     contentPlain: string;
     piiEntities: unknown;
-    tags: string[];
     sourceType: "typed" | "voice" | "upload";
     createdAt: Date;
     updatedAt: Date;
@@ -117,7 +116,6 @@ export async function createContactsFromSuggestionsService(
     primaryEmail: suggestion.email,
     source: suggestion.source,
     lifecycleStage: "Prospect",
-    tags: ["calendar_import"],
   }));
 
   // 4. Batch create contacts
@@ -228,7 +226,34 @@ export async function getContactByIdService(userId: string, contactId: string): 
       throw new AppError("contact not found", "CONTACT_NOT_FOUND", "validation", false);
     }
 
-    return normalizeContactNulls(contact);
+    const normalizedContact = normalizeContactNulls(contact);
+
+    // Generate signed URL for photo if it exists
+    if (normalizedContact.photoUrl) {
+      try {
+        const photoPaths = [normalizedContact.photoUrl];
+        const batchResult = await getBatchSignedUrlsService(photoPaths, 14400); // 4 hours
+        const signedUrl = batchResult.urls[normalizedContact.photoUrl];
+
+        if (signedUrl) {
+          normalizedContact.photoUrl = signedUrl;
+        }
+
+        // Log photo access for HIPAA/GDPR compliance
+        await logBatchPhotoAccessService(userId, [
+          { contactId: normalizedContact.id, photoPath: contact.photoUrl as string },
+        ]);
+      } catch (photoError) {
+        // Log error but don't fail the request
+        logger.warn("Failed to generate signed URL for contact photo", {
+          contactId,
+          photoUrl: normalizedContact.photoUrl,
+          error: photoError,
+        });
+      }
+    }
+
+    return normalizedContact;
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw new AppError(
@@ -298,7 +323,6 @@ export async function createContactService(
     photoUrl?: string | undefined;
     source?: string | undefined;
     lifecycleStage?: string | undefined;
-    tags?: string[] | undefined;
     confidenceScore?: string | undefined;
     dateOfBirth?: string | undefined;
     emergencyContactName?: string | undefined;
@@ -322,7 +346,6 @@ export async function createContactService(
       photoUrl: input.photoUrl ?? null,
       source: input.source ?? null,
       lifecycleStage: input.lifecycleStage ?? null,
-      tags: input.tags ?? null,
       confidenceScore: input.confidenceScore ?? null,
       dateOfBirth: input.dateOfBirth ?? null,
       emergencyContactName: input.emergencyContactName ?? null,
@@ -367,7 +390,6 @@ function normalizeContactNulls(contact: Contact): Contact {
     address: contact.address ?? undefined,
     healthContext: contact.healthContext ?? undefined,
     preferences: contact.preferences ?? undefined,
-    tags: contact.tags ?? undefined,
   } as Contact;
 }
 
@@ -384,7 +406,6 @@ export async function updateContactService(
     photoUrl?: string | null | undefined;
     source?: string | null | undefined;
     lifecycleStage?: string | null | undefined;
-    tags?: string[] | null | undefined;
     confidenceScore?: string | null | undefined;
     dateOfBirth?: string | null | undefined;
     emergencyContactName?: string | null | undefined;
@@ -516,7 +537,6 @@ export async function createContactsBatchService(
     primaryPhone?: string;
     source?: string;
     lifecycleStage?: string;
-    tags?: string[];
   }>,
 ): Promise<{
   created: Contact[];

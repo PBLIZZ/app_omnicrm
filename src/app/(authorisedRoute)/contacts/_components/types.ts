@@ -46,7 +46,6 @@ export interface EditContactData {
   primaryEmail?: string;
   primaryPhone?: string;
   lifecycleStage?: string;
-  tags?: string[];
   dateOfBirth?: string | null;
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
@@ -112,7 +111,6 @@ export interface ContactAIInsightsDialogProps {
 export interface ContactSearchFilters {
   search?: string;
   lifecycleStage?: string[];
-  tags?: string[];
   source?: string[];
   hasEmail?: boolean;
   hasPhone?: boolean;
@@ -134,6 +132,5 @@ export interface ContactQuickAddData {
   primaryPhone?: string;
   source: string;
   lifecycleStage?: string;
-  tags?: string[];
   confidenceScore?: string;
 }

@@ -38,7 +38,6 @@ export type ContactListItem = {
   primaryPhone: string | null;
   source: string | null;
   lifecycleStage: string | null;
-  tags: unknown;
   confidenceScore: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -52,7 +51,6 @@ function convertToContactListItem(dto: OmniClientWithNotesDTO): ContactListItem 
     ...dto,
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
-    tags: dto.tags,
   };
 }
 
@@ -489,7 +487,6 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
       const contact = makeOmniClientWithNotes({
         userId,
         lifecycleStage: "Core Client",
-        tags: ["Yoga", "Regular Attendee"],
         confidenceScore: "0.85",
       });
 
@@ -505,8 +502,6 @@ export function configureCommonScenarios(fakes: AllRepoFakes) {
     dataCorruption: () => {
       const corruptContact = makeOmniClientWithNotes({
         lifecycleStage: "Core Client",
-        // Simulate corrupted tags field
-        tags: null,
         confidenceScore: "0.85",
       });
 

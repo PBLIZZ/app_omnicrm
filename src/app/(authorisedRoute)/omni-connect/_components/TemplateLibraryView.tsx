@@ -23,7 +23,6 @@ interface EmailTemplate {
   category: "welcome" | "follow-up" | "booking" | "reminder" | "promotional" | "support";
   subject: string;
   content: string;
-  tags: string[];
   usage: number;
   lastUsed?: string;
   isActive: boolean;
@@ -45,13 +44,11 @@ export function TemplateLibraryView(): JSX.Element {
     category: EmailTemplate["category"];
     subject: string;
     content: string;
-    tags: string;
   }>({
     name: "",
     category: "welcome",
     subject: "",
     content: "",
-    tags: "",
   });
 
   // TODO: Replace with real email templates from database
@@ -91,8 +88,7 @@ export function TemplateLibraryView(): JSX.Element {
     const matchesCategory = selectedCategory === "all" || template.category === selectedCategory;
     const matchesSearch =
       template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      template.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      template.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      template.subject.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -111,7 +107,7 @@ export function TemplateLibraryView(): JSX.Element {
   const handleCreateTemplate = (): void => {
     // Implementation for creating new template
     setIsCreateDialogOpen(false);
-    setNewTemplate({ name: "", category: "welcome", subject: "", content: "", tags: "" });
+    setNewTemplate({ name: "", category: "welcome", subject: "", content: "" });
   };
 
   const handleUseTemplate = (template: EmailTemplate): void => {
@@ -207,14 +203,6 @@ export function TemplateLibraryView(): JSX.Element {
                       onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
                     />
                   </div>
-                  <div>
-                    <label className="text-sm font-medium">Tags (comma-separated)</label>
-                    <Input
-                      placeholder="e.g., welcome, new-client, orientation"
-                      value={newTemplate.tags}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, tags: e.target.value })}
-                    />
-                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -278,14 +266,6 @@ export function TemplateLibraryView(): JSX.Element {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground line-clamp-3">{template.content}</div>
-
-              <div className="flex flex-wrap gap-1">
-                {template.tags.map((tag) => (
-                  <Badge key={tag} variant="outline" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
 
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <div className="flex items-center gap-4">
@@ -357,13 +337,6 @@ export function TemplateLibraryView(): JSX.Element {
             <div className="space-y-4">
               <div className="p-4 bg-muted/30 rounded-lg">
                 <pre className="whitespace-pre-wrap text-sm">{selectedTemplate.content}</pre>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {selectedTemplate.tags.map((tag) => (
-                  <Badge key={tag} variant="outline" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
               </div>
             </div>
             <DialogFooter>

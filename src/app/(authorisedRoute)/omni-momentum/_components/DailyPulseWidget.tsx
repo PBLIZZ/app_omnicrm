@@ -213,11 +213,11 @@ export function DailyPulseWidget(): JSX.Element {
   };
 
   return (
-    <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 h-[35rem] flex flex-col">
+    <Card className="bg-gradient-to-br from-sky-50 to-teal-50 border-teal-200 h-[300px] flex flex-col">
       <CardHeader className="pb-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Zap className="w-5 h-5 text-blue-500" />
+            <Zap className="w-5 h-5 text-violet-500" />
             Daily Pulse
           </CardTitle>
           <Button
@@ -231,12 +231,12 @@ export function DailyPulseWidget(): JSX.Element {
                 notes: "",
               })
             }
-            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+            className="h-8 w-8 p-0 text-violet-600 hover:text-blue-700 hover:bg-blue-100"
           >
             <Plus className="w-4 h-4" />
           </Button>
         </div>
-        <p className="text-sm text-gray-600">
+        <p className="text-xs text-gray-600">
           {getCurrentTimeOfDay()} Pulse • {getTimeOfDayLabel()}
         </p>
       </CardHeader>

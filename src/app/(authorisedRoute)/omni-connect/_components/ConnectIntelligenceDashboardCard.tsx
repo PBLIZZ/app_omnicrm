@@ -278,13 +278,6 @@ export function IntelligenceDashboardCard({
                           <div className="space-y-2">
                             <h4 className="font-semibold">{item.title}</h4>
                             <p className="text-sm text-gray-600">{item.summary}</p>
-                            <div className="flex flex-wrap gap-1">
-                              {item.tags.map((tag: string) => (
-                                <Badge key={tag} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
                             <p className="text-xs text-gray-500">
                               Added {new Date(item.dateAdded).toLocaleDateString()}
                             </p>

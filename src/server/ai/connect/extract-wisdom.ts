@@ -6,7 +6,6 @@ import type { ChatMessage } from "@/server/ai/core/llm.service";
 interface EmailWisdom {
   keyInsights: string[];
   actionableItems: string[];
-  wellnessTags: string[];
   marketingOpportunities: string[];
   businessOpportunities: string[];
   clientMood: string;
@@ -40,7 +39,6 @@ const buildExtractWisdomPrompt = ({
 Your task is to analyze emails and extract:
 - Key insights about the sender's situation, needs, or concerns
 - Actionable items that require follow-up
-- Wellness-related tags if applicable
 - Marketing opportunities if the email relates to business development
 - Business opportunities that might be present
 - The sender's emotional state/mood
@@ -111,9 +109,12 @@ export async function extractWisdom(
     return {
       keyInsights: Array.isArray(data.keyInsights) ? data.keyInsights : [],
       actionableItems: Array.isArray(data.actionableItems) ? data.actionableItems : [],
-      wellnessTags: Array.isArray(data.wellnessTags) ? data.wellnessTags : [],
-      marketingOpportunities: Array.isArray(data.marketingOpportunities) ? data.marketingOpportunities : [],
-      businessOpportunities: Array.isArray(data.businessOpportunities) ? data.businessOpportunities : [],
+      marketingOpportunities: Array.isArray(data.marketingOpportunities)
+        ? data.marketingOpportunities
+        : [],
+      businessOpportunities: Array.isArray(data.businessOpportunities)
+        ? data.businessOpportunities
+        : [],
       clientMood: data.clientMood ?? "neutral",
       followUpRecommended: data.followUpRecommended ?? false,
       followUpReason: data.followUpReason,
@@ -124,7 +125,6 @@ export async function extractWisdom(
     return {
       keyInsights: ["Unable to analyze email content"],
       actionableItems: [],
-      wellnessTags: [],
       marketingOpportunities: [],
       businessOpportunities: [],
       clientMood: "neutral",

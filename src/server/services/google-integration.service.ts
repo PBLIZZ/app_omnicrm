@@ -96,23 +96,16 @@ export async function getStatusService(
       };
     };
 
-    const needsRefresh = (service: GoogleService): boolean => {
-      const integration = findIntegration(service);
-      return Boolean(
-        integration?.accessToken &&
-          integration.expiryDate &&
-          integration.expiryDate <= now,
-      );
-    };
-
     const autoRefresh = options.autoRefresh ?? true;
-    const gmailNeedsRefresh = needsRefresh("gmail");
-    const calendarNeedsRefresh = needsRefresh("calendar");
 
-    if (autoRefresh && (gmailNeedsRefresh || calendarNeedsRefresh)) {
+    // If autoRefresh is enabled, call getGoogleClients which will
+    // proactively refresh any expired tokens before returning
+    if (autoRefresh) {
       try {
+        // This call will refresh expired tokens automatically
         await getGoogleClients(userId);
 
+        // Re-fetch integrations to get the refreshed tokens
         const refreshedIntegrations = await repo.getUserIntegrationsByProvider(
           userId,
           "google",
@@ -121,7 +114,7 @@ export async function getStatusService(
         const refreshedFind = (service: GoogleService): UserIntegrationDTO | undefined =>
           refreshedIntegrations.find(integration => integration.service === service);
 
-        const refreshedStatus = (service: GoogleService, wasRefreshed: boolean): GoogleServiceStatus => {
+        const refreshedStatus = (service: GoogleService): GoogleServiceStatus => {
           const integration = refreshedFind(service);
           
           if (!integration) {
@@ -132,20 +125,21 @@ export async function getStatusService(
             };
           }
 
+          const currentNow = new Date();
           const connected =
             !!integration.accessToken &&
-            (!integration.expiryDate || integration.expiryDate > new Date());
+            (!integration.expiryDate || integration.expiryDate > currentNow);
 
           return {
             connected,
             expiryDate: integration.expiryDate?.toISOString() ?? null,
-            autoRefreshed: wasRefreshed,
+            autoRefreshed: true, // We attempted refresh via getGoogleClients
           };
         };
 
         return {
-          gmail: refreshedStatus("gmail", gmailNeedsRefresh),
-          calendar: refreshedStatus("calendar", calendarNeedsRefresh),
+          gmail: refreshedStatus("gmail"),
+          calendar: refreshedStatus("calendar"),
         };
       } catch (error) {
         await logger.error(
@@ -156,7 +150,7 @@ export async function getStatusService(
           },
           error instanceof Error ? error : new Error(String(error)),
         );
-        // fall through to return current status
+        // Fall through to return current status without refresh
       }
     }
 

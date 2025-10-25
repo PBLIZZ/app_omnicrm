@@ -3,13 +3,14 @@
 import {
   Inbox,
   Brain,
-  Zap,
   Target,
   BarChart3,
-  Plus,
   CheckSquare,
   FolderKanban,
-  Calendar
+  Calendar,
+  CalendarClock,
+  CalendarDays,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -23,22 +24,35 @@ import {
   SidebarMenuItem,
 } from "@/components/ui";
 import { useInboxStats } from "@/hooks/use-inbox";
+import { useZones } from "@/hooks/use-zones";
+import { ProjectsSidebar } from "./ProjectsSidebar";
+import type { Project, Task } from "@/server/db/schema";
 
 export function MomentumSidebar(): JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
   const { data: inboxStats } = useInboxStats();
+  const { zones, isLoading: zonesLoading } = useZones();
 
-  // Handler for selecting "Inbox"
+  // Handlers for navigation
   const handleInboxSelect = (): void => {
     router.push("/omni-momentum");
   };
 
+  const handleProjectSelect = (project: Project): void => {
+    router.push(`/omni-momentum/projects/${project.id}`);
+  };
+
+  const handleTaskSelect = (task: Task): void => {
+    // Open task detail sheet or navigate to task
+    console.log("Task selected:", task);
+  };
+
   return (
-    <SidebarContent>
-      {/* Quick Capture & Inbox */}
+    <SidebarContent className="overflow-y-auto">
+      {/* Dynamic Productivity Views */}
       <SidebarGroup>
-        <SidebarGroupLabel>Quick Capture</SidebarGroupLabel>
+        <SidebarGroupLabel>Views</SidebarGroupLabel>
         <SidebarMenu>
           {/* AI Inbox */}
           <SidebarMenuItem>
@@ -50,7 +64,7 @@ export function MomentumSidebar(): JSX.Element {
             >
               <div className="flex items-center gap-3">
                 <Inbox className="w-4 h-4" />
-                <span>AI Inbox</span>
+                <span>Inbox</span>
               </div>
               {inboxStats?.unprocessed && inboxStats.unprocessed > 0 && (
                 <Badge
@@ -63,82 +77,87 @@ export function MomentumSidebar(): JSX.Element {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          {/* Quick Add */}
+          {/* Due Today */}
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link href="/omni-momentum/quick-add" className="flex items-center w-full">
-                <Plus className="w-4 h-4 mr-2" />
-                <span className="font-medium">Quick Add</span>
+              <Link href="/omni-momentum/due-today" className="flex items-center w-full">
+                <CalendarClock className="w-4 h-4 mr-2" />
+                <span className="font-medium">Due Today</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          {/* Upcoming */}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link href="/omni-momentum/upcoming" className="flex items-center w-full">
+                <CalendarDays className="w-4 h-4 mr-2" />
+                <span className="font-medium">Upcoming</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroup>
 
-      {/* Wellness Zones */}
+      {/* Life-Business Zones */}
       <SidebarGroup>
-        <SidebarGroupLabel>Life-Business Zones</SidebarGroupLabel>
+        <SidebarGroupLabel>Get into the Zone</SidebarGroupLabel>
         <SidebarMenu>
-          {/* Personal Wellness */}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/omni-momentum/zones/personal-wellness" className="flex items-center w-full">
-                <Target className="w-4 h-4 mr-2" />
-                <span className="font-medium">Personal Wellness</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {zonesLoading ? (
+            // Loading state
+            <SidebarMenuItem>
+              <div className="flex items-center gap-3 px-3 py-2 text-sm text-gray-500">
+                <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+                <span>Loading zones...</span>
+              </div>
+            </SidebarMenuItem>
+          ) : (
+            zones.slice(0, 6).map((zone) => {
+              // Convert zone name to slug
+              const zoneSlug = zone.name.toLowerCase().replace(/\s+/g, "-");
+              const isActive = pathname === `/omni-momentum/zones/${zoneSlug}`;
 
-          {/* Self Care */}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/omni-momentum/zones/self-care" className="flex items-center w-full">
-                <Zap className="w-4 h-4 mr-2" />
-                <span className="font-medium">Self Care</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+              // Get appropriate icon based on zone name
+              const getZoneIcon = (zoneName: string) => {
+                const name = zoneName.toLowerCase();
+                if (name.includes("personal") || name.includes("wellness")) return Target;
+                if (name.includes("self") || name.includes("care")) return Zap;
+                if (name.includes("client")) return CheckSquare;
+                if (name.includes("business") || name.includes("development")) return FolderKanban;
+                if (name.includes("marketing") || name.includes("social")) return BarChart3;
+                if (name.includes("admin") || name.includes("finance")) return Calendar;
+                return Target; // Default icon
+              };
 
-          {/* Client Care */}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/omni-momentum/zones/client-care" className="flex items-center w-full">
-                <CheckSquare className="w-4 h-4 mr-2" />
-                <span className="font-medium">Client Care</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+              const IconComponent = getZoneIcon(zone.name);
 
-          {/* Business Development */}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/omni-momentum/zones/business-development" className="flex items-center w-full">
-                <FolderKanban className="w-4 h-4 mr-2" />
-                <span className="font-medium">Business Development</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          {/* Social Media & Marketing */}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/omni-momentum/zones/social-media-marketing" className="flex items-center w-full">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                <span className="font-medium">Marketing</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          {/* Admin & Finances */}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/omni-momentum/zones/admin-finances" className="flex items-center w-full">
-                <Calendar className="w-4 h-4 mr-2" />
-                <span className="font-medium">Admin & Finances</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+              return (
+                <SidebarMenuItem key={zone.id}>
+                  <SidebarMenuButton asChild>
+                    <Link
+                      href={`/omni-momentum/zones/${zoneSlug}`}
+                      className={`flex items-center w-full ${isActive ? "bg-blue-50 text-blue-700" : ""}`}
+                    >
+                      <IconComponent className="w-4 h-4 mr-2" />
+                      <span className="font-medium">{zone.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })
+          )}
         </SidebarMenu>
+      </SidebarGroup>
+
+      {/* Projects */}
+      <SidebarGroup>
+        <SidebarGroupLabel>Projects</SidebarGroupLabel>
+        <div className="px-2">
+          <ProjectsSidebar
+            onProjectSelect={handleProjectSelect}
+            onTaskSelect={handleTaskSelect}
+          />
+        </div>
       </SidebarGroup>
 
       {/* Planning & Analytics */}

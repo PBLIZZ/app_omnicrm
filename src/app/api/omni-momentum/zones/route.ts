@@ -9,7 +9,11 @@ const ZonesQuerySchema = z.object({
 
 // Schema for zones response
 const ZonesResponseSchema = z.object({
-  zones: z.array(z.any()),
+  success: z.boolean(),
+  data: z.object({
+    items: z.array(z.any()),
+    total: z.number(),
+  }),
 });
 
 /**
@@ -18,17 +22,32 @@ const ZonesResponseSchema = z.object({
 export const GET = handleGetWithQueryAuth(
   ZonesQuerySchema,
   ZonesResponseSchema,
-  async (query, _userId): Promise<{ zones: unknown[] }> => {
+  async (
+    query,
+    _userId,
+  ): Promise<{ success: boolean; data: { items: unknown[]; total: number } }> => {
     const { withStats } = query;
 
     if (withStats === "true") {
       // Return zones with statistics
       const zonesWithStats = await getZonesWithStatsService();
-      return { zones: zonesWithStats };
+      return {
+        success: true,
+        data: {
+          items: zonesWithStats,
+          total: zonesWithStats.length,
+        },
+      };
     }
 
     // Get basic zones
     const zones = await listZonesService();
-    return { zones };
+    return {
+      success: true,
+      data: {
+        items: zones,
+        total: zones.length,
+      },
+    };
   },
 );

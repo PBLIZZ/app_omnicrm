@@ -12,7 +12,6 @@
  * - content_rich (TipTap JSON)
  * - content_plain (redacted text for search/AI)
  * - pii_entities (redaction metadata)
- * - tags (text array)
  * - source_type (typed | voice | upload)
  */
 
@@ -38,7 +37,6 @@ export type NoteSourceType = z.infer<typeof NoteSourceTypeSchema>;
 export const CreateNoteBodySchema = z.object({
   contentPlain: z.string().min(1, "Note content is required"),
   contentRich: z.record(z.string(), z.unknown()).optional(), // TipTap JSON (optional, can be derived)
-  tags: z.array(z.string()).optional().default([]),
   goalIds: z.array(z.string().uuid()).optional(),
   sourceType: NoteSourceTypeSchema.optional().default("typed"),
   contactId: z.string().uuid("Valid contact ID is required"),
@@ -50,7 +48,6 @@ export const CreateNoteBodySchema = z.object({
 export const UpdateNoteBodySchema = z.object({
   contentPlain: z.string().min(1).optional(),
   contentRich: z.record(z.string(), z.unknown()).optional(),
-  tags: z.array(z.string()).optional(),
   goalIds: z.array(z.string().uuid()).optional(),
 });
 

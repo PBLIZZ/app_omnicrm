@@ -56,7 +56,14 @@ export interface PreparationTask {
   id: string;
   title: string;
   description: string;
-  category: "preparation" | "research" | "follow-up" | "documentation" | "client" | "administrative" | "followup";
+  category:
+    | "preparation"
+    | "research"
+    | "follow-up"
+    | "documentation"
+    | "client"
+    | "administrative"
+    | "followup";
   priority: "low" | "medium" | "high";
   estimatedMinutes?: number;
   estimatedTime?: number;
@@ -180,7 +187,6 @@ export interface Client {
   totalSessions?: number;
   lastSession?: string;
   nextSession?: string;
-  tags?: string[];
   notes?: string;
   totalSpent?: number;
   satisfaction?: number;

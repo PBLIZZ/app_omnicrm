@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
         hostname: "etdhqniblvwgueykywqd.supabase.co",
         pathname: "/storage/v1/object/**",
       },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "/**",
+      },
     ],
   },
   webpack: (config, { isServer }) => {

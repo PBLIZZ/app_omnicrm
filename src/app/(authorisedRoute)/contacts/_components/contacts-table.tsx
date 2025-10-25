@@ -48,11 +48,14 @@ import {
   ChevronsRight,
   Settings2,
   Download,
+  Tag,
 } from "lucide-react";
 import { useDeleteContacts } from "@/hooks/use-contacts";
 import type { ContactSearchFilters } from "./types";
 import type { ContactWithLastNote } from "@/server/db/business-schemas/contacts";
 import { toast } from "sonner";
+import { TagSelector } from "@/components/TagSelector";
+import { useTags } from "@/hooks/use-tags";
 
 /**
  * Parse a JSON string and return it as a VisibilityState when valid.
@@ -106,6 +109,7 @@ interface ContactsTableProps {
  */
 export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Element {
   const bulkDeleteContacts = useDeleteContacts();
+  const { tags: allTags, createTag, applyTagsToContact } = useTags();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
@@ -134,6 +138,8 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkTagDialogOpen, setBulkTagDialogOpen] = useState(false);
+  const [selectedTagsForBulk, setSelectedTagsForBulk] = useState<Array<{ id: string; name: string; color: string }>>([]);
 
   // Filter state
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
@@ -144,7 +150,6 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
   const calculateActiveFilters = (filterState: ContactSearchFilters): number => {
     let count = 0;
     if (filterState.query?.trim()) count++;
-    if (filterState.tags?.length) count++;
     if (filterState.lifecycleStage?.length) count++;
     if (filterState.source?.length) count++;
     if (filterState.dateRange) count++;
@@ -190,14 +195,13 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
         return;
       }
 
-      const headers = ["Name", "Email", "Phone", "Stage", "Tags", "Last Note", "Last Updated"];
+      const headers = ["Name", "Email", "Phone", "Stage", "Last Note", "Last Updated"];
       const rows = data.map((contact) => {
         return [
           contact.displayName ?? "",
           contact.primaryEmail ?? "",
           contact.primaryPhone ?? "",
           contact.lifecycleStage ?? "",
-          Array.isArray(contact.tags) ? contact.tags.join(", ") : "",
           contact.lastNote ?? "",
           contact.updatedAt ? new Date(contact.updatedAt).toLocaleDateString() : "",
         ];
@@ -310,6 +314,42 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
     });
   }, [selectedContactInfo.selectedIds, bulkDeleteContacts, setRowSelection]);
 
+  // Show bulk tag dialog
+  const handleBulkTagClick = useCallback(() => {
+    if (selectedContactInfo.count === 0) {
+      toast.error("No contacts selected");
+      return;
+    }
+    setBulkTagDialogOpen(true);
+  }, [selectedContactInfo.count]);
+
+  // Apply tags to all selected contacts
+  const handleApplyBulkTags = useCallback(async () => {
+    if (selectedTagsForBulk.length === 0) {
+      toast.error("Please select at least one tag");
+      return;
+    }
+
+    try {
+      const tagIds = selectedTagsForBulk.map(t => t.id);
+
+      // Apply tags to each selected contact
+      await Promise.all(
+        selectedContactInfo.selectedIds.map(contactId =>
+          applyTagsToContact({ contactId, tagIds })
+        )
+      );
+
+      toast.success(`Tags applied to ${selectedContactInfo.count} contact(s)`);
+      setBulkTagDialogOpen(false);
+      setSelectedTagsForBulk([]);
+      setRowSelection({}); // Clear selection after successful tagging
+    } catch (error) {
+      toast.error("Failed to apply tags to contacts");
+      console.error("Bulk tag error:", error);
+    }
+  }, [selectedTagsForBulk, selectedContactInfo.selectedIds, selectedContactInfo.count, applyTagsToContact]);
+
   return (
     <div className="space-y-4">
       {/* Bulk Actions */}
@@ -319,6 +359,14 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" onClick={handleClearSelection}>
               Clear Selection
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkTagClick}
+            >
+              <Tag className="h-4 w-4 mr-2" />
+              Tag Selected
             </Button>
             <Button
               variant="destructive"
@@ -382,13 +430,11 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
                                   ? "AI Actions"
                                   : column.id === "lifecycleStage"
                                     ? "Lifecycle Stage"
-                                    : column.id === "tags"
-                                      ? "Tags"
-                                      : column.id === "source"
-                                        ? "Source"
-                                        : column.id === "notes"
-                                          ? "AI Insights"
-                                          : column.id;
+                                    : column.id === "source"
+                                      ? "Source"
+                                      : column.id === "notes"
+                                        ? "AI Insights"
+                                        : column.id;
 
                     return (
                       <div
@@ -592,6 +638,70 @@ export function ContactsTable({ columns, data }: ContactsTableProps): JSX.Elemen
               disabled={bulkDeleteContacts.isPending}
             >
               {bulkDeleteContacts.isPending ? "Deleting..." : "Delete Contacts"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Tag Assignment Dialog */}
+      <Dialog open={bulkTagDialogOpen} onOpenChange={setBulkTagDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Tag {selectedContactInfo.count} Contact(s)</DialogTitle>
+            <DialogDescription>
+              Select tags to apply to all selected contacts
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="mb-4 text-sm font-medium">Selected Contacts:</div>
+            <div className="max-h-[100px] overflow-y-auto rounded-md border p-3 mb-4">
+              <ul className="space-y-1 text-sm">
+                {selectedContactInfo.contactNames.slice(0, 5).map((name, index) => (
+                  <li key={index} className="text-muted-foreground">
+                    • {name}
+                  </li>
+                ))}
+                {selectedContactInfo.count > 5 && (
+                  <li className="text-muted-foreground italic">
+                    ... and {selectedContactInfo.count - 5} more
+                  </li>
+                )}
+              </ul>
+            </div>
+
+            {/* Tag Selector as standalone component */}
+            <TagSelector
+              open={bulkTagDialogOpen}
+              onOpenChange={setBulkTagDialogOpen}
+              selectedTags={selectedTagsForBulk}
+              availableTags={allTags}
+              suggestedTags={allTags.slice(0, 6)}
+              onTagsChange={setSelectedTagsForBulk}
+              onCreateTag={async (name) => {
+                const newTag = await createTag({
+                  name,
+                  category: "services_modalities",
+                  color: "#a78bfa"
+                });
+                return { id: newTag.id, name: newTag.name, color: newTag.color };
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBulkTagDialogOpen(false);
+                setSelectedTagsForBulk([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApplyBulkTags}
+              disabled={selectedTagsForBulk.length === 0}
+            >
+              Apply Tags
             </Button>
           </DialogFooter>
         </DialogContent>

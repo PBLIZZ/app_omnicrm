@@ -18,7 +18,6 @@ describe("ContactsRepository", () => {
     photoUrl: null,
     source: "manual",
     lifecycleStage: "Core Client",
-    tags: ["yoga", "regular"],
     confidenceScore: "0.85",
     dateOfBirth: null,
     emergencyContactName: null,

@@ -18,7 +18,6 @@ type ContactMatch = {
     displayName: string;
     primaryEmail: string;
     estimatedStage: string;
-    suggestedTags: string[];
   };
 };
 
@@ -101,7 +100,6 @@ export async function matchToContacts(
         displayName: string;
         primaryEmail: string;
         estimatedStage: string;
-        suggestedTags: string[];
       }>(userId, { model: "default", messages });
 
       return {

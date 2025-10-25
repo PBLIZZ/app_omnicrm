@@ -14,10 +14,10 @@ import {
   notes,
   projects,
   tasks,
+  taskTags,
   goals,
   dailyPulseLogs,
   inboxItems,
-  taskContactTags,
   documents,
 } from "@/server/db/schema";
 import { logger } from "@/lib/observability";
@@ -119,17 +119,17 @@ export async function deleteUserDataService(
 
     // Delete in reverse dependency order to avoid foreign key constraints
 
-    // 1. Delete task contact tags (junction table - need subquery)
-    const userTaskIds = await tx
+    // 1. Delete task tags (junction table - need subquery)
+    const userTaskIds = (await tx
       .select({ id: tasks.id })
       .from(tasks)
-      .where(eq(tasks.userId, userId)) as Array<{ id: string }>;
+      .where(eq(tasks.userId, userId))) as Array<{ id: string }>;
     const taskIds = userTaskIds.map((t) => t.id) as string[];
-    const taskContactTagsResult =
+    const taskTagsResult =
       taskIds.length > 0
-        ? await tx.delete(taskContactTags).where(inArray(taskContactTags.taskId, taskIds))
+        ? await tx.delete(taskTags).where(inArray(taskTags.taskId, taskIds))
         : { length: 0 };
-    results["taskContactTags"] = taskContactTagsResult.length || 0;
+    results["taskTags"] = taskTagsResult.length || 0;
 
     // 2. Delete tasks
     const tasksResult = await tx.delete(tasks).where(eq(tasks.userId, userId));

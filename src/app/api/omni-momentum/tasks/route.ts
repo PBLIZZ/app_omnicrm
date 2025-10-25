@@ -5,12 +5,6 @@ import { z } from "zod";
 
 /**
  * API Routes for Momentum Tasks (Hierarchical Task Management)
- *
- * Following Technical Debt Elimination guidelines:
- * ✅ NextResponse pattern (Phase 17 - no ApiResponse helper)
- * ✅ Repository pattern with proper error handling
- * ✅ DTO validation with Zod schemas
- * ✅ Explicit return types for TypeScript compliance
  */
 
 /**

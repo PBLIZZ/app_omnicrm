@@ -221,61 +221,64 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   }
 
   // Enhanced Redis-based rate limiting with different limits per endpoint type
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    (req as NextRequest & { ip?: string }).ip ??
-    req.headers.get("x-real-ip") ??
-    "unknown";
+  // Skip rate limiting in development to avoid blocking during testing
+  if (isProd) {
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      (req as NextRequest & { ip?: string }).ip ??
+      req.headers.get("x-real-ip") ??
+      "unknown";
 
-  // Extract user ID from Supabase session if available
-  const supabaseToken = req.cookies.get("sb:token")?.value;
-  let userId: string | undefined;
-  if (supabaseToken) {
-    try {
-      // Basic JWT parsing to extract user ID (without verification for rate limiting)
-      const tokenParts = supabaseToken.split(".");
-      if (tokenParts.length >= 2 && tokenParts[1]) {
-        const payload = JSON.parse(atob(tokenParts[1]));
-        userId = payload.sub;
+    // Extract user ID from Supabase session if available
+    const supabaseToken = req.cookies.get("sb:token")?.value;
+    let userId: string | undefined;
+    if (supabaseToken) {
+      try {
+        // Basic JWT parsing to extract user ID (without verification for rate limiting)
+        const tokenParts = supabaseToken.split(".");
+        if (tokenParts.length >= 2 && tokenParts[1]) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          userId = payload.sub;
+        }
+      } catch {
+        // Ignore JWT parsing errors, continue without user ID
       }
-    } catch {
-      // Ignore JWT parsing errors, continue without user ID
     }
-  }
 
-  const rateLimitReq = {
-    ip,
-    ...(userId && { userId }),
-    path: url.pathname,
-  };
+    const rateLimitReq = {
+      ip,
+      ...(userId && { userId }),
+      path: url.pathname,
+    };
 
-  try {
-    const config = getRateLimitConfig(url.pathname);
-    const rateLimitResult = await redisRateLimiter.checkRateLimit(config, rateLimitReq);
+    try {
+      const config = getRateLimitConfig(url.pathname);
+      const rateLimitResult = await redisRateLimiter.checkRateLimit(config, rateLimitReq);
 
-    if (!rateLimitResult.allowed) {
-      return new NextResponse(
-        JSON.stringify({
-          error: "rate_limited",
-          retryAfter: rateLimitResult.retryAfter,
-          resetTime: rateLimitResult.resetTime,
-        }),
-        {
-          status: 429,
-          headers: {
-            "content-type": "application/json",
-            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
-            "X-RateLimit-Limit": config.maxRequests.toString(),
-            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
-            "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+      if (!rateLimitResult.allowed) {
+        return new NextResponse(
+          JSON.stringify({
+            error: "rate_limited",
+            retryAfter: rateLimitResult.retryAfter,
+            resetTime: rateLimitResult.resetTime,
+          }),
+          {
+            status: 429,
+            headers: {
+              "content-type": "application/json",
+              "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+              "X-RateLimit-Limit": config.maxRequests.toString(),
+              "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+              "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+            },
           },
-        },
-      );
+        );
+      }
+    } catch (error) {
+      // On Redis failure, log error but allow request to prevent service disruption
+      console.error("Rate limiting error:", error);
+      // Continue without rate limiting rather than blocking legitimate users
     }
-  } catch (error) {
-    // On Redis failure, log error but allow request to prevent service disruption
-    console.error("Rate limiting error:", error);
-    // Continue without rate limiting rather than blocking legitimate users
   }
 
   // Body size cap for JSON

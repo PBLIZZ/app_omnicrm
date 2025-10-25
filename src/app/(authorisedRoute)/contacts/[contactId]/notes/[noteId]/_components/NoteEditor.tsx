@@ -9,6 +9,7 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
 import { Highlight } from "@tiptap/extension-highlight";
 import { FontFamily } from "@tiptap/extension-font-family";
+import { Extension } from "@tiptap/core";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -70,6 +71,54 @@ const HIGHLIGHT_COLORS = [
   { label: "Orange", value: "#fed7aa" },
 ];
 
+// FontSize extension for TipTap
+const FontSize = Extension.create({
+  name: "fontSize",
+
+  addOptions() {
+    return {
+      types: ["textStyle"],
+    };
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: (element) => element.style.fontSize.replace(/['"]+/g, ""),
+            renderHTML: (attributes) => {
+              if (!attributes.fontSize) {
+                return {};
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              };
+            },
+          },
+        },
+      },
+    ];
+  },
+
+  addCommands() {
+    return {
+      setFontSize:
+        (fontSize: string) =>
+        ({ chain }) => {
+          return chain().setMark("textStyle", { fontSize }).run();
+        },
+      unsetFontSize:
+        () =>
+        ({ chain }) => {
+          return chain().setMark("textStyle", { fontSize: null }).removeEmptyTextStyle().run();
+        },
+    };
+  },
+});
+
 export function NoteEditor({
   content = "",
   placeholder = "Start typing your note...",
@@ -100,6 +149,7 @@ export function NoteEditor({
         multicolor: true,
       }),
       FontFamily,
+      FontSize,
     ],
     content,
     editable,
@@ -134,6 +184,24 @@ export function NoteEditor({
         spellcheck: "true",
       },
       handleKeyDown: (_view, event) => {
+        // Tab = Indent (when in a list)
+        if (event.key === "Tab" && !event.shiftKey) {
+          if (editor.isActive("listItem")) {
+            event.preventDefault();
+            editor.chain().focus().sinkListItem("listItem").run();
+            return true;
+          }
+        }
+
+        // Shift+Tab = Outdent (when in a list)
+        if (event.key === "Tab" && event.shiftKey) {
+          if (editor.isActive("listItem")) {
+            event.preventDefault();
+            editor.chain().focus().liftListItem("listItem").run();
+            return true;
+          }
+        }
+
         // Allow Ctrl+A / Cmd+A to select all
         if ((event.ctrlKey || event.metaKey) && event.key === "a") {
           return false; // Let browser handle it
@@ -289,7 +357,7 @@ export function NoteEditor({
           <Select
             value={editor.getAttributes("textStyle")["fontSize"] || "16px"}
             onValueChange={(value) => {
-              editor.chain().focus().setMark("textStyle", { fontSize: value }).run();
+              editor.chain().focus().setFontSize(value).run();
             }}
           >
             <SelectTrigger className="h-8 w-[80px] text-xs">

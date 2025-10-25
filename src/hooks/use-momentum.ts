@@ -293,6 +293,7 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
   });
 
   const updateTaskMutation = useMutation({
+    mutationKey: ["updateTask"],
     mutationFn: async ({
       taskId,
       data,
@@ -313,19 +314,56 @@ export function useMomentum(options: UseMomentumOptions = {}): UseMomentumReturn
       const previousTop3 = queryClient.getQueryData(["momentum", "top3-tasks"]);
 
       // Optimistically update tasks cache
+      // Deep merge details field to prevent loss of nested data (subtasks, linkedContacts, etc.)
       queryClient.setQueryData<Task[]>(
         queryKeys.momentum.tasks(projectId ? { projectId } : {}),
-        (old) => old?.map((task) => (task.id === taskId ? { ...task, ...data } as Task : task)),
+        (old) => old?.map((task) => {
+          if (task.id !== taskId) return task;
+
+          // Deep merge details to preserve nested fields like subtasks and linkedContacts
+          const mergedTask = {
+            ...task,
+            ...data,
+          };
+
+          // If both old and new have details objects, merge them
+          if (task.details && typeof task.details === 'object' && data.details && typeof data.details === 'object') {
+            mergedTask.details = {
+              ...(task.details as Record<string, unknown>),
+              ...(data.details as Record<string, unknown>),
+            };
+          }
+
+          return mergedTask as Task;
+        }),
       );
 
-      // Optimistically update top3 cache
+      // Optimistically update top3 cache with same deep merge logic
       queryClient.setQueryData<{ tasks: Task[]; summary: string }>(
         ["momentum", "top3-tasks"],
         (old) => {
           if (!old?.tasks) return old;
           return {
             ...old,
-            tasks: old.tasks.map((task) => (task.id === taskId ? { ...task, ...data } as Task : task)),
+            tasks: old.tasks.map((task) => {
+              if (task.id !== taskId) return task;
+
+              // Deep merge details to preserve nested fields
+              const mergedTask = {
+                ...task,
+                ...data,
+              };
+
+              // If both old and new have details objects, merge them
+              if (task.details && typeof task.details === 'object' && data.details && typeof data.details === 'object') {
+                mergedTask.details = {
+                  ...(task.details as Record<string, unknown>),
+                  ...(data.details as Record<string, unknown>),
+                };
+              }
+
+              return mergedTask as Task;
+            }),
           };
         },
       );

@@ -1,10 +1,10 @@
 /**
  * Explicit Productivity Types
  *
- * Drizzle's type inference breaks with circular references (tasks.parentTaskId -> tasks.id)
- * These explicit types break the circular dependency while maintaining type safety.
+ * NOTE: Subtasks are now stored in details.subtasks JSONB array (not separate task records).
+ * This eliminates the circular reference issue and simplifies the architecture.
  *
- * @see https://github.com/drizzle-team/drizzle-orm/issues/695
+ * These explicit types maintain type safety and are used across the productivity domain.
  */
 
 // ============================================================================
@@ -15,7 +15,6 @@ export type Task = {
   id: string;
   userId: string;
   projectId: string | null;
-  parentTaskId: string | null;
   zoneUuid: string | null; // Changed from zoneId (number) to zoneUuid (string/UUID)
   name: string;
   status: "todo" | "in_progress" | "done" | "canceled";
@@ -46,8 +45,7 @@ export type Project = {
 };
 
 export type Zone = {
-  id: number; // Legacy integer ID
-  uuidId: string; // New UUID ID (used for task/project references)
+  uuidId: string; // UUID ID (used for task/project references)
   name: string;
   color: string | null;
   iconName: string | null;
@@ -72,6 +70,102 @@ export type DailyPulseLog = {
   logDate: string; // date column returns string
   details: unknown;
   createdAt: Date | null;
+};
+
+// ============================================================================
+// PULSE LOG DETAILS JSONB STRUCTURE
+// ============================================================================
+
+/**
+ * Pulse Details Schema - stored in daily_pulse_logs.details jsonb field
+ */
+export type PulseDetails = {
+  time: number; // 1-5 scale (time availability)
+  energy: number; // 1-5 scale (energy level)
+  mood: number; // 1-5 scale (mood/wellness)
+  notes?: string; // user notes
+  tags?: string[]; // optional tags
+  // Correlation data (calculated, not user-input)
+  tasksCompleted?: number;
+  contactsEngaged?: number;
+  habitsCompleted?: number;
+};
+
+/**
+ * Pulse log with parsed details
+ */
+export type DailyPulseLogWithDetails = DailyPulseLog & {
+  details: PulseDetails;
+};
+
+// ============================================================================
+// PULSE ANALYTICS TYPES
+// ============================================================================
+
+/**
+ * Pulse summary statistics for a time period
+ */
+export type PulseSummary = {
+  period: "week" | "month" | "quarter";
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  averages: {
+    time: number;
+    energy: number;
+    mood: number;
+  };
+  trends: {
+    time: "up" | "down" | "stable";
+    energy: "up" | "down" | "stable";
+    mood: "up" | "down" | "stable";
+  };
+  bestDay: {
+    date: string;
+    overallScore: number;
+  } | null;
+  worstDay: {
+    date: string;
+    overallScore: number;
+  } | null;
+  totalLogs: number;
+  completionRate: number; // percentage of days logged
+};
+
+/**
+ * Correlation analysis between pulse and tasks/contacts
+ */
+export type PulseCorrelation = {
+  metric: "tasks" | "contacts" | "habits";
+  correlation: number; // -1 to 1 (Pearson correlation)
+  significance: "strong" | "moderate" | "weak" | "none";
+  insights: string[];
+};
+
+/**
+ * Time pattern analysis
+ */
+export type PulseTimePattern = {
+  hourOfDay: number; // 0-23
+  averageEnergy: number;
+  averageMood: number;
+  totalLogs: number;
+  bestFor: "high_energy_work" | "creative_work" | "social_tasks" | "rest";
+};
+
+/**
+ * Full pulse analytics response
+ */
+export type PulseAnalytics = {
+  summary: PulseSummary;
+  correlations: PulseCorrelation[];
+  timePatterns: PulseTimePattern[];
+  weeklyHeatmap: Array<{
+    date: string;
+    overallScore: number;
+    time: number;
+    energy: number;
+    mood: number;
+  }>;
 };
 
 export type InboxItem = {
@@ -112,13 +206,17 @@ export type TaskWithProject = Task & {
   } | null;
 };
 
-export type TaskWithSubtasks = Task & {
-  subtasks?: Task[];
+// NOTE: Subtasks are now stored in details.subtasks JSONB array as lightweight objects
+// They are NOT separate Task records anymore
+export type Subtask = {
+  id: string;
+  title: string;
+  completed: boolean;
+  duration?: string;
 };
 
-// Only use this when you REALLY need the parent task
-export type TaskWithParent = Task & {
-  parentTask?: Task | null;
+export type TaskWithSubtasks = Task & {
+  subtasks?: Subtask[];
 };
 
 // Full relations (use sparingly!)
@@ -128,8 +226,7 @@ export type TaskWithRelations = Task & {
     name: string;
     status: string;
   } | null;
-  parentTask?: Task | null;
-  subtasks?: Task[];
+  subtasks?: Subtask[];
 };
 
 export type ProjectWithZone = Project & {

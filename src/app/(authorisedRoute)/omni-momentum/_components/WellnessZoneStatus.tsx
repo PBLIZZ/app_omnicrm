@@ -25,20 +25,20 @@ const MAX_ZONES_DISPLAYED = 6;
 export function WellnessZoneStatus(): JSX.Element {
   const { zones, isLoading } = useZones();
   const { tasks, projects } = useMomentum();
-  const [selectedZone, setSelectedZone] = useState<{ id: number; name: string } | null>(null);
+  const [selectedZone, setSelectedZone] = useState<{ uuidId: string; name: string } | null>(null);
 
-  const getZoneTasks = (zoneId: number): Task[] => {
+  const getZoneTasks = (zoneUuid: string): Task[] => {
     // Get tasks that belong directly to this zone OR belong to projects in this zone
     return tasks.filter((task) => {
       // Direct zone assignment
-      if (task.zoneId === zoneId && task.status !== "done") {
+      if (task.zoneUuid === zoneUuid && task.status !== "done") {
         return true;
       }
 
       // Or through a project in this zone
       if (task.projectId) {
         const project = projects.find((p) => p.id === task.projectId);
-        if (project?.zoneId === zoneId && task.status !== "done") {
+        if (project?.zoneUuid === zoneUuid && task.status !== "done") {
           return true;
         }
       }
@@ -47,12 +47,12 @@ export function WellnessZoneStatus(): JSX.Element {
     });
   };
 
-  const getZoneTaskCount = (zoneId: number): number => {
-    return getZoneTasks(zoneId).length;
+  const getZoneTaskCount = (zoneUuid: string): number => {
+    return getZoneTasks(zoneUuid).length;
   };
 
-  const getZoneStatus = (zoneId: number): string => {
-    const taskCount = getZoneTaskCount(zoneId);
+  const getZoneStatus = (zoneUuid: string): string => {
+    const taskCount = getZoneTaskCount(zoneUuid);
     if (taskCount === 0) return "clear";
     if (taskCount <= 2) return "light";
     if (taskCount <= 5) return "moderate";
@@ -130,13 +130,13 @@ export function WellnessZoneStatus(): JSX.Element {
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {zones.slice(0, MAX_ZONES_DISPLAYED).map((zone) => {
-            const taskCount = getZoneTaskCount(zone.id);
-            const status = getZoneStatus(zone.id);
+            const taskCount = getZoneTaskCount(zone.uuidId);
+            const status = getZoneStatus(zone.uuidId);
             return (
               <div
-                key={zone.id}
+                key={zone.uuidId}
                 className="p-4 bg-white rounded-lg border hover:shadow-md transition-all cursor-pointer"
-                onClick={() => setSelectedZone({ id: zone.id, name: zone.name })}
+                onClick={() => setSelectedZone({ uuidId: zone.uuidId, name: zone.name })}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -199,7 +199,7 @@ export function WellnessZoneStatus(): JSX.Element {
           {selectedZone && (
             <div className="space-y-4">
               {(() => {
-                const zoneTasks = getZoneTasks(selectedZone.id);
+                const zoneTasks = getZoneTasks(selectedZone.uuidId);
 
                 if (zoneTasks.length === 0) {
                   return (

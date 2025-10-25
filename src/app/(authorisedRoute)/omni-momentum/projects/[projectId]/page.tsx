@@ -4,9 +4,9 @@ import { getProjectService } from "@/server/services/projects.service";
 import { getServerUserId } from "@/server/auth/user";
 
 interface ProjectPageProps {
-  params: {
+  params: Promise<{
     projectId: string;
-  };
+  }>;
 }
 
 /**
@@ -20,7 +20,7 @@ interface ProjectPageProps {
  * - Add/edit/delete tasks within the project
  */
 export default async function ProjectPage({ params }: ProjectPageProps): Promise<JSX.Element> {
-  const { projectId } = params;
+  const { projectId } = await params;
 
   // Server-side authentication check
   let userId: string;

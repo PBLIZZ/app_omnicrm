@@ -3,9 +3,9 @@ import { ZoneView } from "../_components/ZoneView";
 import { getZoneBySlug } from "@/server/services/zones.service";
 
 interface ZonePageProps {
-  params: {
+  params: Promise<{
     zoneSlug: string;
-  };
+  }>;
 }
 
 /**
@@ -18,7 +18,7 @@ interface ZonePageProps {
  * - Context switching for efficiency
  */
 export default async function ZonePage({ params }: ZonePageProps): Promise<JSX.Element> {
-  const { zoneSlug } = params;
+  const { zoneSlug } = await params;
 
   // Get zone data
   const zone = await getZoneBySlug(zoneSlug);

@@ -81,7 +81,7 @@ export function TodaysFocusSection(): JSX.Element {
 
   if (isLoading) {
     return (
-      <Card className="h-[400px] flex flex-col">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="w-5 h-5 text-blue-500" />
@@ -89,7 +89,7 @@ export function TodaysFocusSection(): JSX.Element {
           </CardTitle>
           <CardDescription>AI is selecting your top 3 priorities...</CardDescription>
         </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto">
+        <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="animate-pulse">
@@ -104,7 +104,7 @@ export function TodaysFocusSection(): JSX.Element {
 
   if (error) {
     return (
-      <Card className="h-[400px] flex flex-col">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="w-5 h-5 text-blue-500" />
@@ -112,7 +112,7 @@ export function TodaysFocusSection(): JSX.Element {
           </CardTitle>
           <CardDescription>Unable to load your focus tasks</CardDescription>
         </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto">
+        <CardContent>
           <div className="text-center py-8">
             <p className="text-sm text-gray-600">Error loading tasks. Please try again later.</p>
           </div>
@@ -133,7 +133,7 @@ export function TodaysFocusSection(): JSX.Element {
   });
 
   return (
-    <Card className="h-[400px] bg-gradient-to-br from-sky-50 via-emerald-50 to-teal-50 border-sky-200 flex flex-col">
+    <Card className="bg-gradient-to-br from-sky-50 via-emerald-50 to-teal-50 border-sky-200">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Target className="w-5 h-5 text-blue-500" />
@@ -144,7 +144,7 @@ export function TodaysFocusSection(): JSX.Element {
             "Your top 3 priorities selected by AI based on value to your life and business"}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto">
+      <CardContent>
         {tasks.length === 0 ? (
           <div className="text-center py-8">
             <Target className="w-12 h-12 mx-auto text-gray-300 mb-4" />

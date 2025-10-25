@@ -33,7 +33,7 @@ export function DueTodayView(): JSX.Element {
 
   const getZoneColor = (zoneId: number | null): string => {
     if (!zoneId) return "#6366F1";
-    const zone = zones.find((z) => z.id === zoneId);
+    const zone = zones.find((z) => z.uuidId === zoneId);
     return zone?.color || "#6366F1";
   };
 
@@ -84,7 +84,7 @@ export function DueTodayView(): JSX.Element {
                   {/* Zone Color Indicator */}
                   <div
                     className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: getZoneColor(task.zoneId) }}
+                    style={{ backgroundColor: getZoneColor(task.zoneUuid) }}
                   />
 
                   {/* Task Info */}

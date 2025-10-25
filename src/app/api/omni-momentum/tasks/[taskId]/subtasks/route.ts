@@ -1,11 +1,13 @@
 import { handleGetWithQueryAuth, handleAuth } from "@/lib/api";
-import { getSubtasksService } from "@/server/services/productivity.service";
-import { createTaskService } from "@/server/services/tasks.service";
-import { CreateTaskSchema, TaskSchema, TaskFiltersSchema } from "@/server/db/business-schemas";
+import { getSubtasksService, updateTaskService } from "@/server/services/productivity.service";
+import { TaskFiltersSchema } from "@/server/db/business-schemas";
 import { z } from "zod";
 
 /**
  * Subtasks Management API Route
+ *
+ * NOTE: Subtasks are now stored in details.subtasks JSONB array.
+ * They are lightweight objects (id, title, completed), not full Task records.
  *
  * Migrated to new auth pattern:
  * ✅ handleGetWithQueryAuth for GET with query params
@@ -19,37 +21,65 @@ interface RouteParams {
   }>;
 }
 
+// Subtask schema for lightweight JSONB objects
+const SubtaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  completed: z.boolean(),
+  duration: z.string().optional(),
+});
+
+const CreateSubtaskSchema = z.object({
+  title: z.string().min(1),
+});
+
 /**
- * GET /api/omni-momentum/tasks/[taskId]/subtasks - Get subtasks for a parent task
+ * GET /api/omni-momentum/tasks/[taskId]/subtasks - Get subtasks from parent task's details
  */
 export async function GET(request: Request, context: RouteParams): Promise<Response> {
   const params = await context.params;
   return handleGetWithQueryAuth(
     TaskFiltersSchema,
-    z.array(TaskSchema),
-    async (_, userId): Promise<z.infer<typeof TaskSchema>[]> => {
+    z.array(SubtaskSchema),
+    async (_, userId) => {
       const result = await getSubtasksService(userId, params.taskId);
-
       return result.subtasks;
     },
   )(request);
 }
 
 /**
- * POST /api/omni-momentum/tasks/[taskId]/subtasks - Create new subtask
+ * POST /api/omni-momentum/tasks/[taskId]/subtasks - Add subtask to parent's details.subtasks array
  */
 export async function POST(request: Request, context: RouteParams): Promise<Response> {
   const params = await context.params;
   return handleAuth(
-    CreateTaskSchema,
-    TaskSchema,
-    async (data, userId): Promise<z.infer<typeof TaskSchema>> => {
-      const subtask = await createTaskService(userId, {
-        ...data,
-        parentTaskId: params.taskId,
+    CreateSubtaskSchema,
+    SubtaskSchema,
+    async (data, userId) => {
+      // Get parent task first
+      const result = await getSubtasksService(userId, params.taskId);
+      const parentTask = result.parentTask;
+
+      // Create new subtask object
+      const newSubtask = {
+        id: crypto.randomUUID(),
+        title: data.title,
+        completed: false,
+      };
+
+      // Get existing subtasks
+      const existingSubtasks = result.subtasks;
+
+      // Update parent task with new subtasks array
+      await updateTaskService(userId, params.taskId, {
+        details: {
+          ...(typeof parentTask.details === "object" ? parentTask.details : {}),
+          subtasks: [...existingSubtasks, newSubtask],
+        },
       });
 
-      return subtask;
+      return newSubtask;
     },
   )(request);
 }

@@ -30,7 +30,24 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useMomentum } from "@/hooks/use-momentum";
+import { useTags } from "@/hooks/use-tags";
+import { TagSelector } from "@/components/TagSelector";
+import { TAG_CATEGORY_TEXT_COLORS, TAG_CATEGORY_BORDER_COLORS, type TagCategory } from "@/lib/tag-categories";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "@/server/db/business-schemas";
+
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  category?: string;
+}
+
+interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+  duration?: string;
+}
 
 interface TaskDetailSheetProps {
   isOpen: boolean;
@@ -56,29 +73,34 @@ export function TaskDetailSheet({
   task,
 }: TaskDetailSheetProps): JSX.Element {
   const { createTask, updateTask, projects, tasks } = useMomentum();
+  const { tags: availableTags, applyTagsToTask, createTag } = useTags();
 
   // Form state
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
+  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [projectId, setProjectId] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
-  const [tags, setTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+  const [showTagSelector, setShowTagSelector] = useState(false);
 
   // Subtask state
   const [newSubtaskName, setNewSubtaskName] = useState("");
   const [showSubtasks, setShowSubtasks] = useState(false);
 
-  // Memoize filtered subtasks to prevent infinite loops
-  const filteredSubtasks = useMemo(() => {
-    if (mode === "edit" && task && tasks) {
-      return tasks.filter((t) => t.parentTaskId === task.id);
+  // Extract subtasks from task details JSONB
+  const subtasks = useMemo(() => {
+    if (mode === "edit" && task) {
+      const details =
+        typeof task.details === "object" && task.details !== null
+          ? (task.details as Record<string, unknown>)
+          : {};
+      return Array.isArray(details["subtasks"])
+        ? (details["subtasks"] as Subtask[])
+        : [];
     }
     return [];
-  }, [mode, task?.id, tasks]);
-
-  // Use filteredSubtasks directly instead of storing in state
-  const subtasks = filteredSubtasks;
+  }, [mode, task]);
 
   // Reset form when task changes or sheet opens
   useEffect(() => {
@@ -92,8 +114,13 @@ export function TaskDetailSheet({
       setPriority(task.priority);
       setProjectId(task.projectId);
       setDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
-      // TODO: Load tags from task_tags join table
-      setTags([]);
+
+      // Load tags from task details if they exist
+      // Note: Task tags would need to be fetched separately via getTaskTags API
+      // For now, we'll start with an empty array
+      const details = task.details as { tags?: Tag[] } | null;
+      const taskTags = details?.tags || [];
+      setSelectedTags(taskTags);
     } else {
       // Reset form for create mode
       setName("");
@@ -101,23 +128,44 @@ export function TaskDetailSheet({
       setPriority("medium");
       setProjectId(null);
       setDueDate(undefined);
-      setTags([]);
+      setSelectedTags([]);
     }
   }, [mode, task, isOpen]);
 
-  const handleAddSubtask = async () => {
+  const handleAddSubtask = () => {
     if (!newSubtaskName.trim() || !task) return;
 
     try {
-      await createTask({
-        name: newSubtaskName.trim(),
-        parentTaskId: task.id,
-        priority: "medium",
-        projectId: task.projectId,
+      // Create new subtask object
+      const newSubtask: Subtask = {
+        id: crypto.randomUUID(),
+        title: newSubtaskName.trim(),
+        completed: false,
+      };
+
+      // Get existing task details
+      const details =
+        typeof task.details === "object" && task.details !== null
+          ? (task.details as Record<string, unknown>)
+          : {};
+
+      // Add to existing subtasks array in details.subtasks
+      const existingSubtasks = Array.isArray(details["subtasks"])
+        ? (details["subtasks"] as Subtask[])
+        : [];
+      const updatedSubtasks = [...existingSubtasks, newSubtask];
+
+      // Update the task with new subtasks array
+      updateTask(task.id, {
+        details: {
+          ...details,
+          subtasks: updatedSubtasks,
+        },
       });
+
       setNewSubtaskName("");
     } catch (error) {
-      console.error("Failed to create subtask:", error);
+      console.error("Failed to add subtask:", error);
     }
   };
 
@@ -134,11 +182,31 @@ export function TaskDetailSheet({
 
     if (mode === "create") {
       createTask(taskData as CreateTaskInput);
+      // Note: Tags for newly created tasks need to be applied after task creation
+      // This would require createTask to return the task ID or use a callback
     } else if (task) {
       updateTask(task.id, taskData as UpdateTaskInput);
+      // Update task tags
+      if (selectedTags.length > 0) {
+        applyTagsToTask({
+          taskId: task.id,
+          tagIds: selectedTags.map((t) => t.id),
+        }).catch((error) => {
+          console.error("Failed to apply tags:", error);
+        });
+      }
     }
 
     onClose();
+  };
+
+  const handleCreateTag = async (name: string): Promise<Tag> => {
+    const newTag = await createTag({
+      name,
+      color: "#3B82F6", // Default blue color
+      category: "services_modalities",
+    });
+    return newTag as Tag;
   };
 
   return (
@@ -195,9 +263,6 @@ export function TaskDetailSheet({
                 </SelectItem>
                 <SelectItem value="high">
                   <Badge className="bg-orange-100 text-orange-800">High</Badge>
-                </SelectItem>
-                <SelectItem value="urgent">
-                  <Badge className="bg-red-100 text-red-800">Urgent</Badge>
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -269,18 +334,16 @@ export function TaskDetailSheet({
                           key={subtask.id}
                           className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg"
                         >
-                          <div className="flex-1 text-sm">{subtask.name}</div>
+                          <div className="flex-1 text-sm">{subtask.title}</div>
                           <Badge
                             variant="outline"
                             className={`text-xs ${
-                              subtask.status === "done"
+                              subtask.completed
                                 ? "bg-green-100 text-green-800"
-                                : subtask.status === "in_progress"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-gray-100 text-gray-800"
+                                : "bg-gray-100 text-gray-800"
                             }`}
                           >
-                            {subtask.status.replace("_", " ")}
+                            {subtask.completed ? "completed" : "pending"}
                           </Badge>
                         </div>
                       ))}
@@ -314,25 +377,64 @@ export function TaskDetailSheet({
             </div>
           )}
 
-          {/* Tags (TODO: Integrate with global tags system) */}
+          {/* Tags */}
           <div className="space-y-2">
             <Label>Tags</Label>
             <div className="flex flex-wrap gap-2 mb-2">
-              {tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-xs">
-                  <TagIcon className="w-3 h-3 mr-1" />
-                  {tag}
-                  <button
-                    onClick={() => setTags(tags.filter((t) => t !== tag))}
-                    className="ml-1 hover:text-red-600"
+              {selectedTags.map((tag) => {
+                // Get text and border colors based on category
+                const textColor = tag.category
+                  ? TAG_CATEGORY_TEXT_COLORS[tag.category as TagCategory] || "#334155"
+                  : "#334155";
+                const borderColor = tag.category
+                  ? TAG_CATEGORY_BORDER_COLORS[tag.category as TagCategory] || "#cbd5e1"
+                  : "#cbd5e1";
+
+                return (
+                  <Badge
+                    key={tag.id}
+                    style={{
+                      backgroundColor: tag.color,
+                      color: textColor,
+                      borderColor: borderColor,
+                      borderWidth: "1px",
+                      borderStyle: "solid"
+                    }}
+                    className="text-xs px-3 py-1"
                   >
-                    <X className="w-3 h-3" />
-                  </button>
-                </Badge>
-              ))}
+                    <TagIcon className="w-3 h-3 mr-1" />
+                    {tag.name}
+                    <button
+                      onClick={() => setSelectedTags(selectedTags.filter((t) => t.id !== tag.id))}
+                      className="ml-1.5 hover:opacity-80"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                );
+              })}
             </div>
-            <p className="text-xs text-gray-500">Tag integration coming soon</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTagSelector(true)}
+              className="w-full"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Tags
+            </Button>
           </div>
+
+          {/* Tag Selector Dialog */}
+          <TagSelector
+            open={showTagSelector}
+            onOpenChange={setShowTagSelector}
+            selectedTags={selectedTags}
+            availableTags={availableTags as Tag[]}
+            onTagsChange={setSelectedTags}
+            onCreateTag={handleCreateTag}
+          />
         </div>
 
         {/* Action Buttons */}

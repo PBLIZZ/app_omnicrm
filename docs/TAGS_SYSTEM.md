@@ -332,14 +332,14 @@ async applyTagsToContact(userId, contactId, tagIds, createdBy) {
 
 ### User Onboarding Choice
 
-**Option A: Accept Starter Tags**
+#### Option A: Accept Starter Tags
 
 ```typescript
 await claimStarterTagsService(newUserId);
 // SQL: UPDATE tags SET user_id = 'newUserId' WHERE user_id IS NULL
 ```
 
-**Option B: Reject Starter Tags**
+#### Option B: Reject Starter Tags
 
 ```typescript
 await rejectStarterTagsService();

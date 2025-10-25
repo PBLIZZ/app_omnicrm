@@ -53,7 +53,7 @@ export function ProjectView({ project }: ProjectViewProps): JSX.Element {
     projectTasks.length > 0 ? (completedTasks.length / projectTasks.length) * 100 : 0;
 
   // Get zone info
-  const zone = zones.find((z) => z.id === project.zoneId);
+  const zone = zones.find((z) => z.uuidId === project.zoneUuid);
 
   const handleBack = (): void => {
     router.push("/omni-momentum");

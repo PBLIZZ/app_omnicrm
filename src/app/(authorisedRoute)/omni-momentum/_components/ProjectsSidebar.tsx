@@ -6,7 +6,6 @@ import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus, MoreHorizontal } f
 import { useMomentum } from "@/hooks/use-momentum";
 import { useZones } from "@/hooks/use-zones";
 import type { Project, Task } from "@/server/db/schema";
-import type { Zone } from "@/server/db/business-schemas";
 
 interface ProjectsSidebarProps {
   onTaskSelect?: (task: Task) => void;
@@ -71,13 +70,13 @@ export function ProjectsSidebar({
   }, [expandedTasks]);
 
   // Group tasks by project and create hierarchy
+  // NOTE: All tasks are top-level now. Subtasks are in details.subtasks JSONB array.
   const projectsWithTasks: ProjectWithTasks[] = projects.map((project) => {
     const projectTasks = tasks.filter(
-      (task) => task.projectId === project.id && !task.parentTaskId,
+      (task) => task.projectId === project.id,
     );
-    const projectSubtasks = tasks.filter(
-      (task) => task.projectId === project.id && task.parentTaskId,
-    );
+    // No longer using separate subtask records
+    const projectSubtasks: Task[] = [];
 
     return {
       ...project,
@@ -110,9 +109,9 @@ export function ProjectsSidebar({
     });
   };
 
-  const getZoneColor = (zoneId: number | null): string => {
-    if (!zoneId) return "#6366F1";
-    const zone = zones.find((z) => z.id === zoneId);
+  const getZoneColor = (zoneUuid: string | null): string => {
+    if (!zoneUuid) return "#6366F1";
+    const zone = zones.find((z) => z.uuidId === zoneUuid);
     return zone?.color || "#6366F1";
   };
 
@@ -127,12 +126,22 @@ export function ProjectsSidebar({
     );
   };
 
-  const getTaskSubtasks = (taskId: string): Task[] => {
-    return tasks.filter((task) => task.parentTaskId === taskId);
+  const getTaskSubtasks = (taskId: string): Array<{ id: string; title: string; completed: boolean }> => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return [];
+
+    const details =
+      typeof task.details === "object" && task.details !== null
+        ? (task.details as Record<string, unknown>)
+        : {};
+    return Array.isArray(details["subtasks"])
+      ? (details["subtasks"] as Array<{ id: string; title: string; completed: boolean }>)
+      : [];
   };
 
   const getTaskCompletedSubtasks = (taskId: string): number => {
-    return tasks.filter((task) => task.parentTaskId === taskId && task.status === "done").length;
+    const subtasks = getTaskSubtasks(taskId);
+    return subtasks.filter((subtask) => subtask.completed).length;
   };
 
   if (projects.length === 0) {
@@ -245,7 +254,7 @@ export function ProjectsSidebar({
                           {/* Zone Color Indicator */}
                           <div
                             className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: getZoneColor(task.zoneId) }}
+                            style={{ backgroundColor: getZoneColor(task.zoneUuid) }}
                           />
 
                           <button
@@ -276,12 +285,8 @@ export function ProjectsSidebar({
                         )}
 
                         {/* Priority Badge */}
-                        {task.priority === "high" || task.priority === "urgent" ? (
-                          <div
-                            className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                              task.priority === "urgent" ? "bg-red-500" : "bg-orange-500"
-                            }`}
-                          />
+                        {task.priority === "high" ? (
+                          <div className="w-2 h-2 rounded-full flex-shrink-0 bg-red-500" />
                         ) : null}
                       </div>
 
@@ -297,30 +302,19 @@ export function ProjectsSidebar({
 
                               <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <div
-                                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: getZoneColor(subtask.zoneId) }}
+                                  className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-gray-300"
                                 />
 
-                                <button
-                                  onClick={() => onTaskSelect?.(subtask)}
+                                <div
                                   className={`flex-1 text-left text-xs transition-colors truncate ${
-                                    subtask.status === "done"
+                                    subtask.completed
                                       ? "line-through text-gray-400"
-                                      : "text-gray-600 hover:text-blue-600"
+                                      : "text-gray-600"
                                   }`}
                                 >
-                                  {subtask.name}
-                                </button>
+                                  {subtask.title}
+                                </div>
                               </div>
-
-                              {/* Subtask Priority */}
-                              {subtask.priority === "high" || subtask.priority === "urgent" ? (
-                                <div
-                                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                    subtask.priority === "urgent" ? "bg-red-500" : "bg-orange-500"
-                                  }`}
-                                />
-                              ) : null}
                             </div>
                           ))}
                         </div>

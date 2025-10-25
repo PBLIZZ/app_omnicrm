@@ -122,24 +122,28 @@ export function useProjectsSidebar(): UseProjectsSidebarReturn {
   }, [state.expandedTasks]);
 
   // Group tasks by project and create hierarchy
+  // NOTE: Subtasks are now stored in details.subtasks JSONB array, not as separate task records
   const projectsWithTasks: ProjectWithTasks[] = projects.map((project) => {
-    const projectTasks = tasks.filter(
-      (task) => task.projectId === project.id && !task.parentTaskId,
-    );
-    const projectSubtasks = tasks.filter(
-      (task) => task.projectId === project.id && task.parentTaskId,
-    );
+    const projectTasks = tasks.filter((task) => task.projectId === project.id);
 
-    const taskCount = projectTasks.length + projectSubtasks.length;
-    const completedCount =
-      projectTasks.filter((task) => task.status === "done").length +
-      projectSubtasks.filter((task) => task.status === "done").length;
+    // Count subtasks from JSONB
+    const subtaskCount = projectTasks.reduce((count, task) => {
+      const details =
+        typeof task.details === "object" && task.details !== null
+          ? (task.details as Record<string, unknown>)
+          : {};
+      const subtasks = Array.isArray(details["subtasks"]) ? details["subtasks"] : [];
+      return count + subtasks.length;
+    }, 0);
+
+    const taskCount = projectTasks.length + subtaskCount;
+    const completedCount = projectTasks.filter((task) => task.status === "done").length;
     const progressPercentage = taskCount > 0 ? (completedCount / taskCount) * 100 : 0;
 
     return {
       ...project,
       tasks: projectTasks,
-      subtasks: projectSubtasks,
+      subtasks: [], // No longer separate task records
       taskCount,
       completedTaskCount: completedCount,
       progressPercentage,

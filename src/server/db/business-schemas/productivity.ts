@@ -38,7 +38,6 @@ export const TaskSchema = z.object({
   id: uuidLike,
   userId: uuidLike,
   projectId: uuidLike.nullable().optional(),
-  parentTaskId: uuidLike.nullable().optional(),
   zoneUuid: uuidLike.nullable().optional(), // Changed from zoneId (number) to zoneUuid (UUID)
   name: z.string(),
   status: z.enum(taskStatusValues),
@@ -61,7 +60,6 @@ export type TaskSchemaOutput = z.infer<typeof TaskSchema>;
 export const CreateTaskSchema = z.object({
   name: z.string().min(1),
   projectId: uuidLike.nullable().optional(),
-  parentTaskId: uuidLike.nullable().optional(),
   zoneUuid: uuidLike.nullable().optional(), // Changed from zoneId (number) to zoneUuid (UUID)
   status: z.enum(taskStatusValues).optional(),
   priority: z.enum(taskPriorityValues).optional(),
@@ -134,15 +132,6 @@ export const TaskFiltersSchema = z.object({
       return val;
     }),
   projectId: uuidLike.optional(),
-  // Handle string "null" from query params - convert to undefined for proper filtering
-  parentTaskId: z
-    .string()
-    .optional()
-    .transform((val) => {
-      if (!val || val === "null" || val === "undefined") return undefined;
-      // Validate as UUID after string conversion
-      return uuidLike.parse(val);
-    }),
   taggedContactId: uuidLike.optional(),
   dueAfter: z.coerce.date().optional(),
   dueBefore: z.coerce.date().optional(),

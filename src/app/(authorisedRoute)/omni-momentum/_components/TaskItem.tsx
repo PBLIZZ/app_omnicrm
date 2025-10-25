@@ -38,7 +38,7 @@ export function TaskItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(task.name);
 
-  const zone = zones.find((z) => z.id === task.zoneId);
+  const zone = zones.find((z) => z.uuidId === task.zoneUuid);
   const isCompleted = task.status === "done";
 
   const getPriorityColor = (priority: string): string => {

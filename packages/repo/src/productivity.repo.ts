@@ -1,7 +1,7 @@
 // Productivity repository - Projects, Tasks, Goals, and Daily Pulse
 import type { DbClient } from "@/server/db/client";
 import { projects, tasks, goals, dailyPulseLogs, zones, inboxItems, taskTags, tags } from "@/server/db/schema";
-import { eq, desc, and, asc, isNull, inArray, sql } from "drizzle-orm";
+import { eq, desc, and, asc, inArray, sql } from "drizzle-orm";
 import type {
   TaskListItem,
   ProjectListItem,
@@ -252,7 +252,32 @@ export class ProductivityRepository {
       .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)))
       .limit(1);
 
-    return rows[0] ? (rows[0] as TaskListItem) : null;
+    const task = rows[0];
+    if (!task) return null;
+
+    // Fetch tags for this task
+    const taskTagsData = await this.db
+      .select({
+        taskId: taskTags.taskId,
+        tagId: tags.id,
+        tagName: tags.name,
+        tagColor: tags.color,
+        tagCategory: tags.category,
+      })
+      .from(taskTags)
+      .innerJoin(tags, eq(taskTags.tagId, tags.id))
+      .where(eq(taskTags.taskId, taskId));
+
+    // Attach tags to task
+    return {
+      ...task,
+      tags: taskTagsData.map(row => ({
+        id: row.tagId,
+        name: row.tagName,
+        color: row.tagColor,
+        category: row.tagCategory,
+      })),
+    } as TaskListItem;
   }
 
   async getTasksWithProject(userId: string, projectId: string): Promise<TaskListItem[]> {
@@ -449,7 +474,7 @@ export class ProductivityRepository {
   // ============================================================================
 
   async getZones(): Promise<
-    Array<{ id: number; name: string; color: string | null; iconName: string | null }>
+    Array<{ uuidId: string; name: string; color: string | null; iconName: string | null }>
   > {
     return await this.db.select().from(zones).orderBy(asc(zones.name));
   }
@@ -534,6 +559,72 @@ export class ProductivityRepository {
       .where(eq(projects.userId, userId));
 
     return allProjects;
+  }
+
+  // ============================================================================
+  // PULSE ANALYTICS
+  // ============================================================================
+
+  /**
+   * Get pulse logs for analytics (with date range)
+   */
+  async getPulseLogsForAnalytics(
+    userId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<DailyPulseLog[]> {
+    const rows = await this.db
+      .select()
+      .from(dailyPulseLogs)
+      .where(
+        and(
+          eq(dailyPulseLogs.userId, userId),
+          sql`${dailyPulseLogs.logDate} >= ${startDate}`,
+          sql`${dailyPulseLogs.logDate} <= ${endDate}`,
+        ),
+      )
+      .orderBy(asc(dailyPulseLogs.logDate));
+
+    return rows;
+  }
+
+  /**
+   * Get task completions count by date range (for correlation analysis)
+   */
+  async getTaskCompletionsByDateRange(
+    userId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<Array<{ date: string; count: number }>> {
+    const results = await this.db
+      .select({
+        date: sql<string>`DATE(${tasks.completedAt})`.as("date"),
+        count: sql<number>`COUNT(*)::int`.as("count"),
+      })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.userId, userId),
+          sql`${tasks.completedAt} IS NOT NULL`,
+          sql`DATE(${tasks.completedAt}) >= ${startDate}`,
+          sql`DATE(${tasks.completedAt}) <= ${endDate}`,
+        ),
+      )
+      .groupBy(sql`DATE(${tasks.completedAt})`);
+
+    return results.map((r) => ({
+      date: r.date,
+      count: r.count,
+    }));
+  }
+
+  /**
+   * Delete a pulse log by ID
+   */
+  async deleteDailyPulseLog(logId: string, userId: string): Promise<void> {
+    await this.db
+      .delete(dailyPulseLogs)
+      .where(and(eq(dailyPulseLogs.id, logId), eq(dailyPulseLogs.userId, userId)));
   }
 }
 

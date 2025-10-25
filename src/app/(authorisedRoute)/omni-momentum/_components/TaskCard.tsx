@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
   Flag,
-  Circle,
+  Check,
   MoreHorizontal,
   ChevronRight,
   ChevronDown,
@@ -27,12 +26,15 @@ import {
   Bot,
   User,
   MapPin,
+  Layers,
 } from "lucide-react";
 import { format, addDays, setHours, setMinutes } from "date-fns";
 import { useMomentum } from "@/hooks/use-momentum";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useZones } from "@/hooks/use-zones";
 import { TagManager } from "@/components/TagManager";
+import { ContactManager } from "@/components/ContactManager";
+import type { LinkedContact } from "@/components/ContactSelector";
 import type { Project } from "@/server/db/schema";
 import type { TaskListItem } from "packages/repo/src/types/productivity.types";
 
@@ -55,11 +57,6 @@ interface TaskTag {
   id: string;
   name: string;
   color: string;
-}
-
-interface LinkedContact {
-  id: string;
-  name: string;
 }
 
 /**
@@ -95,6 +92,8 @@ export function TaskCard({
   const [showMoreOptionsDropdown, setShowMoreOptionsDropdown] = useState(false);
   const [showDetailsEditor, setShowDetailsEditor] = useState(false);
   const [showTagSelector, setShowTagSelector] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showZoneSelector, setShowZoneSelector] = useState(false);
 
   // Future enhancement state (not yet implemented)
   // const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -401,18 +400,18 @@ export function TaskCard({
             </PopoverContent>
           </Popover>
 
-          {/* Circle - Click to complete task */}
+          {/* Circle - Click to complete task (Any.do style) */}
           <button
             onClick={handleToggleComplete}
             disabled={isCompleting}
-            className={`transition-all ${
-              task.status === "done" || isCompleting
-                ? "text-green-500"
-                : "text-gray-400 hover:text-green-500"
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+              task.status === "done"
+                ? "bg-gray-500 hover:bg-gray-600"
+                : "border-2 border-gray-300 hover:border-gray-500"
             }`}
-            aria-label="Toggle task completion"
+            aria-label={task.status === "done" ? "Mark as incomplete" : "Mark as complete"}
           >
-            <Circle className={`w-5 h-5 ${task.status === "done" ? "fill-green-500" : ""}`} />
+            {task.status === "done" && <Check className="w-4 h-4 text-white" />}
           </button>
         </div>
 
@@ -505,7 +504,10 @@ export function TaskCard({
                 <span>Tags</span>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => onOpenContactModal?.(task.id)}
+                onClick={() => {
+                  setShowMoreOptionsDropdown(false);
+                  setShowContactModal(true);
+                }}
                 className="flex items-center gap-3 py-2.5 cursor-pointer"
               >
                 <Users className="w-5 h-5" />
@@ -513,8 +515,10 @@ export function TaskCard({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
+                  console.log("📅 Date & Time clicked, opening popover");
                   setShowMoreOptionsDropdown(false);
                   setShowDatePickerPopover(true);
+                  console.log("📅 showDatePickerPopover set to true");
                 }}
                 className="flex items-center gap-3 py-2.5 cursor-pointer"
               >
@@ -541,43 +545,135 @@ export function TaskCard({
                 <MapPin className="w-5 h-5" />
                 <span>Location</span>
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setShowMoreOptionsDropdown(false);
+                  setShowZoneSelector(true);
+                }}
+                className="flex items-center gap-3 py-2.5 cursor-pointer"
+              >
+                <Layers className="w-5 h-5" />
+                <span>Zone</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
           {/* Separate Date Picker Popover (opened from dropdown) */}
-          <Popover open={showDatePickerPopover} onOpenChange={setShowDatePickerPopover}>
-            <PopoverTrigger asChild>
-              <button className="hidden" aria-hidden="true" />
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-auto p-0">
-              <div className="p-2 border-b">
-                <button
-                  onClick={() => handlePresetDate("today")}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded text-sm"
-                >
-                  Today
-                </button>
-                <button
-                  onClick={() => handlePresetDate("this-evening")}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded text-sm"
-                >
-                  This Evening
-                </button>
-                <button
-                  onClick={() => handlePresetDate("tomorrow")}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded text-sm"
-                >
-                  Tomorrow
-                </button>
+          {showDatePickerPopover && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDatePickerPopover(false)}>
+              <div className="bg-white rounded-lg shadow-lg p-0 w-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="p-2 border-b">
+                  <button
+                    onClick={() => {
+                      handlePresetDate("today");
+                      setShowDatePickerPopover(false);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded text-sm"
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={() => {
+                      handlePresetDate("this-evening");
+                      setShowDatePickerPopover(false);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded text-sm"
+                  >
+                    This Evening
+                  </button>
+                  <button
+                    onClick={() => {
+                      handlePresetDate("tomorrow");
+                      setShowDatePickerPopover(false);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded text-sm"
+                  >
+                    Tomorrow
+                  </button>
+                </div>
+                <CalendarComponent
+                  mode="single"
+                  selected={task.dueDate ? new Date(task.dueDate) : undefined}
+                  onSelect={(date) => {
+                    handleDateSelect(date);
+                    setShowDatePickerPopover(false);
+                  }}
+                  initialFocus
+                />
               </div>
-              <CalendarComponent
-                mode="single"
-                selected={task.dueDate ? new Date(task.dueDate) : undefined}
-                onSelect={handleDateSelect}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
+            </div>
+          )}
+
+          {/* Separate Location Modal (opened from dropdown) */}
+          {showLocationPopover && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowLocationPopover(false)}>
+              <div className="bg-white rounded-lg shadow-lg p-4 w-80" onClick={(e) => e.stopPropagation()}>
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Home Office, Coffee Shop..."
+                    value={localLocation}
+                    onChange={(e) => handleLocationUpdate(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        // Save immediately and close
+                        if (locationTimeoutRef.current) {
+                          clearTimeout(locationTimeoutRef.current);
+                        }
+                        updateTask(task.id, {
+                          details: {
+                            ...details,
+                            location: localLocation,
+                          },
+                        });
+                        setShowLocationPopover(false);
+                      } else if (e.key === "Escape") {
+                        setShowLocationPopover(false);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    autoFocus
+                  />
+                  {localLocation && (
+                    <p className="text-xs text-gray-500">Press Enter to save and close</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Zone Selector Modal (opened from dropdown) */}
+          {showZoneSelector && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowZoneSelector(false)}>
+              <div className="bg-white rounded-lg shadow-lg p-4 w-80" onClick={(e) => e.stopPropagation()}>
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">Select Zone</label>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {zones.map((zone) => (
+                      <button
+                        key={zone.uuidId}
+                        onClick={() => {
+                          updateTask(task.id, { zoneUuid: zone.uuidId });
+                          setShowZoneSelector(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-3 ${
+                          task.zoneUuid === zone.uuidId ? "bg-blue-50 border-2 border-blue-500" : "border border-gray-200"
+                        }`}
+                      >
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: zone.color || "#gray" }}
+                        />
+                        <span className="font-medium">{zone.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500">Click a zone to assign this task</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -666,6 +762,17 @@ export function TaskCard({
         />
       </div>
 
+      {/* Contact Manager - Always render for linking contacts to tasks */}
+      <div className="px-4 pb-3">
+        <ContactManager
+          linkedContacts={linkedContacts}
+          taskId={task.id}
+          maxVisible={3}
+          showModal={showContactModal}
+          onModalChange={setShowContactModal}
+        />
+      </div>
+
       {/* Subtasks Progress */}
       {showSubtasks && (
         <div className="px-4 pb-3">
@@ -691,14 +798,20 @@ export function TaskCard({
           {/* Existing subtasks */}
           {subtasks.map((subtask) => (
             <div key={subtask.id} className="flex items-center gap-3">
-              <Checkbox
-                checked={subtask.completed}
-                onCheckedChange={() => handleSubtaskToggle(subtask.id)}
-                className="border-gray-400 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-              />
+              <button
+                onClick={() => handleSubtaskToggle(subtask.id)}
+                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
+                  subtask.completed
+                    ? "bg-gray-500 hover:bg-gray-600"
+                    : "border-2 border-gray-300 hover:border-gray-500"
+                }`}
+                aria-label={subtask.completed ? "Mark as incomplete" : "Mark as complete"}
+              >
+                {subtask.completed && <Check className="w-3 h-3 text-white" />}
+              </button>
               <span
                 className={`text-sm flex-1 ${
-                  subtask.completed ? "line-through text-gray-500" : "text-gray-900"
+                  subtask.completed ? "line-through text-gray-400" : "text-gray-900"
                 }`}
               >
                 {subtask.title}
@@ -758,22 +871,14 @@ export function TaskCard({
       {shouldShowDetails && (
         <div className="px-4 pb-3">
           <div className="bg-white/50 rounded-lg p-3">
-            <div className="flex items-start gap-2">
-              <FileText className="w-4 h-4 text-gray-600 mt-2" />
-              <div className="flex-1 min-w-0">
-                <textarea
-                  ref={detailsInputRef}
-                  value={localDetails}
-                  onChange={(e) => handleDetailsUpdate(e.target.value)}
-                  placeholder="Add details about this task..."
-                  className="w-full text-sm text-gray-700 bg-transparent border-none focus:outline-none resize-none min-h-[60px]"
-                  rows={3}
-                />
-                {localDetails && (
-                  <p className="text-xs text-gray-500 mt-1">Auto-saves as you type</p>
-                )}
-              </div>
-            </div>
+            <textarea
+              ref={detailsInputRef}
+              value={localDetails}
+              onChange={(e) => handleDetailsUpdate(e.target.value)}
+              placeholder="Add details about this task..."
+              className="w-full text-sm text-gray-700 bg-transparent border-none focus:outline-none resize-none min-h-[60px]"
+              rows={3}
+            />
           </div>
         </div>
       )}

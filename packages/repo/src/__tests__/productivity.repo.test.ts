@@ -211,7 +211,6 @@ describe("ProductivityRepository", () => {
         status: "todo" as const,
         dueDate: "2024-12-31",
         details: { description: "Task description" },
-        parentTaskId: null,
         completedAt: null,
       };
 
@@ -219,7 +218,6 @@ describe("ProductivityRepository", () => {
         id: mockTaskId,
         userId: mockUserId,
         ...taskData,
-        parentTaskId: null,
         completedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -244,7 +242,6 @@ describe("ProductivityRepository", () => {
         details: null,
         dueDate: null,
         projectId: null,
-        parentTaskId: null,
         completedAt: null,
       };
 

@@ -258,11 +258,11 @@ export function safeParseJsonb<T>(data: unknown, schema: z.ZodSchema<T>): T {
 }
 
 /**
- * Sanitizes unknown JSONB data to safe object
+ * Sanitizes unknown JSONB data to safe object or array
  * Removes dangerous keys and ensures safe structure
- * Returns Record<string, unknown> or empty object
+ * Returns sanitized data (object or array) or empty object
  */
-export function sanitizeJsonb(data: unknown): Record<string, unknown> {
+export function sanitizeJsonb(data: unknown): Record<string, unknown> | unknown[] {
   try {
     // Handle null/undefined
     if (data == null) {
@@ -274,17 +274,14 @@ export function sanitizeJsonb(data: unknown): Record<string, unknown> {
       return {};
     }
 
-    // Handle arrays (convert to object with numeric keys)
+    // Handle arrays (preserve as arrays, sanitize items)
     if (Array.isArray(data)) {
-      const result: Record<string, unknown> = {};
-      data.forEach((item, index) => {
+      return data.map((item) => {
         if (typeof item === "object" && item !== null) {
-          result[index.toString()] = sanitizeJsonb(item);
-        } else {
-          result[index.toString()] = item;
+          return sanitizeJsonb(item);
         }
+        return item;
       });
-      return result;
     }
 
     // Handle objects
@@ -297,7 +294,7 @@ export function sanitizeJsonb(data: unknown): Record<string, unknown> {
         continue;
       }
 
-      // Recursively sanitize nested objects
+      // Recursively sanitize nested objects and arrays
       if (typeof value === "object" && value !== null) {
         result[key] = sanitizeJsonb(value);
       } else {

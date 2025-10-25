@@ -94,7 +94,6 @@ export async function listTasksService(
   userId: string,
   filters?: {
     projectId?: string | undefined;
-    parentTaskId?: string | null | undefined;
     status?: string[] | undefined;
     priority?: string[] | undefined;
   },
@@ -123,7 +122,6 @@ export async function updateTaskService(
   data: {
     name?: string | undefined;
     projectId?: string | null | undefined;
-    parentTaskId?: string | null | undefined;
     priority?: string | undefined;
     status?: string | undefined;
     dueDate?: Date | null | undefined;
@@ -147,7 +145,12 @@ export async function updateTaskService(
 
     // Business logic: Convert Date objects to strings for database
     if (cleanData["dueDate"] instanceof Date) {
-      cleanData["dueDate"] = cleanData["dueDate"].toISOString().split("T")[0];
+      // Use local date to avoid timezone offset issues
+      const date = cleanData["dueDate"] as Date;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      cleanData["dueDate"] = `${year}-${month}-${day}`;
     }
     if (cleanData["completedAt"] instanceof Date) {
       cleanData["completedAt"] = cleanData["completedAt"].toISOString();
@@ -335,11 +338,14 @@ export async function getProjectTasksService(
 
 /**
  * Get subtasks for a parent task
+ *
+ * NOTE: Subtasks are now stored in details.subtasks JSONB array.
+ * This function extracts them from the parent task's details.
  */
 export async function getSubtasksService(
   userId: string,
   parentTaskId: string,
-): Promise<{ parentTask: TaskListItem; subtasks: TaskListItem[] }> {
+): Promise<{ parentTask: TaskListItem; subtasks: Array<{ id: string; title: string; completed: boolean }> }> {
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
@@ -350,10 +356,14 @@ export async function getSubtasksService(
       throw new AppError("Parent task not found", "TASK_NOT_FOUND", "validation", false);
     }
 
-    // Get subtasks
-    const subtasks = await repo.getTasks(userId, {
-      parentTaskId,
-    });
+    // Extract subtasks from details.subtasks JSONB array
+    const details =
+      typeof parentTask.details === "object" && parentTask.details !== null
+        ? (parentTask.details as Record<string, unknown>)
+        : {};
+    const subtasks = Array.isArray(details["subtasks"])
+      ? (details["subtasks"] as Array<{ id: string; title: string; completed: boolean }>)
+      : [];
 
     return { parentTask, subtasks };
   } catch (error) {

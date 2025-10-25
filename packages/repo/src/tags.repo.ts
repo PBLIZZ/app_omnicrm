@@ -227,14 +227,20 @@ export class TagsRepository {
     tagIds: string[],
     createdBy: string,
   ): Promise<ContactTag[]> {
-    if (tagIds.length === 0) {
-      return [];
+    // Verify all tags belong to user
+    if (tagIds.length > 0) {
+      const userTags = await this.getTagsByIds(userId, tagIds);
+      if (userTags.length !== tagIds.length) {
+        throw new Error("One or more tags not found or not owned by user");
+      }
     }
 
-    // Verify all tags belong to user
-    const userTags = await this.getTagsByIds(userId, tagIds);
-    if (userTags.length !== tagIds.length) {
-      throw new Error("One or more tags not found or not owned by user");
+    // Step 1: Delete all existing tags for this contact
+    await this.db.delete(contactTags).where(eq(contactTags.contactId, contactId));
+
+    // Step 2: Insert new tags if any
+    if (tagIds.length === 0) {
+      return [];
     }
 
     const contactTagData = tagIds.map((tagId) => ({
@@ -318,14 +324,20 @@ export class TagsRepository {
    * Apply tags to task
    */
   async applyTagsToTask(userId: string, taskId: string, tagIds: string[]): Promise<TaskTag[]> {
-    if (tagIds.length === 0) {
-      return [];
+    // Verify all tags belong to user (even if empty array)
+    if (tagIds.length > 0) {
+      const userTags = await this.getTagsByIds(userId, tagIds);
+      if (userTags.length !== tagIds.length) {
+        throw new Error("One or more tags not found or not owned by user");
+      }
     }
 
-    // Verify all tags belong to user
-    const userTags = await this.getTagsByIds(userId, tagIds);
-    if (userTags.length !== tagIds.length) {
-      throw new Error("One or more tags not found or not owned by user");
+    // Step 1: Delete all existing tags for this task (proper replace operation)
+    await this.db.delete(taskTags).where(eq(taskTags.taskId, taskId));
+
+    // Step 2: Insert new tags if any
+    if (tagIds.length === 0) {
+      return [];
     }
 
     const taskTagData = tagIds.map((tagId) => ({
@@ -391,14 +403,20 @@ export class TagsRepository {
    * Apply tags to note
    */
   async applyTagsToNote(userId: string, noteId: string, tagIds: string[]): Promise<NoteTag[]> {
-    if (tagIds.length === 0) {
-      return [];
+    // Verify all tags belong to user
+    if (tagIds.length > 0) {
+      const userTags = await this.getTagsByIds(userId, tagIds);
+      if (userTags.length !== tagIds.length) {
+        throw new Error("One or more tags not found or not owned by user");
+      }
     }
 
-    // Verify all tags belong to user
-    const userTags = await this.getTagsByIds(userId, tagIds);
-    if (userTags.length !== tagIds.length) {
-      throw new Error("One or more tags not found or not owned by user");
+    // Step 1: Delete all existing tags for this note
+    await this.db.delete(noteTags).where(eq(noteTags.noteId, noteId));
+
+    // Step 2: Insert new tags if any
+    if (tagIds.length === 0) {
+      return [];
     }
 
     const noteTagData = tagIds.map((tagId) => ({
@@ -464,14 +482,20 @@ export class TagsRepository {
    * Apply tags to goal
    */
   async applyTagsToGoal(userId: string, goalId: string, tagIds: string[]): Promise<GoalTag[]> {
-    if (tagIds.length === 0) {
-      return [];
+    // Verify all tags belong to user
+    if (tagIds.length > 0) {
+      const userTags = await this.getTagsByIds(userId, tagIds);
+      if (userTags.length !== tagIds.length) {
+        throw new Error("One or more tags not found or not owned by user");
+      }
     }
 
-    // Verify all tags belong to user
-    const userTags = await this.getTagsByIds(userId, tagIds);
-    if (userTags.length !== tagIds.length) {
-      throw new Error("One or more tags not found or not owned by user");
+    // Step 1: Delete all existing tags for this goal
+    await this.db.delete(goalTags).where(eq(goalTags.goalId, goalId));
+
+    // Step 2: Insert new tags if any
+    if (tagIds.length === 0) {
+      return [];
     }
 
     const goalTagData = tagIds.map((tagId) => ({

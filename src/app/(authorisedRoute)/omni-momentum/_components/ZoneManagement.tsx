@@ -277,7 +277,7 @@ export function ZoneManagement({ onZoneSelect }: ZoneManagementProps): JSX.Eleme
             ) : (
               filteredZones.map((zone) => (
                 <div
-                  key={zone.id}
+                  key={zone.uuidId}
                   className="flex items-center gap-4 p-4 bg-white rounded-lg border hover:shadow-sm transition-all"
                 >
                   {/* Zone Color Indicator */}
@@ -293,7 +293,7 @@ export function ZoneManagement({ onZoneSelect }: ZoneManagementProps): JSX.Eleme
                       <Badge variant="outline" className="text-xs">
                         {zone.iconName || "circle"}
                       </Badge>
-                      <span className="text-xs text-gray-500">ID: {zone.id}</span>
+                      <span className="text-xs text-gray-500">ID: {zone.uuidId}</span>
                     </div>
                   </div>
 

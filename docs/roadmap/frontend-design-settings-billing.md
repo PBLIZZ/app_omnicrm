@@ -9,6 +9,7 @@
 ## Document Status & Purpose
 
 **This document has been updated to reflect the ACTUAL current implementation** rather than proposed future architecture. It serves as:
+
 1. Documentation of what EXISTS in the codebase
 2. Identification of gaps between original design and implementation
 3. Reference for future enhancements
@@ -59,6 +60,7 @@ The settings interface implements a modern, modular architecture using shadcn/ui
 **Main Layout:** `/app/(authorisedRoute)/settings/layout.tsx` uses MainLayout with SettingsSidebar
 
 **Current Navigation Structure:**
+
 ```typescript
 // /src/app/(authorisedRoute)/settings/_components/SettingsSidebar.tsx
 const settingsNavItems = [
@@ -73,6 +75,7 @@ const settingsNavItems = [
 ```
 
 **Integrations Section (In Sidebar):**
+
 ```typescript
 <SidebarGroup>
   <SidebarGroupLabel>Integrations</SidebarGroupLabel>
@@ -154,11 +157,13 @@ useEffect(() => {
 ### Integration Endpoints
 
 **✅ Gmail:**
+
 - Connect: `POST /api/google/gmail/connect` → Returns OAuth URL
 - Callback: `GET /api/google/gmail/callback` → Handles OAuth return
 - Sync: `POST /api/google/gmail/sync` → Direct sync (see below)
 
 **✅ Calendar:**
+
 - Connect: `POST /api/google/calendar/connect` → Returns OAuth URL
 - Callback: `GET /api/google/calendar/callback` → Handles OAuth return
 
@@ -213,12 +218,14 @@ const startSyncMutation = useMutation({
 ```
 
 **Code Comments Confirm Direct Sync:**
+
 ```typescript
 // Line 45: "// Direct sync mode - no job polling needed"
 // Line 94: "// Note: Direct sync mode - no complex job polling needed"
 ```
 
 **User Flow:**
+
 1. User clicks "Start Sync" button
 2. POST to `/api/google/gmail/sync`
 3. Sync completes immediately (synchronous)
@@ -252,6 +259,7 @@ const startSyncMutation = useMutation({
 ```
 
 **Component Implementation:**
+
 ```typescript
 // ThemeToggle.tsx
 export function ThemeToggle({ mounted, theme, setTheme }: ThemeToggleProps) {
@@ -279,11 +287,13 @@ export function ThemeToggle({ mounted, theme, setTheme }: ThemeToggleProps) {
 ```
 
 **Theme Options:**
+
 - 🌞 **Light** - Bright theme for daytime use
 - 🌙 **Dark** - Dark theme for night/low-light
 - 💻 **System** - Follows OS preference
 
 **Location in Header:**
+
 ```
 [Sidebar Toggle] [Breadcrumbs] ............. [AI Bot] [Rapid Note] [Theme Toggle]
 ```
@@ -327,6 +337,7 @@ The main `/settings/page.tsx` has a "System" tab with a dark mode switch (lines 
 ### UI Implementation
 
 **Features Implemented:**
+
 - ✅ Tag creation with category selection
 - ✅ Color picker for custom tag colors
 - ✅ Category-based grouping display
@@ -336,6 +347,7 @@ The main `/settings/page.tsx` has a "System" tab with a dark mode switch (lines 
 - ⚠️ Delete function has TODO comment (line 171)
 
 **Backend API:** Fully functional at `/api/tags`
+
 - GET - List all tags for user
 - POST - Create new tag
 - PUT - Update tag (implemented)
@@ -344,6 +356,7 @@ The main `/settings/page.tsx` has a "System" tab with a dark mode switch (lines 
 **Issue:** The page exists and works but isn't linked in SettingsSidebar navigation.
 
 **Fix Needed:**
+
 ```typescript
 // Add to settingsNavItems in SettingsSidebar.tsx
 { title: "Tags", href: "/settings/tags", icon: Tag }
@@ -382,20 +395,24 @@ The main `/settings/page.tsx` has a "System" tab with a dark mode switch (lines 
 Per user requirements, the following integrations are REMOVED from the settings UI:
 
 ### ❌ Google Drive
+
 - **Backend files:** KEEP (user specified)
 - **Settings UI:** REMOVE
 - **Why:** Not actively used in current workflow
 - **Files to update:** Remove from `/settings/page.tsx` lines 193-214
 
 ### ❌ OpenAI
+
 - **Reason:** Not implemented in actual system
 - **Files to update:** Remove from `/settings/page.tsx` lines 220-249
 
 ### ❌ WhatsApp Business
+
 - **Reason:** Not implemented in actual system
 - **Files to update:** Remove from `/settings/page.tsx` lines 251-276
 
 ### ✅ Gmail & Calendar ONLY
+
 These are the ONLY two Google integrations that should appear in settings UI.
 
 ---
@@ -439,15 +456,18 @@ toast.warning("Your session will expire in 5 minutes");
 **Current Implementation:** Standard JavaScript `toLocaleDateString()`
 
 **Example from account page:**
+
 ```typescript
 {user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
 ```
 
 **Issues:**
+
 - Uses browser locale (US format in US browsers: MM/DD/YYYY)
 - Not consistently European (DD/MM/YYYY)
 
 **Recommendation:** Add locale parameter for European format:
+
 ```typescript
 new Date(user.created_at).toLocaleDateString('en-GB', {
   day: '2-digit',
@@ -465,17 +485,20 @@ new Date(user.created_at).toLocaleDateString('en-GB', {
 ### Current Patterns (Following CLAUDE.md)
 
 ✅ **Layered Architecture:**
+
 - Repository Layer: `packages/repo/src/*.repo.ts`
 - Service Layer: `src/server/services/*.service.ts`
 - Route Layer: `src/app/api/*/route.ts`
 - Component Layer: `src/app/(authorisedRoute)/_components/*.tsx`
 
 ✅ **Error Handling:**
+
 - Services throw `AppError` with status codes
 - Routes use `handleAuth()` wrapper
 - Toast notifications for user feedback
 
 ✅ **Type Safety:**
+
 - Strict TypeScript
 - No `any` types
 - No non-null assertions
@@ -506,11 +529,13 @@ src/app/(authorisedRoute)/settings/
 ### Pages Not Implemented
 
 ❌ **Billing Page** (`/settings/billing`)
+
 - Navigation link exists
 - No actual page implementation
 - Would need: subscription plans, payment methods, usage tracking
 
 ❌ **Notifications Page** (`/settings/notifications`)
+
 - Navigation link exists
 - No actual page implementation
 - Would need: email prefs, push notifications, alert settings
@@ -518,18 +543,21 @@ src/app/(authorisedRoute)/settings/
 ### Features Not Implemented
 
 ❌ **AI Assistant Settings**
+
 - Original design included token management
 - Model selection
 - Usage quotas
 - Not present in current implementation
 
 ❌ **Advanced Sync Preferences**
+
 - Original design had detailed Gmail filters
 - Date range selection
 - Contact matching rules
 - Current implementation is simpler (direct sync, no config)
 
 ❌ **GDPR Privacy Controls (Partial)**
+
 - Data export exists
 - Data deletion exists
 - But no dedicated privacy settings page
@@ -538,6 +566,7 @@ src/app/(authorisedRoute)/settings/
 ### Navigation Not Complete
 
 ⚠️ **Tags page exists but not linked**
+
 - Fully functional at `/settings/tags`
 - Just needs nav link in SettingsSidebar
 
@@ -553,6 +582,7 @@ src/app/(authorisedRoute)/settings/
    - Remove WhatsApp integration UI (lines 251-276)
 
 2. **Add Tags to navigation:**
+
    ```typescript
    { title: "Tags", href: "/settings/tags", icon: Tag }
    ```
@@ -636,6 +666,7 @@ src/
 ## 14. API Endpoints (Current)
 
 ### Google Integration
+
 - `POST /api/google/gmail/connect` - Start Gmail OAuth
 - `GET /api/google/gmail/callback` - Handle OAuth callback
 - `POST /api/google/gmail/sync` - Direct sync (no job polling)
@@ -644,12 +675,14 @@ src/
 - `GET /api/google/status` - Get connection status
 
 ### Tags Management
+
 - `GET /api/tags` - List user tags
 - `POST /api/tags` - Create tag
 - `PUT /api/tags/:id` - Update tag
 - `DELETE /api/tags/:id` - Delete tag
 
 ### User Management
+
 - Available via Supabase Auth SDK (no custom endpoints needed)
 
 ---
@@ -657,18 +690,21 @@ src/
 ## 15. Testing Recommendations
 
 ### Unit Tests Needed
+
 - [ ] TagManager component
 - [ ] TagSelector component
 - [ ] GmailSyncStatusPanel state transitions
 - [ ] Theme toggle functionality
 
 ### Integration Tests Needed
+
 - [ ] Gmail OAuth flow
 - [ ] Gmail sync end-to-end
 - [ ] Tag CRUD operations
 - [ ] Account data export
 
 ### E2E Tests Needed
+
 - [ ] Settings navigation flow
 - [ ] Connect Gmail → Sync → Verify
 - [ ] Create/edit/delete tags
@@ -688,6 +724,7 @@ This document now accurately reflects the **current implementation** rather than
 ❌ **Removed Features:** Drive, OpenAI, WhatsApp not in scope
 
 **Next Steps:**
+
 1. Remove obsolete integrations from settings page
 2. Link Tags page in navigation
 3. Complete Tags edit/delete functionality

@@ -132,7 +132,7 @@ export function MomentumSidebar(): JSX.Element {
               const IconComponent = getZoneIcon(zone.name);
 
               return (
-                <SidebarMenuItem key={zone.id}>
+                <SidebarMenuItem key={zone.uuidId}>
                   <SidebarMenuButton asChild>
                     <Link
                       href={`/omni-momentum/zones/${zoneSlug}`}

@@ -40,14 +40,14 @@ export function ZoneView({ zone }: ZoneViewProps): JSX.Element {
   // Get all tasks in this zone
   const zoneTasks = tasks.filter((task) => {
     // Direct zone assignment
-    if (task.zoneUuid === zone.uuid && task.status !== "done") {
+    if (task.zoneUuid === zone.uuidId && task.status !== "done") {
       return true;
     }
 
     // Or through a project in this zone
     if (task.projectId) {
       const project = projects.find((p) => p.id === task.projectId);
-      if (project?.zoneUuid === zone.uuid && task.status !== "done") {
+      if (project?.zoneUuid === zone.uuidId && task.status !== "done") {
         return true;
       }
     }

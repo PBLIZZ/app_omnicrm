@@ -3,6 +3,7 @@
 import { TagSelector } from "@/components/TagSelector";
 import { Badge } from "@/components/ui/badge";
 import { useTags } from "@/hooks/use-tags";
+import { TAG_CATEGORY_COLORS, TAG_CATEGORY_BORDER_COLORS, TAG_CATEGORY_TEXT_COLORS, type TagCategory } from "@/lib/tag-categories";
 
 interface Tag {
   id: string;
@@ -27,6 +28,7 @@ interface TagManagerProps {
   /** Callback to control modal visibility */
   onModalChange: (open: boolean) => void;
 }
+
 
 /**
  * TagManager - Reusable component for managing tags on any entity
@@ -65,7 +67,10 @@ export function TagManager({
   // Get the appropriate apply function based on entity type
   const applyTags = async (newTags: Tag[]) => {
     const tagIds = newTags.map(t => t.id);
-    
+
+    // Empty arrays are valid - means "remove all tags"
+    // The repo now handles this properly with DELETE + INSERT pattern
+
     switch (entityType) {
       case "task":
         await applyTagsToTask({ taskId: entityId, tagIds });
@@ -90,31 +95,53 @@ export function TagManager({
   return (
     <>
       {/* Tag Display */}
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 items-center">
-          {visibleTags.map((tag) => (
-            <Badge
-              key={tag.id}
-              className="px-3 py-1 rounded-full text-sm font-medium border-0 cursor-pointer hover:opacity-80 transition-opacity"
-              style={{ 
-                backgroundColor: tag.color, 
-                color: "#fff" 
-              }}
-              onClick={handleOpenModal}
-            >
-              {tag.name}
-            </Badge>
-          ))}
-          {hiddenTagsCount > 0 && (
-            <button
-              onClick={handleOpenModal}
-              className="text-xs text-gray-600 hover:text-gray-900 font-medium"
-            >
-              +{hiddenTagsCount} more
-            </button>
-          )}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-2 items-center">
+        {tags.length === 0 ? (
+          // Show "Add tags" button when no tags exist
+          <button
+            onClick={handleOpenModal}
+            className="text-xs text-gray-500 hover:text-gray-700 font-medium flex items-center gap-1"
+          >
+            <span>+ Add tags</span>
+          </button>
+        ) : (
+          // Show existing tags
+          <>
+            {visibleTags.map((tag) => {
+              // Use fixed category colors - no dynamic calculation
+              const category = (tag.category as TagCategory) || "services_modalities";
+              const bgColor = TAG_CATEGORY_COLORS[category];
+              const textColor = TAG_CATEGORY_TEXT_COLORS[category];
+              const borderColor = TAG_CATEGORY_BORDER_COLORS[category];
+
+              return (
+                <Badge
+                  key={tag.id}
+                  className="px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                  style={{
+                    backgroundColor: bgColor,
+                    color: textColor,
+                    borderColor: borderColor,
+                    borderWidth: "1px",
+                    borderStyle: "solid"
+                  }}
+                  onClick={handleOpenModal}
+                >
+                  {tag.name}
+                </Badge>
+              );
+            })}
+            {hiddenTagsCount > 0 && (
+              <button
+                onClick={handleOpenModal}
+                className="text-xs text-gray-600 hover:text-gray-900 font-medium"
+              >
+                +{hiddenTagsCount} more
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Tag Selector Modal */}
       <TagSelector
@@ -127,15 +154,16 @@ export function TagManager({
           console.log(`🏷️ ${entityType} tags changed:`, newTags);
           await applyTags(newTags);
         }}
-        onCreateTag={async (name) => {
-          console.log(`🏷️ Creating new tag:`, name);
-          // Default to "services_modalities" category - user can change in settings
+        onCreateTag={async (name, category) => {
+          console.log(`🏷️ Creating new tag:`, name, "in category:", category);
+          // Use fixed category color from tag-categories.ts
+          const categoryColor = TAG_CATEGORY_COLORS[category as TagCategory] || TAG_CATEGORY_COLORS.services_modalities;
           const newTag = await createTag({
             name,
-            category: "services_modalities",
-            color: "#a78bfa"
+            category,
+            color: categoryColor
           });
-          return { id: newTag.id, name: newTag.name, color: newTag.color };
+          return { id: newTag.id, name: newTag.name, color: categoryColor, category: category };
         }}
       />
     </>

@@ -396,7 +396,7 @@ describe("useTaskWithSubtasks (MSW)", () => {
     wrapper = createQueryClientWrapper();
   });
 
-  it("fetches task with its subtasks", async () => {
+  it("fetches task with its subtasks from JSONB", async () => {
     const { result } = renderHook(() => useTaskWithSubtasks("task-1"), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -407,7 +407,10 @@ describe("useTaskWithSubtasks (MSW)", () => {
     expect(result.current.data?.task.id).toBe("task-1");
     expect(result.current.data?.task.name).toBe("Test Task");
     expect(result.current.data?.subtasks).toHaveLength(1);
-    expect(result.current.data?.subtasks[0].parentTaskId).toBe("task-1");
+    // Subtasks are now lightweight objects from JSONB with { id, title, completed }
+    expect(result.current.data?.subtasks[0]).toHaveProperty("id");
+    expect(result.current.data?.subtasks[0]).toHaveProperty("title");
+    expect(result.current.data?.subtasks[0]).toHaveProperty("completed");
   });
 
   it("returns undefined while loading", () => {
@@ -431,7 +434,7 @@ describe("useTodaysFocus (MSW)", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.data).toBeDefined();
-    // API returns all todo tasks with status=todo&parentTaskId=null, which is 2 tasks
+    // API returns all todo tasks with status=todo filter
     expect(result.current.data?.length).toBeGreaterThan(0);
     expect(result.current.data?.length).toBeLessThanOrEqual(3);
     

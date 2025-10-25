@@ -317,3 +317,54 @@ export function addMinutes(date: Date, minutes: number): Date {
   result.setMinutes(result.getMinutes() + minutes);
   return result;
 }
+
+/**
+ * Gets the ordinal suffix for a number (st, nd, rd, th)
+ */
+function getOrdinalSuffix(day: number): string {
+  if (day > 3 && day < 21) return "th";
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+/**
+ * Formats a date with ordinal suffix and returns parts for rendering
+ * Example: "31st Dec 25" or "1st Jan 26"
+ * Returns object with day, suffix, month, year for flexible rendering
+ */
+export function formatDateWithOrdinal(date: Date): {
+  day: number;
+  suffix: string;
+  month: string;
+  year: string;
+  formatted: string;
+} {
+  const day = date.getDate();
+  const suffix = getOrdinalSuffix(day);
+  const month = date.toLocaleDateString("en-US", { month: "short" });
+  const year = date.toLocaleDateString("en-US", { year: "2-digit" });
+
+  return {
+    day,
+    suffix,
+    month,
+    year,
+    formatted: `${day}${suffix} ${month} ${year}`,
+  };
+}
+
+/**
+ * Formats a date with ordinal suffix as plain text
+ * Example: "31st Dec 25" or "1st Jan 26"
+ */
+export function formatOrdinal(date: Date): string {
+  return formatDateWithOrdinal(date).formatted;
+}

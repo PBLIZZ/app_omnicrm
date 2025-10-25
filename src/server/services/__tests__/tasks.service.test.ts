@@ -46,7 +46,6 @@ describe("TasksService", () => {
         userId,
         name: "Test",
         projectId: null,
-        parentTaskId: null,
         priority: "medium",
         status: "todo",
         dueDate: null,
@@ -55,7 +54,6 @@ describe("TasksService", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockRepo.getTask.mockResolvedValue({ id: "parent", userId } as any); // not used unless parentTaskId provided
       mockRepo.createTask.mockResolvedValue(created);
 
       const result = await createTaskService(userId, { name: "Test", details: "ignored" as any });
@@ -63,7 +61,6 @@ describe("TasksService", () => {
       expect(mockRepo.createTask).toHaveBeenCalledWith(userId, {
         name: "Test",
         projectId: null,
-        parentTaskId: null,
         priority: "medium",
         status: "todo",
         dueDate: null,
@@ -73,24 +70,13 @@ describe("TasksService", () => {
       expect(result).toEqual(created);
     });
 
-    it("validates parent task existence", async () => {
-      mockRepo.getTask.mockResolvedValue(null);
-
-      await expect(
-        createTaskService(userId, { name: "Child", parentTaskId: "missing" }),
-      ).rejects.toThrow(/Parent task not found/);
-      expect(mockRepo.createTask).not.toHaveBeenCalled();
-    });
-
     it("passes through provided fields and formats dueDate", async () => {
       const created = { id: taskId } as any;
-      mockRepo.getTask.mockResolvedValue({ id: "parent", userId } as any);
       mockRepo.createTask.mockResolvedValue(created);
 
       const due = new Date("2024-01-02T10:00:00Z");
       await createTaskService(userId, {
-        name: "Child",
-        parentTaskId: "parent",
+        name: "Task with fields",
         projectId: projectId,
         priority: "high",
         status: "in_progress",
@@ -100,7 +86,6 @@ describe("TasksService", () => {
 
       expect(mockRepo.createTask).toHaveBeenCalledWith(userId, expect.objectContaining({
         projectId,
-        parentTaskId: "parent",
         priority: "high",
         status: "in_progress",
         dueDate: "2024-01-02", // dateToString helper trims time
@@ -215,11 +200,31 @@ describe("TasksService", () => {
       await expect(getProjectTasksService(projectId, userId)).rejects.toThrow(/Project not found/);
     });
 
-    it("getSubtasksService validates parent and returns subtasks", async () => {
-      mockRepo.getTask.mockResolvedValue({ id: "parent" } as any);
-      mockRepo.getTasks.mockResolvedValue([{ id: "child" }] as any);
+    it("getSubtasksService validates parent and extracts subtasks from JSONB", async () => {
+      const parentTask = {
+        id: "parent",
+        details: {
+          subtasks: [
+            { id: "sub-1", title: "First subtask", completed: false },
+            { id: "sub-2", title: "Second subtask", completed: true },
+          ],
+        },
+      };
+      mockRepo.getTask.mockResolvedValue(parentTask as any);
       const result = await getSubtasksService(userId, "parent");
-      expect(result).toEqual({ parentTask: { id: "parent" }, subtasks: [{ id: "child" }] as any });
+      expect(result).toEqual({
+        parentTask,
+        subtasks: [
+          { id: "sub-1", title: "First subtask", completed: false },
+          { id: "sub-2", title: "Second subtask", completed: true },
+        ],
+      });
+    });
+
+    it("getSubtasksService returns empty array when no subtasks in JSONB", async () => {
+      mockRepo.getTask.mockResolvedValue({ id: "parent", details: {} } as any);
+      const result = await getSubtasksService(userId, "parent");
+      expect(result.subtasks).toEqual([]);
     });
 
     it("getSubtasksService throws when parent is missing", async () => {

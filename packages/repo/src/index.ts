@@ -8,8 +8,8 @@ export type {
   TaskListItem,
   TaskWithProject,
   TaskWithSubtasks,
-  TaskWithParent,
   TaskWithRelations,
+  Subtask,
   Project,
   ProjectListItem,
   ProjectWithZone,
@@ -18,6 +18,12 @@ export type {
   GoalListItem,
   DailyPulseLog,
   DailyPulseLogListItem,
+  DailyPulseLogWithDetails,
+  PulseDetails,
+  PulseSummary,
+  PulseCorrelation,
+  PulseTimePattern,
+  PulseAnalytics,
   InboxItem,
   InboxItemListItem,
   TaskContactTag,
@@ -32,6 +38,31 @@ export type {
   CreateInboxItem,
   UpdateInboxItem,
 } from "./types/productivity.types";
+
+// Habit types
+export type {
+  Habit,
+  HabitCompletion,
+  HabitType,
+  HabitDetails,
+  CompletionValue,
+  HabitWithDetails,
+  HabitCompletionWithValue,
+  HabitStreak,
+  HabitWithCompletions,
+  HabitStats,
+  HabitHeatmapDataPoint,
+  HabitAnalytics,
+  HabitsSummary,
+  CreateHabit,
+  UpdateHabit,
+  CreateHabitCompletion,
+  UpdateHabitCompletion,
+  HabitFilters,
+  HabitCompletionFilters,
+  StreakMilestone,
+  STREAK_MILESTONES,
+} from "./types/habits.types";
 
 // Repository classes
 export { AuthUserRepository, createAuthUserRepository } from "./auth-user.repo";
@@ -95,6 +126,7 @@ export type { SearchResultDTO, TraditionalSearchParams, SemanticSearchParams } f
 export { InboxRepository, createInboxRepository } from "./inbox.repo";
 export type { InboxListParams } from "./inbox.repo";
 export { ZonesRepository, createZonesRepository } from "./zones.repo";
+export { HabitsRepository, createHabitsRepository } from "./habits.repo";
 
 // Re-export database schema types for convenience
 export * from "@/server/db/schema";

@@ -51,7 +51,6 @@ export const InboxApprovalRequestSchema = z.object({
           dueDate: z.coerce.date().nullable().optional(),
           zoneUuid: z.string().uuid().optional(),
           projectId: z.string().uuid().nullable().optional(),
-          parentTaskId: z.string().uuid().nullable().optional(),
         })
         .optional(),
     }),
@@ -64,19 +63,11 @@ export const InboxApprovalRequestSchema = z.object({
         .object({
           name: z.string().optional(),
           description: z.string().optional(),
-          zoneId: z.number().int().optional(),
+          zoneUuid: z.string().uuid().optional(),
           status: z.enum(["active", "on_hold", "completed", "archived"]).optional(),
           dueDate: z.coerce.date().nullable().optional(),
         })
         .optional(),
-    }),
-  ),
-  approvedHierarchies: z.array(
-    z.object({
-      parentTaskId: z.string().uuid(),
-      subtaskIds: z.array(z.string().uuid()),
-      relationshipType: z.enum(["task_subtask", "project_task"]),
-      approved: z.boolean(),
     }),
   ),
   processingNotes: z.string().optional(),
@@ -90,14 +81,13 @@ export const InboxApprovalResultSchema = z.object({
       id: z.string().uuid(),
       name: z.string(),
       projectId: z.string().uuid().nullable(),
-      parentTaskId: z.string().uuid().nullable(),
     }),
   ),
   createdProjects: z.array(
     z.object({
       id: z.string().uuid(),
       name: z.string(),
-      zoneId: z.number().int().nullable(),
+      zoneUuid: z.string().uuid().nullable(),
     }),
   ),
   skippedTasks: z.array(z.string().uuid()),
@@ -218,9 +208,8 @@ export async function processApprovedItems(
       id: string;
       name: string;
       projectId: string | null;
-      parentTaskId: string | null;
     }> = [];
-    const createdProjects: Array<{ id: string; name: string; zoneId: number | null }> = [];
+    const createdProjects: Array<{ id: string; name: string; zoneUuid: string | null }> = [];
     const skippedTasks: string[] = [];
     const skippedProjects: string[] = [];
 
@@ -342,7 +331,6 @@ export async function processApprovedItems(
         id: createdTask.id,
         name: createdTask.name,
         projectId: createdTask.projectId,
-        parentTaskId: createdTask.parentTaskId,
       });
     }
 

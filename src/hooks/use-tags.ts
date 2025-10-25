@@ -58,8 +58,10 @@ export function useTags() {
       return await post("/api/tags/apply", requestBody);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      // Invalidate momentum tasks query (includes all variations with different filters)
       queryClient.invalidateQueries({ queryKey: ["momentum"] });
+      // Also invalidate any standalone tasks queries
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 
@@ -115,8 +117,10 @@ export function useTags() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      // Invalidate momentum tasks query (includes all variations with different filters)
       queryClient.invalidateQueries({ queryKey: ["momentum"] });
+      // Also invalidate any standalone tasks queries
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 
@@ -126,7 +130,14 @@ export function useTags() {
       return await patch(`/api/tags/${tagId}`, updates);
     },
     onSuccess: () => {
+      // Invalidate tags cache
       queryClient.invalidateQueries({ queryKey: ["tags"] });
+      // Invalidate all caches that contain tags (tasks, contacts, notes, goals)
+      queryClient.invalidateQueries({ queryKey: ["momentum"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
     },
   });
 

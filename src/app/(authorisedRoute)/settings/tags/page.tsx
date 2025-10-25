@@ -5,18 +5,13 @@ import { useTags } from "@/hooks/use-tags";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, X, Palette } from "lucide-react";
-import { TAG_CATEGORIES, TAG_CATEGORY_BORDER_COLORS, TAG_CATEGORY_TEXT_COLORS, TAG_CATEGORY_CARD_BORDER_COLORS, type TagCategory } from "@/lib/tag-categories";
+import { Plus, X } from "lucide-react";
+import { TAG_CATEGORIES, TAG_CATEGORY_COLORS, TAG_CATEGORY_BORDER_COLORS, TAG_CATEGORY_TEXT_COLORS, TAG_CATEGORY_CARD_BORDER_COLORS, type TagCategory } from "@/lib/tag-categories";
 import { cn } from "@/lib/utils";
 
 interface Tag {
@@ -27,18 +22,6 @@ interface Tag {
   usageCount?: number;
 }
 
-const PRESET_COLORS = [
-  { hex: "#f5f3ff", name: "Violet Mist" },
-  { hex: "#f0f9ff", name: "Sky Light" },
-  { hex: "#f0fdfa", name: "Teal Breeze" },
-  { hex: "#fefce8", name: "Sunlit Yellow" },
-  { hex: "#ffedd5", name: "Warm Orange" },
-  { hex: "#fff1f2", name: "Rose Petal" },
-  { hex: "#ecfdf5", name: "Emerald Glow" },
-  { hex: "#f8fafc", name: "Soft Slate" },
-  { hex: "#fdf2f8", name: "Pink Blush" },
-  { hex: "#eef2ff", name: "Indigo Dream" },
-];
 
 /**
  * Tag Management Settings Page - Pure DB-Driven UI
@@ -46,10 +29,9 @@ const PRESET_COLORS = [
  * Displays all tags from database grouped by category
  */
 export default function TagsSettingsPage() {
-  const { tags, createTag, updateTag, deleteTag } = useTags();
+  const { tags, createTag, deleteTag } = useTags();
   const [newTagName, setNewTagName] = useState("");
   const [creatingInCategory, setCreatingInCategory] = useState<TagCategory | null>(null);
-  const [openPopover, setOpenPopover] = useState<string | null>(null);
 
   // Group tags by category from database
   const tagsByCategory = tags.reduce((acc, tag) => {
@@ -62,13 +44,10 @@ export default function TagsSettingsPage() {
   const handleCreateTag = async (category: TagCategory) => {
     if (!newTagName.trim()) return;
 
-    // Get the first tag in this category to use its color, or use default
-    const existingTagsInCategory = tagsByCategory[category];
-    const firstColor = PRESET_COLORS[0];
-    if (!firstColor) return; // Safety check, should never happen
-    const defaultColor = existingTagsInCategory?.[0]?.color ?? firstColor.hex;
+    // Use fixed category color from tag-categories.ts
+    const categoryColor = TAG_CATEGORY_COLORS[category];
 
-    await createTag({ name: newTagName.trim(), color: defaultColor, category });
+    await createTag({ name: newTagName.trim(), color: categoryColor, category });
 
     setNewTagName("");
     setCreatingInCategory(null);
@@ -79,18 +58,6 @@ export default function TagsSettingsPage() {
     await deleteTag(tag.id);
   };
 
-  const handleUpdateCategoryColor = async (category: TagCategory, color: string) => {
-    // Update all tags in this category to the new color
-    const tagsInCategory = tagsByCategory[category] || [];
-
-    // Update tags sequentially to avoid race conditions
-    for (const tag of tagsInCategory) {
-      await updateTag(tag.id, { color });
-    }
-
-    // Close the popover after updating
-    setOpenPopover(null);
-  };
 
   return (
     <TooltipProvider>
@@ -108,11 +75,10 @@ export default function TagsSettingsPage() {
             {/* Color System Explanation */}
             <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg max-w-3xl">
               <div className="flex items-start gap-3">
-                <Palette className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-blue-900">About Tag Colors</p>
                   <p className="text-xs text-blue-800">
-                    You can customize the <strong>background color</strong> of tags in each category. The border colors and text colors are chakra-aligned and fixed per category to maintain visual consistency across your wellness practice.
+                    Tag colors are chakra-aligned and fixed per category to maintain visual consistency across your wellness practice. Each category has its own unique color scheme.
                   </p>
                 </div>
               </div>
@@ -123,10 +89,6 @@ export default function TagsSettingsPage() {
           <div className="space-y-6">
             {Object.entries(TAG_CATEGORIES).map(([categoryKey, categoryConfig]) => {
               const categoryTags = tagsByCategory[categoryKey as TagCategory] || [];
-              // Get the current color from the first tag in category, or use default
-              const firstPresetColor = PRESET_COLORS[0];
-              if (!firstPresetColor) return null;
-              const currentCategoryColor = categoryTags[0]?.color || firstPresetColor.hex;
 
               return (
                 <div
@@ -147,67 +109,6 @@ export default function TagsSettingsPage() {
                       {categoryConfig.name}
                     </h2>
                     <div className="flex items-center gap-3">
-                      {/* Color Picker */}
-                      <Popover
-                        open={openPopover === categoryKey}
-                        onOpenChange={(open) => setOpenPopover(open ? categoryKey : null)}
-                      >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <PopoverTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 gap-2 hover:bg-white"
-                              >
-                                <Palette
-                                  className="w-4 h-4"
-                                  style={{ color: TAG_CATEGORY_TEXT_COLORS[categoryKey as TagCategory] }}
-                                />
-                                <div
-                                  className="w-5 h-5 rounded-full border-2 border-gray-300"
-                                  style={{ backgroundColor: currentCategoryColor }}
-                                />
-                              </Button>
-                            </PopoverTrigger>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Change category color</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <PopoverContent className="w-auto p-4">
-                          <div className="space-y-3">
-                            <div className="space-y-1">
-                              <p className="text-sm font-semibold">Category Color</p>
-                              <p className="text-xs text-gray-500">
-                                Note: Border and text colors are fixed per category
-                              </p>
-                            </div>
-                            <div className="grid grid-cols-5 gap-2">
-                              {PRESET_COLORS.map((colorObj) => (
-                                <Tooltip key={colorObj.hex}>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      className={cn(
-                                        "w-10 h-10 rounded-full border-2 transition-all hover:scale-110",
-                                        currentCategoryColor === colorObj.hex
-                                          ? "border-gray-900 ring-2 ring-gray-300"
-                                          : "border-gray-200 hover:border-gray-400"
-                                      )}
-                                      style={{ backgroundColor: colorObj.hex }}
-                                      onClick={() => handleUpdateCategoryColor(categoryKey as TagCategory, colorObj.hex)}
-                                    />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>{colorObj.name}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              ))}
-                            </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-
                       {/* Add Tag Button */}
                       <Tooltip>
                         <TooltipTrigger asChild>

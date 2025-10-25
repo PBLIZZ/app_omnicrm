@@ -17,27 +17,6 @@ describe("TaskFiltersSchema", () => {
     expect(result.priority).toEqual(["high"]);
   });
 
-  it("should handle parentTaskId as valid UUID", () => {
-    const uuid = "550e8400-e29b-41d4-a716-446655440000";
-    const result = TaskFiltersSchema.parse({ parentTaskId: uuid });
-    expect(result.parentTaskId).toBe(uuid);
-  });
-
-  it('should convert string "null" to undefined for parentTaskId', () => {
-    const result = TaskFiltersSchema.parse({ parentTaskId: "null" });
-    expect(result.parentTaskId).toBeUndefined();
-  });
-
-  it('should convert empty string to undefined for parentTaskId', () => {
-    const result = TaskFiltersSchema.parse({ parentTaskId: "" });
-    expect(result.parentTaskId).toBeUndefined();
-  });
-
-  it('should convert string "undefined" to undefined for parentTaskId', () => {
-    const result = TaskFiltersSchema.parse({ parentTaskId: "undefined" });
-    expect(result.parentTaskId).toBeUndefined();
-  });
-
   it('should handle hasSubtasks as string "true" and convert to boolean', () => {
     const result = TaskFiltersSchema.parse({ hasSubtasks: "true" });
     expect(result.hasSubtasks).toBe(true);
@@ -94,10 +73,6 @@ describe("TaskFiltersSchema", () => {
 
   it("should reject invalid UUID for projectId", () => {
     expect(() => TaskFiltersSchema.parse({ projectId: "not-a-uuid" })).toThrow();
-  });
-
-  it("should reject invalid UUID for parentTaskId", () => {
-    expect(() => TaskFiltersSchema.parse({ parentTaskId: "not-a-uuid" })).toThrow();
   });
 
   it("should allow extra query params (not strict)", () => {

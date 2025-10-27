@@ -10,7 +10,7 @@ import {
   type SearchRepository,
   type SearchResultDTO,
   type SemanticSearchParams,
-} from "../../../packages/repo/src/search.repo";
+} from "@repo";
 import { getDb } from "@/server/db/client";
 import { getOrGenerateEmbedding } from "@/server/lib/embeddings";
 import { AppError } from "@/lib/errors/app-error";

@@ -1,6 +1,6 @@
 import { getOrGenerateEmbedding } from "@/server/lib/embeddings";
 import { Result, ok, err } from "@/lib/utils/result";
-import { SearchRepository, type SearchResultDTO } from "packages/repo/src/search.repo";
+import { SearchRepository, type SearchResultDTO } from "@repo";
 
 export type SearchKind = "traditional" | "semantic" | "hybrid";
 export type SearchResultType = "contact" | "note" | "interaction" | "calendar_event" | "task";
@@ -219,7 +219,9 @@ export async function searchSemanticByEmbedding(
       userId,
       embedding,
       limit: options?.matchCount ?? 10,
-      ...(options?.similarityThreshold !== undefined && { similarityThreshold: options.similarityThreshold }),
+      ...(options?.similarityThreshold !== undefined && {
+        similarityThreshold: options.similarityThreshold,
+      }),
       ...(options?.types && { types: options.types }),
     };
     const searchResult = await SearchRepository.searchSemantic(searchParams);

@@ -18,7 +18,6 @@ import {
 } from "@/components/ui";
 import { fetchCurrentUser } from "@/lib/services/client/auth.service";
 import { get, patch } from "@/lib/api";
-import type { UserProfile as AuthUser } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
 interface UserProfile {
@@ -83,7 +82,9 @@ export default function ProfileSettingsPage(): JSX.Element {
       toast.success("Profile updated successfully!");
     },
     onError: (error) => {
-      toast.error(`Failed to update profile: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(
+        `Failed to update profile: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     },
   });
 
@@ -97,8 +98,9 @@ export default function ProfileSettingsPage(): JSX.Element {
   };
 
   // Get display photo (custom > Google OAuth)
-  const displayPhoto = profile?.profilePhotoUrl ?? (authUser?.user_metadata?.avatar_url as string | undefined);
-  const googleName = authUser?.user_metadata?.full_name as string | undefined;
+  const displayPhoto =
+    profile?.profilePhotoUrl ?? (authUser?.user_metadata?.avatar_url as string | undefined);
+  const googleName = authUser?.user_metadata?.["full_name"] as string | undefined;
 
   if (isLoading) {
     return (

@@ -7,8 +7,8 @@
 import type { ToolDefinition, ToolHandler } from "../types";
 import { z } from "zod";
 import { getDb } from "@/server/db/client";
-import { createProductivityRepository } from "@/packages/repo/src/productivity.repo";
-import { AppError } from "@/lib/errors";
+import { createProductivityRepository } from "@repo";
+import { AppError } from "@/lib/errors/app-error";
 
 // ============================================================================
 // TOOL: get_today_tasks
@@ -54,10 +54,7 @@ export const getTodayTasksDefinition: ToolDefinition = {
   tags: ["tasks", "productivity", "read", "daily-planning"],
 };
 
-export const getTodayTasksHandler: ToolHandler<GetTodayTasksParams> = async (
-  params,
-  context,
-) => {
+export const getTodayTasksHandler: ToolHandler<GetTodayTasksParams> = async (params, context) => {
   const validated = GetTodayTasksParamsSchema.parse(params);
   const db = await getDb();
   const repo = createProductivityRepository(db);

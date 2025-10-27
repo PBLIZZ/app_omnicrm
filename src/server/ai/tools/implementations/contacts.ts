@@ -5,11 +5,11 @@
  * Implements data access and mutation tools for the contacts domain.
  */
 
-import type { ToolDefinition, ToolHandler } from "../types";
+import type { ToolDefinition, ToolHandler } from "@/server/ai/tools/types";
 import { z } from "zod";
 import { getDb } from "@/server/db/client";
-import { createContactsRepository } from "@/packages/repo/src/contacts.repo";
-import { AppError } from "@/lib/errors";
+import { createContactsRepository } from "@repo";
+import { AppError } from "@/lib/errors/app-error";
 
 // ============================================================================
 // TOOL: get_contact
@@ -66,7 +66,7 @@ export const getContactHandler: ToolHandler<GetContactParams> = async (params, c
     throw new AppError(
       `Contact with ID ${validated.contact_id} not found`,
       "CONTACT_NOT_FOUND",
-      "not_found",
+      "validation",
       true,
       404,
     );
@@ -131,10 +131,7 @@ export const searchContactsDefinition: ToolDefinition = {
   tags: ["contacts", "search", "read"],
 };
 
-export const searchContactsHandler: ToolHandler<SearchContactsParams> = async (
-  params,
-  context,
-) => {
+export const searchContactsHandler: ToolHandler<SearchContactsParams> = async (params, context) => {
   const validated = SearchContactsParamsSchema.parse(params);
   const db = await getDb();
   const repo = createContactsRepository(db);
@@ -289,6 +286,7 @@ export const createContactDefinition: ToolDefinition = {
       },
     },
     required: ["display_name"],
+    additionalProperties: false,
   },
   permissionLevel: "write",
   creditCost: 0,
@@ -300,10 +298,7 @@ export const createContactDefinition: ToolDefinition = {
   tags: ["contacts", "create", "write"],
 };
 
-export const createContactHandler: ToolHandler<CreateContactParams> = async (
-  params,
-  context,
-) => {
+export const createContactHandler: ToolHandler<CreateContactParams> = async (params, context) => {
   const validated = CreateContactParamsSchema.parse(params);
   const db = await getDb();
   const repo = createContactsRepository(db);
@@ -380,6 +375,7 @@ export const updateContactDefinition: ToolDefinition = {
       },
     },
     required: ["contact_id"],
+    additionalProperties: false,
   },
   permissionLevel: "write",
   creditCost: 0,
@@ -387,21 +383,18 @@ export const updateContactDefinition: ToolDefinition = {
   tags: ["contacts", "update", "write"],
 };
 
-export const updateContactHandler: ToolHandler<UpdateContactParams> = async (
-  params,
-  context,
-) => {
+export const updateContactHandler: ToolHandler<UpdateContactParams> = async (params, context) => {
   const validated = UpdateContactParamsSchema.parse(params);
   const db = await getDb();
   const repo = createContactsRepository(db);
 
   const updates: Record<string, unknown> = {};
-  if (validated.display_name !== undefined) updates.displayName = validated.display_name;
-  if (validated.primary_email !== undefined) updates.primaryEmail = validated.primary_email;
-  if (validated.primary_phone !== undefined) updates.primaryPhone = validated.primary_phone;
+  if (validated.display_name !== undefined) updates["displayName"] = validated.display_name;
+  if (validated.primary_email !== undefined) updates["primaryEmail"] = validated.primary_email;
+  if (validated.primary_phone !== undefined) updates["primaryPhone"] = validated.primary_phone;
   if (validated.lifecycle_stage !== undefined)
-    updates.lifecycleStage = validated.lifecycle_stage;
-  if (validated.client_status !== undefined) updates.clientStatus = validated.client_status;
+    updates["lifecycleStage"] = validated.lifecycle_stage;
+  if (validated.client_status !== undefined) updates["clientStatus"] = validated.client_status;
 
   const contact = await repo.updateContact(context.userId, validated.contact_id, updates);
 
@@ -409,7 +402,7 @@ export const updateContactHandler: ToolHandler<UpdateContactParams> = async (
     throw new AppError(
       `Contact with ID ${validated.contact_id} not found`,
       "CONTACT_NOT_FOUND",
-      "not_found",
+      "validation",
       true,
       404,
     );

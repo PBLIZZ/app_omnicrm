@@ -52,7 +52,7 @@ Full-Stack Architecture:
 
 ### Backend Infrastructure (FULLY COMPLETED)
 
-**Service layer is split into focused modules**
+**Service layer is split into focused modules** below
 
 ```typescript
 // src/server/services/projects.service.ts
@@ -481,6 +481,7 @@ export function createInboxRepository(db: DbClient): InboxRepository
 ```
 
 **✅ Pattern Compliance:**
+
 - All API routes use standardized handlers from `@/lib/api`
 - Business schemas in `src/server/db/business-schemas/productivity.ts`
 - Services throw `AppError` with status codes

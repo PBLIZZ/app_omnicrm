@@ -2,7 +2,6 @@
 
 import { ContactSelector, type LinkedContact } from "@/components/ContactSelector";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,

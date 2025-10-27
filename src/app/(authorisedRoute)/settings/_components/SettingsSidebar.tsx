@@ -17,14 +17,11 @@ import {
   User,
   CreditCard,
   Bell,
-  Mail,
-  Calendar as CalendarIcon,
   FileText,
   Tag,
   Sparkles,
   Plug,
 } from "lucide-react";
-import { useSyncStatus } from "@/hooks/use-sync-status";
 
 // Navigation items for the settings section - Wellness-friendly language
 const settingsNavItems = [

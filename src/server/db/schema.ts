@@ -621,13 +621,13 @@ export const projectsRelations = relations(projects, ({ one }) => ({
 
 export const tasksRelations = relations(tasks, ({ one }) => ({
   project: one(projects, {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+     
     fields: [tasks.projectId],
 
     references: [projects.id],
   }),
   zone: one(zones, {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+     
     fields: [tasks.zoneUuid],
     references: [zones.uuidId],
   }),

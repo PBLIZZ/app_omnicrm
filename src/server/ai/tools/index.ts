@@ -36,6 +36,78 @@ import {
   getOverdueTasksHandler,
 } from "./implementations/tasks";
 
+// Calendar tools
+import {
+  getUpcomingSessionsDefinition,
+  getUpcomingSessionsHandler,
+  getEventDefinition,
+  getEventHandler,
+  createEventDefinition,
+  createEventHandler,
+  updateEventDefinition,
+  updateEventHandler,
+  deleteEventDefinition,
+  deleteEventHandler,
+  checkAvailabilityDefinition,
+  checkAvailabilityHandler,
+  addEventAttendeeDefinition,
+  addEventAttendeeHandler,
+  removeEventAttendeeDefinition,
+  removeEventAttendeeHandler,
+  getSessionPrepDefinition,
+  getSessionPrepHandler,
+  searchEventsDefinition,
+  searchEventsHandler,
+} from "./implementations/calendar";
+
+// Wellness tools
+import {
+  logMoodDefinition,
+  logMoodHandler,
+  getMoodTrendsDefinition,
+  getMoodTrendsHandler,
+  correlateMoodHabitsDefinition,
+  correlateMoodHabitsHandler,
+  getWellnessScoreDefinition,
+  getWellnessScoreHandler,
+} from "./implementations/wellness";
+
+// Goals & Habits tools
+import {
+  getGoalDefinition,
+  getGoalHandler,
+  listGoalsDefinition,
+  listGoalsHandler,
+  updateGoalProgressDefinition,
+  updateGoalProgressHandler,
+  analyzeGoalProgressDefinition,
+  analyzeGoalProgressHandler,
+  logHabitDefinition,
+  logHabitHandler,
+  getHabitStreakDefinition,
+  getHabitStreakHandler,
+  analyzeHabitPatternsDefinition,
+  analyzeHabitPatternsHandler,
+  getHabitAnalyticsDefinition,
+  getHabitAnalyticsHandler,
+} from "./implementations/goals-habits";
+
+// Note tools
+import {
+  searchNotesDefinition,
+  searchNotesHandler,
+  getNoteDefinition,
+  getNoteHandler,
+  analyzeNoteSentimentDefinition,
+  analyzeNoteSentimentHandler,
+  tagNoteDefinition,
+  tagNoteHandler,
+  summarizeNotesDefinition,
+  summarizeNotesHandler,
+  rankNotesByRelevanceDefinition,
+  rankNotesByRelevanceHandler,
+} from "./implementations/notes";
+
 // Export types
 export type { ToolDefinition, ToolHandler, ToolExecutionContext, ToolExecutionResult } from "./types";
 export { getToolRegistry } from "./registry";
@@ -60,6 +132,42 @@ export function initializeTools(): ToolRegistry {
   registry.register(completeTaskDefinition, completeTaskHandler);
   registry.register(searchTasksDefinition, searchTasksHandler);
   registry.register(getOverdueTasksDefinition, getOverdueTasksHandler);
+
+  // Calendar & Scheduling Tools (All 10)
+  registry.register(getUpcomingSessionsDefinition, getUpcomingSessionsHandler);
+  registry.register(getEventDefinition, getEventHandler);
+  registry.register(createEventDefinition, createEventHandler);
+  registry.register(updateEventDefinition, updateEventHandler);
+  registry.register(deleteEventDefinition, deleteEventHandler);
+  registry.register(checkAvailabilityDefinition, checkAvailabilityHandler);
+  registry.register(addEventAttendeeDefinition, addEventAttendeeHandler);
+  registry.register(removeEventAttendeeDefinition, removeEventAttendeeHandler);
+  registry.register(getSessionPrepDefinition, getSessionPrepHandler);
+  registry.register(searchEventsDefinition, searchEventsHandler);
+
+  // Mood & Wellness Tools
+  registry.register(logMoodDefinition, logMoodHandler);
+  registry.register(getMoodTrendsDefinition, getMoodTrendsHandler);
+  registry.register(correlateMoodHabitsDefinition, correlateMoodHabitsHandler);
+  registry.register(getWellnessScoreDefinition, getWellnessScoreHandler);
+
+  // Goals & Habits Tools
+  registry.register(getGoalDefinition, getGoalHandler);
+  registry.register(listGoalsDefinition, listGoalsHandler);
+  registry.register(updateGoalProgressDefinition, updateGoalProgressHandler);
+  registry.register(analyzeGoalProgressDefinition, analyzeGoalProgressHandler);
+  registry.register(logHabitDefinition, logHabitHandler);
+  registry.register(getHabitStreakDefinition, getHabitStreakHandler);
+  registry.register(analyzeHabitPatternsDefinition, analyzeHabitPatternsHandler);
+  registry.register(getHabitAnalyticsDefinition, getHabitAnalyticsHandler);
+
+  // Note Tools
+  registry.register(searchNotesDefinition, searchNotesHandler);
+  registry.register(getNoteDefinition, getNoteHandler);
+  registry.register(analyzeNoteSentimentDefinition, analyzeNoteSentimentHandler);
+  registry.register(tagNoteDefinition, tagNoteHandler);
+  registry.register(summarizeNotesDefinition, summarizeNotesHandler);
+  registry.register(rankNotesByRelevanceDefinition, rankNotesByRelevanceHandler);
 
   return registry;
 }

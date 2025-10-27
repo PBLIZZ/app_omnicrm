@@ -34,7 +34,7 @@ vi.mock("@/lib/observability", () => ({
 }));
 
 // Import repository class after mocks are set up
-const { ContactsRepository } = await import("@repo/contacts.repo");
+const { ContactsRepository } = await import("@repo");
 
 describe("ContactsRepository Integration Tests", () => {
   const testUserId = "test-user-repo-integration";

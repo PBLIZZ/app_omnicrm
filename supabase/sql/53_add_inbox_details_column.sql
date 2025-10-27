@@ -11,3 +11,4 @@ COMMENT ON COLUMN public.inbox_items.details IS 'Additional metadata and process
 
 
 
+

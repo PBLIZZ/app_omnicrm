@@ -111,6 +111,35 @@ export const queryKeys = {
     detail: (id: string) => ["tasks", "detail", id] as const,
     byId: (id: string) => ["tasks", id] as const,
   },
+
+  // Wellness - Habits and Pulse tracking
+  wellness: {
+    all: ["wellness"] as const,
+
+    // Habits
+    habits: {
+      all: ["wellness", "habits"] as const,
+      list: (filters?: { isActive?: boolean }) => ["wellness", "habits", "list", filters] as const,
+      byId: (habitId: string) => ["wellness", "habits", habitId] as const,
+      streak: (habitId: string) => ["wellness", "habits", habitId, "streak"] as const,
+      analytics: (habitId: string, days?: number) =>
+        ["wellness", "habits", habitId, "analytics", days] as const,
+      completions: (habitId?: string, startDate?: string, endDate?: string) =>
+        ["wellness", "habits", "completions", { habitId, startDate, endDate }] as const,
+    },
+
+    // Pulse logs
+    pulse: {
+      all: ["wellness", "pulse"] as const,
+      list: (limit?: number) => ["wellness", "pulse", "list", limit] as const,
+      byDate: (date: string) => ["wellness", "pulse", "date", date] as const,
+      analytics: (period?: "week" | "month" | "quarter") =>
+        ["wellness", "pulse", "analytics", period] as const,
+    },
+
+    // Overall wellness summary
+    summary: () => ["wellness", "summary"] as const,
+  },
 } as const;
 
 /**
@@ -175,6 +204,30 @@ export const queryKeyUtils = {
    * Invalidate after momentum task operations (refresh tasks and stats)
    */
   invalidateAfterMomentumUpdate: () => [{ queryKey: queryKeys.momentum.all }],
+
+  /**
+   * Invalidate all wellness-related queries
+   */
+  invalidateWellness: () => ({ queryKey: queryKeys.wellness.all }),
+
+  /**
+   * Invalidate all habit-related queries
+   */
+  invalidateHabits: () => ({ queryKey: queryKeys.wellness.habits.all }),
+
+  /**
+   * Invalidate all pulse-related queries
+   */
+  invalidatePulse: () => ({ queryKey: queryKeys.wellness.pulse.all }),
+
+  /**
+   * Invalidate after wellness activity (refresh habits, pulse, and summary)
+   */
+  invalidateAfterWellnessUpdate: () => [
+    { queryKey: queryKeys.wellness.habits.all },
+    { queryKey: queryKeys.wellness.pulse.all },
+    { queryKey: queryKeys.wellness.summary() },
+  ],
 } as const;
 
 /**

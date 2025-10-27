@@ -321,6 +321,9 @@ export const habits = pgTable("habits", {
   userId: uuid("user_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
+  habitType: text("habit_type").default("boolean").notNull(), // 'boolean' | 'count' | 'minutes' | 'hours'
+  targetValue: integer("target_value"), // e.g., 8 for 8 hours sleep, 30 for 30 min meditation
+  targetUnit: text("target_unit"), // e.g., 'glasses', 'pages', 'steps', 'clients'
   targetFrequency: text("target_frequency").notNull().default("daily"),
   color: text("color").default("#10B981"),
   iconName: text("icon_name").default("check-circle"),
@@ -336,6 +339,7 @@ export const habitCompletions = pgTable("habit_completions", {
     .notNull()
     .references(() => habits.id, { onDelete: "cascade" }),
   completedDate: date("completed_date").notNull(),
+  valueCompleted: integer("value_completed"), // Actual value for count/minutes/hours habits
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
@@ -757,6 +761,7 @@ export type CreateGoal = typeof goals.$inferInsert;
 
 export type DailyPulseLog = typeof dailyPulseLogs.$inferSelect;
 export type CreateDailyPulseLog = typeof dailyPulseLogs.$inferInsert;
+export type UpdateDailyPulseLog = Partial<CreateDailyPulseLog>;
 
 export type RawEvent = typeof rawEvents.$inferSelect;
 export type CreateRawEvent = typeof rawEvents.$inferInsert;

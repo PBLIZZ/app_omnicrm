@@ -100,6 +100,11 @@
   --color-wellness-warning: var(--color-amber-500);
   --color-wellness-danger: #ef4444;
 
+  /* Wellness mood/theme colors (for DailyWellness components) */
+  --color-wellness-sage: #8b9d83;
+  --color-wellness-sky: #87ceeb;
+  --color-wellness-lavender: #b19cd9;
+
   /* Typography system */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

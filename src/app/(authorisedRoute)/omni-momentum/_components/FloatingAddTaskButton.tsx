@@ -18,12 +18,12 @@ export function FloatingAddTaskButton(): JSX.Element {
     <>
       {/* Floating Action Button */}
       <Button
-        size="lg"
+        size="icon"
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white z-50 transition-all hover:scale-110"
         onClick={() => setIsOpen(true)}
         aria-label="Add new task"
       >
-        <Plus className="w-6 h-6" />
+        <Plus className="w-8 h-8" />
       </Button>
 
       {/* Task Creation Sheet */}
@@ -31,8 +31,4 @@ export function FloatingAddTaskButton(): JSX.Element {
     </>
   );
 }
-
-
-
-
 

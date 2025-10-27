@@ -79,7 +79,7 @@ export function MagicInboxCard(): JSX.Element {
   };
 
   return (
-    <Card className="bg-gradient-to-r from-teal-50 via-emerald-50 to-amber-50 border-teal-200 h-[300px] flex flex-col">
+    <Card className="bg-gradient-to-r from-teal-50 via-emerald-50 to-amber-50 border-teal-200 h-[390px] flex flex-col">
       <CardHeader className="pb-3 flex-shrink-0">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Sparkles className="w-5 h-5 text-teal-600" />

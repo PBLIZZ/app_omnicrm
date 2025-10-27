@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui";
-import { Heart } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const WELLNESS_MANTRAS = [
@@ -127,12 +127,10 @@ export function WellnessQuoteCard(): JSX.Element {
   }, []);
 
   return (
-    <Card className="bg-gradient-to-br from-teal-50 via-emerald-50 to-amber-50 border-teal-200 h-[300px] flex">
-      <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
-        <Heart className="w-6 h-6 text-amber-500 mb-4 flex-shrink-0" />
-        <p className="text-sm font-medium text-gray-700 leading-relaxed italic flex-1 flex items-center justify-center">
-          "{mantra}"
-        </p>
+    <Card className="bg-gradient-to-br from-teal-50 via-emerald-50 to-amber-50 border-teal-200 flex">
+      <CardContent className="pl-6 pr-6 flex items-center justify-center text-center">
+        <BookOpen className="w-6 h-6 text-violet-500 mr-3 flex-shrink-0" />
+        <p className="text-sm font-medium text-gray-700 leading-relaxed italic">"{mantra}"</p>
       </CardContent>
     </Card>
   );

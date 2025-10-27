@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   Button,
@@ -16,6 +15,10 @@ import {
   DialogTitle,
   Input,
   Label,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui";
 import { CheckSquare, Plus, ChevronDown, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +33,7 @@ interface Habit {
 
 // Configuration constants
 const CONFIG = {
-  MAX_HABITS_DISPLAYED: 5,
+  MAX_HABITS_DISPLAYED: 3,
 } as const;
 
 /**
@@ -237,7 +240,7 @@ export function HabitTrackers(): JSX.Element {
   if (!isHydrated) {
     return (
       <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 h-[500px] flex flex-col">
-        <CardHeader className="pb-4 flex-shrink-0">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <CheckSquare className="w-5 h-5 text-green-500" />
             Habit Trackers
@@ -251,13 +254,22 @@ export function HabitTrackers(): JSX.Element {
   }
 
   return (
-    <Card className="bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50 border-teal-200 h-[300px] flex flex-col">
-      <CardHeader className="pb-4 flex-shrink-0">
+    <Card className="bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50 border-teal-200 h-[390px] flex flex-col">
+      <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <CheckSquare className="w-5 h-5 text-sky-500" />
-            Habit Trackers
-          </CardTitle>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CardTitle className="flex items-center gap-2 text-lg cursor-help">
+                  <CheckSquare className="w-5 h-5 text-sky-500" />
+                  Habit Trackers
+                </CardTitle>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Track your daily wellness habits and build consistent routines</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button
             size="sm"
             variant="ghost"
@@ -267,48 +279,43 @@ export function HabitTrackers(): JSX.Element {
             <Plus className="w-4 h-4" />
           </Button>
         </div>
-        <CardDescription className="text-xs">
-          Track your daily wellness habits and build consistent routines
-        </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-3 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <CardContent className="space-y-1 flex-1 overflow-y-auto pt-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Incomplete Habits */}
         {incompleteHabits.map((habit: Habit) => (
           <div
             key={habit.id}
             className="flex items-center justify-between p-3 bg-white rounded-lg border hover:shadow-sm transition-shadow"
           >
-            <div
-              className="flex items-center gap-3 flex-1 cursor-pointer"
-              onClick={() => editHabit(habit)}
-            >
-              <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex items-center justify-center">
+            <div className="flex items-center gap-3 flex-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleHabit(habit.id);
+                }}
+                className="w-4 h-4 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-green-500 transition-colors cursor-pointer flex-shrink-0"
+              >
                 {habit.completed && <span className="text-white text-xs">✓</span>}
-              </div>
-              <div className="flex-1">
+              </button>
+              <div className="flex-1 cursor-pointer" onClick={() => editHabit(habit)}>
                 <p className="text-sm font-medium text-gray-900">{habit.name}</p>
                 <p className="text-xs text-gray-500">
                   {habit.streak} day{habit.streak !== 1 ? "s" : ""} streak
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteHabit(habit.id);
-                }}
-                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => toggleHabit(habit.id)}>
-                Mark Done
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteHabit(habit.id);
+              }}
+              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
           </div>
         ))}
 
@@ -354,41 +361,34 @@ export function HabitTrackers(): JSX.Element {
                     key={habit.id}
                     className="flex items-center justify-between p-2 bg-green-50 rounded-lg border border-green-200 hover:shadow-sm transition-shadow"
                   >
-                    <div
-                      className="flex items-center gap-3 flex-1 cursor-pointer"
-                      onClick={() => editHabit(habit)}
-                    >
-                      <div className="w-4 h-4 rounded-full border-2 bg-green-500 border-green-500 flex items-center justify-center">
+                    <div className="flex items-center gap-3 flex-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleHabit(habit.id);
+                        }}
+                        className="w-4 h-4 rounded-full border-2 bg-green-500 border-green-500 flex items-center justify-center hover:opacity-70 transition-opacity cursor-pointer flex-shrink-0"
+                      >
                         <span className="text-white text-xs">✓</span>
-                      </div>
-                      <div>
+                      </button>
+                      <div className="flex-1 cursor-pointer" onClick={() => editHabit(habit)}>
                         <p className="text-sm font-medium text-green-800">{habit.name}</p>
                         <p className="text-xs text-green-600">
                           {habit.streak} day{habit.streak !== 1 ? "s" : ""} streak
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteHabit(habit.id);
-                        }}
-                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => toggleHabit(habit.id)}
-                        className="text-green-600 hover:text-green-700 hover:bg-green-100"
-                      >
-                        Undo
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteHabit(habit.id);
+                      }}
+                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
                 ))}
               </div>

@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { Target } from "lucide-react";
 import { TaskCard } from "./TaskCard";
 import { useMomentum } from "@/hooks/use-momentum";
@@ -86,8 +86,10 @@ export function TodaysFocusSection(): JSX.Element {
           <CardTitle className="flex items-center gap-2">
             <Target className="w-5 h-5 text-blue-500" />
             Today&apos;s Focus
+            <span className="text-sm font-normal text-muted-foreground">
+              AI is selecting your top 3 priorities...
+            </span>
           </CardTitle>
-          <CardDescription>AI is selecting your top 3 priorities...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -109,8 +111,10 @@ export function TodaysFocusSection(): JSX.Element {
           <CardTitle className="flex items-center gap-2">
             <Target className="w-5 h-5 text-blue-500" />
             Today&apos;s Focus
+            <span className="text-sm font-normal text-muted-foreground">
+              Unable to load your focus tasks
+            </span>
           </CardTitle>
-          <CardDescription>Unable to load your focus tasks</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
@@ -138,11 +142,11 @@ export function TodaysFocusSection(): JSX.Element {
         <CardTitle className="flex items-center gap-2">
           <Target className="w-5 h-5 text-blue-500" />
           Today&apos;s Focus
+          <span className="text-sm font-normal text-muted-foreground">
+            {summary ||
+              "Your top 3 priorities selected by AI based on value to your life and business"}
+          </span>
         </CardTitle>
-        <CardDescription>
-          {summary ||
-            "Your top 3 priorities selected by AI based on value to your life and business"}
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {tasks.length === 0 ? (

@@ -1,12 +1,11 @@
 "use client";
 
 import { TodaysFocusSection } from "./TodaysFocusSection";
-import { DailyPulseWidget } from "./DailyPulseWidget";
+import { FeelingsJournal } from "./FeelingsJournal";
 import { HabitTrackers } from "./HabitTrackers";
 import { MagicInboxCard } from "./MagicInboxCard";
 import { WellnessQuoteCard } from "./WellnessQuoteCard";
 import { ActionsListView } from "./ActionsListView";
-import { WellnessZoneStatus } from "./WellnessZoneStatus";
 import { FloatingAddTaskButton } from "./FloatingAddTaskButton";
 import { useUserProfile } from "@/hooks/use-user-profile";
 
@@ -56,7 +55,7 @@ export function OmniMomentumPage(): JSX.Element {
       {/* Top Row: 3 Shorter Cards - Daily Pulse + Habit Trackers + Magic Inbox */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
-          <DailyPulseWidget />
+          <FeelingsJournal />
         </div>
         <div className="lg:col-span-1">
           <HabitTrackers />
@@ -71,17 +70,9 @@ export function OmniMomentumPage(): JSX.Element {
         <TodaysFocusSection />
       </div>
 
-      {/* Third Row: Wellness Quote + Zone Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Wellness Quote - 1/3 width */}
-        <div className="lg:col-span-1">
-          <WellnessQuoteCard />
-        </div>
-
-        {/* Zone Status - 2/3 width */}
-        <div className="lg:col-span-2">
-          <WellnessZoneStatus />
-        </div>
+      {/* Third Row: Wellness Quote */}
+      <div className="w-full">
+        <WellnessQuoteCard />
       </div>
 
       {/* Bottom Row: Actions List (Full Width) - TanStack Table */}

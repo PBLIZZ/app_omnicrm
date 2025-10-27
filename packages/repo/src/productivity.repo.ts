@@ -407,7 +407,10 @@ export class ProductivityRepository {
   // DAILY PULSE LOGS
   // ============================================================================
 
-  async createDailyPulseLog(userId: string, data: CreateDailyPulseLog): Promise<DailyPulseLog> {
+  async createDailyPulseLog(
+    userId: string,
+    data: { logDate?: string | Date | undefined; details?: unknown | undefined },
+  ): Promise<DailyPulseLog> {
     const logDate = data.logDate || new Date();
     const isoString = typeof logDate === "string" ? logDate : logDate.toISOString();
     const logDateString = isoString.split("T")[0]; // Convert to YYYY-MM-DD format

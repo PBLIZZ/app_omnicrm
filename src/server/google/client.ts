@@ -165,8 +165,31 @@ async function refreshTokenIfNeeded(
     });
 
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`refreshTokenIfNeeded: Failed to refresh token for ${service}:`, error);
+
+    // Handle specific "invalid_grant" errors - these mean the refresh token is permanently invalid
+    const isInvalidGrant = error instanceof Error && (
+      error.message.includes('invalid_grant') ||
+      ('code' in error && (error as Error & { code?: number }).code === 400)
+    );
+
+    if (isInvalidGrant) {
+      console.warn(`refreshTokenIfNeeded: Refresh token for ${service} is invalid (expired or revoked), clearing stored tokens`);
+
+      // Clear the invalid tokens from the database
+      try {
+        await repo.updateRawTokens(userId, "google", service, {
+          accessToken: "",
+          refreshToken: "",
+          expiryDate: null,
+        });
+        console.warn(`refreshTokenIfNeeded: Cleared invalid tokens for ${service}`);
+      } catch (clearError) {
+        console.error(`refreshTokenIfNeeded: Failed to clear invalid tokens for ${service}:`, clearError);
+      }
+    }
+
     throw error;
   }
 }
@@ -289,7 +312,10 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
       await refreshTokenIfNeeded(userId, "gmail", gmailRow, userIntegrationsRepo);
     } catch (error) {
       console.error("Failed to refresh Gmail token:", error);
-      // Continue with existing token - OAuth client will handle refresh on next API call
+      // If refresh fails with invalid_grant, tokens are cleared, continue with null client
+      if (error instanceof Error && error.message.includes('invalid_grant')) {
+        console.warn("Gmail refresh token is invalid, user needs to re-authenticate");
+      }
     }
   }
 
@@ -298,7 +324,10 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
       await refreshTokenIfNeeded(userId, "calendar", calendarRow, userIntegrationsRepo);
     } catch (error) {
       console.error("Failed to refresh Calendar token:", error);
-      // Continue with existing token - OAuth client will handle refresh on next API call
+      // If refresh fails with invalid_grant, tokens are cleared, continue with null client
+      if (error instanceof Error && error.message.includes('invalid_grant')) {
+        console.warn("Calendar refresh token is invalid, user needs to re-authenticate");
+      }
     }
   }
 
@@ -307,14 +336,13 @@ export async function getGoogleClients(userId: string): Promise<GoogleApisClient
   const refreshedGmailRow = refreshedRows.find((r) => r.service === "gmail");
   const refreshedCalendarRow = refreshedRows.find((r) => r.service === "calendar");
 
-  // Strict service-specific token enforcement - no fallbacks
-
-  if (!refreshedGmailRow) {
-    throw Object.assign(new Error("Gmail access not approved by user"), { status: 403 });
+  // Check if tokens were cleared due to invalid_grant
+  if (!refreshedGmailRow || !refreshedGmailRow.accessToken || !refreshedGmailRow.refreshToken) {
+    throw Object.assign(new Error("Gmail access not approved by user or tokens have expired"), { status: 403 });
   }
 
-  if (!refreshedCalendarRow) {
-    throw Object.assign(new Error("Calendar access not approved by user"), { status: 403 });
+  if (!refreshedCalendarRow || !refreshedCalendarRow.accessToken || !refreshedCalendarRow.refreshToken) {
+    throw Object.assign(new Error("Calendar access not approved by user or tokens have expired"), { status: 403 });
   }
 
   const [gmailAuth, calendarAuth] = await Promise.all([

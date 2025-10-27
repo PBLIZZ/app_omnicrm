@@ -9,16 +9,6 @@ import { OmniMomentumPage } from "./OmniMomentumPage";
 export function MomentumPageLayout(): JSX.Element {
   return (
     <div className="container mx-auto p-6 max-w-7xl">
-      {/* Wellness Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Welcome to OmniMomentum ✨</h1>
-            <p className="text-gray-600 mt-1">Your wellness practice awaits</p>
-          </div>
-        </div>
-      </div>
-
       {/* Main Interactive Content - Client Component */}
       <Suspense
         fallback={

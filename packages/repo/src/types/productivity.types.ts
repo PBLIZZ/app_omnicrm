@@ -89,6 +89,17 @@ export type PulseDetails = {
   tasksCompleted?: number;
   contactsEngaged?: number;
   habitsCompleted?: number;
+  // Deep reflection scores (optional, from "Go Deeper" feature)
+  reflectionScores?: {
+    safety: -3 | -2 | -1 | 0 | 1 | 2 | 3 | null; // -3 to +3 scale: under-active to balanced to over-active
+    creativity: -3 | -2 | -1 | 0 | 1 | 2 | 3 | null;
+    confidence: -3 | -2 | -1 | 0 | 1 | 2 | 3 | null;
+    connection: -3 | -2 | -1 | 0 | 1 | 2 | 3 | null;
+    expression: -3 | -2 | -1 | 0 | 1 | 2 | 3 | null;
+    clarity: -3 | -2 | -1 | 0 | 1 | 2 | 3 | null;
+    purpose: -3 | -2 | -1 | 0 | 1 | 2 | 3 | null;
+  };
+  reflectionNotes?: string; // Optional freeform insights from reflection
 };
 
 /**

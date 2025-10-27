@@ -511,12 +511,16 @@ export const ZoneDetailsResponseSchema = z.object({
  */
 
 const habitFrequencyValues = ["daily", "weekly", "monthly"] as const;
+const habitTypeValues = ["boolean", "count", "minutes", "hours"] as const;
 
 export const HabitSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
   name: z.string(),
   description: z.string().nullable(),
+  habitType: z.enum(habitTypeValues),
+  targetValue: z.number().int().nullable().optional(),
+  targetUnit: z.string().nullable().optional(),
   targetFrequency: z.enum(habitFrequencyValues),
   color: z.string().nullable(),
   iconName: z.string().nullable(),
@@ -530,6 +534,9 @@ export type HabitSchemaOutput = z.infer<typeof HabitSchema>;
 export const CreateHabitSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  habitType: z.enum(habitTypeValues).optional(),
+  targetValue: z.number().int().optional(),
+  targetUnit: z.string().optional(),
   targetFrequency: z.enum(habitFrequencyValues).optional(),
   color: z.string().optional(),
   iconName: z.string().optional(),
@@ -550,6 +557,7 @@ export const HabitCompletionSchema = z.object({
   habitId: z.string().uuid(),
   completedDate: z.string(), // date column returns string
   notes: z.string().nullable(),
+  valueCompleted: z.number().int().nullable().optional(), // For count/minutes/hours habits
   createdAt: z.date().nullable(),
 });
 
@@ -559,6 +567,7 @@ export const CreateHabitCompletionSchema = z.object({
   habitId: z.string().uuid(),
   completedDate: z.string(), // date string in YYYY-MM-DD format
   notes: z.string().optional(),
+  valueCompleted: z.number().int().optional(), // For count/minutes/hours habits
 });
 
 export const UpdateHabitCompletionSchema = CreateHabitCompletionSchema.partial();
@@ -651,6 +660,297 @@ export const HabitCompletionsResponseSchema = z.object({
 export type HabitCompletionsResponse = z.infer<typeof HabitCompletionsResponseSchema>;
 
 // ============================================================================
+// DAILY PULSE LOG SCHEMAS
+// ============================================================================
+
+/**
+ * Daily Pulse Log Schema (Pure Validation)
+ * Note: UI enrichment moved to service layer mapper
+ * Per architecture blueprint: No transforms in business schemas
+ */
+
+export const PulseDetailsSchema = z.object({
+  time: z.number().min(1).max(5),
+  energy: z.number().min(1).max(5),
+  mood: z.number().min(1).max(5),
+  notes: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  tasksCompleted: z.number().int().min(0).optional(),
+  contactsEngaged: z.number().int().min(0).optional(),
+  habitsCompleted: z.number().int().min(0).optional(),
+});
+
+export type PulseDetails = z.infer<typeof PulseDetailsSchema>;
+
+export const DailyPulseLogSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  logDate: z.string(), // YYYY-MM-DD
+  details: z.unknown(), // Will be validated as PulseDetailsSchema
+  createdAt: z.date().nullable(),
+});
+
+export type DailyPulseLogSchemaOutput = z.infer<typeof DailyPulseLogSchema>;
+
+export const CreateDailyPulseLogSchema = z.object({
+  logDate: z.string().optional(), // YYYY-MM-DD, defaults to today
+  details: PulseDetailsSchema,
+});
+
+export type CreateDailyPulseLogInput = z.infer<typeof CreateDailyPulseLogSchema>;
+
+export const UpdateDailyPulseLogSchema = z.object({
+  details: PulseDetailsSchema.partial().optional(),
+});
+
+export type UpdateDailyPulseLogInput = z.infer<typeof UpdateDailyPulseLogSchema>;
+
+// ============================================================================
+// PULSE ANALYTICS SCHEMAS
+// ============================================================================
+
+/**
+ * Pulse Summary Schema
+ */
+export const PulseSummarySchema = z.object({
+  period: z.enum(["week", "month", "quarter"]),
+  startDate: z.string(),
+  endDate: z.string(),
+  averages: z.object({
+    time: z.number(),
+    energy: z.number(),
+    mood: z.number(),
+  }),
+  trends: z.object({
+    time: z.enum(["up", "down", "stable"]),
+    energy: z.enum(["up", "down", "stable"]),
+    mood: z.enum(["up", "down", "stable"]),
+  }),
+  bestDay: z.object({
+    date: z.string(),
+    overallScore: z.number(),
+  }).nullable(),
+  worstDay: z.object({
+    date: z.string(),
+    overallScore: z.number(),
+  }).nullable(),
+  totalLogs: z.number().int(),
+  completionRate: z.number().min(0).max(1),
+});
+
+export type PulseSummary = z.infer<typeof PulseSummarySchema>;
+
+/**
+ * Pulse Correlation Schema
+ */
+export const PulseCorrelationSchema = z.object({
+  metric: z.enum(["tasks", "contacts", "habits"]),
+  correlation: z.number().min(-1).max(1),
+  significance: z.enum(["strong", "moderate", "weak", "none"]),
+  insights: z.array(z.string()),
+});
+
+export type PulseCorrelation = z.infer<typeof PulseCorrelationSchema>;
+
+/**
+ * Pulse Time Pattern Schema
+ */
+export const PulseTimePatternSchema = z.object({
+  hourOfDay: z.number().int().min(0).max(23),
+  averageEnergy: z.number(),
+  averageMood: z.number(),
+  totalLogs: z.number().int(),
+  bestFor: z.enum(["high_energy_work", "creative_work", "social_tasks", "rest"]),
+});
+
+export type PulseTimePattern = z.infer<typeof PulseTimePatternSchema>;
+
+/**
+ * Pulse Analytics Schema
+ */
+export const PulseAnalyticsSchema = z.object({
+  summary: PulseSummarySchema,
+  correlations: z.array(PulseCorrelationSchema),
+  timePatterns: z.array(PulseTimePatternSchema),
+  weeklyHeatmap: z.array(z.object({
+    date: z.string(),
+    overallScore: z.number(),
+    time: z.number(),
+    energy: z.number(),
+    mood: z.number(),
+  })),
+});
+
+export type PulseAnalytics = z.infer<typeof PulseAnalyticsSchema>;
+
+// ============================================================================
+// PULSE QUERY SCHEMAS
+// ============================================================================
+
+/**
+ * Pulse Logs Query Schema
+ */
+export const PulseLogsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(90).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
+/**
+ * Pulse Analytics Query Schema
+ */
+export const PulseAnalyticsQuerySchema = z.object({
+  period: z.enum(["week", "month", "quarter"]).optional(),
+});
+
+// ============================================================================
+// PULSE RESPONSE SCHEMAS
+// ============================================================================
+
+/**
+ * Pulse Logs List Response Schema
+ */
+export const PulseLogsListResponseSchema = z.object({
+  items: z.array(z.unknown()), // Will be DailyPulseLog[] - service layer handles UI enrichment
+  total: z.number().int().min(0),
+});
+
+export type PulseLogsListResponse = z.infer<typeof PulseLogsListResponseSchema>;
+
+/**
+ * Pulse Analytics Response Schema
+ */
+export const PulseAnalyticsResponseSchema = z.object({
+  analytics: PulseAnalyticsSchema,
+});
+
+export type PulseAnalyticsResponse = z.infer<typeof PulseAnalyticsResponseSchema>;
+
+// ============================================================================
+// HABIT STREAK SCHEMAS
+// ============================================================================
+
+/**
+ * Habit Streak Schema
+ */
+export const HabitStreakSchema = z.object({
+  habitId: z.string().uuid(),
+  currentStreak: z.number().int().min(0),
+  longestStreak: z.number().int().min(0),
+  lastCompletedDate: z.string().nullable(),
+  isActiveToday: z.boolean(),
+  milestones: z.array(z.object({
+    days: z.number().int(),
+    achievedAt: z.string().nullable(),
+  })),
+});
+
+export type HabitStreak = z.infer<typeof HabitStreakSchema>;
+
+/**
+ * Habit Heatmap Data Point Schema
+ */
+export const HabitHeatmapDataPointSchema = z.object({
+  date: z.string(),
+  value: z.number(),
+  completed: z.boolean(),
+});
+
+export type HabitHeatmapDataPoint = z.infer<typeof HabitHeatmapDataPointSchema>;
+
+/**
+ * Habit Analytics Stats Schema
+ */
+export const HabitAnalyticsStatsSchema = z.object({
+  habitId: z.string().uuid(),
+  totalCompletions: z.number().int().min(0),
+  completionRate: z.number().min(0).max(1),
+  averageValue: z.number().nullable(),
+  currentStreak: z.number().int().min(0),
+  longestStreak: z.number().int().min(0),
+  lastCompletedDate: z.string().nullable(),
+  trend: z.enum(["improving", "stable", "declining", "insufficient_data"]),
+});
+
+export type HabitAnalyticsStats = z.infer<typeof HabitAnalyticsStatsSchema>;
+
+/**
+ * Habit Analytics Schema
+ */
+export const HabitAnalyticsSchema = z.object({
+  habitId: z.string().uuid(),
+  stats: HabitAnalyticsStatsSchema,
+  heatmap: z.array(HabitHeatmapDataPointSchema),
+  weeklyPattern: z.array(z.object({
+    dayOfWeek: z.number().int().min(0).max(6),
+    completionRate: z.number().min(0).max(1),
+  })),
+  bestTimeOfDay: z.string().nullable(),
+});
+
+export type HabitAnalytics = z.infer<typeof HabitAnalyticsSchema>;
+
+/**
+ * Habits Summary Schema
+ */
+export const HabitsSummarySchema = z.object({
+  totalHabits: z.number().int().min(0),
+  activeHabits: z.number().int().min(0),
+  completedToday: z.number().int().min(0),
+  completionRate: z.number().min(0).max(1),
+  totalStreakDays: z.number().int().min(0),
+  longestActiveStreak: z.number().int().min(0),
+  trends: z.object({
+    weekOverWeek: z.number(),
+    monthOverMonth: z.number(),
+  }),
+});
+
+export type HabitsSummary = z.infer<typeof HabitsSummarySchema>;
+
+// ============================================================================
+// HABIT ANALYTICS QUERY SCHEMAS
+// ============================================================================
+
+/**
+ * Habit Analytics Query Schema
+ */
+export const HabitAnalyticsQuerySchema = z.object({
+  days: z.coerce.number().int().min(7).max(365).optional(),
+});
+
+// ============================================================================
+// HABIT ANALYTICS RESPONSE SCHEMAS
+// ============================================================================
+
+/**
+ * Habit Streak Response Schema
+ */
+export const HabitStreakResponseSchema = z.object({
+  streak: HabitStreakSchema,
+});
+
+export type HabitStreakResponse = z.infer<typeof HabitStreakResponseSchema>;
+
+/**
+ * Habit Analytics Response Schema
+ */
+export const HabitAnalyticsResponseSchema = z.object({
+  analytics: HabitAnalyticsSchema,
+});
+
+export type HabitAnalyticsResponse = z.infer<typeof HabitAnalyticsResponseSchema>;
+
+/**
+ * Habits Summary Response Schema
+ */
+export const HabitsSummaryResponseSchema = z.object({
+  summary: HabitsSummarySchema,
+});
+
+export type HabitsSummaryResponse = z.infer<typeof HabitsSummaryResponseSchema>;
+
+// ============================================================================
 // ZONES RE-EXPORTS
 // ============================================================================
 
@@ -674,4 +974,7 @@ export type {
   HabitCompletion,
   CreateHabitCompletion,
   UpdateHabitCompletion,
+  DailyPulseLog,
+  CreateDailyPulseLog,
+  UpdateDailyPulseLog,
 } from "@/server/db/schema";

@@ -40,16 +40,16 @@ function buildPrioritySelectionPrompt(
         typeof task.details === "object" && task.details !== null
           ? (task.details as Record<string, unknown>)
           : {};
-      const notes = typeof details.notes === "string" ? details.notes : "";
+      const notes = typeof details["notes"] === "string" ? details["notes"] : "";
 
       return `- ID: ${task.id}
   Name: ${task.name}
   Priority: ${task.priority}
   Status: ${task.status}
-  Due Date: ${task.dueDate || "None"}
+  Due Date: ${task.dueDate ?? "None"}
   Notes: ${notes || "None"}
-  Project: ${task.projectId || "Standalone"}
-  Zone: ${task.zoneId || "None"}`;
+  Project: ${task.projectId ?? "Standalone"}
+  Zone: ${task.zoneUuid ?? "None"}`;
     })
     .join("\n\n");
 
@@ -75,14 +75,16 @@ function buildPrioritySelectionPrompt(
 **OUTPUT FORMAT:**
 Return a JSON object with this exact structure:
 {
-  "top3Tasks": [
+  "rankedTasks": [
     {
       "taskId": "uuid-of-task",
+      "ranking": 1,
       "reasoning": "Why this task is a top priority",
-      "priority": "low|medium|high|urgent"
+      "aiScore": 95
     }
   ],
-  "summary": "Brief summary of why these 3 tasks were selected"
+  "summary": "Brief summary of why these 3 tasks were selected",
+  "confidenceLevel": "high"
 }`,
     },
     {
@@ -106,12 +108,14 @@ export async function selectTop3PriorityTasks(
   // If there are 3 or fewer tasks, return them all
   if (tasks.length <= 3) {
     return {
-      top3Tasks: tasks.map((task) => ({
+      rankedTasks: tasks.map((task, index) => ({
         taskId: task.id,
+        ranking: index + 1,
         reasoning: "One of your few tasks - important to complete",
-        priority: task.priority,
+        aiScore: 100 - index * 10,
       })),
       summary: `You have ${tasks.length} task${tasks.length === 1 ? "" : "s"} to focus on.`,
+      confidenceLevel: "high",
     };
   }
 
@@ -142,7 +146,7 @@ export async function selectTop3PriorityTasks(
       operation: "select_priority_tasks",
       additionalData: {
         userId,
-        selectedTasks: validatedResult.top3Tasks.length,
+        selectedTasks: validatedResult.rankedTasks.length,
       },
     });
 
@@ -158,17 +162,19 @@ export async function selectTop3PriorityTasks(
 
     // Fallback: return first 3 tasks by priority
     const sortedTasks = [...tasks].sort((a, b) => {
-      const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
+      const priorityOrder = { high: 3, medium: 2, low: 1 };
       return priorityOrder[b.priority] - priorityOrder[a.priority];
     });
 
     return {
-      top3Tasks: sortedTasks.slice(0, 3).map((task) => ({
+      rankedTasks: sortedTasks.slice(0, 3).map((task, index) => ({
         taskId: task.id,
+        ranking: index + 1,
         reasoning: "Selected by priority fallback",
-        priority: task.priority,
+        aiScore: 100 - index * 10,
       })),
       summary: "Selected based on priority levels",
+      confidenceLevel: "low",
     };
   }
 }

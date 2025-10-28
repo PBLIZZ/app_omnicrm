@@ -115,26 +115,20 @@ export class ProductivityRepository {
   // ============================================================================
   // TASKS (Hierarchical)
   // ============================================================================
-  // Note: The `tasks` table has a self-referential foreign key which causes TypeScript
-  // to infer it as `any`. This is a known Drizzle ORM limitation with circular references.
-  // ESLint warnings for unsafe member access on `tasks` properties are expected and safe.
 
   async createTask(userId: string, data: Omit<CreateTask, "userId">): Promise<TaskListItem> {
-    // Explicitly construct the insert data to avoid any extra fields
-    // Only include completedAt if it's explicitly provided (not null)
-    const insertData: any = {
+    const insertData: typeof tasks.$inferInsert = {
       userId,
       name: data.name,
-      projectId: data.projectId,
-      zoneUuid: data.zoneUuid,
+      projectId: data.projectId ?? null,
+      zoneUuid: data.zoneUuid ?? null,
       status: data.status,
       priority: data.priority,
-      dueDate: data.dueDate,
-      details: data.details,
+      dueDate: data.dueDate ?? null,
+      details: data.details ?? {},
     };
 
-    // Only add completedAt if it's not null (let DB default to null otherwise)
-    if (data.completedAt !== null) {
+    if (data.completedAt !== undefined) {
       insertData.completedAt = data.completedAt;
     }
 

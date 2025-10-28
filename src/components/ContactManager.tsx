@@ -2,7 +2,6 @@
 
 import { ContactSelector, type LinkedContact } from "@/components/ContactSelector";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -31,10 +30,25 @@ interface ContactManagerProps {
  * Get initials from contact name for avatar fallback
  */
 function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
+  const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0]![0]!.toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+
+  const firstPart = parts[0];
+  if (!firstPart) return "?";
+
+  if (parts.length === 1) {
+    const firstChar = firstPart[0];
+    return firstChar ? firstChar.toUpperCase() : "?";
+  }
+
+  const lastPart = parts[parts.length - 1];
+  const firstChar = firstPart[0];
+  const lastChar = lastPart ? lastPart[0] : undefined;
+
+  if (!firstChar) return "?";
+  if (!lastChar) return firstChar.toUpperCase();
+
+  return (firstChar + lastChar).toUpperCase();
 }
 
 /**
@@ -67,12 +81,22 @@ export function ContactManager({
   const { data: contactsResponse, isLoading } = useContacts("", 1, 100);
 
   // Transform contact data to LinkedContact format
-  const availableContacts: LinkedContact[] = (contactsResponse?.items || []).map((contact) => ({
-    id: contact.id,
-    name: contact.displayName,
-    email: contact.primaryEmail || undefined,
-    photoUrl: contact.photoUrl || undefined,
-  }));
+  const availableContacts: LinkedContact[] = (contactsResponse?.items || []).map((contact) => {
+    const linkedContact: LinkedContact = {
+      id: contact.id,
+      name: contact.displayName,
+    };
+
+    // Only add optional properties if they exist (exactOptionalPropertyTypes compliance)
+    if (contact.primaryEmail) {
+      linkedContact.email = contact.primaryEmail;
+    }
+    if (contact.photoUrl) {
+      linkedContact.photoUrl = contact.photoUrl;
+    }
+
+    return linkedContact;
+  });
 
   // Visible contacts (max 3 by default)
   const visibleContacts = linkedContacts.slice(0, maxVisible);

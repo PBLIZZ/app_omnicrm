@@ -36,7 +36,7 @@ import { TagManager } from "@/components/TagManager";
 import { ContactManager } from "@/components/ContactManager";
 import type { LinkedContact } from "@/components/ContactSelector";
 import type { Project } from "@/server/db/schema";
-import type { TaskListItem } from "packages/repo/src/types/productivity.types";
+import type { TaskListItem } from "@repo";
 
 interface TaskCardProps {
   task: TaskListItem;
@@ -560,8 +560,14 @@ export function TaskCard({
 
           {/* Separate Date Picker Popover (opened from dropdown) */}
           {showDatePickerPopover && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDatePickerPopover(false)}>
-              <div className="bg-white rounded-lg shadow-lg p-0 w-auto" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+              onClick={() => setShowDatePickerPopover(false)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-lg p-0 w-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="p-2 border-b">
                   <button
                     onClick={() => {
@@ -606,8 +612,14 @@ export function TaskCard({
 
           {/* Separate Location Modal (opened from dropdown) */}
           {showLocationPopover && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowLocationPopover(false)}>
-              <div className="bg-white rounded-lg shadow-lg p-4 w-80" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+              onClick={() => setShowLocationPopover(false)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-lg p-4 w-80"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="space-y-3">
                   <label className="text-sm font-medium">Location</label>
                   <input
@@ -645,8 +657,14 @@ export function TaskCard({
 
           {/* Zone Selector Modal (opened from dropdown) */}
           {showZoneSelector && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowZoneSelector(false)}>
-              <div className="bg-white rounded-lg shadow-lg p-4 w-80" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+              onClick={() => setShowZoneSelector(false)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-lg p-4 w-80"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="space-y-3">
                   <label className="text-sm font-medium">Select Zone</label>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -658,7 +676,9 @@ export function TaskCard({
                           setShowZoneSelector(false);
                         }}
                         className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-3 ${
-                          task.zoneUuid === zone.uuidId ? "bg-blue-50 border-2 border-blue-500" : "border border-gray-200"
+                          task.zoneUuid === zone.uuidId
+                            ? "bg-blue-50 border-2 border-blue-500"
+                            : "border border-gray-200"
                         }`}
                       >
                         <div

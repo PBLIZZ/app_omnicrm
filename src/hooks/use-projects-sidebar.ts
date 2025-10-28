@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMomentum } from "@/hooks/use-momentum";
 import { useZones } from "@/hooks/use-zones";
-import { useTasks } from "@/hooks/use-tasks";
 import type { Project, Task } from "@/server/db/schema";
 import type { Zone } from "@/server/db/business-schemas";
 
@@ -69,7 +68,6 @@ interface UseProjectsSidebarReturn {
 export function useProjectsSidebar(): UseProjectsSidebarReturn {
   const { projects, tasks } = useMomentum();
   const { zones } = useZones();
-  const { data: allTasks } = useTasks();
 
   // Local state for expanded/collapsed projects and tasks
   const [state, setState] = useState<ProjectsSidebarState>({
@@ -229,11 +227,19 @@ export function useProjectsSidebar(): UseProjectsSidebarReturn {
 
   // Utility functions
   const getProjectTasks = (projectId: string): Task[] => {
-    return tasks.filter((task) => task.projectId === projectId && !task.parentTaskId);
+    return tasks.filter((task) => task.projectId === projectId);
   };
 
   const getTaskSubtasks = (taskId: string): Task[] => {
-    return tasks.filter((task) => task.parentTaskId === taskId);
+    // Subtasks are stored in JSONB details.subtasks array, not as separate task records
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task || typeof task.details !== "object" || task.details === null) {
+      return [];
+    }
+    const details = task.details as Record<string, unknown>;
+    const subtasks = Array.isArray(details["subtasks"]) ? details["subtasks"] : [];
+    // Convert JSONB subtasks to Task-like objects (though they won't have all Task properties)
+    return subtasks as Task[];
   };
 
   const getProjectProgress = (projectId: string): number => {
@@ -323,15 +329,15 @@ export function useTaskStats(taskId: string) {
 /**
  * Hook to get zone information for a project or task
  */
-export function useZoneInfo(zoneId: number | null) {
+export function useZoneInfo(zoneUuid: string | null) {
   const { zones } = useProjectsSidebar();
 
-  const zone = zones.find((z) => z.id === zoneId);
+  const zone = zones.find((z) => z.uuidId === zoneUuid);
 
   return {
     zone,
-    zoneName: zone?.name || "No Zone",
-    zoneColor: zone?.color || "#6366F1",
-    zoneIcon: zone?.iconName || "circle",
+    zoneName: zone?.name ?? "No Zone",
+    zoneColor: zone?.color ?? "#6366F1",
+    zoneIcon: zone?.iconName ?? "circle",
   };
 }

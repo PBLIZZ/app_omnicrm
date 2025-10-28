@@ -96,10 +96,10 @@ export function getZoneIcon(zones: Zone[], zoneName: string): string {
 }
 
 /**
- * Get zone by ID
+ * Get zone by UUID
  */
-export function getZoneById(zones: Zone[], zoneId: number): Zone | null {
-  return zones.find((z) => z.id === zoneId) || null;
+export function getZoneById(zones: Zone[], zoneUuid: string): Zone | null {
+  return zones.find((z) => z.uuidId === zoneUuid) ?? null;
 }
 
 /**
@@ -188,7 +188,11 @@ export function sortZonesByUsage(zones: Zone[], direction: "asc" | "desc" = "des
  */
 export function generateRandomZoneColor(): string {
   const colors = DEFAULT_ZONE_COLORS;
-  return colors[Math.floor(Math.random() * colors.length)];
+  const randomColor = colors[Math.floor(Math.random() * colors.length)];
+  if (!randomColor) {
+    return "#6366F1"; // Fallback to default indigo
+  }
+  return randomColor;
 }
 
 /**
@@ -297,7 +301,7 @@ export function sanitizeZoneData(data: { name: string; color?: string; iconName?
  */
 export function getZoneUsageStats(
   zones: Zone[],
-  tasks: any[],
+  tasks: Array<{ zoneUuid: string | null; status: string }>,
 ): Array<{
   zone: Zone;
   taskCount: number;
@@ -305,7 +309,7 @@ export function getZoneUsageStats(
   progressPercentage: number;
 }> {
   return zones.map((zone) => {
-    const zoneTasks = tasks.filter((task) => task.zoneId === zone.id);
+    const zoneTasks = tasks.filter((task) => task.zoneUuid === zone.uuidId);
     const completedTasks = zoneTasks.filter((task) => task.status === "done");
 
     return {
@@ -321,7 +325,11 @@ export function getZoneUsageStats(
 /**
  * Get most used zones
  */
-export function getMostUsedZones(zones: Zone[], tasks: any[], limit: number = 5): Zone[] {
+export function getMostUsedZones(
+  zones: Zone[],
+  tasks: Array<{ zoneUuid: string | null; status: string }>,
+  limit: number = 5,
+): Zone[] {
   const stats = getZoneUsageStats(zones, tasks);
   return stats
     .sort((a, b) => b.taskCount - a.taskCount)
@@ -332,7 +340,11 @@ export function getMostUsedZones(zones: Zone[], tasks: any[], limit: number = 5)
 /**
  * Get least used zones
  */
-export function getLeastUsedZones(zones: Zone[], tasks: any[], limit: number = 5): Zone[] {
+export function getLeastUsedZones(
+  zones: Zone[],
+  tasks: Array<{ zoneUuid: string | null; status: string }>,
+  limit: number = 5,
+): Zone[] {
   const stats = getZoneUsageStats(zones, tasks);
   return stats
     .sort((a, b) => a.taskCount - b.taskCount)

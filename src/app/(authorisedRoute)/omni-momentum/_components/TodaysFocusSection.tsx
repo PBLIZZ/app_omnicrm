@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { Target } from "lucide-react";
 import { TaskCard } from "./TaskCard";
 import { useMomentum } from "@/hooks/use-momentum";
-import type { TaskListItem } from "packages/repo/src/types/productivity.types";
+import type { TaskListItem } from "@repo";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface Top3TasksResponse {

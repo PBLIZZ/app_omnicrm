@@ -127,6 +127,24 @@ export { InboxRepository, createInboxRepository } from "./inbox.repo";
 export type { InboxListParams } from "./inbox.repo";
 export { ZonesRepository, createZonesRepository } from "./zones.repo";
 export { HabitsRepository, createHabitsRepository } from "./habits.repo";
+export { CalendarRepository, createCalendarRepository } from "./calendar.repo";
+export type {
+  CalendarEvent,
+  CalendarEventMeta,
+  CreateCalendarEventData,
+  UpdateCalendarEventData,
+  AvailabilitySlot,
+  SessionPrepData,
+} from "./calendar.repo";
+export { ComplianceRepository, createComplianceRepository } from "./compliance.repo";
+export type {
+  ClientConsent,
+  CreateClientConsent,
+  ConsentType,
+  ConsentStatusItem,
+  ConsentHistoryItem,
+  MissingConsentContact,
+} from "./compliance.repo";
 
 // Re-export database schema types for convenience
 export * from "@/server/db/schema";

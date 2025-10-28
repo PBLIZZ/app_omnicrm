@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useState } from "react";
+import { useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";

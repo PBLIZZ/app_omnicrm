@@ -1,6 +1,5 @@
 "use client";
 
-import { Progress } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 
 interface UsageBarProps {

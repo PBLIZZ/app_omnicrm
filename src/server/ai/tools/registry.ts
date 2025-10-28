@@ -23,10 +23,10 @@ import type {
   PermissionLevel,
   LLMFunctionDefinition,
 } from "./types";
-import { AppError } from "@/lib/errors";
+import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/observability";
 import { getDb } from "@/server/db/client";
-import { createChatRepository } from "@/packages/repo/src/chat.repo";
+import { createChatRepository } from "@repo";
 import { ensureMonthlyQuota, trySpendCredit } from "@/server/ai/guardrails";
 
 /**
@@ -473,8 +473,7 @@ export class ToolRegistry {
 
     tools.forEach((tool) => {
       toolsByCategory[tool.category] = (toolsByCategory[tool.category] ?? 0) + 1;
-      toolsByPermission[tool.permissionLevel] =
-        (toolsByPermission[tool.permissionLevel] ?? 0) + 1;
+      toolsByPermission[tool.permissionLevel] = (toolsByPermission[tool.permissionLevel] ?? 0) + 1;
     });
 
     return {

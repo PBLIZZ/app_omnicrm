@@ -646,6 +646,11 @@ export class TagsRepository {
   }
 }
 
+/**
+ * Create a TagsRepository instance bound to the provided database client.
+ *
+ * @returns A new `TagsRepository` configured to use the given `DbClient`
+ */
 export function createTagsRepository(db: DbClient): TagsRepository {
   return new TagsRepository(db);
 }

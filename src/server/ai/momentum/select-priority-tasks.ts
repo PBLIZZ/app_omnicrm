@@ -29,7 +29,13 @@ const PriorityTasksResponseSchema = z.object({
 type PriorityTasksResponse = z.infer<typeof PriorityTasksResponseSchema>;
 
 /**
- * Build prompt for selecting top 3 priority tasks
+ * Constructs the chat messages used to prompt an LLM to select the top 3 priority tasks.
+ *
+ * Builds a system message that defines selection criteria, rules, and the exact JSON output format,
+ * and a user message that includes a formatted listing of the provided tasks for analysis.
+ *
+ * @param tasks - The list of tasks to be presented to the LLM for prioritization
+ * @returns An array of two chat messages: a system instruction message and a user message containing the tasks
  */
 function buildPrioritySelectionPrompt(
   tasks: Task[],
@@ -99,7 +105,13 @@ Remember: Focus on VALUE and OUTCOMES, not just urgency. Help me make the bigges
 }
 
 /**
- * Select top 3 priority tasks using LLM
+ * Determine the top three priority tasks for a user using an LLM and return a structured ranked response.
+ *
+ * Evaluates the provided tasks and returns a PriorityTasksResponse containing `rankedTasks` (each with `taskId`, `ranking`, `reasoning`, and `aiScore`), a `summary`, and a `confidenceLevel`. If the input contains three or fewer tasks, returns them all with assigned rankings and `confidenceLevel` set to "high". On successful LLM inference returns the validated ranked result with an appropriate confidence level; if inference fails, falls back to selecting the top three tasks by their priority levels and returns `confidenceLevel` set to "low".
+ *
+ * @param userId - The identifier of the user for whom priorities are being selected
+ * @param tasks - The list of tasks to evaluate and rank
+ * @returns The ranked tasks, a human-readable summary, and a confidence level ("high" | "medium" | "low")
  */
 export async function selectTop3PriorityTasks(
   userId: string,

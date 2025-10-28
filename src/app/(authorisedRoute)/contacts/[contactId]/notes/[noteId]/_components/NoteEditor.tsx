@@ -119,6 +119,20 @@ const FontSize = Extension.create({
   },
 });
 
+/**
+ * Editable rich-text note editor with a formatting toolbar, client-side PII detection, and optional save handling.
+ *
+ * Renders a WYSIWYG editor initialized from `content`, calls `onChange` with updated HTML and plain text on edits,
+ * shows a PII warning when sensitive data is detected, and invokes `onSave` when the user saves.
+ *
+ * @param content - Initial editor HTML content
+ * @param placeholder - Placeholder text shown when the editor is empty
+ * @param onChange - Callback invoked on editor updates with `(html, text)`
+ * @param onSave - Optional callback invoked when the user triggers a save action (save button or Enter)
+ * @param className - Optional additional CSS class names applied to the editor container
+ * @param editable - Whether the editor is editable; when false the toolbar and save UI are hidden
+ * @returns A JSX element rendering the note editor UI
+ */
 export function NoteEditor({
   content = "",
   placeholder = "Start typing your note...",

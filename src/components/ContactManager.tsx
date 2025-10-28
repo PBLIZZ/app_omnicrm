@@ -27,7 +27,13 @@ interface ContactManagerProps {
 }
 
 /**
- * Get initials from contact name for avatar fallback
+ * Derives display initials from a contact name for avatar fallbacks.
+ *
+ * Trims whitespace and splits the name into words; for a single-word name returns its first letter,
+ * for multi-word names returns the first letter of the first and last words, and returns `"?"` when
+ * no usable character can be derived.
+ *
+ * @returns A one- or two-character uppercase string of initials, or `"?"` if no initials can be derived.
  */
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -52,22 +58,17 @@ function getInitials(name: string): string {
 }
 
 /**
- * ContactManager - Reusable component for managing linked contacts on tasks
+ * Render and manage linked contacts for a task, showing avatars and a modal to add or edit contacts.
  *
- * Used for weekend retreat planning and other tasks where you need to track
- * contact-specific actions (sending updates, getting consent forms, etc.)
+ * Displays overlapping contact avatars (photo or initials) up to `maxVisible`, shows a "+N" indicator for hidden contacts, and a "+ Add contacts" action when none are linked. Opening the selector invokes `onOpenModal` (if provided) and sets `onModalChange(true)`. When selections change, the task is updated with only each contact's `id` and `name`.
  *
  * @example
- * ```tsx
- * const [showContactModal, setShowContactModal] = useState(false);
- *
  * <ContactManager
  *   linkedContacts={task.details?.linkedContacts || []}
  *   taskId={task.id}
  *   showModal={showContactModal}
  *   onModalChange={setShowContactModal}
  * />
- * ```
  */
 export function ContactManager({
   linkedContacts,

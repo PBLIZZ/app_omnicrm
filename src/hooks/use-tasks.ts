@@ -199,7 +199,9 @@ export function useUpdateTask() {
 }
 
 /**
- * Delete a task
+ * Provides a mutation to delete a task, invalidate cached task lists, and show user feedback toasts.
+ *
+ * @returns A mutation object that accepts a task id and deletes the task. On success it invalidates task list queries and shows a "Task Deleted" toast; on error it shows a destructive toast with the error message or a fallback message.
  */
 export function useDeleteTask() {
   const queryClient = useQueryClient();
@@ -278,7 +280,21 @@ export function useToggleTaskComplete() {
 // ============================================================================
 
 /**
- * Get tasks grouped by time of day (Morning, Afternoon, Evening, Night)
+ * Provide tasks grouped by time of day into Morning, Afternoon, Evening, and Night.
+ *
+ * Groups tasks returned by useTasks by the hour of each task's `createdAt` timestamp:
+ * - Morning: 06:00–11:59
+ * - Afternoon: 12:00–16:59
+ * - Evening: 17:00–21:59
+ * - Night: all other hours
+ *
+ * Tasks with no `createdAt` timestamp are excluded from the groups.
+ *
+ * @param options - Options forwarded to `useTasks` for filtering, sorting, and searching
+ * @returns An object containing:
+ *   - `groupedTasks`: a record mapping the time-of-day group name to an array of `Task`
+ *   - `isLoading`: `true` while tasks are being fetched, `false` otherwise
+ *   - `error`: the fetch error, if any
  */
 export function useTasksGroupedByTime(options: UseTasksOptions = {}) {
   const { data: tasks, isLoading, error } = useTasks(options);
@@ -321,7 +337,9 @@ export function useTasksGroupedByTime(options: UseTasksOptions = {}) {
 }
 
 /**
- * Get today's tasks
+ * Provides a tasks query filtered to tasks due today and sorted by priority descending.
+ *
+ * @returns The React Query result for tasks due today containing fetched items, loading/error status, and query utilities.
  */
 export function useTodaysTasks() {
   return useTasks({

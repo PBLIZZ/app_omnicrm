@@ -260,6 +260,11 @@ export class ComplianceRepository {
   }
 }
 
+/**
+ * Create a ComplianceRepository instance bound to the provided DbClient.
+ *
+ * @returns A ComplianceRepository configured to use `db` for database operations
+ */
 export function createComplianceRepository(db: DbClient): ComplianceRepository {
   return new ComplianceRepository(db);
 }

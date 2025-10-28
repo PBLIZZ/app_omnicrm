@@ -209,6 +209,14 @@ export async function searchSemantic(
   }
 }
 
+/**
+ * Performs a semantic search using the provided embedding and returns mapped search results.
+ *
+ * @param userId - The ID of the user whose indexed data should be searched
+ * @param embedding - The numeric embedding vector representing the query
+ * @param options - Optional semantic search parameters (e.g., `matchCount`, `similarityThreshold`, `types`)
+ * @returns A `Result` containing an array of `SearchResult` on success; on failure, an error object with `code`, `message`, and optional `details`
+ */
 export async function searchSemanticByEmbedding(
   userId: string,
   embedding: number[],

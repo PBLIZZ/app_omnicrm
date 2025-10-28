@@ -88,7 +88,11 @@ export function getZoneColor(zones: Zone[], zoneName: string): string {
 }
 
 /**
- * Get zone icon by name (with fallback)
+ * Retrieve the icon name for a zone by its name.
+ *
+ * @param zones - The list of zones to search
+ * @param zoneName - The exact zone name to match (case-sensitive)
+ * @returns The zone's `iconName` if a matching zone is found and it has an icon, `"circle"` otherwise
  */
 export function getZoneIcon(zones: Zone[], zoneName: string): string {
   const zone = zones.find((z) => z.name === zoneName);
@@ -96,7 +100,10 @@ export function getZoneIcon(zones: Zone[], zoneName: string): string {
 }
 
 /**
- * Get zone by UUID
+ * Retrieve the zone matching the given UUID.
+ *
+ * @param zoneUuid - The UUID of the zone to locate
+ * @returns The `Zone` with the matching `uuidId`, or `null` if no match is found
  */
 export function getZoneById(zones: Zone[], zoneUuid: string): Zone | null {
   return zones.find((z) => z.uuidId === zoneUuid) ?? null;
@@ -184,7 +191,9 @@ export function sortZonesByUsage(zones: Zone[], direction: "asc" | "desc" = "des
 // ============================================================================
 
 /**
- * Generate a random color for a new zone
+ * Selects a color for a zone from the default palette.
+ *
+ * @returns A hex color string chosen from `DEFAULT_ZONE_COLORS`; returns `"#6366F1"` if selection fails.
  */
 export function generateRandomZoneColor(): string {
   const colors = DEFAULT_ZONE_COLORS;
@@ -297,7 +306,15 @@ export function sanitizeZoneData(data: { name: string; color?: string; iconName?
 // ============================================================================
 
 /**
- * Get zone usage statistics
+ * Compute task-based usage statistics for each zone.
+ *
+ * @param zones - The list of zones to compute statistics for.
+ * @param tasks - Array of tasks where `zoneUuid` associates a task with a zone's `uuidId`; `zoneUuid` may be `null`.
+ * @returns An array with one entry per zone containing:
+ *  - `zone`: the zone object
+ *  - `taskCount`: total tasks assigned to the zone
+ *  - `completedTaskCount`: tasks with `status` equal to `"done"`
+ *  - `progressPercentage`: percentage (0–100) of tasks completed in the zone
  */
 export function getZoneUsageStats(
   zones: Zone[],
@@ -323,7 +340,12 @@ export function getZoneUsageStats(
 }
 
 /**
- * Get most used zones
+ * Get the top zones ranked by number of tasks assigned.
+ *
+ * @param zones - Array of zone objects to evaluate
+ * @param tasks - Array of task objects where each task has `zoneUuid` (matching a zone's `uuidId`) and `status`
+ * @param limit - Maximum number of zones to return (defaults to 5)
+ * @returns An array of zones sorted by descending task count, limited to `limit` entries
  */
 export function getMostUsedZones(
   zones: Zone[],
@@ -338,7 +360,12 @@ export function getMostUsedZones(
 }
 
 /**
- * Get least used zones
+ * Selects the zones with the fewest assigned tasks.
+ *
+ * @param zones - The list of zones to evaluate
+ * @param tasks - Tasks used to compute usage; tasks are matched to zones by `task.zoneUuid === zone.uuidId`
+ * @param limit - Maximum number of zones to return
+ * @returns An array of zones with the smallest task counts, ordered from least- to more-used, up to `limit` items
  */
 export function getLeastUsedZones(
   zones: Zone[],

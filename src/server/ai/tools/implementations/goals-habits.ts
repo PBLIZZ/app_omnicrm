@@ -28,6 +28,12 @@ interface ProgressHistoryEntry {
   notes?: string | undefined;
 }
 
+/**
+ * Check whether a value represents a progress history entry.
+ *
+ * @param obj - The value to validate.
+ * @returns `true` if `obj` has a `timestamp` property that is a string and a `value` property that is a number, `false` otherwise.
+ */
 function isProgressHistoryEntry(obj: unknown): obj is ProgressHistoryEntry {
   return (
     typeof obj === "object" &&
@@ -39,10 +45,25 @@ function isProgressHistoryEntry(obj: unknown): obj is ProgressHistoryEntry {
   );
 }
 
+/**
+ * Checks whether a value is an array of ProgressHistoryEntry objects.
+ *
+ * @param arr - The value to test
+ * @returns `true` if `arr` is an array where every element conforms to `ProgressHistoryEntry`, `false` otherwise.
+ */
 function isProgressHistoryArray(arr: unknown): arr is ProgressHistoryEntry[] {
   return Array.isArray(arr) && arr.every((item) => isProgressHistoryEntry(item));
 }
 
+/**
+ * Parses an arbitrary value into a plain object suitable for goal details.
+ *
+ * If `details` is a non-null object it is returned as a `Record<string, unknown>`,
+ * otherwise an empty object is returned.
+ *
+ * @param details - The value to interpret as goal details
+ * @returns The input cast to `Record<string, unknown>` when it's an object, or an empty object
+ */
 function parseGoalDetails(details: unknown): Record<string, unknown> {
   if (typeof details === "object" && details !== null) {
     return details as Record<string, unknown>;
@@ -50,6 +71,12 @@ function parseGoalDetails(details: unknown): Record<string, unknown> {
   return {};
 }
 
+/**
+ * Extracts and validates a goal's progress history from a details object.
+ *
+ * @param details - The goal's details object that may contain a `progressHistory` field
+ * @returns The validated `ProgressHistoryEntry[]` from `details.progressHistory`, or an empty array if missing or invalid
+ */
 function getProgressHistory(details: Record<string, unknown>): ProgressHistoryEntry[] {
   const progressHistory = details["progressHistory"];
   if (Array.isArray(progressHistory) && isProgressHistoryArray(progressHistory)) {
@@ -58,6 +85,12 @@ function getProgressHistory(details: Record<string, unknown>): ProgressHistoryEn
   return [];
 }
 
+/**
+ * Extracts the `currentProgress` value from a goal details object.
+ *
+ * @param details - The goal details object that may contain a `currentProgress` field
+ * @returns The numeric `currentProgress` value if present and a number, otherwise `0`
+ */
 function getCurrentProgress(details: Record<string, unknown>): number {
   const currentProgress = details["currentProgress"];
   return typeof currentProgress === "number" ? currentProgress : 0;

@@ -6,10 +6,11 @@ import { Plus } from "lucide-react";
 import { TaskDetailSheet } from "./TaskDetailSheet";
 
 /**
- * FloatingAddTaskButton - Global floating action button for quick task creation
+ * Renders a global floating action button fixed to the bottom-right that opens the task creation sheet.
  *
- * Available anywhere within the OmniMomentum suite. Positioned in bottom-right corner
- * following Trello/Todoist patterns for familiarity.
+ * The button is styled as a prominent circular control with an accessible `aria-label`; clicking it opens the TaskDetailSheet in "create" mode.
+ *
+ * @returns The JSX element containing the floating action button and its associated task creation sheet.
  */
 export function FloatingAddTaskButton(): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
@@ -31,7 +32,6 @@ export function FloatingAddTaskButton(): JSX.Element {
     </>
   );
 }
-
 
 
 

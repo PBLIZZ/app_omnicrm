@@ -43,7 +43,7 @@ export interface CalendarEvent {
 }
 
 export interface CreateCalendarEventData {
-  contactId: string; // Required - matches database schema
+  contactId?: string; // Optional - matches database schema (nullable)
   title: string;
   startTime: Date;
   endTime: Date;
@@ -187,7 +187,7 @@ export class CalendarRepository {
 
     const interactionData: CreateInteraction & { userId: string } = {
       userId,
-      contactId: data.contactId,
+      contactId: data.contactId ?? null,
       type: "calendar_event",
       subject: data.title,
       bodyText: data.description ?? null,

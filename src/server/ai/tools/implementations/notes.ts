@@ -9,7 +9,7 @@
 import type { ToolDefinition, ToolHandler } from "../types";
 import { z } from "zod";
 import { getDb } from "@/server/db/client";
-import { NotesRepository, TagsRepository } from "@repo";
+import { createNotesRepository, createTagsRepository } from "@repo";
 import { AppError } from "@/lib/errors/app-error";
 import type { Note } from "@/server/db/schema";
 
@@ -85,7 +85,7 @@ export const searchNotesHandler: ToolHandler<SearchNotesParams> = async (params,
 
   try {
     const db = await getDb();
-    const repo = new NotesRepository(db);
+    const repo = createNotesRepository(db);
 
     let notes: Note[];
 
@@ -177,7 +177,7 @@ export const getNoteHandler: ToolHandler<GetNoteParams> = async (params, context
 
   try {
     const db = await getDb();
-    const repo = new NotesRepository(db);
+    const repo = createNotesRepository(db);
 
     const note: Note | null = await repo.getNoteById(context.userId, validated.note_id);
 
@@ -254,7 +254,7 @@ export const analyzeNoteSentimentHandler: ToolHandler<AnalyzeNoteSentimentParams
 
   try {
     const db = await getDb();
-    const repo = new NotesRepository(db);
+    const repo = createNotesRepository(db);
 
     const note: Note | null = await repo.getNoteById(context.userId, validated.note_id);
 
@@ -425,8 +425,8 @@ export const tagNoteHandler: ToolHandler<TagNoteParams> = async (params, context
 
   try {
     const db = await getDb();
-    const notesRepo = new NotesRepository(db);
-    const tagsRepo = new TagsRepository(db);
+    const notesRepo = createNotesRepository(db);
+    const tagsRepo = createTagsRepository(db);
 
     // Verify note exists and belongs to user
     const note: Note | null = await notesRepo.getNoteById(context.userId, validated.note_id);
@@ -522,7 +522,7 @@ export const summarizeNotesHandler: ToolHandler<SummarizeNotesParams> = async (
 
   try {
     const db = await getDb();
-    const repo = new NotesRepository(db);
+    const repo = createNotesRepository(db);
 
     const notes: Note[] = await repo.getNotesByContactId(context.userId, validated.contact_id);
 
@@ -760,7 +760,7 @@ export const rankNotesByRelevanceHandler: ToolHandler<RankNotesByRelevanceParams
 
   try {
     const db = await getDb();
-    const repo = new NotesRepository(db);
+    const repo = createNotesRepository(db);
 
     // Get notes
     let notes: Note[];

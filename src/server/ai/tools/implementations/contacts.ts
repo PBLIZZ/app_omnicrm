@@ -46,12 +46,14 @@ export const getContactDefinition: ToolDefinition = {
       },
     },
     required: ["contact_id"],
+    additionalProperties: false,
   },
   permissionLevel: "read",
   creditCost: 0,
   isIdempotent: true,
   cacheable: true,
   cacheTtlSeconds: 300, // 5 minutes
+  deprecated: false,
   tags: ["contacts", "read", "client-management"],
 };
 
@@ -122,12 +124,14 @@ export const searchContactsDefinition: ToolDefinition = {
       },
     },
     required: ["query"],
+    additionalProperties: false,
   },
   permissionLevel: "read",
   creditCost: 0,
   isIdempotent: true,
   cacheable: true,
   cacheTtlSeconds: 60, // 1 minute
+  deprecated: false,
   tags: ["contacts", "search", "read"],
 };
 
@@ -195,12 +199,14 @@ export const listContactsDefinition: ToolDefinition = {
       },
     },
     required: [],
+    additionalProperties: false,
   },
   permissionLevel: "read",
   creditCost: 0,
   isIdempotent: true,
   cacheable: true,
   cacheTtlSeconds: 30,
+  deprecated: false,
   tags: ["contacts", "list", "read"],
 };
 
@@ -291,6 +297,8 @@ export const createContactDefinition: ToolDefinition = {
   permissionLevel: "write",
   creditCost: 0,
   isIdempotent: false,
+  cacheable: false,
+  deprecated: false,
   rateLimit: {
     maxCalls: 50,
     windowMs: 60000, // 50 contacts per minute
@@ -380,6 +388,8 @@ export const updateContactDefinition: ToolDefinition = {
   permissionLevel: "write",
   creditCost: 0,
   isIdempotent: true,
+  cacheable: false,
+  deprecated: false,
   tags: ["contacts", "update", "write"],
 };
 

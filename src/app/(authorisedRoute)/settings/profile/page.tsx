@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Image from "next/image";
 import { User, Building2, Globe, Phone, FileText, Shield, CheckCircle, Upload } from "lucide-react";
 import {
   Button,
@@ -99,7 +100,7 @@ export default function ProfileSettingsPage(): JSX.Element {
 
   // Get display photo (custom > Google OAuth)
   const displayPhoto =
-    profile?.profilePhotoUrl ?? (authUser?.user_metadata?.avatar_url as string | undefined);
+    profile?.profilePhotoUrl ?? (authUser?.user_metadata?.["avatar_url"] as string | undefined);
   const googleName = authUser?.user_metadata?.["full_name"] as string | undefined;
 
   if (isLoading) {
@@ -144,10 +145,12 @@ export default function ProfileSettingsPage(): JSX.Element {
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               {displayPhoto ? (
-                <img
+                <Image
                   src={displayPhoto}
                   alt="Profile"
-                  className="w-20 h-20 rounded-full object-cover border-2 border-violet-300"
+                  width={80}
+                  height={80}
+                  className="rounded-full object-cover border-2 border-violet-300"
                 />
               ) : (
                 <div className="w-20 h-20 rounded-full bg-violet-300 flex items-center justify-center">

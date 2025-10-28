@@ -45,12 +45,14 @@ export const getTodayTasksDefinition: ToolDefinition = {
       },
     },
     required: [],
+    additionalProperties: false,
   },
   permissionLevel: "read",
   creditCost: 0,
   isIdempotent: true,
   cacheable: true,
   cacheTtlSeconds: 60, // 1 minute cache for active task list
+  deprecated: false,
   tags: ["tasks", "productivity", "read", "daily-planning"],
 };
 
@@ -62,10 +64,11 @@ export const getTodayTasksHandler: ToolHandler<GetTodayTasksParams> = async (par
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const tasks = await repo.listTasks(context.userId, {
-    dueDateBefore: today,
-    includeCompleted: validated.include_completed,
-    sortBy: "priority",
+  // Get all incomplete tasks (or all tasks if include_completed is true)
+  const statusFilter = validated.include_completed ? undefined : ["todo", "in_progress"];
+
+  const tasks = await repo.getTasks(context.userId, {
+    status: statusFilter,
   });
 
   return {
@@ -82,8 +85,8 @@ export const getTodayTasksHandler: ToolHandler<GetTodayTasksParams> = async (par
 const CreateTaskParamsSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
-  due_date: z.coerce.date().optional(),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  due_date: z.string().optional(), // ISO date string (YYYY-MM-DD)
   project_id: z.string().uuid().optional(),
   zone_uuid: z.string().uuid().optional(),
   contact_id: z.string().uuid().optional(),
@@ -123,7 +126,7 @@ export const createTaskDefinition: ToolDefinition = {
       priority: {
         type: "string",
         description: "Task priority level (default: medium)",
-        enum: ["low", "medium", "high", "urgent"],
+        enum: ["low", "medium", "high"],
       },
       due_date: {
         type: "string",
@@ -148,10 +151,13 @@ export const createTaskDefinition: ToolDefinition = {
       },
     },
     required: ["title"],
+    additionalProperties: false,
   },
   permissionLevel: "write",
   creditCost: 0,
   isIdempotent: false,
+  cacheable: false,
+  deprecated: false,
   rateLimit: {
     maxCalls: 100,
     windowMs: 60000, // 100 tasks per minute
@@ -220,10 +226,13 @@ export const completeTaskDefinition: ToolDefinition = {
       },
     },
     required: ["task_id"],
+    additionalProperties: false,
   },
   permissionLevel: "write",
   creditCost: 0,
   isIdempotent: true,
+  cacheable: false,
+  deprecated: false,
   tags: ["tasks", "productivity", "update", "write"],
 };
 
@@ -232,25 +241,30 @@ export const completeTaskHandler: ToolHandler<CompleteTaskParams> = async (param
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
-  const task = await repo.updateTask(context.userId, validated.task_id, {
-    status: "done",
-    completedAt: new Date(),
-    details: validated.completion_notes
-      ? { completionNotes: validated.completion_notes }
-      : undefined,
-  });
+  // First get the task to verify it exists
+  const task = await repo.getTask(validated.task_id, context.userId);
 
   if (!task) {
     throw new AppError(
       `Task with ID ${validated.task_id} not found`,
       "TASK_NOT_FOUND",
-      "not_found",
+      "validation",
       true,
       404,
     );
   }
 
-  return task;
+  // Update the task
+  await repo.updateTask(validated.task_id, context.userId, {
+    status: "done",
+    completedAt: new Date(),
+    details: validated.completion_notes
+      ? { completionNotes: validated.completion_notes }
+      : task.details,
+  });
+
+  // Return the updated task
+  return await repo.getTask(validated.task_id, context.userId);
 };
 
 // ============================================================================
@@ -260,7 +274,7 @@ export const completeTaskHandler: ToolHandler<CompleteTaskParams> = async (param
 const SearchTasksParamsSchema = z.object({
   query: z.string().min(1),
   status: z.enum(["todo", "in_progress", "done", "canceled"]).optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
   contact_id: z.string().uuid().optional(),
   limit: z.number().int().positive().max(100).default(20),
 });
@@ -299,7 +313,7 @@ export const searchTasksDefinition: ToolDefinition = {
       priority: {
         type: "string",
         description: "Filter by priority level",
-        enum: ["low", "medium", "high", "urgent"],
+        enum: ["low", "medium", "high"],
       },
       contact_id: {
         type: "string",
@@ -311,12 +325,14 @@ export const searchTasksDefinition: ToolDefinition = {
       },
     },
     required: ["query"],
+    additionalProperties: false,
   },
   permissionLevel: "read",
   creditCost: 0,
   isIdempotent: true,
   cacheable: true,
   cacheTtlSeconds: 30,
+  deprecated: false,
   tags: ["tasks", "productivity", "search", "read"],
 };
 
@@ -325,13 +341,28 @@ export const searchTasksHandler: ToolHandler<SearchTasksParams> = async (params,
   const db = await getDb();
   const repo = createProductivityRepository(db);
 
-  const tasks = await repo.searchTasks(context.userId, {
-    query: validated.query,
-    status: validated.status,
-    priority: validated.priority,
-    contactId: validated.contact_id,
-    limit: validated.limit,
+  // Get tasks with filters
+  const statusFilter = validated.status ? [validated.status] : undefined;
+  const priorityFilter = validated.priority ? [validated.priority] : undefined;
+
+  const allTasks = await repo.getTasks(context.userId, {
+    status: statusFilter,
+    priority: priorityFilter,
   });
+
+  // Filter by query text (search in name and details)
+  const query = validated.query.toLowerCase();
+  const filteredTasks = allTasks.filter(task => {
+    const nameMatch = task.name.toLowerCase().includes(query);
+    const detailsMatch = task.details && typeof task.details === 'object' &&
+      'description' in task.details &&
+      typeof task.details.description === 'string' &&
+      task.details.description.toLowerCase().includes(query);
+    return nameMatch || detailsMatch;
+  });
+
+  // Limit results
+  const tasks = filteredTasks.slice(0, validated.limit);
 
   return {
     tasks,
@@ -372,12 +403,14 @@ export const getOverdueTasksDefinition: ToolDefinition = {
       },
     },
     required: [],
+    additionalProperties: false,
   },
   permissionLevel: "read",
   creditCost: 0,
   isIdempotent: true,
   cacheable: true,
   cacheTtlSeconds: 60,
+  deprecated: false,
   tags: ["tasks", "productivity", "read", "overdue"],
 };
 
@@ -391,18 +424,30 @@ export const getOverdueTasksHandler: ToolHandler<GetOverdueTasksParams> = async 
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const todayString = today.toISOString().split("T")[0];
+  if (!todayString) {
+    throw new AppError("Failed to format today's date", "DATE_ERROR", "system", false, 500);
+  }
 
-  const tasks = await repo.listTasks(context.userId, {
-    dueDateBefore: today,
-    status: "todo", // Only incomplete tasks
-    limit: validated.limit,
-    sortBy: "dueDate",
-    sortOrder: "asc", // Oldest overdue first
+  // Get all incomplete tasks
+  const allTasks = await repo.getTasks(context.userId, {
+    status: ["todo", "in_progress"],
   });
 
+  // Filter for overdue tasks (due date before today)
+  const overdueTasks = allTasks
+    .filter(task => task.dueDate !== null && task.dueDate < todayString)
+    .sort((a, b) => {
+      // Sort by due date ascending (oldest overdue first)
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate.localeCompare(b.dueDate);
+    })
+    .slice(0, validated.limit);
+
   return {
-    tasks,
-    count: tasks.length,
-    asOfDate: today.toISOString().split("T")[0],
+    tasks: overdueTasks,
+    count: overdueTasks.length,
+    asOfDate: todayString,
   };
 };

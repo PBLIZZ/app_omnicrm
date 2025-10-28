@@ -23,7 +23,7 @@ export async function transcribeAudio(
 ): Promise<TranscriptionResult> {
   const apiKey = process.env["OPENAI_API_KEY"];
   if (!apiKey) {
-    throw new AppError("OpenAI API key not configured", "SERVICE_UNAVAILABLE", "system", true, 503);
+    throw new AppError("OpenAI API key not configured", "SERVICE_UNAVAILABLE", "system", true, { httpStatus: 503 });
   }
 
   const formData = new FormData();
@@ -38,7 +38,6 @@ export async function transcribeAudio(
   const maxAttempts = 2; // initial try + 1 retry
   const baseDelayMs = 300; // aligns with unit test expectations
   let attempt = 0;
-  let lastError: unknown = null;
   let response: Response | null = null;
 
   while (attempt < maxAttempts) {
@@ -54,7 +53,6 @@ export async function transcribeAudio(
       // Only retry on thrown network errors; HTTP errors are handled below
       break;
     } catch (error) {
-      lastError = error;
       attempt += 1;
       if (attempt >= maxAttempts) {
         throw new AppError(
@@ -62,8 +60,7 @@ export async function transcribeAudio(
           "SERVICE_UNAVAILABLE",
           "system",
           false,
-          503,
-          error instanceof Error ? { cause: error } : undefined,
+          error instanceof Error ? { cause: error, httpStatus: 503 } : { httpStatus: 503 },
         );
       }
       const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
@@ -71,16 +68,26 @@ export async function transcribeAudio(
     }
   }
 
-  if (!response || !response.ok) {
+  if (!response) {
+    throw new AppError(
+      "Failed to reach transcription service",
+      "SERVICE_UNAVAILABLE",
+      "system",
+      false,
+      { httpStatus: 503 },
+    );
+  }
+
+  if (!response.ok) {
     const message = await safeReadText(response).catch(() => "");
     const status = response.status;
     const isClient = status >= 400 && status < 500;
     throw new AppError(
       message || `Transcription failed with status ${status}`,
       isClient ? "BAD_REQUEST" : "SERVICE_UNAVAILABLE",
-      isClient ? "user" : "system",
+      isClient ? "validation" : "system",
       isClient,
-      status,
+      { httpStatus: status },
     );
   }
 

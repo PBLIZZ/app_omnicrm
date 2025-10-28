@@ -88,13 +88,13 @@ const FontSize = Extension.create({
         attributes: {
           fontSize: {
             default: null,
-            parseHTML: (element) => element.style.fontSize.replace(/['"]+/g, ""),
-            renderHTML: (attributes) => {
-              if (!attributes.fontSize) {
+            parseHTML: (element: HTMLElement): string => element.style.fontSize.replace(/['"]+/g, ""),
+            renderHTML: (attributes: Record<string, string | null>): Record<string, string> => {
+              if (!attributes["fontSize"]) {
                 return {};
               }
               return {
-                style: `font-size: ${attributes.fontSize}`,
+                style: `font-size: ${attributes["fontSize"]}`,
               };
             },
           },
@@ -107,12 +107,12 @@ const FontSize = Extension.create({
     return {
       setFontSize:
         (fontSize: string) =>
-        ({ chain }) => {
+        ({ chain }: { chain: () => { setMark: (mark: string, attributes: Record<string, string>) => { run: () => boolean } } }) => {
           return chain().setMark("textStyle", { fontSize }).run();
         },
       unsetFontSize:
         () =>
-        ({ chain }) => {
+        ({ chain }: { chain: () => { setMark: (mark: string, attributes: Record<string, null>) => { removeEmptyTextStyle: () => { run: () => boolean } } } }) => {
           return chain().setMark("textStyle", { fontSize: null }).removeEmptyTextStyle().run();
         },
     };
@@ -186,7 +186,7 @@ export function NoteEditor({
       handleKeyDown: (_view, event) => {
         // Tab = Indent (when in a list)
         if (event.key === "Tab" && !event.shiftKey) {
-          if (editor.isActive("listItem")) {
+          if (editor && editor.isActive("listItem")) {
             event.preventDefault();
             editor.chain().focus().sinkListItem("listItem").run();
             return true;
@@ -195,7 +195,7 @@ export function NoteEditor({
 
         // Shift+Tab = Outdent (when in a list)
         if (event.key === "Tab" && event.shiftKey) {
-          if (editor.isActive("listItem")) {
+          if (editor && editor.isActive("listItem")) {
             event.preventDefault();
             editor.chain().focus().liftListItem("listItem").run();
             return true;

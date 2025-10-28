@@ -17,13 +17,31 @@ import {
 import type { ToolExecutionContext } from "../../types";
 import { AppError } from "@/lib/errors";
 import { getDb } from "@/server/db/client";
-import { createNotesRepository } from "@repo";
-import { createTagsRepository } from "@repo";
 
-// Mock dependencies
+// Mock dependencies - need to mock at the source
 vi.mock("@/server/db/client");
-vi.mock("@repo/notes.repo");
-vi.mock("@repo/tags.repo");
+
+// Mock the repository creation functions
+const mockNotesRepo = {
+  listNotes: vi.fn(),
+  getNoteById: vi.fn(),
+  getNotesByContactId: vi.fn(),
+  searchNotes: vi.fn(),
+};
+
+const mockTagsRepo = {
+  getTagById: vi.fn(),
+  applyTagsToNote: vi.fn(),
+};
+
+vi.mock("@repo", async () => {
+  const actual = await vi.importActual("@repo");
+  return {
+    ...actual,
+    createNotesRepository: vi.fn(() => mockNotesRepo),
+    createTagsRepository: vi.fn(() => mockTagsRepo),
+  };
+});
 
 // Test data
 const mockContext: ToolExecutionContext = {
@@ -71,6 +89,13 @@ const mockTag = {
 describe("Notes Tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock implementations
+    mockNotesRepo.listNotes.mockReset();
+    mockNotesRepo.getNoteById.mockReset();
+    mockNotesRepo.getNotesByContactId.mockReset();
+    mockNotesRepo.searchNotes.mockReset();
+    mockTagsRepo.getTagById.mockReset();
+    mockTagsRepo.applyTagsToNote.mockReset();
   });
 
   // ============================================================================
@@ -79,16 +104,12 @@ describe("Notes Tools", () => {
 
   describe("search_notes", () => {
     it("should search notes by query", async () => {
-      const mockRepo = {
-        searchNotes: vi.fn().mockResolvedValue([mockNote]),
-      };
-
+      mockNotesRepo.searchNotes.mockResolvedValue([mockNote]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await searchNotesHandler({ query: "anxious", limit: 20 }, mockContext);
 
-      expect(mockRepo.searchNotes).toHaveBeenCalledWith(
+      expect(mockNotesRepo.searchNotes).toHaveBeenCalledWith(
         "550e8400-e29b-41d4-a716-446655440010",
         "anxious",
       );
@@ -96,19 +117,15 @@ describe("Notes Tools", () => {
     });
 
     it("should search notes by contact_id", async () => {
-      const mockRepo = {
-        getNotesByContactId: vi.fn().mockResolvedValue([mockNote]),
-      };
-
+      mockNotesRepo.getNotesByContactId.mockResolvedValue([mockNote]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await searchNotesHandler(
         { contact_id: "550e8400-e29b-41d4-a716-446655440020", limit: 20 },
         mockContext,
       );
 
-      expect(mockRepo.getNotesByContactId).toHaveBeenCalledWith(
+      expect(mockNotesRepo.getNotesByContactId).toHaveBeenCalledWith(
         "550e8400-e29b-41d4-a716-446655440010",
         "550e8400-e29b-41d4-a716-446655440020",
       );
@@ -116,12 +133,8 @@ describe("Notes Tools", () => {
     });
 
     it("should filter notes by date range", async () => {
-      const mockRepo = {
-        listNotes: vi.fn().mockResolvedValue([mockNote, mockNote2]),
-      };
-
+      mockNotesRepo.listNotes.mockResolvedValue([mockNote, mockNote2]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await searchNotesHandler(
         {
@@ -138,15 +151,11 @@ describe("Notes Tools", () => {
     it("should apply limit", async () => {
       const manyNotes = Array.from({ length: 30 }, (_, i) => ({
         ...mockNote,
-        id: `note-${i}`,
+        id: `550e8400-e29b-41d4-a716-4466554400${String(i).padStart(2, "0")}`,
       }));
 
-      const mockRepo = {
-        listNotes: vi.fn().mockResolvedValue(manyNotes),
-      };
-
+      mockNotesRepo.listNotes.mockResolvedValue(manyNotes);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await searchNotesHandler({ limit: 10 }, mockContext);
 
@@ -166,19 +175,15 @@ describe("Notes Tools", () => {
 
   describe("get_note", () => {
     it("should retrieve note by ID", async () => {
-      const mockRepo = {
-        getNoteById: vi.fn().mockResolvedValue(mockNote),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(mockNote);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await getNoteHandler(
         { note_id: "550e8400-e29b-41d4-a716-446655440001" },
         mockContext,
       );
 
-      expect(mockRepo.getNoteById).toHaveBeenCalledWith(
+      expect(mockNotesRepo.getNoteById).toHaveBeenCalledWith(
         "550e8400-e29b-41d4-a716-446655440010",
         "550e8400-e29b-41d4-a716-446655440001",
       );
@@ -186,12 +191,8 @@ describe("Notes Tools", () => {
     });
 
     it("should throw error when note not found", async () => {
-      const mockRepo = {
-        getNoteById: vi.fn().mockResolvedValue(null),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(null);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       await expect(
         getNoteHandler({ note_id: "550e8400-e29b-41d4-a716-446655440099" }, mockContext),
@@ -214,12 +215,8 @@ describe("Notes Tools", () => {
         contentPlain: "Patient is happy, great progress, feeling wonderful and positive!",
       };
 
-      const mockRepo = {
-        getNoteById: vi.fn().mockResolvedValue(positiveNote),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(positiveNote);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await analyzeNoteSentimentHandler(
         { note_id: "550e8400-e29b-41d4-a716-446655440001" },
@@ -236,12 +233,8 @@ describe("Notes Tools", () => {
         contentPlain: "Patient is sad, anxious, stressed, feeling terrible and frustrated.",
       };
 
-      const mockRepo = {
-        getNoteById: vi.fn().mockResolvedValue(negativeNote),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(negativeNote);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await analyzeNoteSentimentHandler(
         { note_id: "550e8400-e29b-41d4-a716-446655440001" },
@@ -258,12 +251,8 @@ describe("Notes Tools", () => {
         contentPlain: "Patient discussed work schedule and upcoming appointments.",
       };
 
-      const mockRepo = {
-        getNoteById: vi.fn().mockResolvedValue(neutralNote),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(neutralNote);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await analyzeNoteSentimentHandler(
         { note_id: "550e8400-e29b-41d4-a716-446655440001" },
@@ -275,12 +264,8 @@ describe("Notes Tools", () => {
     });
 
     it("should include analysis statistics", async () => {
-      const mockRepo = {
-        getNoteById: vi.fn().mockResolvedValue(mockNote),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(mockNote);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await analyzeNoteSentimentHandler(
         { note_id: "550e8400-e29b-41d4-a716-446655440001" },
@@ -293,12 +278,8 @@ describe("Notes Tools", () => {
     });
 
     it("should throw error when note not found", async () => {
-      const mockRepo = {
-        getNoteById: vi.fn().mockResolvedValue(null),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(null);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       await expect(
         analyzeNoteSentimentHandler(
@@ -315,25 +296,18 @@ describe("Notes Tools", () => {
 
   describe("tag_note", () => {
     it("should successfully tag a note", async () => {
-      const mockNotesRepo = {
-        getNoteById: vi.fn().mockResolvedValue(mockNote),
-      };
-
-      const mockTagsRepo = {
-        getTagById: vi.fn().mockResolvedValue(mockTag),
-        applyTagsToNote: vi.fn().mockResolvedValue([
-          {
-            id: "note-tag-123",
-            noteId: "note-123",
-            tagId: "tag-123",
-            createdAt: new Date(),
-          },
-        ]),
-      };
+      mockNotesRepo.getNoteById.mockResolvedValue(mockNote);
+      mockTagsRepo.getTagById.mockResolvedValue(mockTag);
+      mockTagsRepo.applyTagsToNote.mockResolvedValue([
+        {
+          id: "550e8400-e29b-41d4-a716-446655440040",
+          noteId: "550e8400-e29b-41d4-a716-446655440001",
+          tagId: "550e8400-e29b-41d4-a716-446655440030",
+          createdAt: new Date(),
+        },
+      ]);
 
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockNotesRepo as never);
-      vi.mocked(createTagsRepository).mockReturnValue(mockTagsRepo as never);
 
       const result = await tagNoteHandler(
         {
@@ -360,18 +334,8 @@ describe("Notes Tools", () => {
     });
 
     it("should throw error when note not found", async () => {
-      const mockNotesRepo = {
-        getNoteById: vi.fn().mockResolvedValue(null),
-      };
-
-      const mockTagsRepo = {
-        getTagById: vi.fn(),
-        applyTagsToNote: vi.fn(),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(null);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockNotesRepo as never);
-      vi.mocked(createTagsRepository).mockReturnValue(mockTagsRepo as never);
 
       await expect(
         tagNoteHandler(
@@ -385,18 +349,9 @@ describe("Notes Tools", () => {
     });
 
     it("should throw error when tag not found", async () => {
-      const mockNotesRepo = {
-        getNoteById: vi.fn().mockResolvedValue(mockNote),
-      };
-
-      const mockTagsRepo = {
-        getTagById: vi.fn().mockResolvedValue(null),
-        applyTagsToNote: vi.fn(),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(mockNote);
+      mockTagsRepo.getTagById.mockResolvedValue(null);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockNotesRepo as never);
-      vi.mocked(createTagsRepository).mockReturnValue(mockTagsRepo as never);
 
       await expect(
         tagNoteHandler(
@@ -410,18 +365,10 @@ describe("Notes Tools", () => {
     });
 
     it("should throw error when tagging fails", async () => {
-      const mockNotesRepo = {
-        getNoteById: vi.fn().mockResolvedValue(mockNote),
-      };
-
-      const mockTagsRepo = {
-        getTagById: vi.fn().mockResolvedValue(mockTag),
-        applyTagsToNote: vi.fn().mockRejectedValue(new Error("Database error")),
-      };
-
+      mockNotesRepo.getNoteById.mockResolvedValue(mockNote);
+      mockTagsRepo.getTagById.mockResolvedValue(mockTag);
+      mockTagsRepo.applyTagsToNote.mockRejectedValue(new Error("Database error"));
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockNotesRepo as never);
-      vi.mocked(createTagsRepository).mockReturnValue(mockTagsRepo as never);
 
       await expect(
         tagNoteHandler(
@@ -441,19 +388,15 @@ describe("Notes Tools", () => {
 
   describe("summarize_notes", () => {
     it("should summarize notes for a contact", async () => {
-      const mockRepo = {
-        getNotesByContactId: vi.fn().mockResolvedValue([mockNote, mockNote2]),
-      };
-
+      mockNotesRepo.getNotesByContactId.mockResolvedValue([mockNote, mockNote2]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await summarizeNotesHandler(
         { contact_id: "550e8400-e29b-41d4-a716-446655440020", limit: 10 },
         mockContext,
       );
 
-      expect(mockRepo.getNotesByContactId).toHaveBeenCalledWith(
+      expect(mockNotesRepo.getNotesByContactId).toHaveBeenCalledWith(
         "550e8400-e29b-41d4-a716-446655440010",
         "550e8400-e29b-41d4-a716-446655440020",
       );
@@ -464,12 +407,8 @@ describe("Notes Tools", () => {
     });
 
     it("should handle no notes found", async () => {
-      const mockRepo = {
-        getNotesByContactId: vi.fn().mockResolvedValue([]),
-      };
-
+      mockNotesRepo.getNotesByContactId.mockResolvedValue([]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await summarizeNotesHandler(
         { contact_id: "550e8400-e29b-41d4-a716-446655440020", limit: 10 },
@@ -483,15 +422,11 @@ describe("Notes Tools", () => {
     it("should apply limit correctly", async () => {
       const manyNotes = Array.from({ length: 20 }, (_, i) => ({
         ...mockNote,
-        id: `note-${i}`,
+        id: `550e8400-e29b-41d4-a716-4466554400${String(i).padStart(2, "0")}`,
       }));
 
-      const mockRepo = {
-        getNotesByContactId: vi.fn().mockResolvedValue(manyNotes),
-      };
-
+      mockNotesRepo.getNotesByContactId.mockResolvedValue(manyNotes);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await summarizeNotesHandler(
         { contact_id: "550e8400-e29b-41d4-a716-446655440020", limit: 5 },
@@ -508,12 +443,8 @@ describe("Notes Tools", () => {
         { ...mockNote2, contentPlain: "Excellent session, good improvement" },
       ];
 
-      const mockRepo = {
-        getNotesByContactId: vi.fn().mockResolvedValue(positiveNotes),
-      };
-
+      mockNotesRepo.getNotesByContactId.mockResolvedValue(positiveNotes);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await summarizeNotesHandler(
         { contact_id: "550e8400-e29b-41d4-a716-446655440020", limit: 10 },
@@ -524,12 +455,8 @@ describe("Notes Tools", () => {
     });
 
     it("should extract themes from notes", async () => {
-      const mockRepo = {
-        getNotesByContactId: vi.fn().mockResolvedValue([mockNote, mockNote2]),
-      };
-
+      mockNotesRepo.getNotesByContactId.mockResolvedValue([mockNote, mockNote2]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await summarizeNotesHandler(
         { contact_id: "550e8400-e29b-41d4-a716-446655440020", limit: 10 },
@@ -553,17 +480,13 @@ describe("Notes Tools", () => {
         { ...mockNote2, contentPlain: "Great session, no stress mentioned" },
         {
           ...mockNote,
-          id: "note-789",
+          id: "550e8400-e29b-41d4-a716-446655440003",
           contentPlain: "Managing stress effectively with new techniques",
         },
       ];
 
-      const mockRepo = {
-        listNotes: vi.fn().mockResolvedValue(notes),
-      };
-
+      mockNotesRepo.listNotes.mockResolvedValue(notes);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await rankNotesByRelevanceHandler({ query: "stress", limit: 10 }, mockContext);
 
@@ -579,19 +502,15 @@ describe("Notes Tools", () => {
     });
 
     it("should filter by contact_id", async () => {
-      const mockRepo = {
-        getNotesByContactId: vi.fn().mockResolvedValue([mockNote]),
-      };
-
+      mockNotesRepo.getNotesByContactId.mockResolvedValue([mockNote]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await rankNotesByRelevanceHandler(
         { query: "anxious", contact_id: "550e8400-e29b-41d4-a716-446655440020", limit: 10 },
         mockContext,
       );
 
-      expect(mockRepo.getNotesByContactId).toHaveBeenCalledWith(
+      expect(mockNotesRepo.getNotesByContactId).toHaveBeenCalledWith(
         "550e8400-e29b-41d4-a716-446655440010",
         "550e8400-e29b-41d4-a716-446655440020",
       );
@@ -599,12 +518,8 @@ describe("Notes Tools", () => {
     });
 
     it("should return empty results when no matches", async () => {
-      const mockRepo = {
-        listNotes: vi.fn().mockResolvedValue([mockNote]),
-      };
-
+      mockNotesRepo.listNotes.mockResolvedValue([mockNote]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await rankNotesByRelevanceHandler(
         { query: "xyz123nonexistent", limit: 10 },
@@ -618,16 +533,12 @@ describe("Notes Tools", () => {
     it("should apply limit correctly", async () => {
       const manyNotes = Array.from({ length: 30 }, (_, i) => ({
         ...mockNote,
-        id: `note-${i}`,
+        id: `550e8400-e29b-41d4-a716-4466554400${String(i).padStart(2, "0")}`,
         contentPlain: "Patient reports anxiety and stress issues",
       }));
 
-      const mockRepo = {
-        listNotes: vi.fn().mockResolvedValue(manyNotes),
-      };
-
+      mockNotesRepo.listNotes.mockResolvedValue(manyNotes);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await rankNotesByRelevanceHandler({ query: "anxiety", limit: 5 }, mockContext);
 
@@ -637,39 +548,31 @@ describe("Notes Tools", () => {
     it("should boost recent notes in ranking", async () => {
       const recentNote = {
         ...mockNote,
-        id: "recent",
+        id: "550e8400-e29b-41d4-a716-446655440050",
         contentPlain: "stress",
         createdAt: new Date(),
       };
       const oldNote = {
         ...mockNote,
-        id: "old",
+        id: "550e8400-e29b-41d4-a716-446655440051",
         contentPlain: "stress stress stress",
         createdAt: new Date("2020-01-01"),
       };
 
-      const mockRepo = {
-        listNotes: vi.fn().mockResolvedValue([recentNote, oldNote]),
-      };
-
+      mockNotesRepo.listNotes.mockResolvedValue([recentNote, oldNote]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await rankNotesByRelevanceHandler({ query: "stress", limit: 10 }, mockContext);
 
       expect(result.results.length).toBeGreaterThan(0);
       // Recent note should get boosted despite having fewer matches
-      const recentResult = result.results.find((r) => r.noteId === "recent");
+      const recentResult = result.results.find((r) => r.noteId === "550e8400-e29b-41d4-a716-446655440050");
       expect(recentResult).toBeDefined();
     });
 
     it("should include content preview in results", async () => {
-      const mockRepo = {
-        listNotes: vi.fn().mockResolvedValue([mockNote]),
-      };
-
+      mockNotesRepo.listNotes.mockResolvedValue([mockNote]);
       vi.mocked(getDb).mockResolvedValue({} as never);
-      vi.mocked(createNotesRepository).mockReturnValue(mockRepo as never);
 
       const result = await rankNotesByRelevanceHandler(
         { query: "anxious", limit: 10 },

@@ -209,7 +209,7 @@ export function useDeleteTask() {
     mutationFn: async (taskId: string): Promise<void> => {
       await apiClient.delete(`/api/omni-momentum/tasks/${taskId}`);
     },
-    onSuccess: (_, taskId) => {
+    onSuccess: () => {
       // Invalidate and refetch tasks
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
 
@@ -286,6 +286,9 @@ export function useTasksGroupedByTime(options: UseTasksOptions = {}) {
   const groupedTasks =
     tasks?.reduce(
       (acc, task) => {
+        if (!task.createdAt) {
+          return acc;
+        }
         const hour = new Date(task.createdAt).getHours();
         let timeGroup: string;
 
@@ -299,10 +302,12 @@ export function useTasksGroupedByTime(options: UseTasksOptions = {}) {
           timeGroup = "Night";
         }
 
-        if (!acc[timeGroup]) {
-          acc[timeGroup] = [];
+        const existingGroup = acc[timeGroup];
+        if (existingGroup) {
+          existingGroup.push(task);
+        } else {
+          acc[timeGroup] = [task];
         }
-        acc[timeGroup].push(task);
         return acc;
       },
       {} as Record<string, Task[]>,
@@ -319,8 +324,6 @@ export function useTasksGroupedByTime(options: UseTasksOptions = {}) {
  * Get today's tasks
  */
 export function useTodaysTasks() {
-  const today = new Date().toISOString().split("T")[0];
-
   return useTasks({
     filters: {
       dueDate: "today",

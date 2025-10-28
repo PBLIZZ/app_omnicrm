@@ -22,6 +22,14 @@ import type { DbClient } from "@/server/db/client";
  * Throws errors on failure - no Result wrapper.
  */
 
+type TagCategory =
+  | "services_modalities"
+  | "client_demographics"
+  | "schedule_attendance"
+  | "health_wellness"
+  | "marketing_engagement"
+  | "emotional_mental";
+
 export class TagsRepository {
   constructor(private readonly db: DbClient) {}
 
@@ -37,7 +45,7 @@ export class TagsRepository {
     userId: string,
     params: {
       search?: string;
-      category?: "services_modalities" | "client_demographics" | "schedule_attendance" | "health_wellness" | "marketing_engagement" | "emotional_mental";
+      category?: TagCategory;
       sort?: "name" | "usageCount" | "createdAt" | "updatedAt";
       order?: "asc" | "desc";
       page?: number;
@@ -50,8 +58,11 @@ export class TagsRepository {
     const sortKey = params.sort ?? "updatedAt";
     const sortDir = params.order === "desc" ? desc : asc;
 
+    // Build conditions array
+    const conditions = [];
+
     // Get tags for this user OR global tags (userId = null)
-    const conditions = [sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`];
+    conditions.push(sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`);
 
     if (params.search) {
       conditions.push(ilike(tags.name, `%${params.search}%`));
@@ -63,12 +74,12 @@ export class TagsRepository {
 
     // Count total
     const countResult = await this.db
-      .select({ count: count() })
+      .select({ value: count() })
       .from(tags)
-      .where(and(...conditions));
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     const totalRow = countResult[0];
-    const total = totalRow?.count ?? 0;
+    const total = typeof totalRow?.value === "number" ? totalRow.value : 0;
 
     // Fetch items
     const sortColumnMap = {
@@ -81,7 +92,7 @@ export class TagsRepository {
     const items = await this.db
       .select()
       .from(tags)
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(sortDir(sortColumnMap[sortKey]))
       .limit(pageSize)
       .offset(offset);
@@ -97,7 +108,12 @@ export class TagsRepository {
     const rows = await this.db
       .select()
       .from(tags)
-      .where(and(sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`, eq(tags.id, tagId)))
+      .where(
+        and(
+          sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`,
+          eq(tags.id, tagId),
+        ),
+      )
       .limit(1);
 
     return rows.length > 0 && rows[0] ? rows[0] : null;
@@ -150,7 +166,12 @@ export class TagsRepository {
         ...updates,
         updatedAt: new Date(),
       })
-      .where(and(eq(tags.id, tagId), sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`))
+      .where(
+        and(
+          eq(tags.id, tagId),
+          sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`,
+        ),
+      )
       .returning();
 
     return tag ?? null;
@@ -163,7 +184,12 @@ export class TagsRepository {
   async deleteTag(userId: string, tagId: string): Promise<boolean> {
     const result = await this.db
       .delete(tags)
-      .where(and(eq(tags.id, tagId), sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`))
+      .where(
+        and(
+          eq(tags.id, tagId),
+          sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`,
+        ),
+      )
       .returning({ id: tags.id });
 
     return result.length > 0;
@@ -181,7 +207,12 @@ export class TagsRepository {
     const rows = await this.db
       .select()
       .from(tags)
-      .where(and(sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`, inArray(tags.id, tagIds)));
+      .where(
+        and(
+          sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`,
+          inArray(tags.id, tagIds),
+        ),
+      );
 
     return rows;
   }
@@ -193,9 +224,11 @@ export class TagsRepository {
   async countTags(
     userId: string,
     search?: string,
-    category?: "services_modalities" | "client_demographics" | "schedule_attendance" | "health_wellness" | "marketing_engagement" | "emotional_mental",
+    category?: TagCategory,
   ): Promise<number> {
-    const conditions = [sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`];
+    const conditions = [];
+
+    conditions.push(sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`);
 
     if (search) {
       conditions.push(ilike(tags.name, `%${search}%`));
@@ -206,12 +239,12 @@ export class TagsRepository {
     }
 
     const result = await this.db
-      .select({ count: count() })
+      .select({ value: count() })
       .from(tags)
-      .where(and(...conditions));
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     const row = result[0];
-    return row?.count ?? 0;
+    return typeof row?.value === "number" ? row.value : 0;
   }
 
   // ============================================================================
@@ -298,7 +331,12 @@ export class TagsRepository {
       })
       .from(contactTags)
       .innerJoin(tags, eq(contactTags.tagId, tags.id))
-      .where(and(eq(contactTags.contactId, contactId), sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`));
+      .where(
+        and(
+          eq(contactTags.contactId, contactId),
+          sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`,
+        ),
+      );
 
     return rows;
   }
@@ -390,7 +428,12 @@ export class TagsRepository {
       })
       .from(taskTags)
       .innerJoin(tags, eq(taskTags.tagId, tags.id))
-      .where(and(eq(taskTags.taskId, taskId), sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`));
+      .where(
+        and(
+          eq(taskTags.taskId, taskId),
+          sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`,
+        ),
+      );
 
     return rows;
   }
@@ -469,7 +512,12 @@ export class TagsRepository {
       })
       .from(noteTags)
       .innerJoin(tags, eq(noteTags.tagId, tags.id))
-      .where(and(eq(noteTags.noteId, noteId), sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`));
+      .where(
+        and(
+          eq(noteTags.noteId, noteId),
+          sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`,
+        ),
+      );
 
     return rows;
   }
@@ -548,7 +596,12 @@ export class TagsRepository {
       })
       .from(goalTags)
       .innerJoin(tags, eq(goalTags.tagId, tags.id))
-      .where(and(eq(goalTags.goalId, goalId), sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`));
+      .where(
+        and(
+          eq(goalTags.goalId, goalId),
+          sql`(${tags.userId} = ${userId} OR ${tags.userId} IS NULL)`,
+        ),
+      );
 
     return rows;
   }
@@ -567,9 +620,10 @@ export class TagsRepository {
 
     const result = await this.db
       .delete(tags)
-      .where(and(eq(tags.userId, userId), inArray(tags.id, tagIds)));
+      .where(and(eq(tags.userId, userId), inArray(tags.id, tagIds)))
+      .returning({ id: tags.id });
 
-    return result.count ?? 0;
+    return result.length;
   }
 
   /**
@@ -595,4 +649,3 @@ export class TagsRepository {
 export function createTagsRepository(db: DbClient): TagsRepository {
   return new TagsRepository(db);
 }
-

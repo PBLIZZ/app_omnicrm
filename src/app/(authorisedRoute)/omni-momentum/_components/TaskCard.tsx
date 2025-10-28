@@ -60,20 +60,18 @@ interface TaskTag {
 }
 
 /**
- * TaskCard - Fully functional task card with all business logic
+ * Render an interactive task card for viewing and editing a TaskListItem.
  *
- * Features:
- * - Priority selection (flag icon)
- * - Task completion toggle (circle icon)
- * - Subtasks with expand/collapse
- * - Tag management (up to 3 visible)
- * - Contact linking
- * - Date/time picker with presets
- * - Project selection
- * - Owner assignment (user/AI)
- * - Notes/description
- * - Location
- * - Voice input for NLP
+ * Renders controls for priority, completion, subtasks, tags, linked contacts, date/time, project,
+ * owner (user/AI), notes, location, zone, and voice input, and performs debounced updates via the
+ * Momentum updateTask service.
+ *
+ * @param task - The task data to display and edit
+ * @param projects - Optional list of projects available for assignment
+ * @param onOpenContactModal - Optional callback invoked with the task id to open the contact modal
+ * @param onOpenNotesModal - (unused local alias) Optional callback invoked with the task id to open the notes modal
+ * @param onVoiceInput - Optional callback invoked with the task id to initiate voice input
+ * @returns A JSX element containing the fully interactive task card UI
  */
 export function TaskCard({
   task,

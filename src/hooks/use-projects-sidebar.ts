@@ -56,14 +56,12 @@ interface UseProjectsSidebarReturn {
 // ============================================================================
 
 /**
- * Hook for managing collapsible project tree data and state
+ * Manage a collapsible projects-and-tasks sidebar state and provide utilities for project/task data and progress.
  *
- * Features:
- * - Project tree data management
- * - Expand/collapse state persistence
- * - Task hierarchy calculations
- * - Progress tracking
- * - Local storage integration
+ * Persists expanded project and task sets to localStorage, exposes selection state, and computes task/subtask counts
+ * and progress percentages based on tasks and embedded subtasks.
+ *
+ * @returns An object containing grouped project data (`projectsWithTasks`), `zones`, UI state (`expandedProjects`, `expandedTasks`, `selectedProject`, `selectedTask`), action methods to toggle/select/expand/collapse projects and tasks, and utility functions (`getProjectTasks`, `getTaskSubtasks`, `getProjectProgress`, `getTaskProgress`) for querying tasks, subtasks, and progress.
  */
 export function useProjectsSidebar(): UseProjectsSidebarReturn {
   const { projects, tasks } = useMomentum();
@@ -327,7 +325,14 @@ export function useTaskStats(taskId: string) {
 }
 
 /**
- * Hook to get zone information for a project or task
+ * Provide zone lookup and normalized display values for a given zone UUID.
+ *
+ * @param zoneUuid - The zone's UUID string; pass `null` if no zone is associated
+ * @returns An object with:
+ *  - `zone` — the matched zone object or `undefined` when no match is found
+ *  - `zoneName` — the zone's name or `"No Zone"` when missing
+ *  - `zoneColor` — the zone's color or `"#6366F1"` when missing
+ *  - `zoneIcon` — the zone's icon name or `"circle"` when missing
  */
 export function useZoneInfo(zoneUuid: string | null) {
   const { zones } = useProjectsSidebar();

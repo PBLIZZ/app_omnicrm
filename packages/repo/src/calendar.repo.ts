@@ -626,6 +626,11 @@ export class CalendarRepository {
   }
 }
 
+/**
+ * Create a CalendarRepository bound to the provided database client.
+ *
+ * @returns A CalendarRepository instance that uses the supplied `DbClient` for database operations.
+ */
 export function createCalendarRepository(db: DbClient): CalendarRepository {
   return new CalendarRepository(db);
 }

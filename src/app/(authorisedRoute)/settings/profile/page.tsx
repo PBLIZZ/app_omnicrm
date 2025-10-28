@@ -33,6 +33,13 @@ interface UserProfile {
   updatedAt: Date;
 }
 
+/**
+ * Render the Practice Profile settings page where users can view and edit their profile, contact details, and professional bio.
+ *
+ * Loads current authentication and profile data, initializes form state from the profile, and submits updates to the profile API while providing success/error feedback and cache invalidation.
+ *
+ * @returns The React element representing the profile settings UI.
+ */
 export default function ProfileSettingsPage(): JSX.Element {
   const queryClient = useQueryClient();
 

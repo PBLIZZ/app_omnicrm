@@ -451,3 +451,902 @@ export const getOverdueTasksHandler: ToolHandler<GetOverdueTasksParams> = async 
     asOfDate: todayString,
   };
 };
+
+// ============================================================================
+// TOOL: create_project
+// ============================================================================
+
+const CreateProjectParamsSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  status: z.enum(["active", "on_hold", "completed", "archived"]).default("active"),
+  due_date: z.string().optional(), // ISO date string (YYYY-MM-DD)
+  zone_uuid: z.string().uuid().optional(),
+});
+
+type CreateProjectParams = z.infer<typeof CreateProjectParamsSchema>;
+
+export const createProjectDefinition: ToolDefinition = {
+  name: "create_project",
+  category: "data_mutation",
+  version: "1.0.0",
+  description:
+    "Create a new project (pathway) to organize related tasks. Projects can be assigned to zones for categorization and have due dates for goal tracking.",
+  useCases: [
+    "When user says 'create project for new wellness program'",
+    "When user wants to 'start tracking client retreat planning'",
+    "When organizing multiple related tasks under one initiative",
+    "When user needs 'new project for Q1 business goals'",
+  ],
+  exampleCalls: [
+    'create_project({"name": "Q1 Wellness Program", "status": "active", "due_date": "2025-03-31"})',
+    'create_project({"name": "Client Retreat Planning", "description": "Summer retreat for wellness clients"})',
+    'create_project({"name": "Website Redesign", "zone_uuid": "123...", "status": "active"})',
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "Project name (required)",
+      },
+      description: {
+        type: "string",
+        description: "Detailed project description",
+      },
+      status: {
+        type: "string",
+        description: "Project status (default: active)",
+        enum: ["active", "on_hold", "completed", "archived"],
+      },
+      due_date: {
+        type: "string",
+        description: "Project due date in ISO format (YYYY-MM-DD)",
+      },
+      zone_uuid: {
+        type: "string",
+        description: "UUID of wellness zone for categorization",
+      },
+    },
+    required: ["name"],
+    additionalProperties: false,
+  },
+  permissionLevel: "write",
+  creditCost: 0,
+  isIdempotent: false,
+  cacheable: false,
+  deprecated: false,
+  rateLimit: {
+    maxCalls: 50,
+    windowMs: 60000, // 50 projects per minute
+  },
+  tags: ["projects", "productivity", "create", "write"],
+};
+
+export const createProjectHandler: ToolHandler<CreateProjectParams> = async (params, context) => {
+  const validated = CreateProjectParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  const project = await repo.createProject(context.userId, {
+    name: validated.name,
+    status: validated.status,
+    dueDate: validated.due_date ?? null,
+    zoneUuid: validated.zone_uuid ?? null,
+    details: validated.description ? { description: validated.description } : {},
+  });
+
+  return project;
+};
+
+// ============================================================================
+// TOOL: list_projects
+// ============================================================================
+
+const ListProjectsParamsSchema = z.object({
+  status: z.array(z.enum(["active", "on_hold", "completed", "archived"])).optional(),
+  zone_uuid: z.string().uuid().optional(),
+  limit: z.number().int().positive().max(100).default(50),
+});
+
+type ListProjectsParams = z.infer<typeof ListProjectsParamsSchema>;
+
+export const listProjectsDefinition: ToolDefinition = {
+  name: "list_projects",
+  category: "data_access",
+  version: "1.0.0",
+  description:
+    "List all projects with optional filters for status and zone. Returns projects ordered by last updated date (newest first).",
+  useCases: [
+    "When user asks 'show me all my projects'",
+    "When user wants to 'list active projects'",
+    "When reviewing project portfolio",
+    "When filtering projects by business vs life zones",
+  ],
+  exampleCalls: [
+    'list_projects({"status": ["active", "on_hold"]})',
+    'list_projects({"zone_uuid": "123...", "limit": 20})',
+    "list_projects({})",
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      status: {
+        type: "array",
+        description: "Filter by project status (multiple allowed)",
+        items: {
+          type: "string",
+          enum: ["active", "on_hold", "completed", "archived"],
+        },
+      },
+      zone_uuid: {
+        type: "string",
+        description: "Filter by zone UUID",
+      },
+      limit: {
+        type: "number",
+        description: "Maximum results (default 50, max 100)",
+      },
+    },
+    required: [],
+    additionalProperties: false,
+  },
+  permissionLevel: "read",
+  creditCost: 0,
+  isIdempotent: true,
+  cacheable: true,
+  cacheTtlSeconds: 60,
+  deprecated: false,
+  tags: ["projects", "productivity", "read", "list"],
+};
+
+export const listProjectsHandler: ToolHandler<ListProjectsParams> = async (params, context) => {
+  const validated = ListProjectsParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  const projects = await repo.getProjects(context.userId, {
+    status: validated.status,
+    zoneUuid: validated.zone_uuid,
+  });
+
+  // Apply limit
+  const limitedProjects = projects.slice(0, validated.limit);
+
+  return {
+    projects: limitedProjects,
+    count: limitedProjects.length,
+    totalCount: projects.length,
+  };
+};
+
+// ============================================================================
+// TOOL: assign_task_to_project
+// ============================================================================
+
+const AssignTaskToProjectParamsSchema = z.object({
+  task_id: z.string().uuid(),
+  project_id: z.string().uuid(),
+});
+
+type AssignTaskToProjectParams = z.infer<typeof AssignTaskToProjectParamsSchema>;
+
+export const assignTaskToProjectDefinition: ToolDefinition = {
+  name: "assign_task_to_project",
+  category: "data_mutation",
+  version: "1.0.0",
+  description:
+    "Link a task to a project. This creates the relationship between a task and its parent project for better organization and tracking.",
+  useCases: [
+    "When user says 'add this task to the Q1 project'",
+    "When user wants to 'move task to website redesign project'",
+    "When organizing existing tasks under a project",
+    "When user needs to 'link task to project'",
+  ],
+  exampleCalls: [
+    'assign_task_to_project({"task_id": "123...", "project_id": "456..."})',
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      task_id: {
+        type: "string",
+        description: "UUID of task to assign",
+      },
+      project_id: {
+        type: "string",
+        description: "UUID of project to assign task to",
+      },
+    },
+    required: ["task_id", "project_id"],
+    additionalProperties: false,
+  },
+  permissionLevel: "write",
+  creditCost: 0,
+  isIdempotent: true,
+  cacheable: false,
+  deprecated: false,
+  tags: ["tasks", "projects", "productivity", "update", "write"],
+};
+
+export const assignTaskToProjectHandler: ToolHandler<AssignTaskToProjectParams> = async (
+  params,
+  context,
+) => {
+  const validated = AssignTaskToProjectParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  // Verify task exists
+  const task = await repo.getTask(validated.task_id, context.userId);
+  if (!task) {
+    throw new AppError(
+      `Task with ID ${validated.task_id} not found`,
+      "TASK_NOT_FOUND",
+      "validation",
+      true,
+      404,
+    );
+  }
+
+  // Verify project exists
+  const project = await repo.getProject(validated.project_id, context.userId);
+  if (!project) {
+    throw new AppError(
+      `Project with ID ${validated.project_id} not found`,
+      "PROJECT_NOT_FOUND",
+      "validation",
+      true,
+      404,
+    );
+  }
+
+  // Update task with project_id
+  await repo.updateTask(validated.task_id, context.userId, {
+    projectId: validated.project_id,
+  });
+
+  return {
+    success: true,
+    taskId: validated.task_id,
+    projectId: validated.project_id,
+    projectName: project.name,
+  };
+};
+
+// ============================================================================
+// TOOL: get_project_tasks
+// ============================================================================
+
+const GetProjectTasksParamsSchema = z.object({
+  project_id: z.string().uuid(),
+  include_completed: z.boolean().default(false),
+});
+
+type GetProjectTasksParams = z.infer<typeof GetProjectTasksParamsSchema>;
+
+export const getProjectTasksDefinition: ToolDefinition = {
+  name: "get_project_tasks",
+  category: "data_access",
+  version: "1.0.0",
+  description:
+    "Retrieve all tasks associated with a specific project. Optionally include completed tasks. Returns tasks ordered by priority.",
+  useCases: [
+    "When user asks 'what tasks are in the Q1 project?'",
+    "When user wants to 'show me all website redesign tasks'",
+    "When reviewing project progress and task breakdown",
+    "When user needs 'list tasks for project'",
+  ],
+  exampleCalls: [
+    'get_project_tasks({"project_id": "123...", "include_completed": false})',
+    'get_project_tasks({"project_id": "456...", "include_completed": true})',
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      project_id: {
+        type: "string",
+        description: "UUID of project to get tasks for",
+      },
+      include_completed: {
+        type: "boolean",
+        description: "Whether to include completed tasks (default false)",
+      },
+    },
+    required: ["project_id"],
+    additionalProperties: false,
+  },
+  permissionLevel: "read",
+  creditCost: 0,
+  isIdempotent: true,
+  cacheable: true,
+  cacheTtlSeconds: 60,
+  deprecated: false,
+  tags: ["tasks", "projects", "productivity", "read"],
+};
+
+export const getProjectTasksHandler: ToolHandler<GetProjectTasksParams> = async (
+  params,
+  context,
+) => {
+  const validated = GetProjectTasksParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  // Verify project exists
+  const project = await repo.getProject(validated.project_id, context.userId);
+  if (!project) {
+    throw new AppError(
+      `Project with ID ${validated.project_id} not found`,
+      "PROJECT_NOT_FOUND",
+      "validation",
+      true,
+      404,
+    );
+  }
+
+  // Get tasks with optional completed filter
+  const statusFilter = validated.include_completed ? undefined : ["todo", "in_progress"];
+
+  const allTasks = await repo.getTasks(context.userId, {
+    projectId: validated.project_id,
+    status: statusFilter,
+  });
+
+  return {
+    project: {
+      id: project.id,
+      name: project.name,
+      status: project.status,
+    },
+    tasks: allTasks,
+    count: allTasks.length,
+  };
+};
+
+// ============================================================================
+// TOOL: list_zones
+// ============================================================================
+
+const ListZonesParamsSchema = z.object({});
+
+type ListZonesParams = z.infer<typeof ListZonesParamsSchema>;
+
+export const listZonesDefinition: ToolDefinition = {
+  name: "list_zones",
+  category: "data_access",
+  version: "1.0.0",
+  description:
+    "Get all available wellness zones for categorizing projects and tasks. Zones are system-defined categories like Life, Business, Health, etc.",
+  useCases: [
+    "When user asks 'what zones are available?'",
+    "When user needs to know 'how can I categorize my projects?'",
+    "When creating a new project and selecting a zone",
+    "When understanding the zone system",
+  ],
+  exampleCalls: ["list_zones({})"],
+  parameters: {
+    type: "object",
+    properties: {},
+    required: [],
+    additionalProperties: false,
+  },
+  permissionLevel: "read",
+  creditCost: 0,
+  isIdempotent: true,
+  cacheable: true,
+  cacheTtlSeconds: 3600, // 1 hour cache for system zones
+  deprecated: false,
+  tags: ["zones", "productivity", "read", "system"],
+};
+
+export const listZonesHandler: ToolHandler<ListZonesParams> = async (params, _context) => {
+  ListZonesParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  const zones = await repo.getZones();
+
+  return {
+    zones,
+    count: zones.length,
+  };
+};
+
+// ============================================================================
+// TOOL: update_task
+// ============================================================================
+
+const UpdateTaskParamsSchema = z.object({
+  task_id: z.string().uuid(),
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+  due_date: z.string().optional(), // ISO date string (YYYY-MM-DD)
+  project_id: z.string().uuid().optional(),
+  zone_uuid: z.string().uuid().optional(),
+});
+
+type UpdateTaskParams = z.infer<typeof UpdateTaskParamsSchema>;
+
+export const updateTaskDefinition: ToolDefinition = {
+  name: "update_task",
+  category: "data_mutation",
+  version: "1.0.0",
+  description:
+    "Update task fields including title, description, priority, due date, project assignment, and zone categorization. Only provided fields will be updated.",
+  useCases: [
+    "When user says 'change task priority to high'",
+    "When user wants to 'update task due date'",
+    "When rescheduling task deadlines",
+    "When reassigning task to different project",
+  ],
+  exampleCalls: [
+    'update_task({"task_id": "123...", "priority": "high"})',
+    'update_task({"task_id": "123...", "title": "New task name", "due_date": "2025-02-01"})',
+    'update_task({"task_id": "123...", "description": "Updated description"})',
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      task_id: {
+        type: "string",
+        description: "UUID of task to update",
+      },
+      title: {
+        type: "string",
+        description: "New task title",
+      },
+      description: {
+        type: "string",
+        description: "New task description",
+      },
+      priority: {
+        type: "string",
+        description: "New priority level",
+        enum: ["low", "medium", "high"],
+      },
+      due_date: {
+        type: "string",
+        description: "New due date in ISO format (YYYY-MM-DD)",
+      },
+      project_id: {
+        type: "string",
+        description: "UUID of new project assignment",
+      },
+      zone_uuid: {
+        type: "string",
+        description: "UUID of new zone assignment",
+      },
+    },
+    required: ["task_id"],
+    additionalProperties: false,
+  },
+  permissionLevel: "write",
+  creditCost: 0,
+  isIdempotent: true,
+  cacheable: false,
+  deprecated: false,
+  tags: ["tasks", "productivity", "update", "write"],
+};
+
+export const updateTaskHandler: ToolHandler<UpdateTaskParams> = async (params, context) => {
+  const validated = UpdateTaskParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  // First verify task exists
+  const task = await repo.getTask(validated.task_id, context.userId);
+  if (!task) {
+    throw new AppError(
+      `Task with ID ${validated.task_id} not found`,
+      "TASK_NOT_FOUND",
+      "validation",
+      true,
+      404,
+    );
+  }
+
+  // Build update data
+  const updateData: Partial<{
+    name: string;
+    details: unknown;
+    priority: "low" | "medium" | "high";
+    dueDate: string | null;
+    projectId: string | null;
+    zoneUuid: string | null;
+  }> = {};
+
+  if (validated.title) {
+    updateData.name = validated.title;
+  }
+
+  if (validated.description !== undefined) {
+    updateData.details = {
+      ...(typeof task.details === "object" && task.details !== null ? task.details : {}),
+      description: validated.description,
+    };
+  }
+
+  if (validated.priority) {
+    updateData.priority = validated.priority;
+  }
+
+  if (validated.due_date !== undefined) {
+    updateData.dueDate = validated.due_date;
+  }
+
+  if (validated.project_id !== undefined) {
+    updateData.projectId = validated.project_id;
+  }
+
+  if (validated.zone_uuid !== undefined) {
+    updateData.zoneUuid = validated.zone_uuid;
+  }
+
+  // Update the task
+  await repo.updateTask(validated.task_id, context.userId, updateData);
+
+  // Return updated task
+  return await repo.getTask(validated.task_id, context.userId);
+};
+
+// ============================================================================
+// TOOL: assign_task_to_zone
+// ============================================================================
+
+const AssignTaskToZoneParamsSchema = z.object({
+  task_id: z.string().uuid(),
+  zone_uuid: z.string().uuid(),
+});
+
+type AssignTaskToZoneParams = z.infer<typeof AssignTaskToZoneParamsSchema>;
+
+export const assignTaskToZoneDefinition: ToolDefinition = {
+  name: "assign_task_to_zone",
+  category: "data_mutation",
+  version: "1.0.0",
+  description:
+    "Move a task to a different wellness zone (Life, Business, etc.). Updates the zone_uuid field of the task.",
+  useCases: [
+    "When user says 'move this task to Business zone'",
+    "When reorganizing tasks by life area",
+    "When user wants to 'categorize task under Life zone'",
+    "When reassigning task priority zones",
+  ],
+  exampleCalls: [
+    'assign_task_to_zone({"task_id": "123...", "zone_uuid": "456..."})',
+    'assign_task_to_zone({"task_id": "task-id", "zone_uuid": "business-zone-uuid"})',
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      task_id: {
+        type: "string",
+        description: "UUID of task to reassign",
+      },
+      zone_uuid: {
+        type: "string",
+        description: "UUID of target wellness zone",
+      },
+    },
+    required: ["task_id", "zone_uuid"],
+    additionalProperties: false,
+  },
+  permissionLevel: "write",
+  creditCost: 0,
+  isIdempotent: true,
+  cacheable: false,
+  deprecated: false,
+  tags: ["tasks", "productivity", "zone", "write"],
+};
+
+export const assignTaskToZoneHandler: ToolHandler<AssignTaskToZoneParams> = async (
+  params,
+  context,
+) => {
+  const validated = AssignTaskToZoneParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  // Verify task exists
+  const task = await repo.getTask(validated.task_id, context.userId);
+  if (!task) {
+    throw new AppError(
+      `Task with ID ${validated.task_id} not found`,
+      "TASK_NOT_FOUND",
+      "validation",
+      true,
+      404,
+    );
+  }
+
+  // Update zone assignment
+  await repo.updateTask(validated.task_id, context.userId, {
+    zoneUuid: validated.zone_uuid,
+  });
+
+  // Return updated task
+  return await repo.getTask(validated.task_id, context.userId);
+};
+
+// ============================================================================
+// TOOL: create_subtask
+// ============================================================================
+
+const CreateSubtaskParamsSchema = z.object({
+  parent_task_id: z.string().uuid(),
+  title: z.string().min(1),
+  completed: z.boolean().default(false),
+});
+
+type CreateSubtaskParams = z.infer<typeof CreateSubtaskParamsSchema>;
+
+export const createSubtaskDefinition: ToolDefinition = {
+  name: "create_subtask",
+  category: "data_mutation",
+  version: "1.0.0",
+  description:
+    "Add a subtask under a parent task. Subtasks are stored in the task's details.subtasks array. Useful for breaking down complex tasks into smaller action items.",
+  useCases: [
+    "When user says 'add checklist item to this task'",
+    "When breaking down complex tasks",
+    "When user wants to 'add step to complete this task'",
+    "When creating task breakdown structure",
+  ],
+  exampleCalls: [
+    'create_subtask({"parent_task_id": "123...", "title": "Review documents"})',
+    'create_subtask({"parent_task_id": "123...", "title": "Send follow-up email", "completed": false})',
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      parent_task_id: {
+        type: "string",
+        description: "UUID of parent task",
+      },
+      title: {
+        type: "string",
+        description: "Subtask title/description",
+      },
+      completed: {
+        type: "boolean",
+        description: "Whether subtask is completed (default false)",
+      },
+    },
+    required: ["parent_task_id", "title"],
+    additionalProperties: false,
+  },
+  permissionLevel: "write",
+  creditCost: 0,
+  isIdempotent: false,
+  cacheable: false,
+  deprecated: false,
+  tags: ["tasks", "productivity", "subtasks", "write"],
+};
+
+export const createSubtaskHandler: ToolHandler<CreateSubtaskParams> = async (params, context) => {
+  const validated = CreateSubtaskParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  // Get parent task
+  const task = await repo.getTask(validated.parent_task_id, context.userId);
+  if (!task) {
+    throw new AppError(
+      `Task with ID ${validated.parent_task_id} not found`,
+      "TASK_NOT_FOUND",
+      "validation",
+      true,
+      404,
+    );
+  }
+
+  // Get existing subtasks or initialize empty array
+  const existingDetails =
+    typeof task.details === "object" && task.details !== null ? task.details : {};
+  const existingSubtasks = Array.isArray(
+    (existingDetails as { subtasks?: unknown }).subtasks,
+  )
+    ? ((existingDetails as { subtasks: unknown[] }).subtasks as Array<{
+        id: string;
+        title: string;
+        completed: boolean;
+      }>)
+    : [];
+
+  // Create new subtask
+  const newSubtask = {
+    id: crypto.randomUUID(),
+    title: validated.title,
+    completed: validated.completed,
+  };
+
+  // Update task with new subtask
+  await repo.updateTask(validated.parent_task_id, context.userId, {
+    details: {
+      ...existingDetails,
+      subtasks: [...existingSubtasks, newSubtask],
+    },
+  });
+
+  return {
+    success: true,
+    parentTaskId: validated.parent_task_id,
+    subtask: newSubtask,
+    totalSubtasks: existingSubtasks.length + 1,
+  };
+};
+
+// ============================================================================
+// TOOL: update_task_status
+// ============================================================================
+
+const UpdateTaskStatusParamsSchema = z.object({
+  task_id: z.string().uuid(),
+  status: z.enum(["todo", "in_progress", "done", "canceled"]),
+  completion_notes: z.string().optional(),
+});
+
+type UpdateTaskStatusParams = z.infer<typeof UpdateTaskStatusParamsSchema>;
+
+export const updateTaskStatusDefinition: ToolDefinition = {
+  name: "update_task_status",
+  category: "data_mutation",
+  version: "1.0.0",
+  description:
+    "Update task status through workflow stages: todo → in_progress → done. Can also mark as canceled. When marking as done, automatically sets completion timestamp.",
+  useCases: [
+    "When user says 'start working on this task'",
+    "When user reports 'I'm working on task X'",
+    "When moving task to in-progress",
+    "When canceling a task",
+  ],
+  exampleCalls: [
+    'update_task_status({"task_id": "123...", "status": "in_progress"})',
+    'update_task_status({"task_id": "123...", "status": "done", "completion_notes": "Finished successfully"})',
+    'update_task_status({"task_id": "123...", "status": "canceled"})',
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      task_id: {
+        type: "string",
+        description: "UUID of task to update",
+      },
+      status: {
+        type: "string",
+        description: "New task status",
+        enum: ["todo", "in_progress", "done", "canceled"],
+      },
+      completion_notes: {
+        type: "string",
+        description: "Optional notes when marking as done",
+      },
+    },
+    required: ["task_id", "status"],
+    additionalProperties: false,
+  },
+  permissionLevel: "write",
+  creditCost: 0,
+  isIdempotent: true,
+  cacheable: false,
+  deprecated: false,
+  tags: ["tasks", "productivity", "status", "write"],
+};
+
+export const updateTaskStatusHandler: ToolHandler<UpdateTaskStatusParams> = async (
+  params,
+  context,
+) => {
+  const validated = UpdateTaskStatusParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  // Verify task exists
+  const task = await repo.getTask(validated.task_id, context.userId);
+  if (!task) {
+    throw new AppError(
+      `Task with ID ${validated.task_id} not found`,
+      "TASK_NOT_FOUND",
+      "validation",
+      true,
+      404,
+    );
+  }
+
+  // Build update data
+  const updateData: {
+    status: "todo" | "in_progress" | "done" | "canceled";
+    completedAt?: Date | null;
+    details?: unknown;
+  } = {
+    status: validated.status,
+  };
+
+  // Set completion timestamp when marking as done
+  if (validated.status === "done") {
+    updateData.completedAt = new Date();
+    if (validated.completion_notes) {
+      updateData.details = {
+        ...(typeof task.details === "object" && task.details !== null ? task.details : {}),
+        completionNotes: validated.completion_notes,
+      };
+    }
+  } else if (validated.status === "todo" || validated.status === "in_progress") {
+    // Clear completion timestamp if moving back to incomplete status
+    updateData.completedAt = null;
+  }
+
+  // Update the task
+  await repo.updateTask(validated.task_id, context.userId, updateData);
+
+  // Return updated task
+  return await repo.getTask(validated.task_id, context.userId);
+};
+
+// ============================================================================
+// TOOL: get_project
+// ============================================================================
+
+const GetProjectParamsSchema = z.object({
+  project_id: z.string().uuid(),
+});
+
+type GetProjectParams = z.infer<typeof GetProjectParamsSchema>;
+
+export const getProjectDefinition: ToolDefinition = {
+  name: "get_project",
+  category: "data_access",
+  version: "1.0.0",
+  description:
+    "Retrieve a specific project by ID with all project details including name, status, due date, zone assignment, and metadata.",
+  useCases: [
+    "When user asks 'show me project details'",
+    "When user wants to 'get information about project X'",
+    "When viewing project overview",
+    "When checking project status and progress",
+  ],
+  exampleCalls: [
+    'get_project({"project_id": "123..."})',
+    'get_project({"project_id": "456e789a-12b3-45c6-d789-012345678901"})',
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      project_id: {
+        type: "string",
+        description: "UUID of project to retrieve",
+      },
+    },
+    required: ["project_id"],
+    additionalProperties: false,
+  },
+  permissionLevel: "read",
+  creditCost: 0,
+  isIdempotent: true,
+  cacheable: true,
+  cacheTtlSeconds: 60,
+  deprecated: false,
+  tags: ["projects", "productivity", "read"],
+};
+
+export const getProjectHandler: ToolHandler<GetProjectParams> = async (params, context) => {
+  const validated = GetProjectParamsSchema.parse(params);
+  const db = await getDb();
+  const repo = createProductivityRepository(db);
+
+  const project = await repo.getProject(validated.project_id, context.userId);
+
+  if (!project) {
+    throw new AppError(
+      `Project with ID ${validated.project_id} not found`,
+      "PROJECT_NOT_FOUND",
+      "validation",
+      true,
+      404,
+    );
+  }
+
+  return project;
+};

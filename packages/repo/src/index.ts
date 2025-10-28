@@ -136,6 +136,15 @@ export type {
   AvailabilitySlot,
   SessionPrepData,
 } from "./calendar.repo";
+export { ComplianceRepository, createComplianceRepository } from "./compliance.repo";
+export type {
+  ClientConsent,
+  CreateClientConsent,
+  ConsentType,
+  ConsentStatusItem,
+  ConsentHistoryItem,
+  MissingConsentContact,
+} from "./compliance.repo";
 
 // Re-export database schema types for convenience
 export * from "@/server/db/schema";

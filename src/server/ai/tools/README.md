@@ -71,25 +71,40 @@ const response = await llm.chat({
 
 ## Available Tools
 
-**Status: 38/140 tools built** For complete tool catalog with credit costs, see `/docs/AI_TOOL_SYSTEM.md` Part 3.
+**Status: 83/140 tools built (59% complete)** For complete tool catalog with credit costs, see `/docs/AI_TOOL_SYSTEM.md` Part 3.
 
-### ✅ Built (38 tools - all creditCost: 0)
+### ✅ Built (83 tools across 11 domains)
 
-**Contact Management** (`implementations/contacts.ts`) - 5 tools
+**Contact Management** (`implementations/contacts.ts`) - 10 tools ✅ COMPLETE
 
 - `get_contact` - Get contact by ID
 - `search_contacts` - Search contacts
 - `list_contacts` - List with filters
 - `create_contact` - Create contact
 - `update_contact` - Update contact
+- `update_lifecycle_stage` - Move through lifecycle stages
+- `get_referral_sources` - List all referral sources
+- `add_contact_tag` - Add tag to contact
+- `remove_contact_tag` - Remove tag from contact
+- `get_contact_timeline` - Full interaction history
 
-**Task & Productivity** (`implementations/tasks.ts`) - 5 tools
+**Task & Productivity** (`implementations/tasks.ts`) - 15 tools ✅ COMPLETE
 
 - `get_today_tasks` - Today's tasks
 - `create_task` - Create task
 - `complete_task` - Mark done
 - `search_tasks` - Search tasks
 - `get_overdue_tasks` - Get overdue
+- `update_task` - Update task fields
+- `assign_task_to_zone` - Move task to zone
+- `create_subtask` - Add subtask
+- `update_task_status` - Update status
+- `get_project` - Get project by ID
+- `create_project` - Create new project
+- `list_projects` - List projects with filters
+- `assign_task_to_project` - Link task to project
+- `get_project_tasks` - Get all project tasks
+- `list_zones` - Get all available zones
 
 **Calendar & Scheduling** (`implementations/calendar.ts`) - 10 tools ✅ COMPLETE
 
@@ -131,17 +146,63 @@ const response = await llm.chat({
 - `summarize_notes` - Summarize multiple notes for contact
 - `rank_notes_by_relevance` - Sort notes by relevance to query
 
-### ⏳ Ready to Build (102+ tools across 7 domains)
+**Gmail Integration** (`implementations/gmail.ts`) - 12 tools ✅ COMPLETE
+
+- `get_email` - Get email by ID
+- `search_emails` - Search by sender, subject, date range
+- `list_email_threads` - Get conversation threads
+- `get_emails_by_contact` - All emails for specific contact
+- `group_emails_by_sender` - Group by sender for bulk actions
+- `group_emails_by_topic` - AI categorization by topic
+- `categorize_email` - Classify as marketing/wellness/business/other
+- `generate_marketing_digest` - Weekly marketing email summary (5 credits) 💰
+- `generate_wellness_digest` - Weekly wellness email summary (5 credits) 💰
+- `generate_business_digest` - Weekly business email summary (5 credits) 💰
+- `generate_general_digest` - Weekly general email summary (5 credits) 💰
+- `generate_weekly_digest_all` - Combined weekly digest (10 credits) 💰
+
+**Compliance & Consent** (`implementations/compliance.ts`) - 5 tools ✅ COMPLETE
+
+- `get_consent_status` - Check consent status for contact
+- `list_missing_consents` - Contacts missing required consents
+- `get_consent_history` - Full consent audit trail
+- `generate_consent_reminder` - Create task to get consent
+- `check_hipaa_compliance` - Verify HIPAA compliance for contact
+
+**Research & Knowledge** (`implementations/research.ts`) - 5 tools ✅ COMPLETE (ALL PAID)
+
+- `search_wellness_knowledge` - Search wellness knowledge base (5 credits) 💰
+- `get_protocol_suggestions` - Treatment protocol recommendations (10 credits) 💰
+- `search_medical_research` - Search medical databases (15 credits) 💰
+- `get_contraindications` - Check treatment contraindications (10 credits) 💰
+- `find_evidence_based_resources` - Research papers for condition (15 credits) 💰
+
+**Communication** (`implementations/communication.ts`) - 6 tools ✅ COMPLETE
+
+- `send_email` - Send email to contact (5 credits) 💰
+- `send_notification` - In-app notification (free)
+- `send_sms` - Send SMS message (5 credits) 💰
+- `schedule_reminder` - Schedule automated reminder (free)
+- `send_session_reminder` - Send pre-session reminder (free)
+- `create_email_template` - Generate email template with AI (5 credits) 💰
+
+**Chat & Semantic Search** (`implementations/semantic-search.ts`) - 8 tools ✅ COMPLETE
+
+- `search_conversation_history` - Search past chat messages
+- `get_thread_summary` - Summarize chat thread
+- `semantic_search_all` - Search across ALL content (contacts, notes, emails, tasks)
+- `find_similar_contacts` - Find contacts with similar patterns
+- `find_related_content` - Content related to current conversation
+- `generate_embeddings` - Create embeddings for content (5 credits) 💰
+- `update_embeddings` - Refresh outdated embeddings
+- `search_by_embedding` - Semantic similarity search
+
+### ⏳ Ready to Build (18 tools across 2 domains)
 
 See `/docs/AI_TOOL_SYSTEM.md` Part 3 for complete catalog including:
 
-- Gmail Integration (12 tools, 4 cost credits)
-- Compliance & Consent (5 tools)
-- Chat & Semantic Search (8 tools)
 - Analytics & Insights (10 tools, 3 cost credits)
-- Communication (6 tools, 3 cost credits)
-- Research & Knowledge (5 tools, all cost 5-15 credits)
-- Workflow Automation (8 tools)
+- Workflow Automation (8 tools, 1 costs credits)
 
 ## Creating a New Tool
 

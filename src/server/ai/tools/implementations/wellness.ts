@@ -167,6 +167,22 @@ interface MoodDataPoint {
   energyLevel: number | null;
 }
 
+type MoodTrend = "improving" | "stable" | "declining" | "insufficient_data";
+
+interface MoodTrendsResult {
+  totalLogs: number;
+  averageEnergyLevel: number | null;
+  moodFrequency: Record<string, number>;
+  mostCommonMood: string | null;
+  trend: MoodTrend;
+  energyTrend: MoodTrend;
+  dataPoints: MoodDataPoint[];
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+}
+
 export const getMoodTrendsDefinition: ToolDefinition = {
   name: "get_mood_trends",
   category: "analytics",
@@ -212,7 +228,10 @@ export const getMoodTrendsDefinition: ToolDefinition = {
   deprecated: false,
 };
 
-export const getMoodTrendsHandler: ToolHandler<GetMoodTrendsParams> = async (params, context) => {
+export const getMoodTrendsHandler: ToolHandler<
+  GetMoodTrendsParams,
+  MoodTrendsResult
+> = async (params, context) => {
   const validated = GetMoodTrendsParamsSchema.parse(params);
   const db = await getDb();
   const repo = createProductivityRepository(db);
@@ -229,9 +248,14 @@ export const getMoodTrendsHandler: ToolHandler<GetMoodTrendsParams> = async (par
         totalLogs: 0,
         averageEnergyLevel: null,
         moodFrequency: {},
+        mostCommonMood: null,
         trend: "insufficient_data",
         energyTrend: "insufficient_data",
         dataPoints: [],
+        dateRange: {
+          start: validated.start_date,
+          end: validated.end_date,
+        },
       };
     }
 
@@ -390,6 +414,15 @@ interface HabitCorrelation {
   insight: string;
 }
 
+interface CorrelateMoodHabitsResult {
+  correlations: HabitCorrelation[];
+  summary: string;
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+}
+
 export const correlateMoodHabitsDefinition: ToolDefinition = {
   name: "correlate_mood_habits",
   category: "analytics",
@@ -435,7 +468,10 @@ export const correlateMoodHabitsDefinition: ToolDefinition = {
   deprecated: false,
 };
 
-export const correlateMoodHabitsHandler: ToolHandler<CorrelateMoodHabitsParams> = async (
+export const correlateMoodHabitsHandler: ToolHandler<
+  CorrelateMoodHabitsParams,
+  CorrelateMoodHabitsResult
+> = async (
   params,
   context,
 ) => {
@@ -610,6 +646,59 @@ const GetWellnessScoreParamsSchema = z.object({
 
 type GetWellnessScoreParams = z.infer<typeof GetWellnessScoreParamsSchema>;
 
+interface WellnessScorePeriodBreakdown {
+  start: string;
+  end: string;
+}
+
+interface MoodScoreBreakdown {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  factors: {
+    consistency: number;
+    daysTracked: number;
+  };
+}
+
+interface HabitScoreBreakdown {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  factors: {
+    completionRate: number;
+    longestStreak: number;
+    activeHabits: number;
+  };
+}
+
+interface EngagementScoreBreakdown {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  factors: {
+    daysActive: number;
+    daysInPeriod: number;
+  };
+}
+
+interface WellnessScoreBreakdown {
+  moodScore: MoodScoreBreakdown;
+  habitScore: HabitScoreBreakdown;
+  engagementScore: EngagementScoreBreakdown;
+}
+
+type WellnessAssessment = "Excellent" | "Good" | "Fair" | "Needs Attention";
+
+interface GetWellnessScoreResult {
+  totalScore: number;
+  assessment: WellnessAssessment;
+  period: GetWellnessScoreParams["period"];
+  breakdown: WellnessScoreBreakdown;
+  dateRange: WellnessScorePeriodBreakdown;
+  recommendations: string[];
+}
+
 export const getWellnessScoreDefinition: ToolDefinition = {
   name: "get_wellness_score",
   category: "analytics",
@@ -647,7 +736,10 @@ export const getWellnessScoreDefinition: ToolDefinition = {
   deprecated: false,
 };
 
-export const getWellnessScoreHandler: ToolHandler<GetWellnessScoreParams> = async (
+export const getWellnessScoreHandler: ToolHandler<
+  GetWellnessScoreParams,
+  GetWellnessScoreResult
+> = async (
   params,
   context,
 ) => {
@@ -741,7 +833,7 @@ export const getWellnessScoreHandler: ToolHandler<GetWellnessScoreParams> = asyn
     const totalScore = Math.min(moodScore + habitScore + engagementScore, 100);
 
     // Determine overall assessment
-    let assessment: string;
+    let assessment: WellnessAssessment;
     if (totalScore >= 80) {
       assessment = "Excellent";
     } else if (totalScore >= 60) {
